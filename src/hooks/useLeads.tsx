@@ -75,10 +75,11 @@ export function useLeads() {
 
       if (leadError) throw leadError;
 
-      // Automatically create corresponding client
+      // Automatically create corresponding client with the same ID
       const { error: clientError } = await supabase
         .from('clientes')
         .insert({
+          id: leadResult.id, // Use the same ID as the lead
           nome: leadData.nome!,
           telefone: leadData.telefone!,
           email: leadData.email || '',
