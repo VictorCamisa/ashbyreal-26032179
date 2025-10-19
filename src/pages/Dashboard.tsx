@@ -1,141 +1,107 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, Users, Target, Package, MessageSquare } from 'lucide-react';
+import { useDashboard } from '@/hooks/useDashboard';
+import { DashboardKPIs } from '@/components/dashboard/DashboardKPIs';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
+import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
+import { TrendingUp, AlertTriangle, Target, ShoppingCart } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
-  const kpis = [
-    {
-      title: 'Vendas do Mês',
-      value: 'R$ 127.500',
-      icon: TrendingUp,
-      change: '+12.5%',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Clientes Ativos',
-      value: '342',
-      icon: Users,
-      change: '+8.2%',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Leads Ativos',
-      value: '89',
-      icon: Target,
-      change: '+15.3%',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Itens em Estoque',
-      value: '1.234',
-      icon: Package,
-      change: '-3.1%',
-      changeType: 'negative' as const
-    },
-    {
-      title: 'Engajamento',
-      value: '68%',
-      icon: MessageSquare,
-      change: '+5.4%',
-      changeType: 'positive' as const
-    }
-  ];
+  const [mesReferencia, setMesReferencia] = useState(new Date());
+  const {
+    dashboardData,
+    vendasPorDia,
+    produtosMaisVendidos,
+    leadsPorOrigem,
+    isLoading,
+  } = useDashboard(mesReferencia);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">Centro de Inteligência Ashby</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">Centro de Inteligência Ashby</p>
+        </div>
+        <DashboardFilters mesReferencia={mesReferencia} onMesChange={setMesReferencia} />
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {kpi.title}
-              </CardTitle>
-              <kpi.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
-              <p className={`text-xs ${
-                kpi.changeType === 'positive' ? 'text-green-500' : 'text-red-500'
-              }`}>
-                {kpi.change} vs mês anterior
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <DashboardKPIs data={dashboardData} isLoading={isLoading} />
 
-      {/* Gráficos e Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Evolução de Vendas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              Gráfico de vendas (em desenvolvimento)
-            </div>
-          </CardContent>
-        </Card>
+      {/* Gráficos */}
+      <DashboardCharts
+        vendasPorDia={vendasPorDia}
+        produtosMaisVendidos={produtosMaisVendidos}
+        leadsPorOrigem={leadsPorOrigem}
+        isLoading={isLoading}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Crescimento de Clientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              Gráfico de clientes (em desenvolvimento)
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Origem dos Leads</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              Gráfico de origem (em desenvolvimento)
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Produtos Mais Vendidos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              Gráfico de produtos (em desenvolvimento)
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Insights */}
+      {/* Insights Automáticos */}
       <Card>
         <CardHeader>
           <CardTitle>Insights Automáticos</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              📊 Suas vendas cresceram 12.5% este mês comparado ao anterior
-            </p>
-            <p className="text-sm text-muted-foreground">
-              🎯 89 leads ativos aguardando qualificação
-            </p>
-            <p className="text-sm text-muted-foreground">
-              ⚠️ 3 produtos com estoque baixo requerem atenção
-            </p>
-            <p className="text-sm text-muted-foreground">
-              💬 Taxa de engajamento no WhatsApp está acima da média
-            </p>
-          </div>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+          ) : dashboardData ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
+                <TrendingUp className="h-5 w-5 text-green-500 mt-0.5" />
+                <div>
+                  <p className="font-medium">Crescimento de Vendas</p>
+                  <p className="text-sm text-muted-foreground">
+                    {dashboardData.vendas.crescimento >= 0
+                      ? `Suas vendas cresceram ${dashboardData.vendas.crescimento.toFixed(1)}% em relação ao mês anterior`
+                      : `Suas vendas tiveram uma queda de ${Math.abs(dashboardData.vendas.crescimento).toFixed(1)}% em relação ao mês anterior`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
+                <Target className="h-5 w-5 text-blue-500 mt-0.5" />
+                <div>
+                  <p className="font-medium">Conversão de Leads</p>
+                  <p className="text-sm text-muted-foreground">
+                    Taxa de conversão de {dashboardData.leads.conversao.toFixed(1)}% com {dashboardData.leads.total} leads ativos
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
+                <AlertTriangle
+                  className={`h-5 w-5 mt-0.5 ${
+                    dashboardData.estoque.alertas > 0 ? 'text-orange-500' : 'text-green-500'
+                  }`}
+                />
+                <div>
+                  <p className="font-medium">Status do Estoque</p>
+                  <p className="text-sm text-muted-foreground">
+                    {dashboardData.estoque.alertas > 0
+                      ? `${dashboardData.estoque.alertas} produtos com estoque baixo requerem atenção`
+                      : 'Todos os produtos estão com estoque adequado'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
+                <ShoppingCart className="h-5 w-5 text-purple-500 mt-0.5" />
+                <div>
+                  <p className="font-medium">Novos Clientes</p>
+                  <p className="text-sm text-muted-foreground">
+                    {dashboardData.clientes.novos} novos clientes cadastrados este mês
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
