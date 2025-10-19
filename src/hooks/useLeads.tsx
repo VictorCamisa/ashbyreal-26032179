@@ -56,7 +56,9 @@ export function useLeads() {
   const createLead = async (leadData: Partial<LeadInsert>) => {
     try {
       setIsCreating(true);
-      const { data, error } = await supabase
+      
+      // Create lead
+      const { data: leadResult, error: leadError } = await supabase
         .from('leads')
         .insert({
           nome: leadData.nome!,
@@ -71,15 +73,33 @@ export function useLeads() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (leadError) throw leadError;
+
+      // Automatically create corresponding client
+      const { error: clientError } = await supabase
+        .from('clientes')
+        .insert({
+          nome: leadData.nome!,
+          telefone: leadData.telefone!,
+          email: leadData.email || '',
+          origem: leadData.origem!,
+          status: 'lead',
+          ticket_medio: leadData.valor_estimado || 0,
+          observacoes: leadData.observacoes,
+        });
+
+      if (clientError) {
+        // If client creation fails, log it but don't throw
+        console.error('Failed to create client:', clientError);
+      }
 
       toast({
         title: 'Lead criado com sucesso!',
-        description: `${data.nome} foi adicionado ao pipeline.`,
+        description: `${leadResult.nome} foi adicionado ao pipeline e à base de clientes.`,
       });
 
       await fetchLeads();
-      return data;
+      return leadResult;
     } catch (error: any) {
       toast({
         variant: 'destructive',
