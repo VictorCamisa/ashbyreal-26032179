@@ -1,26 +1,94 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Phone, Mail, Building, MapPin, MessageSquare, ShoppingCart } from 'lucide-react';
-import { mockClientes } from '@/data/clientes.mock';
-import { mockLeads } from '@/data/leads.mock';
-import { mockPedidos } from '@/data/pedidos.mock';
+import { supabase } from '@/integrations/supabase/client';
+import type { Cliente } from '@/types/cliente';
 
 export default function ClienteDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Buscar cliente ou lead
-  const cliente = mockClientes.find(c => c.id === id);
-  const lead = mockLeads.find(l => l.id === id);
-  const data = cliente || lead;
+  useEffect(() => {
+    async function fetchCliente() {
+      if (!id) return;
+      
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
 
-  // Buscar pedidos do cliente
-  const pedidosCliente = mockPedidos.filter(p => p.clienteId === id);
+        if (error) throw error;
+        
+        if (data) {
+          // Transform database format to Cliente type
+          const clienteData: Cliente = {
+            id: data.id,
+            nome: data.nome,
+            email: data.email,
+            telefone: data.telefone,
+            empresa: data.empresa || undefined,
+            cpfCnpj: data.cpf_cnpj || undefined,
+            endereco: data.endereco as Cliente['endereco'] | undefined,
+            status: data.status as Cliente['status'],
+            origem: data.origem as Cliente['origem'],
+            ticketMedio: Number(data.ticket_medio) || 0,
+            dataCadastro: data.data_cadastro || data.created_at,
+            ultimoContato: data.ultimo_contato || undefined,
+            observacoes: data.observacoes || undefined,
+            avatar: data.avatar || undefined,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+          };
+          setCliente(clienteData);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar cliente:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
-  if (!data) {
+    fetchCliente();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div className="flex gap-4">
+                <Skeleton className="w-20 h-20 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-48" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-6 w-24" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!cliente) {
     return (
       <div className="space-y-6">
         <Button variant="ghost" onClick={() => navigate(-1)}>
@@ -45,27 +113,26 @@ export default function ClienteDetalhes() {
           <div className="flex items-start justify-between">
             <div className="flex gap-4">
               <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-2xl font-bold">
-                {data.nome.charAt(0)}
+                {cliente.nome.charAt(0)}
               </div>
               <div>
-                <CardTitle className="text-2xl">{data.nome}</CardTitle>
+                <CardTitle className="text-2xl">{cliente.nome}</CardTitle>
                 <div className="flex gap-2 mt-2">
                   <Badge className={
-                    'status' in data && data.status === 'ativo' ? 'bg-green-500' :
-                    'status' in data && data.status === 'inativo' ? 'bg-gray-500' :
+                    cliente.status === 'ativo' ? 'bg-green-500' :
+                    cliente.status === 'inativo' ? 'bg-gray-500' :
                     'bg-yellow-500'
                   }>
-                    {'status' in data ? data.status : lead?.status}
+                    {cliente.status}
                   </Badge>
-                  <Badge variant="outline">{data.origem}</Badge>
+                  <Badge variant="outline">{cliente.origem}</Badge>
                 </div>
               </div>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Ticket Médio</p>
               <p className="text-2xl font-bold text-secondary">
-                R$ {'ticketMedio' in data ? data.ticketMedio.toLocaleString() : 
-                    'valorEstimado' in data ? data.valorEstimado.toLocaleString() : '0'}
+                R$ {cliente.ticketMedio.toLocaleString('pt-BR')}
               </p>
             </div>
           </div>
@@ -77,7 +144,7 @@ export default function ClienteDetalhes() {
         <TabsList>
           <TabsTrigger value="info">Informações</TabsTrigger>
           <TabsTrigger value="interacoes">Interações</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos ({pedidosCliente.length})</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos (0)</TabsTrigger>
           <TabsTrigger value="observacoes">Observações</TabsTrigger>
         </TabsList>
 
@@ -92,32 +159,32 @@ export default function ClienteDetalhes() {
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Telefone</p>
-                    <p className="font-medium">{data.telefone}</p>
+                    <p className="font-medium">{cliente.telefone}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">E-mail</p>
-                    <p className="font-medium">{data.email || 'Não informado'}</p>
+                    <p className="font-medium">{cliente.email || 'Não informado'}</p>
                   </div>
                 </div>
-                {'empresa' in data && data.empresa && (
+                {cliente.empresa && (
                   <div className="flex items-center gap-2">
                     <Building className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Empresa</p>
-                      <p className="font-medium">{data.empresa}</p>
+                      <p className="font-medium">{cliente.empresa}</p>
                     </div>
                   </div>
                 )}
-                {'endereco' in data && data.endereco && (
+                {cliente.endereco && (
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Endereço</p>
                       <p className="font-medium">
-                        {data.endereco.cidade}, {data.endereco.estado}
+                        {cliente.endereco.cidade}, {cliente.endereco.estado}
                       </p>
                     </div>
                   </div>
@@ -154,30 +221,9 @@ export default function ClienteDetalhes() {
               </Button>
             </CardHeader>
             <CardContent>
-              {pedidosCliente.length > 0 ? (
-                <div className="space-y-4">
-                  {pedidosCliente.map(pedido => (
-                    <div key={pedido.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold">Pedido #{pedido.id}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
-                          </p>
-                        </div>
-                        <Badge>{pedido.status}</Badge>
-                      </div>
-                      <p className="text-lg font-bold text-secondary">
-                        R$ {pedido.valorTotal.toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  Nenhum pedido realizado
-                </p>
-              )}
+              <p className="text-muted-foreground text-center py-8">
+                Nenhum pedido realizado
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -189,7 +235,7 @@ export default function ClienteDetalhes() {
             </CardHeader>
             <CardContent>
               <p className="text-sm">
-                {('observacoes' in data && data.observacoes) || 'Nenhuma observação registrada'}
+                {cliente.observacoes || 'Nenhuma observação registrada'}
               </p>
             </CardContent>
           </Card>
