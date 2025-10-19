@@ -488,6 +488,54 @@ export type Database = {
         }
         Relationships: []
       }
+      tickets: {
+        Row: {
+          anexos: Json | null
+          assunto: string
+          created_at: string
+          data_abertura: string
+          descricao: string
+          id: string
+          prioridade: Database["public"]["Enums"]["prioridade_ticket"]
+          resolucao: string | null
+          responsavel: string | null
+          status: Database["public"]["Enums"]["status_ticket"]
+          ultima_atualizacao: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anexos?: Json | null
+          assunto: string
+          created_at?: string
+          data_abertura?: string
+          descricao: string
+          id?: string
+          prioridade?: Database["public"]["Enums"]["prioridade_ticket"]
+          resolucao?: string | null
+          responsavel?: string | null
+          status?: Database["public"]["Enums"]["status_ticket"]
+          ultima_atualizacao?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anexos?: Json | null
+          assunto?: string
+          created_at?: string
+          data_abertura?: string
+          descricao?: string
+          id?: string
+          prioridade?: Database["public"]["Enums"]["prioridade_ticket"]
+          resolucao?: string | null
+          responsavel?: string | null
+          status?: Database["public"]["Enums"]["status_ticket"]
+          ultima_atualizacao?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -496,7 +544,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      prioridade_ticket: "baixa" | "media" | "alta" | "urgente"
+      status_ticket: "aberto" | "em_andamento" | "resolvido" | "fechado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -623,6 +672,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      prioridade_ticket: ["baixa", "media", "alta", "urgente"],
+      status_ticket: ["aberto", "em_andamento", "resolvido", "fechado"],
+    },
   },
 } as const

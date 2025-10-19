@@ -20,9 +20,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Send } from 'lucide-react';
-import { mockTickets } from '@/data/suporte.mock';
-import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Send, Clock } from 'lucide-react';
+import { useTickets } from '@/hooks/useTickets';
 
 const prioridadeColors = {
   baixa: 'bg-blue-500',
@@ -39,29 +39,29 @@ const statusColors = {
 };
 
 export default function Suporte() {
-  const { toast } = useToast();
+  const { tickets, loading, createTicket } = useTickets();
   const [formData, setFormData] = useState({
-    nome: '',
-    email: '',
     assunto: '',
     descricao: '',
-    prioridade: 'media' as const
+    prioridade: 'media' as 'baixa' | 'media' | 'alta' | 'urgente'
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Ticket enviado:', formData);
-    toast({
-      title: 'Ticket enviado com sucesso!',
-      description: 'Nossa equipe entrará em contato em breve.',
+    
+    const result = await createTicket({
+      assunto: formData.assunto,
+      descricao: formData.descricao,
+      prioridade: formData.prioridade,
     });
-    setFormData({
-      nome: '',
-      email: '',
-      assunto: '',
-      descricao: '',
-      prioridade: 'media'
-    });
+
+    if (result.success) {
+      setFormData({
+        assunto: '',
+        descricao: '',
+        prioridade: 'media'
+      });
+    }
   };
 
   return (
@@ -75,37 +75,17 @@ export default function Suporte() {
         {/* Formulário */}
         <Card>
           <CardHeader>
-            <CardTitle>Abrir Novo Ticket</CardTitle>
+            <CardTitle>Abrir Novo Chamado</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="nome">Nome *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({...formData, nome: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="email">E-mail *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  required
-                />
-              </div>
-
               <div>
                 <Label htmlFor="assunto">Assunto *</Label>
                 <Input
                   id="assunto"
                   value={formData.assunto}
                   onChange={(e) => setFormData({...formData, assunto: e.target.value})}
+                  placeholder="Ex: Erro ao processar pagamento"
                   required
                 />
               </div>
@@ -134,92 +114,127 @@ export default function Suporte() {
                   id="descricao"
                   value={formData.descricao}
                   onChange={(e) => setFormData({...formData, descricao: e.target.value})}
-                  rows={5}
+                  rows={6}
+                  placeholder="Descreva detalhadamente o problema que você está enfrentando..."
                   required
                 />
               </div>
 
               <Button type="submit" className="w-full">
                 <Send className="h-4 w-4 mr-2" />
-                Enviar Solicitação
+                Enviar Chamado
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Lista de Tickets */}
+        {/* Chamados Recentes */}
         <Card>
           <CardHeader>
-            <CardTitle>Tickets Recentes</CardTitle>
+            <CardTitle>Chamados Recentes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {mockTickets.map((ticket) => (
-                <div key={ticket.id} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold">{ticket.assunto}</p>
-                      <p className="text-sm text-muted-foreground">{ticket.nome}</p>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-24 w-full" />
+                ))}
+              </div>
+            ) : tickets.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Nenhum chamado encontrado</p>
+                <p className="text-sm">Abra seu primeiro chamado usando o formulário ao lado</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tickets.slice(0, 5).map((ticket) => (
+                  <div key={ticket.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">{ticket.assunto}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {ticket.descricao}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Badge className={prioridadeColors[ticket.prioridade]}>
+                          {ticket.prioridade}
+                        </Badge>
+                        <Badge className={statusColors[ticket.status]}>
+                          {ticket.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Badge className={prioridadeColors[ticket.prioridade]}>
-                        {ticket.prioridade}
-                      </Badge>
-                      <Badge className={statusColors[ticket.status]}>
-                        {ticket.status.replace('_', ' ')}
-                      </Badge>
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Aberto em: {new Date(ticket.data_abertura).toLocaleString('pt-BR')}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Aberto em: {new Date(ticket.dataAbertura).toLocaleString('pt-BR')}
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabela Completa */}
+      {/* Histórico Completo */}
       <Card>
         <CardHeader>
-          <CardTitle>Todos os Tickets</CardTitle>
+          <CardTitle>Histórico de Chamados</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Assunto</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Data Abertura</TableHead>
-                <TableHead>Responsável</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockTickets.map((ticket) => (
-                <TableRow key={ticket.id}>
-                  <TableCell className="font-mono">#{ticket.id}</TableCell>
-                  <TableCell className="font-medium">{ticket.assunto}</TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[ticket.status]}>
-                      {ticket.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={prioridadeColors[ticket.prioridade]}>
-                      {ticket.prioridade}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(ticket.dataAbertura).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>{ticket.responsavel || '-'}</TableCell>
-                </TableRow>
+          {loading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-16 w-full" />
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Clock className="h-16 w-16 mx-auto mb-3 opacity-50" />
+              <p className="text-lg font-medium">Nenhum histórico disponível</p>
+              <p className="text-sm">Seus chamados aparecerão aqui</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Assunto</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Prioridade</TableHead>
+                  <TableHead>Data Abertura</TableHead>
+                  <TableHead>Última Atualização</TableHead>
+                  <TableHead>Responsável</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tickets.map((ticket) => (
+                  <TableRow key={ticket.id}>
+                    <TableCell className="font-medium max-w-xs truncate">
+                      {ticket.assunto}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[ticket.status]}>
+                        {ticket.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={prioridadeColors[ticket.prioridade]}>
+                        {ticket.prioridade}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {new Date(ticket.data_abertura).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {new Date(ticket.ultima_atualizacao).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell className="text-sm">{ticket.responsavel || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
