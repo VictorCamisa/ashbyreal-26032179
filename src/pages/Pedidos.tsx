@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -7,11 +7,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search } from 'lucide-react';
-import { mockPedidos } from '@/data/pedidos.mock';
+import { Search } from 'lucide-react';
+import { usePedidos } from '@/hooks/usePedidos';
+import { NovoPedidoGeralDialog } from '@/components/pedidos/NovoPedidoGeralDialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
 
 const statusColors = {
   pendente: 'bg-yellow-500',
@@ -22,10 +24,27 @@ const statusColors = {
 
 export default function Pedidos() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
+  const { pedidos, isLoading, refetch } = usePedidos();
 
-  const filteredPedidos = mockPedidos.filter(pedido =>
-    pedido.nomeCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pedido.id.includes(searchTerm)
+  useEffect(() => {
+    fetchClientes();
+  }, []);
+
+  const fetchClientes = async () => {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nome');
+    
+    if (data) {
+      const map: Record<string, string> = {};
+      data.forEach(c => map[c.id] = c.nome);
+      setClientesMap(map);
+    }
+  };
+
+  const filteredPedidos = pedidos.filter(pedido =>
+    (clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
   );
 
   return (
@@ -35,10 +54,7 @@ export default function Pedidos() {
           <h1 className="text-3xl font-bold">Pedidos</h1>
           <p className="text-muted-foreground">Gestão de Vendas Manuais</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Pedido
-        </Button>
+        <NovoPedidoGeralDialog onSuccess={refetch} />
       </div>
 
       <div className="flex gap-4">
@@ -53,54 +69,64 @@ export default function Pedidos() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pedido</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Itens</TableHead>
-              <TableHead>Valor Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Pagamento</TableHead>
-              <TableHead>Data</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredPedidos.map((pedido) => (
-              <TableRow key={pedido.id}>
-                <TableCell className="font-medium">#{pedido.id}</TableCell>
-                <TableCell>{pedido.nomeCliente}</TableCell>
-                <TableCell>{pedido.items.length} item(s)</TableCell>
-                <TableCell className="font-bold text-secondary">
-                  R$ {pedido.valorTotal.toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2
-                  })}
-                </TableCell>
-                <TableCell>
-                  <Badge className={statusColors[pedido.status]}>
-                    {pedido.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {pedido.metodoPagamento ? (
-                    <Badge variant="outline">{pedido.metodoPagamento}</Badge>
-                  ) : '-'}
-                </TableCell>
-                <TableCell>
-                  {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
-                </TableCell>
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : (
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Pedido</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Valor Total</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Data</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {filteredPedidos.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    Nenhum pedido encontrado
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPedidos.map((pedido) => (
+                  <TableRow key={pedido.id}>
+                    <TableCell className="font-medium">#{pedido.id.slice(0, 8)}</TableCell>
+                    <TableCell>{clientesMap[pedido.clienteId] || 'Cliente não encontrado'}</TableCell>
+                    <TableCell className="font-bold">
+                      R$ {pedido.valorTotal.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={statusColors[pedido.status as keyof typeof statusColors] || 'bg-gray-500'}>
+                        {pedido.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <p>Mostrando {filteredPedidos.length} de {mockPedidos.length} pedidos</p>
+        <p>Mostrando {filteredPedidos.length} de {pedidos.length} pedidos</p>
         <div className="flex gap-4">
-          <span>Total: <strong className="text-secondary">
-            R$ {mockPedidos.reduce((acc, p) => acc + p.valorTotal, 0).toLocaleString('pt-BR')}
+          <span>Total: <strong>
+            R$ {pedidos.reduce((acc, p) => acc + p.valorTotal, 0).toLocaleString('pt-BR', {
+              minimumFractionDigits: 2
+            })}
           </strong></span>
         </div>
       </div>
