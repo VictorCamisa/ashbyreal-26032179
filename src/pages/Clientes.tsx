@@ -22,12 +22,6 @@ const statusColors = {
   lead: 'bg-yellow-500'
 };
 
-const statusLabels = {
-  ativo: 'Ativo',
-  inativo: 'Inativo',
-  lead: 'Lead'
-};
-
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
@@ -44,7 +38,7 @@ export default function Clientes() {
     ativos: clientes.filter(c => c.status === 'ativo').length,
     leads: clientes.filter(c => c.status === 'lead').length,
     ticketMedio: clientes.length > 0 
-      ? clientes.reduce((acc, c) => acc + c.ticketMedio, 0) / clientes.length 
+      ? clientes.reduce((acc, c) => acc + (c.ticketMedio || 0), 0) / clientes.length 
       : 0,
   };
 
@@ -58,8 +52,7 @@ export default function Clientes() {
         <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
@@ -100,7 +93,6 @@ export default function Clientes() {
         </Card>
       </div>
 
-      {/* Search */}
       <div className="flex gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -113,30 +105,25 @@ export default function Clientes() {
         </div>
       </div>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex gap-4">
-                  <Skeleton className="h-12 flex-1" />
-                  <Skeleton className="h-12 w-32" />
-                  <Skeleton className="h-12 w-24" />
-                </div>
-              ))}
+            <div className="p-8 space-y-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Empresa</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>E-mail</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Ticket Médio</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Origem</TableHead>
-                  <TableHead>Ticket Médio</TableHead>
                   <TableHead>Data Cadastro</TableHead>
                 </TableRow>
               </TableHeader>
@@ -145,8 +132,9 @@ export default function Clientes() {
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       {searchTerm 
-                        ? 'Nenhum cliente encontrado com os critérios de busca.' 
-                        : 'Nenhum cliente cadastrado ainda. Clique em "Novo Cliente" para adicionar.'}
+                        ? 'Nenhum cliente encontrado com os critérios de busca.'
+                        : 'Nenhum cliente cadastrado ainda. Adicione o primeiro cliente!'
+                      }
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -157,20 +145,23 @@ export default function Clientes() {
                       onClick={() => navigate(`/cliente/${cliente.id}`)}
                     >
                       <TableCell className="font-medium">{cliente.nome}</TableCell>
-                      <TableCell>{cliente.empresa || '-'}</TableCell>
                       <TableCell>{cliente.telefone}</TableCell>
                       <TableCell>{cliente.email}</TableCell>
+                      <TableCell>{cliente.empresa || '-'}</TableCell>
                       <TableCell>
-                        <Badge className={statusColors[cliente.status]}>
-                          {statusLabels[cliente.status]}
+                        R$ {(cliente.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[cliente.status as keyof typeof statusColors]}>
+                          {cliente.status}
                         </Badge>
                       </TableCell>
                       <TableCell>{cliente.origem}</TableCell>
                       <TableCell>
-                        R$ {cliente.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')}
+                        {cliente.dataCadastro 
+                          ? new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')
+                          : '-'
+                        }
                       </TableCell>
                     </TableRow>
                   ))

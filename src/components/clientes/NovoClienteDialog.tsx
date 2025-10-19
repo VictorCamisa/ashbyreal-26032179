@@ -65,9 +65,14 @@ export function NovoClienteDialog({ onSubmit, isCreating }: NovoClienteDialogPro
 
   const handleSubmit = (data: ClienteFormData) => {
     onSubmit({
-      ...data,
-      ticketMedio: 0,
-      dataCadastro: new Date().toISOString(),
+      nome: data.nome,
+      email: data.email,
+      telefone: data.telefone,
+      empresa: data.empresa,
+      status: data.status,
+      origem: data.origem,
+      observacoes: data.observacoes,
+      ticket_medio: 0,
     });
     form.reset();
     setOpen(false);
