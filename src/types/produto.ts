@@ -34,3 +34,30 @@ export interface MovimentacaoEstoque {
 }
 
 export type StatusEstoque = 'disponivel' | 'baixo' | 'esgotado';
+
+export interface ProdutoDB {
+  id: string;
+  nome: string;
+  descricao?: string;
+  preco: number;
+  estoque: number;
+  categoria?: string;
+  sku?: string;
+  ativo: boolean;
+  imagemUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PedidoItem {
+  id: string;
+  pedidoId: string;
+  produtoId: string;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
+  observacoes?: string;
+  produto?: ProdutoDB;
+  createdAt: string;
+  updatedAt: string;
+}
