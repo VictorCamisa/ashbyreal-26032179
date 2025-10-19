@@ -8,6 +8,9 @@ import { PipelineColumn } from '@/types/lead';
 import { useLeads } from '@/hooks/useLeads';
 import { NovoLeadDialog } from '@/components/crm/NovoLeadDialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import type { Lead } from '@/types/lead';
 
 const pipelineColumns: PipelineColumn[] = [
   { id: 'novo_lead', title: 'Novo Lead', color: 'bg-blue-500' },
@@ -26,10 +29,68 @@ const origemColors: Record<string, string> = {
   Outros: 'bg-gray-500'
 };
 
+function DraggableLeadCard({ lead, navigate }: { lead: Lead; navigate: (path: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: lead.id,
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="cursor-grab active:cursor-grabbing hover:border-primary transition-colors"
+      onClick={() => navigate(`/cliente/${lead.id}`)}
+    >
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-medium">{lead.nome}</CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-2">
+        <p className="text-xs text-muted-foreground">{lead.telefone}</p>
+        <div className="flex items-center justify-between">
+          <Badge className={`${origemColors[lead.origem]} text-xs`}>
+            {lead.origem}
+          </Badge>
+          <span className="text-xs font-semibold">
+            R$ {lead.valorEstimado.toLocaleString('pt-BR')}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {new Date(lead.dataCriacao).toLocaleDateString('pt-BR')}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DroppableColumn({ column, children }: { column: PipelineColumn; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      className={`space-y-2 min-h-[200px] p-2 rounded-lg transition-colors ${
+        isOver ? 'bg-accent/50' : ''
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function CRM() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const navigate = useNavigate();
-  const { leads, isLoading, createLead, isCreating } = useLeads();
+  const { leads, isLoading, createLead, isCreating, updateLeadStatus } = useLeads();
 
   const filteredLeads = leads.filter(lead =>
     lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,6 +108,21 @@ export default function CRM() {
     valorTotal: leads
       .filter(l => l.status === 'fechado')
       .reduce((acc, l) => acc + l.valorEstimado, 0),
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) {
+      setActiveLead(null);
+      return;
+    }
+
+    const leadId = active.id as string;
+    const newStatus = over.id as string;
+
+    await updateLeadStatus(leadId, newStatus);
+    setActiveLead(null);
   };
 
   return (
@@ -123,57 +199,41 @@ export default function CRM() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {pipelineColumns.map((column) => {
-            const columnLeads = getLeadsByStatus(column.id);
-            return (
-              <div key={column.id} className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                  <h3 className="font-semibold text-sm">{column.title}</h3>
-                  <Badge variant="secondary" className="ml-auto">
-                    {columnLeads.length}
-                  </Badge>
-                </div>
-                <div className="space-y-2 min-h-[200px]">
-                  {columnLeads.length === 0 ? (
-                    <Card className="p-4">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Nenhum lead
-                      </p>
-                    </Card>
-                  ) : (
-                    columnLeads.map((lead) => (
-                      <Card 
-                        key={lead.id} 
-                        className="cursor-pointer hover:border-primary transition-colors"
-                        onClick={() => navigate(`/cliente/${lead.id}`)}
-                      >
-                        <CardHeader className="p-4 pb-2">
-                          <CardTitle className="text-sm font-medium">{lead.nome}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0 space-y-2">
-                          <p className="text-xs text-muted-foreground">{lead.telefone}</p>
-                          <div className="flex items-center justify-between">
-                            <Badge className={`${origemColors[lead.origem]} text-xs`}>
-                              {lead.origem}
-                            </Badge>
-                            <span className="text-xs font-semibold">
-                              R$ {lead.valorEstimado.toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(lead.dataCriacao).toLocaleDateString('pt-BR')}
-                          </p>
-                        </CardContent>
+        <DndContext onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {pipelineColumns.map((column) => {
+              const columnLeads = getLeadsByStatus(column.id);
+              return (
+                <div key={column.id} className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${column.color}`} />
+                    <h3 className="font-semibold text-sm">{column.title}</h3>
+                    <Badge variant="secondary" className="ml-auto">
+                      {columnLeads.length}
+                    </Badge>
+                  </div>
+                  <DroppableColumn column={column}>
+                    {columnLeads.length === 0 ? (
+                      <Card className="p-4">
+                        <p className="text-sm text-muted-foreground text-center">
+                          Nenhum lead
+                        </p>
                       </Card>
-                    ))
-                  )}
+                    ) : (
+                      columnLeads.map((lead) => (
+                        <DraggableLeadCard 
+                          key={lead.id}
+                          lead={lead}
+                          navigate={navigate}
+                        />
+                      ))
+                    )}
+                  </DroppableColumn>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </DndContext>
       )}
     </div>
   );
