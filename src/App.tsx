@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Layout } from "./components/layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
@@ -23,20 +24,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/crm" element={<CRM />} />
-            <Route path="/clientes" element={<Clientes />} />
-            <Route path="/cliente/:id" element={<ClienteDetalhes />} />
-            <Route path="/pedidos" element={<Pedidos />} />
-            <Route path="/estoque" element={<Estoque />} />
-            <Route path="/whatsapp" element={<WhatsApp />} />
-            <Route path="/suporte" element={<Suporte />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SidebarProvider defaultOpen={true}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/crm" element={<CRM />} />
+              <Route path="/clientes" element={<Clientes />} />
+              <Route path="/cliente/:id" element={<ClienteDetalhes />} />
+              <Route path="/pedidos" element={<Pedidos />} />
+              <Route path="/estoque" element={<Estoque />} />
+              <Route path="/whatsapp" element={<WhatsApp />} />
+              <Route path="/suporte" element={<Suporte />} />
+              <Route path="/configuracoes" element={<Configuracoes />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SidebarProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
