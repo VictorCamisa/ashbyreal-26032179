@@ -3,7 +3,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { Layout } from "./components/layout/Layout";
+import Dashboard from "./pages/Dashboard";
+import CRM from "./pages/CRM";
+import Clientes from "./pages/Clientes";
+import ClienteDetalhes from "./pages/ClienteDetalhes";
+import Pedidos from "./pages/Pedidos";
+import Estoque from "./pages/Estoque";
+import WhatsApp from "./pages/WhatsApp";
+import Suporte from "./pages/Suporte";
+import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -15,8 +24,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/crm" element={<CRM />} />
+            <Route path="/clientes" element={<Clientes />} />
+            <Route path="/cliente/:id" element={<ClienteDetalhes />} />
+            <Route path="/pedidos" element={<Pedidos />} />
+            <Route path="/estoque" element={<Estoque />} />
+            <Route path="/whatsapp" element={<WhatsApp />} />
+            <Route path="/suporte" element={<Suporte />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
