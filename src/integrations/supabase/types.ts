@@ -253,6 +253,53 @@ export type Database = {
           },
         ]
       }
+      pedidos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          data_entrega: string | null
+          data_pedido: string
+          id: string
+          numero_pedido: string
+          observacoes: string | null
+          status: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          data_entrega?: string | null
+          data_pedido?: string
+          id?: string
+          numero_pedido: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          data_entrega?: string | null
+          data_pedido?: string
+          id?: string
+          numero_pedido?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

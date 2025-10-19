@@ -5,60 +5,105 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Phone, Mail, Building, MapPin, MessageSquare, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Building, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Cliente } from '@/types/cliente';
+import type { Interacao } from '@/types/cliente';
+import { NovaInteracaoDialog } from '@/components/clientes/NovaInteracaoDialog';
+import { NovoPedidoDialog } from '@/components/clientes/NovoPedidoDialog';
+
+interface Pedido {
+  id: string;
+  numero_pedido: string;
+  status: string;
+  valor_total: number;
+  data_pedido: string;
+  data_entrega: string | null;
+  observacoes: string | null;
+}
 
 export default function ClienteDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [interacoes, setInteracoes] = useState<Interacao[]>([]);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchCliente() {
-      if (!id) return;
+  const fetchData = async () => {
+    if (!id) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch cliente
+      const { data: clienteData, error: clienteError } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (clienteError) throw clienteError;
       
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('clientes')
+      if (clienteData) {
+        const cliente: Cliente = {
+          id: clienteData.id,
+          nome: clienteData.nome,
+          email: clienteData.email,
+          telefone: clienteData.telefone,
+          empresa: clienteData.empresa || undefined,
+          cpfCnpj: clienteData.cpf_cnpj || undefined,
+          endereco: clienteData.endereco as Cliente['endereco'] | undefined,
+          status: clienteData.status as Cliente['status'],
+          origem: clienteData.origem as Cliente['origem'],
+          ticketMedio: Number(clienteData.ticket_medio) || 0,
+          dataCadastro: clienteData.data_cadastro || clienteData.created_at,
+          ultimoContato: clienteData.ultimo_contato || undefined,
+          observacoes: clienteData.observacoes || undefined,
+          avatar: clienteData.avatar || undefined,
+          createdAt: clienteData.created_at,
+          updatedAt: clienteData.updated_at
+        };
+        setCliente(cliente);
+
+        // Fetch interacoes
+        const { data: interacoesData, error: interacoesError } = await supabase
+          .from('interacoes')
           .select('*')
-          .eq('id', id)
-          .maybeSingle();
+          .eq('cliente_id', id)
+          .order('data', { ascending: false });
 
-        if (error) throw error;
+        if (interacoesError) throw interacoesError;
         
-        if (data) {
-          // Transform database format to Cliente type
-          const clienteData: Cliente = {
-            id: data.id,
-            nome: data.nome,
-            email: data.email,
-            telefone: data.telefone,
-            empresa: data.empresa || undefined,
-            cpfCnpj: data.cpf_cnpj || undefined,
-            endereco: data.endereco as Cliente['endereco'] | undefined,
-            status: data.status as Cliente['status'],
-            origem: data.origem as Cliente['origem'],
-            ticketMedio: Number(data.ticket_medio) || 0,
-            dataCadastro: data.data_cadastro || data.created_at,
-            ultimoContato: data.ultimo_contato || undefined,
-            observacoes: data.observacoes || undefined,
-            avatar: data.avatar || undefined,
-            createdAt: data.created_at,
-            updatedAt: data.updated_at
-          };
-          setCliente(clienteData);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar cliente:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+        const interacoes: Interacao[] = (interacoesData || []).map(i => ({
+          id: i.id,
+          clienteId: i.cliente_id,
+          tipo: i.tipo as Interacao['tipo'],
+          descricao: i.descricao,
+          data: i.data,
+          responsavel: i.responsavel,
+          createdAt: i.created_at
+        }));
+        setInteracoes(interacoes);
 
-    fetchCliente();
+        // Fetch pedidos
+        const { data: pedidosData, error: pedidosError } = await supabase
+          .from('pedidos')
+          .select('*')
+          .eq('cliente_id', id)
+          .order('data_pedido', { ascending: false });
+
+        if (pedidosError) throw pedidosError;
+        setPedidos(pedidosData || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, [id]);
 
   if (isLoading) {
@@ -143,8 +188,8 @@ export default function ClienteDetalhes() {
       <Tabs defaultValue="info" className="space-y-4">
         <TabsList>
           <TabsTrigger value="info">Informações</TabsTrigger>
-          <TabsTrigger value="interacoes">Interações</TabsTrigger>
-          <TabsTrigger value="pedidos">Pedidos (0)</TabsTrigger>
+          <TabsTrigger value="interacoes">Interações ({interacoes.length})</TabsTrigger>
+          <TabsTrigger value="pedidos">Pedidos ({pedidos.length})</TabsTrigger>
           <TabsTrigger value="observacoes">Observações</TabsTrigger>
         </TabsList>
 
@@ -198,15 +243,35 @@ export default function ClienteDetalhes() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Histórico de Interações</CardTitle>
-              <Button size="sm">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Nova Interação
-              </Button>
+              <NovaInteracaoDialog clienteId={id!} onSuccess={fetchData} />
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Nenhuma interação registrada
-              </p>
+              {interacoes.length > 0 ? (
+                <div className="space-y-4">
+                  {interacoes.map((interacao) => (
+                    <div key={interacao.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <Badge variant="outline" className="mb-2">
+                            {interacao.tipo}
+                          </Badge>
+                          <p className="text-sm font-medium">{interacao.descricao}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(interacao.data).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Responsável: {interacao.responsavel}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhuma interação registrada
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -215,15 +280,43 @@ export default function ClienteDetalhes() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Histórico de Pedidos</CardTitle>
-              <Button size="sm">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Novo Pedido
-              </Button>
+              <NovoPedidoDialog clienteId={id!} onSuccess={fetchData} />
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Nenhum pedido realizado
-              </p>
+              {pedidos.length > 0 ? (
+                <div className="space-y-4">
+                  {pedidos.map((pedido) => (
+                    <div key={pedido.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-semibold">Pedido #{pedido.numero_pedido}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(pedido.data_pedido).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                        <Badge>{pedido.status}</Badge>
+                      </div>
+                      <p className="text-lg font-bold text-secondary">
+                        R$ {pedido.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      {pedido.data_entrega && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Entrega: {new Date(pedido.data_entrega).toLocaleDateString('pt-BR')}
+                        </p>
+                      )}
+                      {pedido.observacoes && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {pedido.observacoes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhum pedido realizado
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
