@@ -37,8 +37,8 @@ const leadSchema = z.object({
   origem: z.enum(['WhatsApp', 'Facebook', 'Instagram', 'Indicação', 'Site', 'Outros']),
   status: z.enum(['novo_lead', 'qualificado', 'negociacao', 'fechado', 'perdido']),
   valor_estimado: z.string().optional(),
-  responsavel: z.string().optional(),
   observacoes: z.string().optional(),
+  responsavel: z.string().optional(),
 });
 
 type LeadFormData = z.infer<typeof leadSchema>;
@@ -59,22 +59,26 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
       email: '',
       origem: 'WhatsApp',
       status: 'novo_lead',
-      valor_estimado: '0',
-      responsavel: '',
+      valor_estimado: '',
       observacoes: '',
+      responsavel: '',
     },
   });
 
   const handleSubmit = (data: LeadFormData) => {
+    const valorEstimado = data.valor_estimado 
+      ? parseFloat(data.valor_estimado.replace(/[^\d,]/g, '').replace(',', '.'))
+      : 0;
+
     onSubmit({
       nome: data.nome,
       telefone: data.telefone,
       email: data.email || null,
       origem: data.origem,
       status: data.status,
-      valor_estimado: parseFloat(data.valor_estimado || '0'),
-      responsavel: data.responsavel || null,
-      observacoes: data.observacoes || null,
+      valor_estimado: valorEstimado,
+      observacoes: data.observacoes,
+      responsavel: data.responsavel,
     });
     form.reset();
     setOpen(false);
@@ -92,7 +96,7 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
         <DialogHeader>
           <DialogTitle>Adicionar Novo Lead</DialogTitle>
           <DialogDescription>
-            Preencha os dados do novo lead para adicionar ao pipeline
+            Preencha os dados do novo lead para o pipeline
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -105,7 +109,7 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
                   <FormItem>
                     <FormLabel>Nome *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nome do lead" {...field} />
+                      <Input placeholder="Nome completo" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -126,21 +130,36 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="email@exemplo.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="email@exemplo.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="responsavel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Responsável</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Nome do responsável" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
                 name="origem"
@@ -150,7 +169,7 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione a origem" />
+                          <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -171,11 +190,11 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status Inicial *</FormLabel>
+                    <FormLabel>Status *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione o status" />
+                          <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -190,30 +209,14 @@ export function NovoLeadDialog({ onSubmit, isCreating }: NovoLeadDialogProps) {
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="valor_estimado"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor Estimado (R$)</FormLabel>
+                    <FormLabel>Valor Estimado</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="responsavel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Responsável</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nome do responsável" {...field} />
+                      <Input placeholder="R$ 0,00" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

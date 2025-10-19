@@ -16,7 +16,7 @@ function dbRowToLead(row: LeadRow): Lead {
     email: row.email || undefined,
     origem: row.origem as any,
     status: row.status as any,
-    valorEstimado: row.valor_estimado || 0,
+    valorEstimado: Number(row.valor_estimado) || 0,
     dataCriacao: row.data_criacao || '',
     ultimaAtualizacao: row.ultima_atualizacao || '',
     observacoes: row.observacoes || undefined,
@@ -92,31 +92,6 @@ export function useLeads() {
     }
   };
 
-  const updateLeadStatus = async (id: string, status: string) => {
-    try {
-      const { error } = await supabase
-        .from('leads')
-        .update({ status })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Status atualizado!',
-        description: 'O status do lead foi atualizado com sucesso.',
-      });
-
-      await fetchLeads();
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao atualizar status',
-        description: error.message,
-      });
-      throw error;
-    }
-  };
-
   const updateLead = async (id: string, updates: Partial<LeadInsert>) => {
     try {
       const { error } = await supabase
@@ -135,6 +110,26 @@ export function useLeads() {
       toast({
         variant: 'destructive',
         title: 'Erro ao atualizar lead',
+        description: error.message,
+      });
+      throw error;
+    }
+  };
+
+  const updateLeadStatus = async (id: string, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await fetchLeads();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar status',
         description: error.message,
       });
       throw error;
@@ -174,8 +169,8 @@ export function useLeads() {
     isLoading,
     isCreating,
     createLead,
-    updateLeadStatus,
     updateLead,
+    updateLeadStatus,
     deleteLead,
     refetch: fetchLeads,
   };
