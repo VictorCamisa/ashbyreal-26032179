@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      campanhas: {
+        Row: {
+          conversoes: number | null
+          created_at: string | null
+          data: string | null
+          id: string
+          mensagens_entregues: number | null
+          mensagens_enviadas: number | null
+          mensagens_lidas: number | null
+          nome: string
+          publico_alvo: number | null
+          respostas: number | null
+          status: string
+          taxa_conversao: number | null
+          taxa_resposta: number | null
+        }
+        Insert: {
+          conversoes?: number | null
+          created_at?: string | null
+          data?: string | null
+          id?: string
+          mensagens_entregues?: number | null
+          mensagens_enviadas?: number | null
+          mensagens_lidas?: number | null
+          nome: string
+          publico_alvo?: number | null
+          respostas?: number | null
+          status?: string
+          taxa_conversao?: number | null
+          taxa_resposta?: number | null
+        }
+        Update: {
+          conversoes?: number | null
+          created_at?: string | null
+          data?: string | null
+          id?: string
+          mensagens_entregues?: number | null
+          mensagens_enviadas?: number | null
+          mensagens_lidas?: number | null
+          nome?: string
+          publico_alvo?: number | null
+          respostas?: number | null
+          status?: string
+          taxa_conversao?: number | null
+          taxa_resposta?: number | null
+        }
+        Relationships: []
+      }
       clientes: {
         Row: {
           avatar: string | null
@@ -102,6 +150,102 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "interacoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          created_at: string | null
+          data_criacao: string | null
+          email: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          origem: string
+          responsavel: string | null
+          status: string
+          telefone: string
+          ultima_atualizacao: string | null
+          updated_at: string | null
+          valor_estimado: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_criacao?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          origem: string
+          responsavel?: string | null
+          status?: string
+          telefone: string
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+          valor_estimado?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          data_criacao?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          origem?: string
+          responsavel?: string | null
+          status?: string
+          telefone?: string
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+          valor_estimado?: number | null
+        }
+        Relationships: []
+      }
+      mensagens_whatsapp: {
+        Row: {
+          campanha_id: string | null
+          cliente_id: string | null
+          created_at: string | null
+          data_hora: string | null
+          id: string
+          mensagem: string
+          nome_cliente: string
+          status: string
+        }
+        Insert: {
+          campanha_id?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          data_hora?: string | null
+          id?: string
+          mensagem: string
+          nome_cliente: string
+          status?: string
+        }
+        Update: {
+          campanha_id?: string | null
+          cliente_id?: string | null
+          created_at?: string | null
+          data_hora?: string | null
+          id?: string
+          mensagem?: string
+          nome_cliente?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_whatsapp_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_whatsapp_cliente_id_fkey"
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
