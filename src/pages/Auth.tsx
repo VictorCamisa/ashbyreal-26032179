@@ -16,7 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, Sparkles, Shield, Zap } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -96,29 +96,95 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
-          <div className="flex justify-center">
-            <div className="bg-primary text-primary-foreground p-3 rounded-full">
-              <ShoppingBag className="h-8 w-8" />
+    <div className="min-h-screen flex">
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 flex-col justify-between relative overflow-hidden">
+        {/* Decorative elements */}
+        <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,black)]" />
+        <div className="absolute top-20 right-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+        
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+              <ShoppingBag className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">Ashby</h1>
+              <p className="text-white/80 text-sm">Gestão Empresarial</p>
             </div>
           </div>
-          <div>
-            <CardTitle className="text-2xl">Ashby</CardTitle>
-            <CardDescription>
-              Sistema de Gestão Empresarial
-            </CardDescription>
+          
+          <div className="space-y-6 mt-16">
+            <div className="flex items-start gap-4">
+              <div className="bg-white/10 backdrop-blur-sm p-2 rounded-lg">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Gestão Inteligente</h3>
+                <p className="text-white/70 text-sm">CRM completo com pipeline visual e automações</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="bg-white/10 backdrop-blur-sm p-2 rounded-lg">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Performance</h3>
+                <p className="text-white/70 text-sm">Dashboards em tempo real com métricas precisas</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4">
+              <div className="bg-white/10 backdrop-blur-sm p-2 rounded-lg">
+                <Shield className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Segurança</h3>
+                <p className="text-white/70 text-sm">Dados protegidos com autenticação robusta</p>
+              </div>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        
+        <div className="relative z-10 text-white/60 text-sm">
+          © 2025 Ashby. Todos os direitos reservados.
+        </div>
+      </div>
+
+      {/* Right side - Auth Forms */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center gap-3 justify-center">
+            <div className="bg-primary/10 p-3 rounded-xl">
+              <ShoppingBag className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Ashby</h1>
+              <p className="text-muted-foreground text-sm">Gestão Empresarial</p>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Bem-vindo</h2>
+            <p className="text-muted-foreground mt-2">
+              Entre na sua conta ou crie uma nova
+            </p>
+          </div>
+
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Cadastro</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Entrar
+              </TabsTrigger>
+              <TabsTrigger value="register" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Criar conta
+              </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="login">
+            <TabsContent value="login" className="space-y-4">
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <FormField
@@ -128,7 +194,12 @@ export default function Auth() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="seu@email.com" {...field} />
+                          <Input 
+                            type="email" 
+                            placeholder="seu@email.com" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -141,20 +212,29 @@ export default function Auth() {
                       <FormItem>
                         <FormLabel>Senha</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••" {...field} />
+                          <Input 
+                            type="password" 
+                            placeholder="••••••••" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 text-base font-medium" 
+                    disabled={isSubmitting}
+                  >
                     {isSubmitting ? 'Entrando...' : 'Entrar'}
                   </Button>
                 </form>
               </Form>
             </TabsContent>
             
-            <TabsContent value="register">
+            <TabsContent value="register" className="space-y-4">
               <Form {...registerForm}>
                 <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
                   <FormField
@@ -162,9 +242,13 @@ export default function Auth() {
                     name="nome"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome</FormLabel>
+                        <FormLabel>Nome completo</FormLabel>
                         <FormControl>
-                          <Input placeholder="Seu nome" {...field} />
+                          <Input 
+                            placeholder="Seu nome" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -177,7 +261,12 @@ export default function Auth() {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="seu@email.com" {...field} />
+                          <Input 
+                            type="email" 
+                            placeholder="seu@email.com" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -190,7 +279,12 @@ export default function Auth() {
                       <FormItem>
                         <FormLabel>Senha</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••" {...field} />
+                          <Input 
+                            type="password" 
+                            placeholder="••••••••" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -201,23 +295,32 @@ export default function Auth() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirmar Senha</FormLabel>
+                        <FormLabel>Confirmar senha</FormLabel>
                         <FormControl>
-                          <Input type="password" placeholder="••••••" {...field} />
+                          <Input 
+                            type="password" 
+                            placeholder="••••••••" 
+                            className="h-11"
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Cadastrando...' : 'Cadastrar'}
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 text-base font-medium" 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Criando conta...' : 'Criar conta'}
                   </Button>
                 </form>
               </Form>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
