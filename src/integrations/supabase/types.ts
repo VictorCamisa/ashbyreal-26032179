@@ -209,32 +209,41 @@ export type Database = {
         Row: {
           campanha_id: string | null
           cliente_id: string | null
+          conversa_id: string | null
           created_at: string | null
           data_hora: string | null
           id: string
+          lida: boolean | null
           mensagem: string
           nome_cliente: string
           status: string
+          tipo: string | null
         }
         Insert: {
           campanha_id?: string | null
           cliente_id?: string | null
+          conversa_id?: string | null
           created_at?: string | null
           data_hora?: string | null
           id?: string
+          lida?: boolean | null
           mensagem: string
           nome_cliente: string
           status?: string
+          tipo?: string | null
         }
         Update: {
           campanha_id?: string | null
           cliente_id?: string | null
+          conversa_id?: string | null
           created_at?: string | null
           data_hora?: string | null
           id?: string
+          lida?: boolean | null
           mensagem?: string
           nome_cliente?: string
           status?: string
+          tipo?: string | null
         }
         Relationships: [
           {
@@ -249,6 +258,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mensagens_whatsapp_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversas"
             referencedColumns: ["id"]
           },
         ]
@@ -533,6 +549,89 @@ export type Database = {
           ultima_atualizacao?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_conversas: {
+        Row: {
+          cliente_id: string | null
+          created_at: string
+          id: string
+          nao_lida: boolean | null
+          nome_contato: string
+          status: string
+          tags: Json | null
+          telefone: string
+          ultima_interacao: string | null
+          ultima_mensagem: string | null
+          updated_at: string
+        }
+        Insert: {
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          nao_lida?: boolean | null
+          nome_contato: string
+          status?: string
+          tags?: Json | null
+          telefone: string
+          ultima_interacao?: string | null
+          ultima_mensagem?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          nao_lida?: boolean | null
+          nome_contato?: string
+          status?: string
+          tags?: Json | null
+          telefone?: string
+          ultima_interacao?: string | null
+          ultima_mensagem?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          created_at: string
+          id: string
+          mensagem: string
+          nome: string
+          updated_at: string
+          variaveis: Json | null
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          created_at?: string
+          id?: string
+          mensagem: string
+          nome: string
+          updated_at?: string
+          variaveis?: Json | null
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          created_at?: string
+          id?: string
+          mensagem?: string
+          nome?: string
+          updated_at?: string
+          variaveis?: Json | null
         }
         Relationships: []
       }

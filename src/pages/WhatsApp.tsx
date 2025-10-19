@@ -1,176 +1,153 @@
+import { useState } from 'react';
+import { useWhatsApp, WhatsAppConversa } from '@/hooks/useWhatsApp';
+import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
+import { ConversasList } from '@/components/whatsapp/ConversasList';
+import { ChatView } from '@/components/whatsapp/ChatView';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { MessageSquare, Send, CheckCheck, Clock, TrendingUp } from 'lucide-react';
-import { mockCampanhas, mockMensagensWhatsApp } from '@/data/campanhas.mock';
-
-const statusIcons = {
-  enviada: Send,
-  entregue: CheckCheck,
-  lida: CheckCheck,
-  respondida: MessageSquare,
-  erro: Clock
-};
-
-const statusColors = {
-  agendada: 'bg-blue-500',
-  em_andamento: 'bg-yellow-500',
-  concluida: 'bg-green-500',
-  cancelada: 'bg-red-500'
-};
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { MessageSquare } from 'lucide-react';
 
 export default function WhatsApp() {
-  const kpis = [
-    {
-      title: 'Mensagens Enviadas',
-      value: mockCampanhas.reduce((acc, c) => acc + c.mensagensEnviadas, 0).toString(),
-      icon: Send
-    },
-    {
-      title: 'Taxa de Entrega',
-      value: '98.5%',
-      icon: CheckCheck
-    },
-    {
-      title: 'Taxa de Resposta',
-      value: '32.4%',
-      icon: MessageSquare
-    },
-    {
-      title: 'Tempo Médio Resposta',
-      value: '2.5h',
-      icon: Clock
+  const {
+    conversas,
+    loadingConversas,
+    stats,
+    getMensagens,
+    enviarMensagem,
+    marcarComoLida,
+  } = useWhatsApp();
+
+  const [conversaSelecionada, setConversaSelecionada] = useState<WhatsAppConversa | undefined>();
+  const [dialogNovaConversa, setDialogNovaConversa] = useState(false);
+
+  const { data: mensagens = [], isLoading: loadingMensagens } = getMensagens(
+    conversaSelecionada?.id || ''
+  );
+
+  const handleSelecionarConversa = async (conversa: WhatsAppConversa) => {
+    setConversaSelecionada(conversa);
+    if (conversa.nao_lida) {
+      await marcarComoLida(conversa.id);
     }
-  ];
+  };
+
+  const handleEnviarMensagem = async (mensagem: string) => {
+    if (!conversaSelecionada) return;
+
+    await enviarMensagem({
+      conversa_id: conversaSelecionada.id,
+      nome_cliente: conversaSelecionada.nome_contato,
+      mensagem,
+      status: 'enviada',
+      tipo: 'enviada',
+      data_hora: new Date().toISOString(),
+    });
+  };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">WhatsApp</h1>
-        <p className="text-muted-foreground">Monitoramento e Engajamento</p>
+        <h1 className="text-3xl font-bold">WhatsApp Business</h1>
+        <p className="text-muted-foreground">Painel de Controle e Engajamento</p>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {kpi.title}
-              </CardTitle>
-              <kpi.icon className="h-4 w-4 text-muted-foreground" />
+      <WhatsAppKPIs stats={stats} />
+
+      {/* Tabs */}
+      <Tabs defaultValue="conversas" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="conversas">Conversas</TabsTrigger>
+          <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+        </TabsList>
+
+        {/* Aba Conversas */}
+        <TabsContent value="conversas" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Lista de Conversas */}
+            <div className="lg:col-span-1">
+              <ConversasList
+                conversas={conversas}
+                isLoading={loadingConversas}
+                onSelectConversa={handleSelecionarConversa}
+                selectedConversaId={conversaSelecionada?.id}
+                onNovaConversa={() => setDialogNovaConversa(true)}
+              />
+            </div>
+
+            {/* Chat */}
+            <div className="lg:col-span-2">
+              <ChatView
+                conversa={conversaSelecionada}
+                mensagens={mensagens}
+                isLoading={loadingMensagens}
+                onEnviarMensagem={handleEnviarMensagem}
+                onSelecionarTemplate={() => {}}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Aba Campanhas */}
+        <TabsContent value="campanhas">
+          <Card>
+            <CardHeader>
+              <CardTitle>Campanhas de WhatsApp</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
+              <div className="text-center py-12 text-muted-foreground">
+                <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">Campanhas em Desenvolvimento</p>
+                <p className="text-sm">
+                  Em breve você poderá criar e gerenciar campanhas de mensagens em massa
+                </p>
+              </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+        </TabsContent>
 
-      {/* Gráfico de Evolução */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Evolução de Campanhas
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-            Gráfico de evolução (em desenvolvimento)
+        {/* Aba Templates */}
+        <TabsContent value="templates">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Templates de Mensagem</CardTitle>
+                <Button>Novo Template</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">Templates em Desenvolvimento</p>
+                <p className="text-sm">
+                  Em breve você poderá criar e gerenciar templates de mensagens
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialog Nova Conversa */}
+      <Dialog open={dialogNovaConversa} onOpenChange={setDialogNovaConversa}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Conversa</DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Funcionalidade em desenvolvimento</p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabela de Campanhas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Campanhas Realizadas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Campanha</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Público</TableHead>
-                <TableHead>Enviadas</TableHead>
-                <TableHead>Taxa Resposta</TableHead>
-                <TableHead>Conversões</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockCampanhas.map((campanha) => (
-                <TableRow key={campanha.id}>
-                  <TableCell className="font-medium">{campanha.nome}</TableCell>
-                  <TableCell>
-                    {new Date(campanha.data).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>{campanha.publicoAlvo}</TableCell>
-                  <TableCell>{campanha.mensagensEnviadas}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-green-500">
-                      {campanha.taxaResposta.toFixed(1)}%
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-semibold text-secondary">
-                      {campanha.conversoes}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-1">
-                      ({campanha.taxaConversao.toFixed(1)}%)
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={statusColors[campanha.status]}>
-                      {campanha.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Mensagens Recentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Mensagens Recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {mockMensagensWhatsApp.map((msg) => {
-              const StatusIcon = statusIcons[msg.status];
-              return (
-                <div key={msg.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                  <StatusIcon className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-medium">{msg.nomeCliente}</p>
-                      <Badge variant="outline">{msg.status}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1">
-                      {msg.mensagem}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(msg.dataHora).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
