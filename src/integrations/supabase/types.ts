@@ -253,6 +253,56 @@ export type Database = {
           },
         ]
       }
+      movimentacoes_estoque: {
+        Row: {
+          created_at: string
+          documento: string | null
+          id: string
+          motivo: string | null
+          produto_id: string
+          quantidade: number
+          quantidade_anterior: number
+          quantidade_nova: number
+          responsavel: string
+          tipo: string
+          valor_unitario: number | null
+        }
+        Insert: {
+          created_at?: string
+          documento?: string | null
+          id?: string
+          motivo?: string | null
+          produto_id: string
+          quantidade: number
+          quantidade_anterior: number
+          quantidade_nova: number
+          responsavel: string
+          tipo: string
+          valor_unitario?: number | null
+        }
+        Update: {
+          created_at?: string
+          documento?: string | null
+          id?: string
+          motivo?: string | null
+          produto_id?: string
+          quantidade?: number
+          quantidade_anterior?: number
+          quantidade_nova?: number
+          responsavel?: string
+          tipo?: string
+          valor_unitario?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimentacoes_estoque_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedido_itens: {
         Row: {
           created_at: string
@@ -358,11 +408,17 @@ export type Database = {
           created_at: string
           descricao: string | null
           estoque: number
+          estoque_minimo: number
+          fornecedor: string | null
           id: string
           imagem_url: string | null
+          localizacao: string | null
+          margem_lucro: number
           nome: string
           preco: number
+          preco_custo: number
           sku: string | null
+          unidade_medida: string | null
           updated_at: string
         }
         Insert: {
@@ -371,11 +427,17 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           estoque?: number
+          estoque_minimo?: number
+          fornecedor?: string | null
           id?: string
           imagem_url?: string | null
+          localizacao?: string | null
+          margem_lucro?: number
           nome: string
           preco?: number
+          preco_custo?: number
           sku?: string | null
+          unidade_medida?: string | null
           updated_at?: string
         }
         Update: {
@@ -384,11 +446,17 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           estoque?: number
+          estoque_minimo?: number
+          fornecedor?: string | null
           id?: string
           imagem_url?: string | null
+          localizacao?: string | null
+          margem_lucro?: number
           nome?: string
           preco?: number
+          preco_custo?: number
           sku?: string | null
+          unidade_medida?: string | null
           updated_at?: string
         }
         Relationships: []
