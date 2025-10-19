@@ -62,20 +62,18 @@ export function useTickets() {
 
       // Enviar dados para webhook n8n
       try {
-        await fetch('https://camisaaaa.app.n8n.cloud/webhook-test/89cb4c1a-d4f3-4ae3-873e-8ffd45434c58', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: data.id,
-            assunto: data.assunto,
-            descricao: data.descricao,
-            prioridade: data.prioridade,
-            status: data.status,
-            data_abertura: data.data_abertura,
-            user_id: data.user_id,
-          }),
+        const webhookParams = new URLSearchParams({
+          id: data.id,
+          assunto: data.assunto,
+          descricao: data.descricao,
+          prioridade: data.prioridade,
+          status: data.status,
+          data_abertura: data.data_abertura,
+          user_id: data.user_id,
+        });
+        
+        await fetch(`https://camisaaaa.app.n8n.cloud/webhook-test/89cb4c1a-d4f3-4ae3-873e-8ffd45434c58?${webhookParams.toString()}`, {
+          method: 'GET',
         });
       } catch (webhookError) {
         console.error('Erro ao enviar webhook:', webhookError);
