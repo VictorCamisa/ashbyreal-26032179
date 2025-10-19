@@ -14,7 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clientes: {
+        Row: {
+          avatar: string | null
+          cpf_cnpj: string | null
+          created_at: string | null
+          data_cadastro: string | null
+          email: string
+          empresa: string | null
+          endereco: Json | null
+          id: string
+          nome: string
+          observacoes: string | null
+          origem: string
+          status: string
+          telefone: string
+          ticket_medio: number | null
+          ultimo_contato: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string | null
+          data_cadastro?: string | null
+          email: string
+          empresa?: string | null
+          endereco?: Json | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          origem: string
+          status?: string
+          telefone: string
+          ticket_medio?: number | null
+          ultimo_contato?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          cpf_cnpj?: string | null
+          created_at?: string | null
+          data_cadastro?: string | null
+          email?: string
+          empresa?: string | null
+          endereco?: Json | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          origem?: string
+          status?: string
+          telefone?: string
+          ticket_medio?: number | null
+          ultimo_contato?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      interacoes: {
+        Row: {
+          cliente_id: string
+          created_at: string | null
+          data: string | null
+          descricao: string
+          id: string
+          responsavel: string
+          tipo: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string | null
+          data?: string | null
+          descricao: string
+          id?: string
+          responsavel: string
+          tipo: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string | null
+          data?: string | null
+          descricao?: string
+          id?: string
+          responsavel?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interacoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

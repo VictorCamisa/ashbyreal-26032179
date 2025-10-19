@@ -8,11 +8,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search } from 'lucide-react';
-import { mockClientes } from '@/data/clientes.mock';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Search, Users, TrendingUp, UserPlus, Activity } from 'lucide-react';
+import { useClientes } from '@/hooks/useClientes';
+import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const statusColors = {
   ativo: 'bg-green-500',
@@ -20,29 +22,85 @@ const statusColors = {
   lead: 'bg-yellow-500'
 };
 
+const statusLabels = {
+  ativo: 'Ativo',
+  inativo: 'Inativo',
+  lead: 'Lead'
+};
+
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+  const { clientes, isLoading, createCliente, isCreating } = useClientes();
 
-  const filteredClientes = mockClientes.filter(cliente =>
+  const filteredClientes = clientes.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.telefone.includes(searchTerm)
   );
 
+  const stats = {
+    total: clientes.length,
+    ativos: clientes.filter(c => c.status === 'ativo').length,
+    leads: clientes.filter(c => c.status === 'lead').length,
+    ticketMedio: clientes.length > 0 
+      ? clientes.reduce((acc, c) => acc + c.ticketMedio, 0) / clientes.length 
+      : 0,
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">Base Central de Clientes</p>
+          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
+          <p className="text-muted-foreground">Gerencie sua base de clientes</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.ativos}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Leads</CardTitle>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.leads}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              R$ {stats.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search */}
       <div className="flex gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -55,50 +113,79 @@ export default function Clientes() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Telefone</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Ticket Médio</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Origem</TableHead>
-              <TableHead>Data Cadastro</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredClientes.map((cliente) => (
-              <TableRow
-                key={cliente.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => navigate(`/cliente/${cliente.id}`)}
-              >
-                <TableCell className="font-medium">{cliente.nome}</TableCell>
-                <TableCell>{cliente.telefone}</TableCell>
-                <TableCell>{cliente.email}</TableCell>
-                <TableCell>
-                  R$ {cliente.ticketMedio.toLocaleString('pt-BR')}
-                </TableCell>
-                <TableCell>
-                  <Badge className={statusColors[cliente.status]}>
-                    {cliente.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>{cliente.origem}</TableCell>
-                <TableCell>
-                  {new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6 space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="h-12 flex-1" />
+                  <Skeleton className="h-12 w-32" />
+                  <Skeleton className="h-12 w-24" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Origem</TableHead>
+                  <TableHead>Ticket Médio</TableHead>
+                  <TableHead>Data Cadastro</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredClientes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      {searchTerm 
+                        ? 'Nenhum cliente encontrado com os critérios de busca.' 
+                        : 'Nenhum cliente cadastrado ainda. Clique em "Novo Cliente" para adicionar.'}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredClientes.map((cliente) => (
+                    <TableRow
+                      key={cliente.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/cliente/${cliente.id}`)}
+                    >
+                      <TableCell className="font-medium">{cliente.nome}</TableCell>
+                      <TableCell>{cliente.empresa || '-'}</TableCell>
+                      <TableCell>{cliente.telefone}</TableCell>
+                      <TableCell>{cliente.email}</TableCell>
+                      <TableCell>
+                        <Badge className={statusColors[cliente.status]}>
+                          {statusLabels[cliente.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{cliente.origem}</TableCell>
+                      <TableCell>
+                        R$ {cliente.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <p>Mostrando {filteredClientes.length} de {mockClientes.length} clientes</p>
-      </div>
+      {filteredClientes.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <p>Mostrando {filteredClientes.length} de {clientes.length} clientes</p>
+        </div>
+      )}
     </div>
   );
 }
