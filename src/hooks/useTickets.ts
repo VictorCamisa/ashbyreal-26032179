@@ -59,6 +59,29 @@ export function useTickets() {
         .single();
 
       if (error) throw error;
+
+      // Enviar dados para webhook n8n
+      try {
+        await fetch('https://camisaaaa.app.n8n.cloud/webhook-test/89cb4c1a-d4f3-4ae3-873e-8ffd45434c58', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: data.id,
+            assunto: data.assunto,
+            descricao: data.descricao,
+            prioridade: data.prioridade,
+            status: data.status,
+            data_abertura: data.data_abertura,
+            user_id: data.user_id,
+          }),
+        });
+      } catch (webhookError) {
+        console.error('Erro ao enviar webhook:', webhookError);
+        // Não bloqueia a criação do ticket se o webhook falhar
+      }
+
       return data;
     },
     onSuccess: () => {
