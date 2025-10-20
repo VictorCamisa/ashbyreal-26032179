@@ -82,7 +82,7 @@ export function useLeads() {
           id: leadResult.id, // Use the same ID as the lead
           nome: leadData.nome!,
           telefone: leadData.telefone!,
-          email: leadData.email || '',
+          email: leadData.email || 'sem-email@temp.com',
           origem: leadData.origem!,
           status: 'lead',
           ticket_medio: leadData.valor_estimado || 0,
@@ -90,8 +90,8 @@ export function useLeads() {
         });
 
       if (clientError) {
-        // If client creation fails, log it but don't throw
-        console.error('Failed to create client:', clientError);
+        console.error('Erro ao criar cliente:', clientError);
+        throw new Error(`Lead criado mas falha ao criar cliente: ${clientError.message}`);
       }
 
       toast({
