@@ -2,13 +2,26 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertTriangle, Package, Filter } from 'lucide-react';
+import { Search, AlertTriangle, Package, Filter, Trash2 } from 'lucide-react';
 import { useEstoque, ProdutoEstoque } from '@/hooks/useEstoque';
 import { EstoqueKPIs } from '@/components/estoque/EstoqueKPIs';
 import { ImportarEstoqueDialog } from '@/components/estoque/ImportarEstoqueDialog';
 import { NovoProdutoDialog } from '@/components/estoque/NovoProdutoDialog';
+import { EditarProdutoDialog } from '@/components/estoque/EditarProdutoDialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -43,7 +56,7 @@ export default function Estoque() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('todas');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const { produtos, isLoading, refetch } = useEstoque();
+  const { produtos, isLoading, updateProduto, deleteProduto, refetch } = useEstoque();
 
   const categorias = ['todas', ...new Set(produtos.map(p => p.categoria).filter(Boolean))];
 
@@ -167,12 +180,13 @@ export default function Estoque() {
                       <TableHead>Venda</TableHead>
                       <TableHead>Margem</TableHead>
                       <TableHead>Localização</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredProdutos.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground">
                           Nenhum produto encontrado
                         </TableCell>
                       </TableRow>
@@ -213,6 +227,38 @@ export default function Estoque() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {produto.localizacao || '-'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <EditarProdutoDialog 
+                                  produto={produto} 
+                                  onSave={updateProduto}
+                                />
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Tem certeza que deseja excluir o produto "{produto.nome}"? 
+                                        Esta ação não pode ser desfeita.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => deleteProduto(produto.id)}
+                                      >
+                                        Excluir
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

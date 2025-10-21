@@ -173,6 +173,32 @@ export function useEstoque() {
     }
   };
 
+  const deleteProduto = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('produtos')
+        .update({ ativo: false })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Produto excluído',
+        description: 'O produto foi removido do estoque',
+      });
+
+      await fetchProdutos();
+    } catch (error) {
+      console.error('Erro ao excluir produto:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível excluir o produto',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchProdutos();
   }, []);
@@ -182,6 +208,7 @@ export function useEstoque() {
     isLoading,
     createProduto,
     updateProduto,
+    deleteProduto,
     createMovimentacao,
     refetch: fetchProdutos,
   };
