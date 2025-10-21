@@ -28,6 +28,7 @@ export function EditarProdutoDialog({ produto, onSave }: EditarProdutoDialogProp
     descricao: produto.descricao,
     sku: produto.sku,
     categoria: produto.categoria,
+    estoque: produto.estoque,
     estoqueMinimo: produto.estoqueMinimo,
     preco: produto.preco,
     precoCusto: produto.precoCusto,
@@ -105,7 +106,19 @@ export function EditarProdutoDialog({ produto, onSave }: EditarProdutoDialogProp
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="estoque">Estoque Atual *</Label>
+                <Input
+                  id="estoque"
+                  type="number"
+                  min="0"
+                  value={formData.estoque}
+                  onChange={(e) => setFormData({ ...formData, estoque: Number(e.target.value) })}
+                  required
+                />
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="estoqueMinimo">Estoque Mínimo *</Label>
                 <Input

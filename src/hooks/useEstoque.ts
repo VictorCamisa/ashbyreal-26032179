@@ -110,6 +110,7 @@ export function useEstoque() {
           descricao: updates.descricao,
           sku: updates.sku,
           categoria: updates.categoria,
+          estoque: updates.estoque,
           estoque_minimo: updates.estoqueMinimo,
           preco: updates.preco,
           preco_custo: updates.precoCusto,
