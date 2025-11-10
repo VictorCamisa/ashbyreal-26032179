@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
@@ -30,35 +31,50 @@ function dbRowToCliente(row: ClienteRow): Cliente {
 }
 
 export function useClientes() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const fetchClientes = async () => {
-    try {
-      setIsLoading(true);
+  // Fetch clientes using React Query
+  const { data: clientes = [], isLoading } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('clientes')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setClientes((data || []).map(dbRowToCliente));
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar clientes',
-        description: error.message,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      return (data || []).map(dbRowToCliente);
+    },
+  });
 
-  const createCliente = async (clienteData: Partial<ClienteInsert>) => {
-    try {
-      setIsCreating(true);
+  // Setup real-time subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('clientes-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'clientes'
+        },
+        () => {
+          // Invalidate queries when any change occurs
+          queryClient.invalidateQueries({ queryKey: ['clientes'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  // Create cliente mutation
+  const createClienteMutation = useMutation({
+    mutationFn: async (clienteData: Partial<ClienteInsert>) => {
       const { data, error } = await supabase
         .from('clientes')
         .insert({
@@ -75,85 +91,85 @@ export function useClientes() {
         .single();
 
       if (error) throw error;
-
+      return data;
+    },
+    onSuccess: (data) => {
       toast({
         title: 'Cliente criado com sucesso!',
         description: `${data.nome} foi adicionado à base de clientes.`,
       });
-
-      await fetchClientes();
-      return data;
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (error: any) => {
       toast({
         variant: 'destructive',
         title: 'Erro ao criar cliente',
         description: error.message,
       });
-      throw error;
-    } finally {
-      setIsCreating(false);
-    }
-  };
+    },
+  });
 
-  const updateCliente = async (id: string, updates: Partial<ClienteInsert>) => {
-    try {
+  // Update cliente mutation
+  const updateClienteMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ClienteInsert> }) => {
       const { error } = await supabase
         .from('clientes')
         .update(updates)
         .eq('id', id);
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       toast({
         title: 'Cliente atualizado com sucesso!',
       });
-
-      await fetchClientes();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (error: any) => {
       toast({
         variant: 'destructive',
         title: 'Erro ao atualizar cliente',
         description: error.message,
       });
-      throw error;
-    }
-  };
+    },
+  });
 
-  const deleteCliente = async (id: string) => {
-    try {
+  // Delete cliente mutation
+  const deleteClienteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('clientes')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       toast({
         title: 'Cliente removido com sucesso!',
       });
-
-      await fetchClientes();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (error: any) => {
       toast({
         variant: 'destructive',
         title: 'Erro ao remover cliente',
         description: error.message,
       });
-      throw error;
-    }
-  };
-
-  useEffect(() => {
-    fetchClientes();
-  }, []);
+    },
+  });
 
   return {
     clientes,
     isLoading,
-    isCreating,
-    createCliente,
-    updateCliente,
-    deleteCliente,
-    refetch: fetchClientes,
+    isCreating: createClienteMutation.isPending,
+    createCliente: createClienteMutation.mutateAsync,
+    updateCliente: (id: string, updates: Partial<ClienteInsert>) => 
+      updateClienteMutation.mutateAsync({ id, updates }),
+    deleteCliente: deleteClienteMutation.mutateAsync,
+    refetch: () => queryClient.invalidateQueries({ queryKey: ['clientes'] }),
   };
 }
