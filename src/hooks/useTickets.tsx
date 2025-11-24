@@ -52,6 +52,24 @@ export function useTickets() {
 
       if (error) throw error;
 
+      // Enviar dados para o webhook
+      try {
+        await fetch('https://vssolutions-n8n.fjsxhg.easypanel.host/webhook/d76ae781-72b3-4769-91bc-fd9253c1f8fe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            assunto: ticket.assunto,
+            prioridade: ticket.prioridade,
+            descricao: ticket.descricao,
+          }),
+        });
+      } catch (webhookError) {
+        console.error('Erro ao enviar para webhook:', webhookError);
+        // Não bloqueia a criação do ticket se o webhook falhar
+      }
+
       toast({
         title: 'Ticket criado com sucesso!',
         description: 'Nossa equipe entrará em contato em breve.',
