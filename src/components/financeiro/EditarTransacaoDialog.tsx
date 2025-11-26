@@ -9,63 +9,61 @@ import { useCategorias, useSubcategorias } from '@/hooks/useCategorias';
 import { useAccounts } from '@/hooks/useAccounts';
 import { Loader2 } from 'lucide-react';
 
-interface NovaTransacaoDialogProps {
+interface EditarTransacaoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityId: string;
-  tipo: 'PAGAR' | 'RECEBER';
+  transaction: any;
   onSave: (transaction: any) => void;
   isLoading?: boolean;
 }
 
-export function NovaTransacaoDialog({ 
+export function EditarTransacaoDialog({ 
   open, 
   onOpenChange, 
-  entityId, 
-  tipo,
+  transaction,
   onSave,
   isLoading = false
-}: NovaTransacaoDialogProps) {
+}: EditarTransacaoDialogProps) {
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    due_date: new Date().toISOString().split('T')[0],
+    due_date: '',
     payment_date: '',
     status: 'PREVISTO' as const,
     category_id: '',
     subcategory_id: '',
     account_id: '',
     notes: '',
-    reference_month: new Date().toISOString().slice(0, 7) + '-01'
+    reference_month: ''
   });
 
-  const { data: categories } = useCategorias(tipo === 'PAGAR' ? 'DESPESA' : 'RECEITA');
+  const tipo = transaction?.tipo === 'PAGAR' ? 'DESPESA' : 'RECEITA';
+  const { data: categories } = useCategorias(tipo);
   const { data: subcategories } = useSubcategorias(formData.category_id);
-  const { data: accounts } = useAccounts(entityId);
+  const { data: accounts } = useAccounts(transaction?.entity_id);
 
   useEffect(() => {
-    if (!open) {
+    if (transaction && open) {
       setFormData({
-        description: '',
-        amount: '',
-        due_date: new Date().toISOString().split('T')[0],
-        payment_date: '',
-        status: 'PREVISTO',
-        category_id: '',
-        subcategory_id: '',
-        account_id: '',
-        notes: '',
-        reference_month: new Date().toISOString().slice(0, 7) + '-01'
+        description: transaction.description || '',
+        amount: transaction.amount?.toString() || '',
+        due_date: transaction.due_date || '',
+        payment_date: transaction.payment_date || '',
+        status: transaction.status || 'PREVISTO',
+        category_id: transaction.category_id || '',
+        subcategory_id: transaction.subcategory_id || '',
+        account_id: transaction.account_id || '',
+        notes: transaction.notes || '',
+        reference_month: transaction.reference_month?.slice(0, 7) || ''
       });
     }
-  }, [open]);
+  }, [transaction, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const transaction = {
-      entity_id: entityId,
-      tipo,
+    const updates = {
+      id: transaction.id,
       description: formData.description,
       amount: parseFloat(formData.amount),
       due_date: formData.due_date,
@@ -75,20 +73,17 @@ export function NovaTransacaoDialog({
       subcategory_id: formData.subcategory_id || null,
       account_id: formData.account_id || null,
       notes: formData.notes || null,
-      reference_month: formData.reference_month,
-      origin: 'MANUAL' as const
+      reference_month: formData.reference_month ? formData.reference_month + '-01' : null
     };
 
-    onSave(transaction);
+    onSave(updates);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            Nova {tipo === 'PAGAR' ? 'Despesa' : 'Receita'}
-          </DialogTitle>
+          <DialogTitle>Editar Transação</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -213,8 +208,8 @@ export function NovaTransacaoDialog({
               <Input
                 id="reference_month"
                 type="month"
-                value={formData.reference_month.slice(0, 7)}
-                onChange={(e) => setFormData({ ...formData, reference_month: e.target.value + '-01' })}
+                value={formData.reference_month}
+                onChange={(e) => setFormData({ ...formData, reference_month: e.target.value })}
               />
             </div>
 
