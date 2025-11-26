@@ -9,9 +9,11 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, Beer } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoGeralDialog } from '@/components/pedidos/NovoPedidoGeralDialog';
+import { VincularAshbyDialog } from '@/components/pedidos/VincularAshbyDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -25,6 +27,8 @@ const statusColors = {
 export default function Pedidos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
+  const [selectedPedido, setSelectedPedido] = useState<any>(null);
+  const [showVincularAshby, setShowVincularAshby] = useState(false);
   const { pedidos, isLoading, refetch } = usePedidos();
 
   useEffect(() => {
@@ -47,12 +51,17 @@ export default function Pedidos() {
     (clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
   );
 
+  const handleVincularAshby = (pedido: any) => {
+    setSelectedPedido(pedido);
+    setShowVincularAshby(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Pedidos</h1>
-          <p className="text-muted-foreground">Gestão de Vendas Manuais</p>
+          <p className="text-muted-foreground">Gestão de Vendas Manuais e Ashby</p>
         </div>
         <NovoPedidoGeralDialog onSuccess={refetch} />
       </div>
@@ -85,12 +94,13 @@ export default function Pedidos() {
                 <TableHead>Valor Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPedidos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Nenhum pedido encontrado
                   </TableCell>
                 </TableRow>
@@ -112,6 +122,17 @@ export default function Pedidos() {
                     <TableCell>
                       {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleVincularAshby(pedido)}
+                        className="gap-2"
+                      >
+                        <Beer className="h-4 w-4" />
+                        Vincular Ashby
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -130,6 +151,14 @@ export default function Pedidos() {
           </strong></span>
         </div>
       </div>
+
+      {selectedPedido && (
+        <VincularAshbyDialog
+          open={showVincularAshby}
+          onOpenChange={setShowVincularAshby}
+          pedido={selectedPedido}
+        />
+      )}
     </div>
   );
 }
