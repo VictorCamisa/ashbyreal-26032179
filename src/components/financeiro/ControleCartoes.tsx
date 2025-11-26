@@ -1,16 +1,24 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, CreditCard } from 'lucide-react';
+import { Plus, CreditCard, Receipt, ShoppingCart } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
+import { useFaturasMutations } from '@/hooks/useFaturasMutations';
+import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
 import { Badge } from '@/components/ui/badge';
 import { NovoCartaoDialog } from './NovoCartaoDialog';
+import { NovaFaturaDialog } from './NovaFaturaDialog';
+import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
 
 export function ControleCartoes() {
   const { cartoes, faturas, isLoading } = useCartoes();
   const { createCartao, isCreating } = useCartoesMutations();
+  const { createFatura, isCreating: isCreatingFatura } = useFaturasMutations();
+  const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
   const [showNovoCartao, setShowNovoCartao] = useState(false);
+  const [showNovaFatura, setShowNovaFatura] = useState(false);
+  const [showNovoGasto, setShowNovoGasto] = useState(false);
 
   if (isLoading) {
     return (
@@ -27,10 +35,20 @@ export function ControleCartoes() {
           <h2 className="text-2xl font-bold">Controle de Cartões</h2>
           <p className="text-sm text-muted-foreground">Gerencie seus cartões de crédito</p>
         </div>
-        <Button onClick={() => setShowNovoCartao(true)} size="lg">
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cartão
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowNovoGasto(true)} size="lg" variant="outline">
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Novo Gasto
+          </Button>
+          <Button onClick={() => setShowNovaFatura(true)} size="lg" variant="outline">
+            <Receipt className="h-4 w-4 mr-2" />
+            Nova Fatura
+          </Button>
+          <Button onClick={() => setShowNovoCartao(true)} size="lg">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cartão
+          </Button>
+        </div>
       </div>
 
       {cartoes && cartoes.length > 0 ? (
@@ -120,6 +138,28 @@ export function ControleCartoes() {
           setShowNovoCartao(false);
         }}
         isLoading={isCreating}
+      />
+
+      <NovaFaturaDialog
+        open={showNovaFatura}
+        onOpenChange={setShowNovaFatura}
+        cartoes={cartoes || []}
+        onSave={(invoice) => {
+          createFatura(invoice);
+          setShowNovaFatura(false);
+        }}
+        isLoading={isCreatingFatura}
+      />
+
+      <NovoGastoCartaoDialog
+        open={showNovoGasto}
+        onOpenChange={setShowNovoGasto}
+        cartoes={cartoes || []}
+        onSave={(gasto) => {
+          createGasto(gasto);
+          setShowNovoGasto(false);
+        }}
+        isLoading={isCreatingGasto}
       />
     </div>
   );

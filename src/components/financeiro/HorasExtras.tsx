@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Clock } from 'lucide-react';
+import { Plus, Clock, UserPlus } from 'lucide-react';
 import { useHorasExtras } from '@/hooks/useHorasExtras';
 import { useTimesheetMutations } from '@/hooks/useTimesheetMutations';
+import { useFuncionariosMutations } from '@/hooks/useFuncionariosMutations';
 import { LancarPontoDialog } from './LancarPontoDialog';
+import { NovoFuncionarioDialog } from './NovoFuncionarioDialog';
 
 export function HorasExtras() {
   const [referenceMonth, setReferenceMonth] = useState(new Date().toISOString().slice(0, 7));
   const [showLancarPonto, setShowLancarPonto] = useState(false);
+  const [showNovoFuncionario, setShowNovoFuncionario] = useState(false);
   
   const { funcionarios, resumos, isLoading } = useHorasExtras(referenceMonth);
   const { createEntry, isCreating } = useTimesheetMutations();
+  const { createFuncionario, isCreating: isCreatingFuncionario } = useFuncionariosMutations();
 
   if (isLoading) {
     return (
@@ -31,10 +35,16 @@ export function HorasExtras() {
             <p className="text-sm text-muted-foreground">Registro de ponto e horas extras</p>
           </div>
         </div>
-        <Button onClick={() => setShowLancarPonto(true)} size="lg">
-          <Plus className="h-4 w-4 mr-2" />
-          Lançar Ponto
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowNovoFuncionario(true)} size="lg" variant="outline">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Novo Funcionário
+          </Button>
+          <Button onClick={() => setShowLancarPonto(true)} size="lg">
+            <Plus className="h-4 w-4 mr-2" />
+            Lançar Ponto
+          </Button>
+        </div>
       </div>
 
       <div>
@@ -104,6 +114,16 @@ export function HorasExtras() {
         }}
         isLoading={isCreating}
         referenceMonth={referenceMonth}
+      />
+
+      <NovoFuncionarioDialog
+        open={showNovoFuncionario}
+        onOpenChange={setShowNovoFuncionario}
+        onSave={(employee) => {
+          createFuncionario(employee);
+          setShowNovoFuncionario(false);
+        }}
+        isLoading={isCreatingFuncionario}
       />
     </div>
   );
