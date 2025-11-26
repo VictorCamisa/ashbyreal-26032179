@@ -8,7 +8,8 @@ import {
   Settings,
   TrendingUp,
   LogOut,
-  User
+  User,
+  Wallet
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import {
@@ -35,6 +36,7 @@ const menuItems = [
   { title: 'Estoque', url: '/estoque', icon: Package },
   { title: 'WhatsApp', url: '/whatsapp', icon: MessageSquare },
   { title: 'Suporte', url: '/suporte', icon: HeadphonesIcon },
+  { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
