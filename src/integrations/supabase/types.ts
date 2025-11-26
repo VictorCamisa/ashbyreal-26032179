@@ -14,6 +14,122 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          bank_name: string | null
+          created_at: string
+          entity_id: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          last4: string | null
+          name: string
+          type: Database["public"]["Enums"]["account_type"]
+        }
+        Insert: {
+          bank_name?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          last4?: string | null
+          name: string
+          type: Database["public"]["Enums"]["account_type"]
+        }
+        Update: {
+          bank_name?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          last4?: string | null
+          name?: string
+          type?: Database["public"]["Enums"]["account_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ashby_orders: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          freight: number | null
+          id: string
+          liters: number | null
+          month: number
+          notes: string | null
+          order_date: string
+          quarter: number
+          status: Database["public"]["Enums"]["ashby_status"]
+          total: number
+          transaction_freight_id: string | null
+          transaction_principal_id: string | null
+          value_com_nf: number | null
+          value_sem_nf: number | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          freight?: number | null
+          id?: string
+          liters?: number | null
+          month: number
+          notes?: string | null
+          order_date: string
+          quarter: number
+          status?: Database["public"]["Enums"]["ashby_status"]
+          total: number
+          transaction_freight_id?: string | null
+          transaction_principal_id?: string | null
+          value_com_nf?: number | null
+          value_sem_nf?: number | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          freight?: number | null
+          id?: string
+          liters?: number | null
+          month?: number
+          notes?: string | null
+          order_date?: string
+          quarter?: number
+          status?: Database["public"]["Enums"]["ashby_status"]
+          total?: number
+          transaction_freight_id?: string | null
+          transaction_principal_id?: string | null
+          value_com_nf?: number | null
+          value_sem_nf?: number | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ashby_orders_transaction_freight_id_fkey"
+            columns: ["transaction_freight_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ashby_orders_transaction_principal_id_fkey"
+            columns: ["transaction_principal_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanhas: {
         Row: {
           conversoes: number | null
@@ -61,6 +177,41 @@ export type Database = {
           taxa_resposta?: number | null
         }
         Relationships: []
+      }
+      categories: {
+        Row: {
+          created_at: string
+          group: Database["public"]["Enums"]["category_group"] | null
+          id: string
+          name: string
+          parent_id: string | null
+          type: Database["public"]["Enums"]["category_type"]
+        }
+        Insert: {
+          created_at?: string
+          group?: Database["public"]["Enums"]["category_group"] | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          type: Database["public"]["Enums"]["category_type"]
+        }
+        Update: {
+          created_at?: string
+          group?: Database["public"]["Enums"]["category_group"] | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          type?: Database["public"]["Enums"]["category_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clientes: {
         Row: {
@@ -118,6 +269,294 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      credit_card_invoices: {
+        Row: {
+          closing_date: string | null
+          competencia: string
+          created_at: string
+          credit_card_id: string
+          due_date: string | null
+          id: string
+          status: Database["public"]["Enums"]["card_invoice_status"]
+          total_value: number
+          transaction_pagamento_id: string | null
+        }
+        Insert: {
+          closing_date?: string | null
+          competencia: string
+          created_at?: string
+          credit_card_id: string
+          due_date?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["card_invoice_status"]
+          total_value?: number
+          transaction_pagamento_id?: string | null
+        }
+        Update: {
+          closing_date?: string | null
+          competencia?: string
+          created_at?: string
+          credit_card_id?: string
+          due_date?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["card_invoice_status"]
+          total_value?: number
+          transaction_pagamento_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_invoices_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_invoices_transaction_pagamento_id_fkey"
+            columns: ["transaction_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_card_transactions: {
+        Row: {
+          amount: number
+          category_id: string | null
+          created_at: string
+          credit_card_id: string
+          description: string | null
+          entity_id: string | null
+          id: string
+          installment_number: number
+          invoice_id: string | null
+          purchase_date: string
+          subcategory_id: string | null
+          total_installments: number
+        }
+        Insert: {
+          amount: number
+          category_id?: string | null
+          created_at?: string
+          credit_card_id: string
+          description?: string | null
+          entity_id?: string | null
+          id?: string
+          installment_number?: number
+          invoice_id?: string | null
+          purchase_date: string
+          subcategory_id?: string | null
+          total_installments?: number
+        }
+        Update: {
+          amount?: number
+          category_id?: string | null
+          created_at?: string
+          credit_card_id?: string
+          description?: string | null
+          entity_id?: string | null
+          id?: string
+          installment_number?: number
+          invoice_id?: string | null
+          purchase_date?: string
+          subcategory_id?: string | null
+          total_installments?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "credit_card_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_cards: {
+        Row: {
+          account_liquidacao_id: string | null
+          closing_day: number | null
+          created_at: string
+          due_day: number | null
+          entity_id: string | null
+          id: string
+          is_active: boolean
+          limit_value: number | null
+          name: string
+        }
+        Insert: {
+          account_liquidacao_id?: string | null
+          closing_day?: number | null
+          created_at?: string
+          due_day?: number | null
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          limit_value?: number | null
+          name: string
+        }
+        Update: {
+          account_liquidacao_id?: string | null
+          closing_day?: number | null
+          created_at?: string
+          due_day?: number | null
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          limit_value?: number | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_account_liquidacao_id_fkey"
+            columns: ["account_liquidacao_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_cards_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          created_at: string
+          hourly_cost: number | null
+          id: string
+          is_active: boolean
+          monthly_salary: number | null
+          name: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string
+          hourly_cost?: number | null
+          id?: string
+          is_active?: boolean
+          monthly_salary?: number | null
+          name: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string
+          hourly_cost?: number | null
+          id?: string
+          is_active?: boolean
+          monthly_salary?: number | null
+          name?: string
+          role?: string | null
+        }
+        Relationships: []
+      }
+      entities: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          type: Database["public"]["Enums"]["entity_type"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          type: Database["public"]["Enums"]["entity_type"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          type?: Database["public"]["Enums"]["entity_type"]
+        }
+        Relationships: []
+      }
+      extra_hours_summary: {
+        Row: {
+          created_at: string
+          employee_id: string
+          horas_extras: number
+          horas_faltas: number
+          id: string
+          reference_month: string
+          saldo_banco_horas: number
+          transaction_pagamento_id: string | null
+          valor_extras: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          horas_extras?: number
+          horas_faltas?: number
+          id?: string
+          reference_month: string
+          saldo_banco_horas?: number
+          transaction_pagamento_id?: string | null
+          valor_extras?: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          horas_extras?: number
+          horas_faltas?: number
+          id?: string
+          reference_month?: string
+          saldo_banco_horas?: number
+          transaction_pagamento_id?: string | null
+          valor_extras?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "extra_hours_summary_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extra_hours_summary_transaction_pagamento_id_fkey"
+            columns: ["transaction_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       interacoes: {
         Row: {
@@ -504,6 +943,109 @@ export type Database = {
         }
         Relationships: []
       }
+      recorrencias: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string | null
+          created_at: string
+          description: string
+          due_day: number
+          end_month: string | null
+          entity_id: string
+          id: string
+          start_month: string
+          status: Database["public"]["Enums"]["recorrencia_status"]
+          subcategory_id: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id?: string | null
+          created_at?: string
+          description: string
+          due_day: number
+          end_month?: string | null
+          entity_id: string
+          id?: string
+          start_month: string
+          status?: Database["public"]["Enums"]["recorrencia_status"]
+          subcategory_id?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string | null
+          created_at?: string
+          description?: string
+          due_day?: number
+          end_month?: string | null
+          entity_id?: string
+          id?: string
+          start_month?: string
+          status?: Database["public"]["Enums"]["recorrencia_status"]
+          subcategory_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recorrencias_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recorrencias_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recorrencias_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recorrencias_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           anexos: Json | null
@@ -551,6 +1093,137 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      timesheet_entries: {
+        Row: {
+          created_at: string
+          date: string
+          employee_id: string
+          hours: number
+          id: string
+          observation: string | null
+          tipo: Database["public"]["Enums"]["timesheet_tipo"]
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          employee_id: string
+          hours: number
+          id?: string
+          observation?: string | null
+          tipo: Database["public"]["Enums"]["timesheet_tipo"]
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          employee_id?: string
+          hours?: number
+          id?: string
+          observation?: string | null
+          tipo?: Database["public"]["Enums"]["timesheet_tipo"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timesheet_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string
+          entity_id: string
+          id: string
+          notes: string | null
+          origin: Database["public"]["Enums"]["transaction_origin"]
+          payment_date: string | null
+          recurrence_id: string | null
+          reference_month: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
+          subcategory_id: string | null
+          tipo: Database["public"]["Enums"]["transaction_type"]
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date: string
+          entity_id: string
+          id?: string
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["transaction_origin"]
+          payment_date?: string | null
+          recurrence_id?: string | null
+          reference_month?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          subcategory_id?: string | null
+          tipo: Database["public"]["Enums"]["transaction_type"]
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          entity_id?: string
+          id?: string
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["transaction_origin"]
+          payment_date?: string | null
+          recurrence_id?: string | null
+          reference_month?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          subcategory_id?: string | null
+          tipo?: Database["public"]["Enums"]["transaction_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_recurrence_id_fkey"
+            columns: ["recurrence_id"]
+            isOneToOne: false
+            referencedRelation: "recorrencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_conversas: {
         Row: {
@@ -643,8 +1316,31 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      account_type: "BANCO" | "CAIXA" | "CARTAO_CREDITO"
+      ashby_status: "PREVISTO" | "FATURADO" | "PAGO" | "CANCELADO"
+      card_invoice_status: "ABERTA" | "FECHADA" | "PAGA"
+      category_group:
+        | "FIXA"
+        | "VARIAVEL"
+        | "IMPOSTO"
+        | "PESSOA"
+        | "ASHBY"
+        | "PARTICULAR"
+        | "GERAL"
+      category_type: "DESPESA" | "RECEITA"
+      entity_type: "LOJA" | "PARTICULAR"
       prioridade_ticket: "baixa" | "media" | "alta" | "urgente"
+      recorrencia_status: "ATIVA" | "PAUSADA"
       status_ticket: "aberto" | "em_andamento" | "resolvido" | "fechado"
+      timesheet_tipo: "NORMAL" | "EXTRA" | "FALTA" | "FERIADO" | "OUTRO"
+      transaction_origin:
+        | "MANUAL"
+        | "RECORRENTE"
+        | "CARTAO"
+        | "ASHBY"
+        | "HORAS_EXTRAS"
+      transaction_status: "PREVISTO" | "PAGO" | "ATRASADO" | "CANCELADO"
+      transaction_type: "PAGAR" | "RECEBER"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -772,8 +1468,33 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_type: ["BANCO", "CAIXA", "CARTAO_CREDITO"],
+      ashby_status: ["PREVISTO", "FATURADO", "PAGO", "CANCELADO"],
+      card_invoice_status: ["ABERTA", "FECHADA", "PAGA"],
+      category_group: [
+        "FIXA",
+        "VARIAVEL",
+        "IMPOSTO",
+        "PESSOA",
+        "ASHBY",
+        "PARTICULAR",
+        "GERAL",
+      ],
+      category_type: ["DESPESA", "RECEITA"],
+      entity_type: ["LOJA", "PARTICULAR"],
       prioridade_ticket: ["baixa", "media", "alta", "urgente"],
+      recorrencia_status: ["ATIVA", "PAUSADA"],
       status_ticket: ["aberto", "em_andamento", "resolvido", "fechado"],
+      timesheet_tipo: ["NORMAL", "EXTRA", "FALTA", "FERIADO", "OUTRO"],
+      transaction_origin: [
+        "MANUAL",
+        "RECORRENTE",
+        "CARTAO",
+        "ASHBY",
+        "HORAS_EXTRAS",
+      ],
+      transaction_status: ["PREVISTO", "PAGO", "ATRASADO", "CANCELADO"],
+      transaction_type: ["PAGAR", "RECEBER"],
     },
   },
 } as const

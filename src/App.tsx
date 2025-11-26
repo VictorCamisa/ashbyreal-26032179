@@ -17,6 +17,7 @@ import Estoque from "./pages/Estoque";
 import WhatsApp from "./pages/WhatsApp";
 import Suporte from "./pages/Suporte";
 import Configuracoes from "./pages/Configuracoes";
+import Financeiro from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/estoque" element={<Estoque />} />
                 <Route path="/whatsapp" element={<WhatsApp />} />
                 <Route path="/suporte" element={<Suporte />} />
+                <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
               </Route>
               <Route path="*" element={<NotFound />} />
