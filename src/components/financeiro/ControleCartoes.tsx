@@ -94,41 +94,79 @@ export function ControleCartoes() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Faturas Recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {faturas && faturas.length > 0 ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Faturas Recentes e Previstas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {faturas && faturas.length > 0 ? (
+              <div className="space-y-3">
+                {faturas.map((fatura) => {
+                  const competenciaDate = new Date(fatura.competencia);
+                  const now = new Date();
+                  const isFuture = competenciaDate > now;
+                  
+                  return (
+                    <div key={fatura.id} className="flex justify-between items-center p-3 border rounded-lg">
+                      <div>
+                        <p className="font-semibold">
+                          {new Date(fatura.competencia).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                          {isFuture && <span className="text-xs text-muted-foreground ml-2">(Previsto)</span>}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Vencimento: {fatura.due_date ? new Date(fatura.due_date).toLocaleDateString('pt-BR') : '-'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold">
+                          R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <Badge variant={
+                          fatura.status === 'PAGA' ? 'default' : 
+                          fatura.status === 'ABERTA' ? 'secondary' : 
+                          'destructive'
+                        }>
+                          {fatura.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-4">Nenhuma fatura encontrada.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumo de Gastos Futuros</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-3">
-              {faturas.map((fatura) => (
-                <div key={fatura.id} className="flex justify-between items-center p-3 border rounded-lg">
-                  <div>
-                    <p className="font-semibold">{fatura.competencia}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Vencimento: {fatura.due_date ? new Date(fatura.due_date).toLocaleDateString('pt-BR') : '-'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold">
-                      R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                    <Badge variant={
-                      fatura.status === 'PAGA' ? 'default' : 
-                      fatura.status === 'ABERTA' ? 'secondary' : 
-                      'destructive'
-                    }>
-                      {fatura.status}
-                    </Badge>
-                  </div>
+              {faturas && faturas.filter(f => {
+                const competenciaDate = new Date(f.competencia);
+                const now = new Date();
+                return competenciaDate >= now;
+              }).slice(0, 6).map((fatura) => (
+                <div key={fatura.id} className="flex justify-between items-center p-2 border-b">
+                  <span className="text-sm">
+                    {new Date(fatura.competencia).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                  </span>
+                  <span className="font-semibold">
+                    R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               ))}
+              {(!faturas || faturas.filter(f => new Date(f.competencia) >= new Date()).length === 0) && (
+                <p className="text-center text-muted-foreground py-4">Nenhum gasto previsto.</p>
+              )}
             </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-4">Nenhuma fatura encontrada.</p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <NovoCartaoDialog
         open={showNovoCartao}
