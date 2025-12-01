@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -76,6 +77,7 @@ export function TopNavbar() {
 
         {/* User Menu - Desktop */}
         <div className="hidden lg:flex items-center gap-2 ml-auto">
+          <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
@@ -136,6 +138,9 @@ export function TopNavbar() {
                   <User className="h-4 w-4" />
                 </div>
                 <span className="text-sm font-medium truncate">{user?.email}</span>
+              </div>
+              <div className="flex gap-2 mb-3">
+                <ThemeToggle />
               </div>
               <Button
                 variant="outline"
