@@ -1275,6 +1275,24 @@ export type Database = {
           },
         ]
       }
+      whatsapp_instances: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_name?: string
+        }
+        Relationships: []
+      }
       whatsapp_templates: {
         Row: {
           ativo: boolean
