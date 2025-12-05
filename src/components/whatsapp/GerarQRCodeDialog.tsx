@@ -10,15 +10,11 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface QRCodeResponse {
-  qrCode: string;
-  pairingCode: string;
-}
-
 export function GerarQRCodeDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [qrData, setQrData] = useState<QRCodeResponse | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleGerarQRCode = async () => {
@@ -41,12 +37,16 @@ export function GerarQRCodeDialog() {
         throw new Error('Falha na requisição');
       }
 
-      const data: QRCodeResponse = await response.json();
-      setQrData(data);
+      const data = await response.json();
+      
+      setQrCode(data?.qrCode ?? null);
+      setPairingCode(data?.pairingCode ?? null);
       toast.success('QR Code gerado com sucesso!');
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
       setError('Não consegui gerar o QR Code. Tente novamente em alguns segundos.');
+      setQrCode(null);
+      setPairingCode(null);
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,8 @@ export function GerarQRCodeDialog() {
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
-      setQrData(null);
+      setQrCode(null);
+      setPairingCode(null);
       setError(null);
       setLoading(false);
     }
@@ -75,7 +76,7 @@ export function GerarQRCodeDialog() {
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">
-          {!loading && !qrData && !error && (
+          {!loading && !qrCode && !error && (
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">
                 Clique no botão abaixo para gerar o QR Code de conexão do WhatsApp.
@@ -104,18 +105,20 @@ export function GerarQRCodeDialog() {
             </div>
           )}
 
-          {qrData && (
+          {qrCode && (
             <div className="flex flex-col items-center gap-4">
               <img
-                src={qrData.qrCode}
+                src={qrCode}
                 alt="QR Code WhatsApp"
                 style={{ width: 250, height: 250, objectFit: 'contain' }}
                 className="rounded-lg border"
               />
-              <p className="text-sm text-center">
-                <span className="font-medium">Código de Pareamento:</span>{' '}
-                <span className="font-mono text-primary break-all">{qrData.pairingCode}</span>
-              </p>
+              {pairingCode && (
+                <p className="text-sm text-center">
+                  <span className="font-medium">Código de Pareamento:</span>{' '}
+                  <span className="font-mono text-primary break-all">{pairingCode}</span>
+                </p>
+              )}
               <Button onClick={handleGerarQRCode} variant="outline" size="sm" className="gap-2">
                 <QrCode className="h-4 w-4" />
                 Gerar Novo QR Code
