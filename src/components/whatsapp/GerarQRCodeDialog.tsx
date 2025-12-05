@@ -11,9 +11,8 @@ import { QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface QRCodeResponse {
-  code: string;
+  qrCode: string;
   pairingCode: string;
-  base64: string;
 }
 
 export function GerarQRCodeDialog() {
@@ -43,13 +42,7 @@ export function GerarQRCodeDialog() {
       }
 
       const data: QRCodeResponse = await response.json();
-      
-      // Garante que o base64 tenha o prefixo correto
-      const base64Image = data.base64.startsWith('data:image/png;base64,')
-        ? data.base64
-        : `data:image/png;base64,${data.base64}`;
-      
-      setQrData({ ...data, base64: base64Image });
+      setQrData(data);
       toast.success('QR Code gerado com sucesso!');
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
@@ -114,20 +107,15 @@ export function GerarQRCodeDialog() {
           {qrData && (
             <div className="flex flex-col items-center gap-4">
               <img
-                src={qrData.base64}
+                src={qrData.qrCode}
                 alt="QR Code WhatsApp"
-                className="w-[300px] h-[300px] rounded-lg border"
+                style={{ width: 250, height: 250, objectFit: 'contain' }}
+                className="rounded-lg border"
               />
-              <div className="text-center space-y-2">
-                <p className="text-sm">
-                  <span className="font-medium">Código de Pareamento:</span>{' '}
-                  <span className="font-mono text-primary">{qrData.pairingCode}</span>
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium">Code interno:</span>{' '}
-                  <span className="font-mono">{qrData.code}</span>
-                </p>
-              </div>
+              <p className="text-sm text-center">
+                <span className="font-medium">Código de Pareamento:</span>{' '}
+                <span className="font-mono text-primary break-all">{qrData.pairingCode}</span>
+              </p>
               <Button onClick={handleGerarQRCode} variant="outline" size="sm" className="gap-2">
                 <QrCode className="h-4 w-4" />
                 Gerar Novo QR Code
