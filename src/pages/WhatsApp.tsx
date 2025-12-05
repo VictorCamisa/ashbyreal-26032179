@@ -3,6 +3,7 @@ import { useWhatsApp, WhatsAppConversa } from '@/hooks/useWhatsApp';
 import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
 import { ConversasList } from '@/components/whatsapp/ConversasList';
 import { ChatView } from '@/components/whatsapp/ChatView';
+import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -54,9 +55,12 @@ export default function WhatsApp() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">WhatsApp Business</h1>
-        <p className="text-muted-foreground">Painel de Controle e Engajamento</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">WhatsApp Business</h1>
+          <p className="text-muted-foreground">Painel de Controle e Engajamento</p>
+        </div>
+        <GerarQRCodeDialog />
       </div>
 
       {/* KPIs */}
