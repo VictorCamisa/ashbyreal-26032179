@@ -22,7 +22,10 @@ export function GerarQRCodeDialog() {
   const [qrData, setQrData] = useState<QRCodeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchQRCode = async (): Promise<QRCodeResponse | null> => {
+  const handleGerarQRCode = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
       const response = await fetch(
         'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/getqrcode',
@@ -40,44 +43,20 @@ export function GerarQRCodeDialog() {
       }
 
       const data: QRCodeResponse = await response.json();
-      return data;
+      
+      // Garante que o base64 tenha o prefixo correto
+      const base64Image = data.base64.startsWith('data:image/png;base64,')
+        ? data.base64
+        : `data:image/png;base64,${data.base64}`;
+      
+      setQrData({ ...data, base64: base64Image });
+      toast.success('QR Code gerado com sucesso!');
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
-      return null;
-    }
-  };
-
-  const handleGerarQRCode = async () => {
-    setLoading(true);
-    setError(null);
-    setQrData(null);
-
-    const pollQRCode = async (attempts = 0): Promise<void> => {
-      if (attempts > 20) {
-        setError('Não consegui gerar o QR Code. Tente novamente em alguns segundos.');
-        setLoading(false);
-        return;
-      }
-
-      const data = await fetchQRCode();
-
-      if (!data) {
-        setError('Não consegui gerar o QR Code. Tente novamente em alguns segundos.');
-        setLoading(false);
-        return;
-      }
-
-      if (data.base64 === '=' || !data.base64.startsWith('data:image/png;base64,')) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        return pollQRCode(attempts + 1);
-      }
-
-      setQrData(data);
+      setError('Não consegui gerar o QR Code. Tente novamente em alguns segundos.');
+    } finally {
       setLoading(false);
-      toast.success('QR Code gerado com sucesso!');
-    };
-
-    await pollQRCode();
+    }
   };
 
   const handleOpenChange = (newOpen: boolean) => {
