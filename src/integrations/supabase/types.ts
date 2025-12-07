@@ -1277,19 +1277,28 @@ export type Database = {
       }
       whatsapp_instances: {
         Row: {
+          client_slug: string | null
           created_at: string | null
           id: string
           instance_name: string
+          is_active: boolean | null
+          is_connected: boolean | null
         }
         Insert: {
+          client_slug?: string | null
           created_at?: string | null
           id?: string
           instance_name: string
+          is_active?: boolean | null
+          is_connected?: boolean | null
         }
         Update: {
+          client_slug?: string | null
           created_at?: string | null
           id?: string
           instance_name?: string
+          is_active?: boolean | null
+          is_connected?: boolean | null
         }
         Relationships: []
       }

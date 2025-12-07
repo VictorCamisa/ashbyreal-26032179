@@ -1,37 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export function GerarQRCodeDialog() {
-  const [open, setOpen] = useState(false);
+const STATUS_URL = 'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/state';
+const QR_CODE_URL = 'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/getqrcode';
+
+interface GerarQRCodeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConnected: (instanceName: string) => void;
+}
+
+export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCodeDialogProps) {
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleGerarQRCode = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(
-        'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/getqrcode',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        }
-      );
+      const response = await fetch(QR_CODE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
 
       if (!response.ok) {
         throw new Error('Falha na requisição');
@@ -52,24 +57,67 @@ export function GerarQRCodeDialog() {
     }
   };
 
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
+  const checkConnectionStatus = async () => {
+    try {
+      const response = await fetch(STATUS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      
+      if (data?.isConnected === true) {
+        // Conectou! Fechar modal e notificar
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        toast.success('WhatsApp conectado com sucesso!');
+        onConnected(data.instanceName || 'WhatsApp');
+        onOpenChange(false);
+      }
+    } catch (err) {
+      // Ignora erro e tenta novamente no próximo ciclo
+      console.error('Erro ao verificar status:', err);
+    }
+  };
+
+  // Polling quando o modal está aberto
+  useEffect(() => {
+    if (open) {
+      // Inicia polling a cada 4 segundos
+      intervalRef.current = setInterval(checkConnectionStatus, 4000);
+      
+      // Verifica imediatamente também
+      checkConnectionStatus();
+    } else {
+      // Limpa o intervalo quando o modal fecha
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      // Reseta estados
       setQrCode(null);
       setPairingCode(null);
       setError(null);
       setLoading(false);
     }
-  };
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <QrCode className="h-4 w-4" />
-          Gerar QR Code
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>QR Code WhatsApp</DialogTitle>
@@ -119,6 +167,9 @@ export function GerarQRCodeDialog() {
                   <span className="font-mono text-primary break-all">{pairingCode}</span>
                 </p>
               )}
+              <p className="text-xs text-muted-foreground text-center">
+                Aguardando conexão... (verificando a cada 4s)
+              </p>
               <Button onClick={handleGerarQRCode} variant="outline" size="sm" className="gap-2">
                 <QrCode className="h-4 w-4" />
                 Gerar Novo QR Code
