@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWhatsApp, WhatsAppConversa } from '@/hooks/useWhatsApp';
 import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
 import { ConversasList } from '@/components/whatsapp/ConversasList';
@@ -14,11 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { MessageSquare, QrCode, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { MessageSquare, QrCode, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 
 const STATUS_URL = 'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/state';
-
-type ConnectionStatus = 'loading' | 'connected' | 'disconnected';
 
 export default function WhatsApp() {
   const {
@@ -34,49 +32,46 @@ export default function WhatsApp() {
   const [dialogNovaConversa, setDialogNovaConversa] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   
-  // Estados de conexão
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('loading');
+  // Estados de conexão conforme especificado
+  const [isConnected, setIsConnected] = useState(false);
   const [instanceName, setInstanceName] = useState<string | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const { data: mensagens = [], isLoading: loadingMensagens } = getMensagens(
     conversaSelecionada?.id || ''
   );
 
-  // Verificar status de conexão ao carregar a página
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const response = await fetch(STATUS_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        });
+  // Função para buscar o status no backend
+  const fetchWhatsappStatus = useCallback(async () => {
+    setIsLoadingStatus(true);
+    setStatusError(null);
+    
+    try {
+      const response = await fetch(STATUS_URL, {
+        method: 'GET',
+      });
 
-        if (!response.ok) {
-          throw new Error('Falha na requisição');
-        }
-
-        const data = await response.json();
-
-        if (data?.isConnected === true) {
-          setConnectionStatus('connected');
-          setInstanceName(data.instanceName || 'WhatsApp');
-        } else {
-          setConnectionStatus('disconnected');
-          setInstanceName(null);
-        }
-      } catch (err) {
-        console.error('Erro ao verificar status do WhatsApp:', err);
-        setConnectionStatus('disconnected');
-        setInstanceName(null);
+      if (!response.ok) {
+        throw new Error('Falha na requisição');
       }
-    };
 
-    checkStatus();
+      const data = await response.json();
+      
+      setIsConnected(Boolean(data.connected));
+      setInstanceName(data.instanceName || null);
+    } catch (err) {
+      console.error('Erro ao verificar status do WhatsApp:', err);
+      setStatusError('Não foi possível verificar o status do WhatsApp.');
+    } finally {
+      setIsLoadingStatus(false);
+    }
   }, []);
 
+  // Chamar o status ao carregar a página
+  useEffect(() => {
+    fetchWhatsappStatus();
+  }, [fetchWhatsappStatus]);
   const handleSelecionarConversa = async (conversa: WhatsAppConversa) => {
     setConversaSelecionada(conversa);
     if (conversa.nao_lida) {
@@ -98,7 +93,7 @@ export default function WhatsApp() {
   };
 
   const handleConnected = (name: string) => {
-    setConnectionStatus('connected');
+    setIsConnected(true);
     setInstanceName(name);
     setQrDialogOpen(false);
   };
@@ -114,34 +109,56 @@ export default function WhatsApp() {
         
         <div className="flex items-center gap-4">
           {/* Status de Conexão */}
-          {connectionStatus === 'loading' && (
+          {isLoadingStatus && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Verificando status...</span>
+              <span className="text-sm">Verificando status do WhatsApp...</span>
             </div>
           )}
           
-          {connectionStatus === 'connected' && (
+          {statusError && !isLoadingStatus && (
+            <Badge variant="outline" className="gap-2 bg-destructive/10 text-destructive border-destructive/30">
+              <XCircle className="h-4 w-4" />
+              {statusError}
+            </Badge>
+          )}
+          
+          {!isLoadingStatus && !statusError && isConnected && (
             <Badge variant="outline" className="gap-2 bg-green-500/10 text-green-600 border-green-500/30">
               <CheckCircle2 className="h-4 w-4" />
               Conectado — {instanceName}
             </Badge>
           )}
           
-          {connectionStatus === 'disconnected' && (
+          {!isLoadingStatus && !statusError && !isConnected && (
             <Badge variant="outline" className="gap-2 bg-destructive/10 text-destructive border-destructive/30">
               <XCircle className="h-4 w-4" />
-              Não conectado
+              Desconectado
             </Badge>
           )}
 
-          {/* Botão Gerar QR Code - só aparece se desconectado */}
-          {connectionStatus === 'disconnected' && (
-            <Button variant="outline" className="gap-2" onClick={() => setQrDialogOpen(true)}>
-              <QrCode className="h-4 w-4" />
-              Gerar QR Code
-            </Button>
-          )}
+          {/* Botão Verificar Status */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="gap-2" 
+            onClick={fetchWhatsappStatus}
+            disabled={isLoadingStatus}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+            Verificar status
+          </Button>
+
+          {/* Botão Gerar QR Code - desabilitado se conectado ou carregando */}
+          <Button 
+            variant="outline" 
+            className="gap-2" 
+            onClick={() => setQrDialogOpen(true)}
+            disabled={isConnected || isLoadingStatus}
+          >
+            <QrCode className="h-4 w-4" />
+            Gerar QR Code
+          </Button>
         </div>
       </div>
 
