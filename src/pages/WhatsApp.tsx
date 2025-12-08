@@ -33,7 +33,7 @@ export default function WhatsApp() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   
   // Estados de conexão conforme especificado
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -53,16 +53,31 @@ export default function WhatsApp() {
       });
 
       if (!response.ok) {
-        throw new Error('Falha na requisição');
+        throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json();
-      
-      setIsConnected(Boolean(data.connected));
-      setInstanceName(data.instanceName || null);
+      const data = await response.json() as {
+        state?: string;
+        instanceName?: string;
+        isConnected?: boolean;
+        connected?: boolean;
+      };
+
+      // Fallback inteligente: suporta diferentes formatos do backend
+      const connected =
+        typeof data.isConnected === 'boolean'
+          ? data.isConnected
+          : typeof data.connected === 'boolean'
+            ? data.connected
+            : data.state === 'CONNECTED' || data.state === 'open';
+
+      setIsConnected(connected);
+      setInstanceName(data.instanceName ?? null);
     } catch (err) {
       console.error('Erro ao verificar status do WhatsApp:', err);
-      setStatusError('Não foi possível verificar o status do WhatsApp.');
+      setStatusError('Não consegui verificar o status. Tente novamente.');
+      setIsConnected(null);
+      setInstanceName(null);
     } finally {
       setIsLoadingStatus(false);
     }
@@ -110,30 +125,36 @@ export default function WhatsApp() {
         <div className="flex items-center gap-4">
           {/* Status de Conexão */}
           {isLoadingStatus && (
-            <div className="flex items-center gap-2 text-muted-foreground">
+            <Badge variant="outline" className="gap-2 bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Verificando status do WhatsApp...</span>
-            </div>
+              Verificando...
+            </Badge>
           )}
           
           {statusError && !isLoadingStatus && (
-            <Badge variant="outline" className="gap-2 bg-destructive/10 text-destructive border-destructive/30">
-              <XCircle className="h-4 w-4" />
-              {statusError}
-            </Badge>
+            <span className="text-sm text-destructive">{statusError}</span>
           )}
           
-          {!isLoadingStatus && !statusError && isConnected && (
+          {!isLoadingStatus && !statusError && isConnected === true && (
             <Badge variant="outline" className="gap-2 bg-green-500/10 text-green-600 border-green-500/30">
               <CheckCircle2 className="h-4 w-4" />
-              Conectado — {instanceName}
+              Conectado
+              {instanceName && (
+                <span className="opacity-80">({instanceName})</span>
+              )}
             </Badge>
           )}
           
-          {!isLoadingStatus && !statusError && !isConnected && (
+          {!isLoadingStatus && !statusError && isConnected === false && (
             <Badge variant="outline" className="gap-2 bg-destructive/10 text-destructive border-destructive/30">
               <XCircle className="h-4 w-4" />
               Desconectado
+            </Badge>
+          )}
+          
+          {!isLoadingStatus && !statusError && isConnected === null && (
+            <Badge variant="outline" className="gap-2 bg-muted text-muted-foreground border-muted-foreground/30">
+              Status desconhecido
             </Badge>
           )}
 
