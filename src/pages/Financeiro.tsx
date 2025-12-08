@@ -1,16 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
-import { 
-  TrendingUp, 
-  CreditCard, 
-  Building2, 
-  Users, 
-  Beer, 
-  Calendar,
-  PieChart,
-  Wallet
-} from 'lucide-react';
+import { TrendingUp, CreditCard, Building2, Users, Beer, Calendar, PieChart, Wallet } from 'lucide-react';
 import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro';
 import { DespesasParticulares } from '@/components/financeiro/DespesasParticulares';
 import { FinanceiroLoja } from '@/components/financeiro/FinanceiroLoja';
@@ -18,15 +9,12 @@ import { ControleCartoes } from '@/components/financeiro/ControleCartoes';
 import { PedidosAshby } from '@/components/financeiro/PedidosAshby';
 import { HorasExtras } from '@/components/financeiro/HorasExtras';
 import { VisaoConsolidada } from '@/components/financeiro/VisaoConsolidada';
-
 const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Gestão Financeira</h1>
+          <h1 className="text-3xl font-bold text-center text-primary">Gestão Financeira</h1>
           <p className="text-muted-foreground">Controle completo de finanças da loja e particulares</p>
         </div>
       </div>
@@ -91,8 +79,6 @@ const Financeiro = () => {
           <VisaoConsolidada />
         </TabsContent>
       </Tabs>
-    </div>
-  );
+    </div>;
 };
-
 export default Financeiro;
