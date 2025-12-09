@@ -27,7 +27,8 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { action, instance_name, remote_jid } = await req.json();
+    const body = await req.json();
+    const { action, instance_name, remote_jid, text } = body;
 
     console.log(`=== Evolution API Request ===`);
     console.log(`Action: ${action}`);
@@ -38,16 +39,17 @@ serve(async (req) => {
     const baseUrl = EVOLUTION_API_URL.replace(/\/$/, '');
 
     if (action === 'find_chats') {
-      // GET /chat/findChats/{instance}
+      // POST /chat/findChats/{instance} - API v2 uses POST
       const url = `${baseUrl}/chat/findChats/${instance_name}`;
       console.log(`Fetching chats from: ${url}`);
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'apikey': EVOLUTION_API_KEY,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({}),
       });
 
       console.log(`Response status: ${response.status}`);
@@ -64,24 +66,27 @@ serve(async (req) => {
       // Salvar chats no Supabase
       if (Array.isArray(chats) && chats.length > 0) {
         for (const chat of chats) {
-          const remoteJid = chat.id || chat.remoteJid || chat.jid;
+          // A API retorna diferentes estruturas dependendo do tipo
+          const remoteJid = chat.remoteJid || chat.id || chat.jid;
           if (!remoteJid) continue;
 
           const chatData = {
             instance_name,
             remote_jid: remoteJid,
-            push_name: chat.name || chat.pushName || chat.notify || null,
+            push_name: chat.pushName || chat.name || chat.notify || null,
             profile_pic_url: chat.profilePicUrl || chat.imgUrl || null,
             unread_count: chat.unreadCount || 0,
             last_message: chat.lastMessage?.message?.conversation || 
                           chat.lastMessage?.message?.extendedTextMessage?.text || 
                           null,
             last_message_at: chat.lastMessage?.messageTimestamp 
-              ? new Date(chat.lastMessage.messageTimestamp * 1000).toISOString()
-              : null,
+              ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString()
+              : chat.updatedAt || null,
             is_group: remoteJid.includes('@g.us'),
             updated_at: new Date().toISOString(),
           };
+
+          console.log(`Upserting chat: ${remoteJid} - ${chatData.push_name}`);
 
           const { error } = await supabase
             .from('evolution_chats')
@@ -122,7 +127,8 @@ serve(async (req) => {
             key: {
               remoteJid: remote_jid
             }
-          }
+          },
+          limit: 100
         }),
       });
 
@@ -134,8 +140,16 @@ serve(async (req) => {
         throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
       }
 
-      const messages = await response.json();
-      console.log(`Found ${Array.isArray(messages) ? messages.length : 0} messages`);
+      const messagesResponse = await response.json();
+      console.log(`Raw messages response type: ${typeof messagesResponse}`);
+      console.log(`Raw messages response: ${JSON.stringify(messagesResponse).substring(0, 500)}`);
+      
+      // A API pode retornar { messages: [...] } ou diretamente um array
+      const messages = Array.isArray(messagesResponse) 
+        ? messagesResponse 
+        : (messagesResponse.messages || []);
+      
+      console.log(`Found ${messages.length} messages`);
 
       // Buscar o chat_id correspondente
       const { data: chatData } = await supabase
@@ -179,7 +193,7 @@ serve(async (req) => {
                        msg.message?.documentMessage?.url ||
                        null,
             timestamp: msg.messageTimestamp 
-              ? new Date(msg.messageTimestamp * 1000).toISOString()
+              ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()
               : new Date().toISOString(),
             status: msg.status || null,
           };
@@ -196,7 +210,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         success: true, 
-        messages: Array.isArray(messages) ? messages.length : 0 
+        messages: messages.length 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -207,7 +221,6 @@ serve(async (req) => {
         throw new Error('remote_jid is required for send_message');
       }
 
-      const { text } = await req.json();
       if (!text) {
         throw new Error('text is required for send_message');
       }
