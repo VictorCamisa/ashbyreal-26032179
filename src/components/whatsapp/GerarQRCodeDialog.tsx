@@ -25,6 +25,21 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Formata o QR code para exibição (adiciona prefixo base64 se necessário)
+  const formatQrCodeSrc = (qrCodeData: string): string => {
+    if (!qrCodeData) return '';
+    
+    // Se já é uma URL completa ou data URI, retorna como está
+    if (qrCodeData.startsWith('http://') || 
+        qrCodeData.startsWith('https://') || 
+        qrCodeData.startsWith('data:')) {
+      return qrCodeData;
+    }
+    
+    // Se é base64 puro, adiciona o prefixo
+    return `data:image/png;base64,${qrCodeData}`;
+  };
+
   const handleGerarQRCode = async () => {
     setLoading(true);
     setError(null);
@@ -39,9 +54,20 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       if (!response.ok) throw new Error('Falha na requisição');
 
       const data = await response.json();
-      setQrCode(data?.qrCode ?? null);
-      setPairingCode(data?.pairingCode ?? null);
-      toast.success('QR Code gerado!');
+      console.log('QR Code Response:', data);
+      
+      // Tenta diferentes campos possíveis na resposta
+      const qrCodeValue = data?.qrCode || data?.qrcode || data?.base64 || data?.image || data?.qr || null;
+      const pairingCodeValue = data?.pairingCode || data?.pairingcode || data?.code || null;
+      
+      if (qrCodeValue) {
+        setQrCode(qrCodeValue);
+        setPairingCode(pairingCodeValue);
+        toast.success('QR Code gerado com sucesso!');
+      } else {
+        console.error('Resposta sem QR Code:', data);
+        setError('QR Code não encontrado na resposta');
+      }
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
       setError('Erro ao gerar QR Code. Tente novamente.');
@@ -144,11 +170,15 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
 
           {qrCode && (
             <div className="flex flex-col items-center gap-4 w-full">
-              <div className="p-3 bg-white rounded-xl">
+              <div className="p-3 bg-white rounded-xl shadow-lg">
                 <img
-                  src={qrCode}
-                  alt="QR Code"
-                  className="w-52 h-52 object-contain"
+                  src={formatQrCodeSrc(qrCode)}
+                  alt="QR Code WhatsApp"
+                  className="w-56 h-56 object-contain"
+                  onError={(e) => {
+                    console.error('Erro ao carregar imagem QR Code');
+                    e.currentTarget.style.display = 'none';
+                  }}
                 />
               </div>
               
