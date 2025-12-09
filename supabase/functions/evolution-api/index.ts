@@ -142,14 +142,21 @@ serve(async (req) => {
 
       const messagesResponse = await response.json();
       console.log(`Raw messages response type: ${typeof messagesResponse}`);
-      console.log(`Raw messages response: ${JSON.stringify(messagesResponse).substring(0, 500)}`);
+      console.log(`Raw messages response keys: ${Object.keys(messagesResponse || {})}`);
       
-      // A API pode retornar { messages: [...] } ou diretamente um array
-      const messages = Array.isArray(messagesResponse) 
-        ? messagesResponse 
-        : (messagesResponse.messages || []);
+      // A API v2 retorna { messages: { total, pages, currentPage, records: [...] } }
+      let messages: any[] = [];
+      if (Array.isArray(messagesResponse)) {
+        messages = messagesResponse;
+      } else if (messagesResponse?.messages?.records) {
+        messages = messagesResponse.messages.records;
+      } else if (messagesResponse?.messages && Array.isArray(messagesResponse.messages)) {
+        messages = messagesResponse.messages;
+      } else if (messagesResponse?.records) {
+        messages = messagesResponse.records;
+      }
       
-      console.log(`Found ${messages.length} messages`);
+      console.log(`Found ${messages.length} messages to process`);
 
       // Buscar o chat_id correspondente
       const { data: chatData } = await supabase
@@ -229,16 +236,21 @@ serve(async (req) => {
       const url = `${baseUrl}/message/sendText/${instance_name}`;
       console.log(`Sending message to: ${url}`);
 
+      // Determinar se é número ou grupo
+      const isGroup = remote_jid.includes('@g.us');
+      const requestBody = isGroup 
+        ? { number: remote_jid, text } // Para grupos, enviar o remoteJid completo
+        : { number: remote_jid.replace('@s.whatsapp.net', '').replace('@lid', ''), text };
+      
+      console.log(`Request body: ${JSON.stringify(requestBody)}`);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'apikey': EVOLUTION_API_KEY,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          number: remote_jid.replace('@s.whatsapp.net', '').replace('@g.us', ''),
-          text,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       console.log(`Response status: ${response.status}`);
