@@ -50,10 +50,14 @@ serve(async (req) => {
     }
 
     if (action === "status" && !body.instance_name) {
-      // Se não tem instance_name, retorna "não conectado" em vez de erro
-      console.log("Status check without instance_name - returning not connected");
+      // Se não tem instance_name, retorna erro específico
+      console.log("Status check without instance_name");
       return new Response(
-        JSON.stringify({ connected: false, isConnected: false, message: "No instance configured" }),
+        JSON.stringify({ 
+          found: false, 
+          is_connected: false, 
+          error: "Instance_name não encontrado no sistema." 
+        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -66,19 +70,54 @@ serve(async (req) => {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
-    console.log(`Response from ${action}:`, JSON.stringify(data).substring(0, 200));
+    // Lê o texto da resposta primeiro
+    const responseText = await response.text();
+    console.log(`Raw response from ${action}:`, responseText.substring(0, 500));
+
+    // Se resposta vazia, retorna erro
+    if (!responseText || responseText.trim() === "") {
+      console.log("Empty response from n8n");
+      return new Response(
+        JSON.stringify({ 
+          found: false, 
+          is_connected: false, 
+          error: "Não foi possível verificar o status da conexão." 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Tenta fazer parse do JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse JSON response:", parseError);
+      return new Response(
+        JSON.stringify({ 
+          found: false, 
+          is_connected: false, 
+          error: "Não foi possível verificar o status da conexão." 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Parsed response from ${action}:`, JSON.stringify(data));
 
     return new Response(JSON.stringify(data), {
-      status: response.status,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: unknown) {
     console.error("Proxy error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Proxy request failed";
     return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        found: false, 
+        is_connected: false, 
+        error: "Não foi possível verificar o status da conexão." 
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

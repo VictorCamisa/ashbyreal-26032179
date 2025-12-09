@@ -53,7 +53,8 @@ export default function WhatsApp() {
     const storedInstanceName = instanceName || localStorage.getItem('whatsapp_instance_name');
     
     if (!storedInstanceName) {
-      console.log('Sem instance_name configurado - WhatsApp não conectado');
+      console.log('Sem instance_name configurado');
+      setStatusError('Instance_name não encontrado no sistema.');
       setIsConnected(false);
       setIsLoadingStatus(false);
       return;
@@ -65,52 +66,44 @@ export default function WhatsApp() {
     try {
       console.log('Verificando status para instance_name:', storedInstanceName);
       
+      // POST para o proxy com instance_name no body
       const response = await fetch(STATUS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instance_name: storedInstanceName }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
+      // Aguarda a resposta JSON completa
+      const data = await response.json();
+      console.log('Status response:', data);
 
-      const text = await response.text();
-      if (!text) {
+      // Verifica se houve erro ou JSON vazio
+      if (!data || data.error) {
+        setStatusError(data?.error || 'Não foi possível verificar o status da conexão.');
         setIsConnected(false);
         return;
       }
 
-      const data = JSON.parse(text) as {
-        state?: string;
-        instanceName?: string;
-        instance_name?: string;
-        isConnected?: boolean;
-        connected?: boolean;
-      };
-
-      console.log('Status response:', data);
-
-      const connected =
-        typeof data.isConnected === 'boolean'
-          ? data.isConnected
-          : typeof data.connected === 'boolean'
-            ? data.connected
-            : data.state === 'CONNECTED' || data.state === 'open';
-
+      // Atualiza estados conforme resposta do n8n
+      // Formato esperado: { found, instance_name, is_connected, client_slug }
+      const connected = data.is_connected === true;
       setIsConnected(connected);
       
-      // Atualiza o instanceName se retornado
-      const returnedInstanceName = data.instanceName || data.instance_name;
-      if (returnedInstanceName) {
-        setInstanceName(returnedInstanceName);
-        localStorage.setItem('whatsapp_instance_name', returnedInstanceName);
+      // Atualiza instance_name se retornado
+      if (data.instance_name) {
+        setInstanceName(data.instance_name);
+        localStorage.setItem('whatsapp_instance_name', data.instance_name);
       }
+      
+      // Armazena client_slug se retornado
+      if (data.client_slug) {
+        localStorage.setItem('whatsapp_client_slug', data.client_slug);
+      }
+      
     } catch (err) {
       console.error('Erro ao verificar status do WhatsApp:', err);
-      setStatusError('Não consegui verificar o status');
-      setIsConnected(null);
+      setStatusError('Não foi possível verificar o status da conexão.');
+      setIsConnected(false);
     } finally {
       setIsLoadingStatus(false);
     }
