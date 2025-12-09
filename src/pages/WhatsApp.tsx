@@ -159,37 +159,73 @@ export default function WhatsApp() {
     chat.remote_jid.includes(searchTerm)
   );
 
+  // Verifica se é um Linked ID (ID interno do WhatsApp Business)
+  const isLinkedId = (jid: string) => jid.includes('@lid');
+  
+  // Verifica se é um grupo
+  const isGroup = (jid: string) => jid.includes('@g.us');
+
   // Formata número para exibição internacional
   const formatPhoneNumber = (jid: string) => {
+    // Linked IDs não são números de telefone - são IDs internos
+    if (isLinkedId(jid)) return '';
+    
+    // Grupos não têm número
+    if (isGroup(jid)) return '';
+    
     let number = jid
       .replace('@s.whatsapp.net', '')
-      .replace('@g.us', '')
-      .replace('@lid', '')
       .replace('@c.us', '');
     
+    // Se contém letras, não é um número válido
     if (/[a-zA-Z]/.test(number)) return '';
     
     number = number.replace(/\D/g, '');
-    if (!number) return '';
+    if (!number || number.length < 10) return '';
     
-    // Formato internacional: +XX XXXXXXXXX
-    if (number.length > 4) {
-      const countryCode = number.slice(0, 2);
-      const rest = number.slice(2);
-      return `+${countryCode} ${rest}`;
+    // Formato brasileiro: (DD) XXXXX-XXXX
+    if (number.startsWith('55') && number.length >= 12) {
+      const ddd = number.slice(2, 4);
+      const rest = number.slice(4);
+      if (rest.length === 9) {
+        return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+      }
+      if (rest.length === 8) {
+        return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+      }
     }
     
-    return `+${number}`;
+    // Formato internacional genérico
+    return `+${number.slice(0, 2)} ${number.slice(2)}`;
   };
 
   const getDisplayName = (chat: EvolutionChat) => {
+    // Sempre priorizar o nome salvo no WhatsApp
     if (chat.push_name?.trim()) return chat.push_name;
-    return formatPhoneNumber(chat.remote_jid) || 'Contato';
+    
+    // Para números reais, mostrar formatado
+    const formatted = formatPhoneNumber(chat.remote_jid);
+    if (formatted) return formatted;
+    
+    // Para grupos
+    if (chat.is_group) return 'Grupo';
+    
+    return 'Contato';
   };
 
   const getSubtitle = (chat: EvolutionChat) => {
     if (chat.is_group) return 'Grupo';
-    return formatPhoneNumber(chat.remote_jid) || '';
+    
+    // Se tem nome E tem número real, mostrar o número
+    if (chat.push_name?.trim()) {
+      const formatted = formatPhoneNumber(chat.remote_jid);
+      if (formatted) return formatted;
+    }
+    
+    // Para Linked IDs sem número real
+    if (isLinkedId(chat.remote_jid)) return 'WhatsApp Business';
+    
+    return 'WhatsApp';
   };
 
   // Avatar colors
