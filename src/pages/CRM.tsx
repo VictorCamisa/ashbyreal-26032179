@@ -1,32 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search, TrendingUp, UserCheck, DollarSign, Users } from 'lucide-react';
 import { PipelineColumn } from '@/types/lead';
 import { useLeads } from '@/hooks/useLeads';
 import { NovoLeadDialog } from '@/components/crm/NovoLeadDialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { Lead } from '@/types/lead';
 
 const pipelineColumns: PipelineColumn[] = [
-  { id: 'novo_lead', title: 'Novo Lead', color: 'bg-blue-500' },
-  { id: 'qualificado', title: 'Qualificado', color: 'bg-yellow-500' },
-  { id: 'negociacao', title: 'Em Negociação', color: 'bg-orange-500' },
-  { id: 'fechado', title: 'Fechado', color: 'bg-green-500' },
-  { id: 'perdido', title: 'Perdido', color: 'bg-red-500' },
+  { id: 'novo_lead', title: 'Novo', color: 'bg-chart-2' },
+  { id: 'qualificado', title: 'Qualificado', color: 'bg-chart-4' },
+  { id: 'negociacao', title: 'Negociação', color: 'bg-chart-5' },
+  { id: 'fechado', title: 'Fechado', color: 'bg-primary' },
+  { id: 'perdido', title: 'Perdido', color: 'bg-destructive' },
 ];
 
 const origemColors: Record<string, string> = {
-  WhatsApp: 'bg-green-500',
-  Instagram: 'bg-purple-500',
-  Facebook: 'bg-blue-500',
-  Indicação: 'bg-yellow-500',
-  Site: 'bg-cyan-500',
-  Outros: 'bg-gray-500'
+  WhatsApp: 'bg-primary/10 text-primary',
+  Instagram: 'bg-chart-3/10 text-chart-3',
+  Facebook: 'bg-chart-2/10 text-chart-2',
+  Indicação: 'bg-chart-4/10 text-chart-4',
+  Site: 'bg-chart-5/10 text-chart-5',
+  Outros: 'bg-muted text-muted-foreground'
 };
 
 function DraggableLeadCard({ lead, navigate }: { lead: Lead; navigate: (path: string) => void }) {
@@ -40,46 +38,35 @@ function DraggableLeadCard({ lead, navigate }: { lead: Lead; navigate: (path: st
   };
 
   return (
-    <Card 
+    <div 
       ref={setNodeRef}
       style={style}
       {...listeners}
       {...attributes}
-      className="cursor-grab active:cursor-grabbing hover:border-primary transition-colors"
+      className="p-3 rounded-xl bg-card border border-border/50 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-all"
       onClick={() => navigate(`/cliente/${lead.id}`)}
     >
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-sm font-medium">{lead.nome}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-2">
-        <p className="text-xs text-muted-foreground">{lead.telefone}</p>
-        <div className="flex items-center justify-between">
-          <Badge className={`${origemColors[lead.origem]} text-xs`}>
-            {lead.origem}
-          </Badge>
-          <span className="text-xs font-semibold">
-            R$ {lead.valorEstimado.toLocaleString('pt-BR')}
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {new Date(lead.dataCriacao).toLocaleDateString('pt-BR')}
-        </p>
-      </CardContent>
-    </Card>
+      <p className="text-sm font-medium mb-1">{lead.nome}</p>
+      <p className="text-xs text-muted-foreground mb-2">{lead.telefone}</p>
+      <div className="flex items-center justify-between">
+        <Badge variant="outline" className={`text-[10px] ${origemColors[lead.origem]}`}>
+          {lead.origem}
+        </Badge>
+        <span className="text-xs font-medium">
+          R$ {lead.valorEstimado.toLocaleString('pt-BR')}
+        </span>
+      </div>
+    </div>
   );
 }
 
 function DroppableColumn({ column, children }: { column: PipelineColumn; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: column.id,
-  });
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
     <div 
       ref={setNodeRef} 
-      className={`space-y-2 min-h-[200px] p-2 rounded-lg transition-colors ${
-        isOver ? 'bg-accent/50' : ''
-      }`}
+      className={`space-y-2 min-h-[150px] p-2 rounded-xl transition-colors ${isOver ? 'bg-primary/5' : ''}`}
     >
       {children}
     </div>
@@ -88,7 +75,6 @@ function DroppableColumn({ column, children }: { column: PipelineColumn; childre
 
 export default function CRM() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const navigate = useNavigate();
   const { leads, isLoading, createLead, isCreating, updateLeadStatus } = useLeads();
 
@@ -97,104 +83,78 @@ export default function CRM() {
     lead.telefone.includes(searchTerm)
   );
 
-  const getLeadsByStatus = (status: string) => {
-    return filteredLeads.filter(lead => lead.status === status);
-  };
+  const getLeadsByStatus = (status: string) => filteredLeads.filter(lead => lead.status === status);
 
   const stats = {
     total: leads.length,
     qualificados: leads.filter(l => l.status === 'qualificado').length,
     fechados: leads.filter(l => l.status === 'fechado').length,
-    valorTotal: leads
-      .filter(l => l.status === 'fechado')
-      .reduce((acc, l) => acc + l.valorEstimado, 0),
+    valorTotal: leads.filter(l => l.status === 'fechado').reduce((acc, l) => acc + l.valorEstimado, 0),
   };
+
+  const kpis = [
+    { label: 'Total', value: stats.total, icon: Users },
+    { label: 'Qualificados', value: stats.qualificados, icon: UserCheck },
+    { label: 'Fechados', value: stats.fechados, icon: TrendingUp },
+    { label: 'Valor', value: `R$ ${(stats.valorTotal / 1000).toFixed(0)}k`, icon: DollarSign },
+  ];
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    
-    if (!over || active.id === over.id) {
-      setActiveLead(null);
-      return;
-    }
-
-    const leadId = active.id as string;
-    const newStatus = over.id as string;
-
-    await updateLeadStatus(leadId, newStatus);
-    setActiveLead(null);
+    if (!over || active.id === over.id) return;
+    await updateLeadStatus(active.id as string, over.id as string);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">CRM Pipeline</h1>
-          <p className="text-muted-foreground">Gestão de Leads e Oportunidades</p>
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <TrendingUp className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">CRM Pipeline</h1>
+            <p className="text-sm text-muted-foreground">Gestão de leads</p>
+          </div>
         </div>
         <NovoLeadDialog onSubmit={createLead} isCreating={isCreating} />
-      </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Qualificados</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.qualificados}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Fechados</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.fechados}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              R$ {stats.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+      {/* KPIs */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-2xl border border-border/50 bg-card/50 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <kpi.icon className="h-3.5 w-3.5 text-primary opacity-70" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                {kpi.label}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <p className="text-2xl font-semibold">{kpi.value}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar leads..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-11 h-11 rounded-xl bg-muted/30 border-border/50"
+        />
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
+      {/* Pipeline */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {pipelineColumns.map((column) => (
-            <div key={column.id} className="space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
+          {pipelineColumns.map((col) => (
+            <div key={col.id} className="space-y-3">
+              <div className="h-6 bg-muted rounded animate-pulse" />
+              <div className="h-24 bg-muted rounded-xl animate-pulse" />
+              <div className="h-24 bg-muted rounded-xl animate-pulse" />
             </div>
           ))}
         </div>
@@ -204,28 +164,20 @@ export default function CRM() {
             {pipelineColumns.map((column) => {
               const columnLeads = getLeadsByStatus(column.id);
               return (
-                <div key={column.id} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                    <h3 className="font-semibold text-sm">{column.title}</h3>
-                    <Badge variant="secondary" className="ml-auto">
-                      {columnLeads.length}
-                    </Badge>
+                <div key={column.id} className="rounded-2xl border border-border/50 bg-card/30 p-3">
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <div className={`w-2 h-2 rounded-full ${column.color}`} />
+                    <span className="text-xs font-medium">{column.title}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{columnLeads.length}</span>
                   </div>
                   <DroppableColumn column={column}>
                     {columnLeads.length === 0 ? (
-                      <Card className="p-4">
-                        <p className="text-sm text-muted-foreground text-center">
-                          Nenhum lead
-                        </p>
-                      </Card>
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        Nenhum lead
+                      </div>
                     ) : (
                       columnLeads.map((lead) => (
-                        <DraggableLeadCard 
-                          key={lead.id}
-                          lead={lead}
-                          navigate={navigate}
-                        />
+                        <DraggableLeadCard key={lead.id} lead={lead} navigate={navigate} />
                       ))
                     )}
                   </DroppableColumn>

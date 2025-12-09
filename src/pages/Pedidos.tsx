@@ -10,18 +10,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Beer } from 'lucide-react';
+import { Search, Beer, ShoppingCart } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoGeralDialog } from '@/components/pedidos/NovoPedidoGeralDialog';
 import { VincularAshbyDialog } from '@/components/pedidos/VincularAshbyDialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 
-const statusColors = {
-  pendente: 'bg-yellow-500',
-  pago: 'bg-green-500',
-  entregue: 'bg-blue-500',
-  cancelado: 'bg-red-500'
+const statusColors: Record<string, string> = {
+  pendente: 'bg-chart-4/10 text-chart-4 border-chart-4/20',
+  pago: 'bg-primary/10 text-primary border-primary/20',
+  entregue: 'bg-chart-2/10 text-chart-2 border-chart-2/20',
+  cancelado: 'bg-destructive/10 text-destructive border-destructive/20'
 };
 
 export default function Pedidos() {
@@ -36,10 +35,7 @@ export default function Pedidos() {
   }, []);
 
   const fetchClientes = async () => {
-    const { data } = await supabase
-      .from('clientes')
-      .select('id, nome');
-    
+    const { data } = await supabase.from('clientes').select('id, nome');
     if (data) {
       const map: Record<string, string> = {};
       data.forEach(c => map[c.id] = c.nome);
@@ -48,7 +44,7 @@ export default function Pedidos() {
   };
 
   const filteredPedidos = pedidos.filter(pedido =>
-    (clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
+    clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) || false
   );
 
   const handleVincularAshby = (pedido: any) => {
@@ -56,81 +52,87 @@ export default function Pedidos() {
     setShowVincularAshby(true);
   };
 
+  const totalValue = pedidos.reduce((acc, p) => acc + p.valorTotal, 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Pedidos</h1>
-          <p className="text-muted-foreground">Gestão de Vendas Manuais e Ashby</p>
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <ShoppingCart className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Pedidos</h1>
+            <p className="text-sm text-muted-foreground">Gestão de vendas</p>
+          </div>
         </div>
         <NovoPedidoGeralDialog onSuccess={refetch} />
+      </header>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por cliente..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-11 h-11 rounded-xl bg-muted/30 border-border/50"
+        />
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por cliente ou número do pedido..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : (
-        <div className="border rounded-lg">
+      {/* Table */}
+      <div className="rounded-2xl border border-border/50 bg-card/50 overflow-hidden">
+        {isLoading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-12 bg-muted/50 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Pedido</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Valor Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+              <TableRow className="hover:bg-transparent border-border/50">
+                <TableHead className="font-medium">Pedido</TableHead>
+                <TableHead className="font-medium">Cliente</TableHead>
+                <TableHead className="font-medium">Valor</TableHead>
+                <TableHead className="font-medium">Status</TableHead>
+                <TableHead className="font-medium">Data</TableHead>
+                <TableHead className="font-medium text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPedidos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     Nenhum pedido encontrado
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredPedidos.map((pedido) => (
-                  <TableRow key={pedido.id}>
-                    <TableCell className="font-medium">#{pedido.id.slice(0, 8)}</TableCell>
-                    <TableCell>{clientesMap[pedido.clienteId] || 'Cliente não encontrado'}</TableCell>
-                    <TableCell className="font-bold">
-                      R$ {pedido.valorTotal.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2
-                      })}
+                  <TableRow key={pedido.id} className="border-border/30 hover:bg-muted/30">
+                    <TableCell className="font-mono text-sm">#{pedido.id.slice(0, 8)}</TableCell>
+                    <TableCell>{clientesMap[pedido.clienteId] || '-'}</TableCell>
+                    <TableCell className="font-medium">
+                      R$ {pedido.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[pedido.status as keyof typeof statusColors] || 'bg-gray-500'}>
+                      <Badge variant="outline" className={statusColors[pedido.status] || 'bg-muted'}>
                         {pedido.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-muted-foreground">
                       {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         onClick={() => handleVincularAshby(pedido)}
-                        className="gap-2"
+                        className="h-8 px-3 text-xs"
                       >
-                        <Beer className="h-4 w-4" />
-                        Vincular Ashby
+                        <Beer className="h-3.5 w-3.5 mr-1.5" />
+                        Ashby
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -138,18 +140,15 @@ export default function Pedidos() {
               )}
             </TableBody>
           </Table>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <p>Mostrando {filteredPedidos.length} de {pedidos.length} pedidos</p>
-        <div className="flex gap-4">
-          <span>Total: <strong>
-            R$ {pedidos.reduce((acc, p) => acc + p.valorTotal, 0).toLocaleString('pt-BR', {
-              minimumFractionDigits: 2
-            })}
-          </strong></span>
-        </div>
+      {/* Footer */}
+      <div className="flex items-center justify-between text-sm">
+        <p className="text-muted-foreground">{filteredPedidos.length} pedidos</p>
+        <p className="font-medium">
+          Total: R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </p>
       </div>
 
       {selectedPedido && (
