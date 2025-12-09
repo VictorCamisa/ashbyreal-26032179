@@ -102,7 +102,7 @@ export default function WhatsApp() {
       console.log('=== VERIFICAÇÃO DE STATUS ===');
       console.log('Instance name:', currentInstanceName || '(não encontrado)');
 
-      // Se não tem instance_name, exibe aviso e não chama o endpoint
+      // Se não tem instance_name, exibe aviso e NÃO chama o endpoint
       if (!currentInstanceName) {
         setStatusError('Nenhuma instância de WhatsApp encontrada para este cliente.');
         setIsConnected(false);
@@ -122,19 +122,27 @@ export default function WhatsApp() {
 
       console.log('Response status:', response.status);
 
-      const data = await response.json();
-      console.log('Response data:', JSON.stringify(data, null, 2));
-
-      // Trata resposta de erro
-      if (!response.ok || data.error) {
-        setStatusError(data.error || 'Erro ao verificar status');
+      // Trata erro HTTP (500, 404, etc)
+      if (!response.ok) {
+        setStatusError('Erro ao verificar status');
         setIsConnected(false);
         return;
       }
 
-      // Atualiza estado de conexão
-      const connected = data.is_connected === true || data.connected === true;
+      const data = await response.json();
+      console.log('Response data:', JSON.stringify(data, null, 2));
+
+      // Verifica se found === false → instância não encontrada no backend
+      if (data.found === false) {
+        setStatusError('Nenhuma instância de WhatsApp encontrada para este cliente.');
+        setIsConnected(false);
+        return;
+      }
+
+      // found === true → verifica is_connected
+      const connected = data.is_connected === true;
       setIsConnected(connected);
+      setStatusError(null);
       
       // Atualiza instance_name se retornado
       if (data.instance_name) {
