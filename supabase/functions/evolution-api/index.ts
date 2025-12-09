@@ -236,11 +236,21 @@ serve(async (req) => {
       const url = `${baseUrl}/message/sendText/${instance_name}`;
       console.log(`Sending message to: ${url}`);
 
-      // Determinar se é número ou grupo
+      // Determinar o formato correto do número
+      // @lid = Business ID interno, precisa enviar o remoteJid completo
+      // @g.us = Grupo, precisa enviar o remoteJid completo  
+      // @s.whatsapp.net = Número normal, pode extrair só o número
       const isGroup = remote_jid.includes('@g.us');
-      const requestBody = isGroup 
-        ? { number: remote_jid, text } // Para grupos, enviar o remoteJid completo
-        : { number: remote_jid.replace('@s.whatsapp.net', '').replace('@lid', ''), text };
+      const isLid = remote_jid.includes('@lid');
+      
+      let requestBody;
+      if (isGroup || isLid) {
+        // Para grupos e contatos @lid, enviar o remoteJid completo
+        requestBody = { number: remote_jid, text };
+      } else {
+        // Para contatos normais @s.whatsapp.net, extrair só o número
+        requestBody = { number: remote_jid.replace('@s.whatsapp.net', ''), text };
+      }
       
       console.log(`Request body: ${JSON.stringify(requestBody)}`);
 
