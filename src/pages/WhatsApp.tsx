@@ -49,7 +49,9 @@ export default function WhatsApp() {
     
     try {
       const response = await fetch(STATUS_URL, {
-        method: 'GET',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
