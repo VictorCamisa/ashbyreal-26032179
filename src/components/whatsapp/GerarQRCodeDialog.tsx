@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
-const STATUS_URL = 'https://victoecamisavs.app.n8n.cloud/webhook/whatsapp/evolution-webhook';
-const QR_CODE_URL = 'https://victoecamisavs.app.n8n.cloud/webhook/whatsapp/getqrcode';
+const STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
+const QR_CODE_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/getqrcode';
 
 interface GerarQRCodeDialogProps {
   open: boolean;
