@@ -8,8 +8,7 @@ import {
   Users, 
   TrendingUp,
   Plus,
-  Receipt,
-  ArrowDownUp
+  BookOpen
 } from 'lucide-react';
 import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro';
 import { DespesasParticulares } from '@/components/financeiro/DespesasParticulares';
@@ -18,6 +17,7 @@ import { ControleCartoes } from '@/components/financeiro/ControleCartoes';
 import { PedidosAshby } from '@/components/financeiro/PedidosAshby';
 import { HorasExtras } from '@/components/financeiro/HorasExtras';
 import { VisaoConsolidada } from '@/components/financeiro/VisaoConsolidada';
+import { DiarioCaixa } from '@/components/financeiro/DiarioCaixa';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { NovoGastoCartaoDialog } from '@/components/financeiro/NovoGastoCartaoDialog';
@@ -28,6 +28,7 @@ import { useTransacoes } from '@/hooks/useTransacoes';
 
 const tabs = [
   { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+  { id: 'diario', label: 'Diário de Caixa', icon: BookOpen },
   { id: 'loja', label: 'Loja', icon: Building2 },
   { id: 'particular', label: 'Particular', icon: User },
   { id: 'cartoes', label: 'Cartões', icon: CreditCard },
@@ -125,6 +126,7 @@ const Financeiro = () => {
       {/* Content Area */}
       <div className="animate-fade-in">
         {activeTab === 'dashboard' && <DashboardFinanceiro />}
+        {activeTab === 'diario' && <DiarioCaixa />}
         {activeTab === 'particular' && <DespesasParticulares />}
         {activeTab === 'loja' && <FinanceiroLoja />}
         {activeTab === 'cartoes' && <ControleCartoes />}
