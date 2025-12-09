@@ -267,9 +267,12 @@ serve(async (req) => {
         console.error('Error fetching chats:', err);
       }
 
-      // 2. Buscar contatos também
+      // 2. Buscar contatos também para enriquecer com nomes
       const contactsUrl = `${baseUrl}/chat/findContacts/${instance_name}`;
       console.log(`Fetching contacts from: ${contactsUrl}`);
+
+      // Mapa para associar números a nomes
+      const phoneToName: Record<string, { name: string; pic: string | null }> = {};
 
       try {
         const contactsResponse = await fetch(contactsUrl, {
@@ -288,11 +291,21 @@ serve(async (req) => {
           if (Array.isArray(contactsData)) {
             console.log(`Found ${contactsData.length} contacts`);
             
-            // Adicionar contatos que não estão nos chats
+            // Processar contatos e criar mapeamento
             for (const contact of contactsData) {
               const contactJid = contact.id || contact.remoteJid;
+              const contactName = contact.pushName || contact.name || contact.notify || contact.verifiedName;
+              const contactPic = contact.profilePictureUrl || contact.imgUrl || null;
+              
               if (!contactJid) continue;
               
+              // Extrair número do JID para criar mapeamento
+              const phoneNumber = contactJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+              if (contactName && /^\d+$/.test(phoneNumber)) {
+                phoneToName[phoneNumber] = { name: contactName, pic: contactPic };
+              }
+              
+              // Adicionar contatos que não estão nos chats
               const exists = allChats.some(c => 
                 (c.remoteJid || c.id || c.jid) === contactJid
               );
@@ -300,8 +313,8 @@ serve(async (req) => {
               if (!exists) {
                 allChats.push({
                   remoteJid: contactJid,
-                  pushName: contact.pushName || contact.name || contact.notify || null,
-                  profilePicUrl: contact.profilePictureUrl || contact.imgUrl || null,
+                  pushName: contactName,
+                  profilePicUrl: contactPic,
                   unreadCount: 0,
                 });
               }
@@ -312,6 +325,7 @@ serve(async (req) => {
         console.error('Error fetching contacts:', err);
       }
 
+      console.log(`Phone to name mappings: ${Object.keys(phoneToName).length}`);
       console.log(`Total chats+contacts: ${allChats.length}`);
 
       // Salvar chats no Supabase
@@ -321,11 +335,25 @@ serve(async (req) => {
           const remoteJid = chat.remoteJid || chat.id || chat.jid;
           if (!remoteJid) continue;
 
+          // Tentar obter nome do mapeamento de contatos se não tiver push_name
+          let pushName = chat.pushName || chat.name || chat.notify || null;
+          let profilePic = chat.profilePicUrl || chat.imgUrl || null;
+          
+          // Para JIDs de número normal, tentar buscar nome no mapeamento
+          if (!pushName && remoteJid.includes('@s.whatsapp.net')) {
+            const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
+            if (phoneToName[phoneNumber]) {
+              pushName = phoneToName[phoneNumber].name;
+              profilePic = phoneToName[phoneNumber].pic || profilePic;
+              console.log(`Found name mapping for ${phoneNumber}: ${pushName}`);
+            }
+          }
+
           const chatData = {
             instance_name,
             remote_jid: remoteJid,
-            push_name: chat.pushName || chat.name || chat.notify || null,
-            profile_pic_url: chat.profilePicUrl || chat.imgUrl || null,
+            push_name: pushName,
+            profile_pic_url: profilePic,
             unread_count: chat.unreadCount || 0,
             last_message: chat.lastMessage?.message?.conversation || 
                           chat.lastMessage?.message?.extendedTextMessage?.text || 
