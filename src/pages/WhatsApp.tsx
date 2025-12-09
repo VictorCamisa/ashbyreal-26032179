@@ -480,32 +480,7 @@ export default function WhatsApp() {
                   </div>
                 ) : (
                   mensagens.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.from_me ? 'justify-end' : 'justify-start'} animate-fade-in`}
-                    >
-                      <div
-                        className={`
-                          max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm
-                          ${msg.from_me 
-                            ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' 
-                            : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
-                          }
-                        `}
-                      >
-                        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
-                          {msg.body || '[Mídia]'}
-                        </p>
-                        <div className="flex items-center justify-end gap-1 -mb-0.5 mt-0.5">
-                          <span className="text-[11px] text-[#8696a0]">
-                            {format(new Date(msg.timestamp), 'HH:mm', { locale: ptBR })}
-                          </span>
-                          {msg.from_me && (
-                            <Check className="h-4 w-4 text-[#53bdeb]" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <MessageBubble key={msg.id} message={msg} />
                   ))
                 )}
                 <div ref={messagesEndRef} />
