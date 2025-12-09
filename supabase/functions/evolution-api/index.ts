@@ -639,6 +639,7 @@ serve(async (req) => {
       // POST /message/sendText/{instance}
       const url = `${baseUrl}/message/sendText/${instance_name}`;
       console.log(`Sending message to: ${url}`);
+      console.log(`Original remote_jid: ${remote_jid}`);
 
       // Determinar o formato correto do número
       // @lid = Business ID interno, precisa enviar o remoteJid completo
@@ -648,7 +649,42 @@ serve(async (req) => {
       const isLid = remote_jid.includes('@lid');
       
       let requestBody;
-      if (isGroup || isLid) {
+      
+      // Se o JID atual é @s.whatsapp.net, verificar se o contato tem um @lid associado
+      // Pois mensagens recebidas de @lid devem ser respondidas para @lid
+      if (!isGroup && !isLid && remote_jid.includes('@s.whatsapp.net')) {
+        // Extrair o número do JID
+        const phoneNumber = remote_jid.replace('@s.whatsapp.net', '');
+        
+        // Buscar a última mensagem recebida (from_me = false) deste contato
+        // para descobrir qual JID ele realmente usa
+        const { data: lastReceivedMsg } = await supabase
+          .from('evolution_messages')
+          .select('remote_jid')
+          .eq('instance_name', instance_name)
+          .eq('from_me', false)
+          .or(`remote_jid.like.${phoneNumber}%,remote_jid.like.%${phoneNumber.slice(-8)}%`)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (lastReceivedMsg?.remote_jid) {
+          const receivedJid = lastReceivedMsg.remote_jid;
+          console.log(`Found last received message JID: ${receivedJid}`);
+          
+          // Se a última mensagem recebida foi de um @lid, usar esse JID
+          if (receivedJid.includes('@lid')) {
+            console.log(`Using @lid JID for response: ${receivedJid}`);
+            requestBody = { number: receivedJid, text };
+          } else {
+            // Usar o número normal
+            requestBody = { number: phoneNumber, text };
+          }
+        } else {
+          // Não encontrou mensagem recebida, usar o número normal
+          requestBody = { number: phoneNumber, text };
+        }
+      } else if (isGroup || isLid) {
         // Para grupos e contatos @lid, enviar o remoteJid completo
         requestBody = { number: remote_jid, text };
       } else {
