@@ -163,21 +163,31 @@ export default function WhatsApp() {
   const isLinkedId = (jid: string) => jid.includes('@lid');
   
   // Verifica se é um grupo
-  const isGroup = (jid: string) => jid.includes('@g.us');
+  const isGroupJid = (jid: string) => jid.includes('@g.us');
 
-  // Formata número para exibição internacional
+  // Formata número para exibição
   const formatPhoneNumber = (jid: string) => {
-    // Linked IDs não são números de telefone - são IDs internos
-    if (isLinkedId(jid)) return '';
-    
     // Grupos não têm número
-    if (isGroup(jid)) return '';
+    if (isGroupJid(jid)) return '';
     
-    let number = jid
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '');
+    // Para Linked IDs, extrair os dígitos e formatar de forma legível
+    if (isLinkedId(jid)) {
+      const digits = jid.replace('@lid', '').replace(/\D/g, '');
+      // Mostrar apenas se parecer um número de telefone (10+ dígitos começando com código de país)
+      if (digits.length >= 10 && digits.length <= 15) {
+        // Tentar formatar como brasileiro
+        if (digits.startsWith('55') && digits.length >= 12) {
+          const ddd = digits.slice(2, 4);
+          const rest = digits.slice(4);
+          if (rest.length === 9) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+          if (rest.length === 8) return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+        }
+        return `+${digits.slice(0, 2)} ${digits.slice(2)}`;
+      }
+      return ''; // IDs internos longos não são números
+    }
     
-    // Se contém letras, não é um número válido
+    let number = jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
     if (/[a-zA-Z]/.test(number)) return '';
     
     number = number.replace(/\D/g, '');
@@ -187,28 +197,35 @@ export default function WhatsApp() {
     if (number.startsWith('55') && number.length >= 12) {
       const ddd = number.slice(2, 4);
       const rest = number.slice(4);
-      if (rest.length === 9) {
-        return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
-      }
-      if (rest.length === 8) {
-        return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
-      }
+      if (rest.length === 9) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+      if (rest.length === 8) return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
     }
     
-    // Formato internacional genérico
     return `+${number.slice(0, 2)} ${number.slice(2)}`;
   };
 
   const getDisplayName = (chat: EvolutionChat) => {
-    // Sempre priorizar o nome salvo no WhatsApp
+    // 1. Sempre priorizar o nome salvo no WhatsApp
     if (chat.push_name?.trim()) return chat.push_name;
     
-    // Para números reais, mostrar formatado
+    // 2. Para números reais, mostrar formatado
     const formatted = formatPhoneNumber(chat.remote_jid);
     if (formatted) return formatted;
     
-    // Para grupos
+    // 3. Para grupos sem nome
     if (chat.is_group) return 'Grupo';
+    
+    // 4. Último recurso: mostrar o ID de forma mais amigável
+    const rawId = chat.remote_jid.split('@')[0];
+    if (rawId.length <= 15 && /^\d+$/.test(rawId)) {
+      // Parece um número, tentar formatar
+      if (rawId.startsWith('55') && rawId.length >= 12) {
+        const ddd = rawId.slice(2, 4);
+        const rest = rawId.slice(4);
+        if (rest.length >= 8) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5, 9)}...`;
+      }
+      return `+${rawId.slice(0, 2)} ${rawId.slice(2, 7)}...`;
+    }
     
     return 'Contato';
   };
@@ -216,14 +233,12 @@ export default function WhatsApp() {
   const getSubtitle = (chat: EvolutionChat) => {
     if (chat.is_group) return 'Grupo';
     
-    // Se tem nome E tem número real, mostrar o número
+    // Se tem nome, mostrar o número como subtítulo
     if (chat.push_name?.trim()) {
       const formatted = formatPhoneNumber(chat.remote_jid);
       if (formatted) return formatted;
+      return 'WhatsApp';
     }
-    
-    // Para Linked IDs sem número real
-    if (isLinkedId(chat.remote_jid)) return 'WhatsApp Business';
     
     return 'WhatsApp';
   };
