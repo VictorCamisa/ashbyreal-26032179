@@ -6,7 +6,6 @@ import { MessageBubble } from '@/components/whatsapp/MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { 
   MessageSquare, 
   QrCode, 
@@ -17,13 +16,11 @@ import {
   User,
   Users,
   ArrowLeft,
-  Wifi,
-  WifiOff
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Constantes
 const DEFAULT_CLIENT_SLUG = 'ashby';
 
 export default function WhatsApp() {
@@ -33,24 +30,18 @@ export default function WhatsApp() {
   const [novaMensagem, setNovaMensagem] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(() => {
     return localStorage.getItem('whatsapp_instance_name');
   });
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [statusError, setStatusError] = useState<string | null>(null);
 
-  // Handler para quando o WhatsApp desconecta
   const handleDisconnect = useCallback(() => {
     setIsConnected(false);
-    setStatusError('Sessão encerrada');
-    // Limpar instância do localStorage quando desconecta
     localStorage.removeItem('whatsapp_instance_name');
     setInstanceName(null);
   }, []);
 
-  // Hook da Evolution com callback de desconexão
   const {
     chats,
     loadingChats,
@@ -62,17 +53,14 @@ export default function WhatsApp() {
     isSending,
   } = useEvolution(instanceName, handleDisconnect);
 
-  // Mensagens do chat selecionado
   const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
     conversaSelecionada?.remote_jid || null
   );
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagens]);
 
-  // Busca instance_name: primeiro do state/localStorage, depois do Supabase
   const getInstanceName = useCallback(async (): Promise<string | null> => {
     if (instanceName) return instanceName;
 
@@ -100,22 +88,18 @@ export default function WhatsApp() {
     return data.instance_name;
   }, [instanceName]);
 
-  // Verifica status da conexão WhatsApp diretamente na Evolution API
   const fetchWhatsappStatus = useCallback(async () => {
     setIsLoadingStatus(true);
-    setStatusError(null);
     
     try {
       const currentInstanceName = await getInstanceName();
 
       if (!currentInstanceName) {
-        setStatusError('Nenhuma instância encontrada');
         setIsConnected(false);
         setIsLoadingStatus(false);
         return;
       }
 
-      // Chamar a Edge Function para verificar o status diretamente na Evolution API
       const { data, error } = await supabase.functions.invoke('evolution-api', {
         body: {
           action: 'check_connection',
@@ -124,36 +108,13 @@ export default function WhatsApp() {
       });
 
       if (error) {
-        console.error('Erro ao verificar status:', error);
-        setStatusError('Erro ao verificar');
         setIsConnected(false);
         return;
       }
 
-      console.log('Status da conexão:', data);
-
-      const connected = data?.connected === true;
-      setIsConnected(connected);
-      
-      if (!connected) {
-        // Se desconectado, limpar localStorage e mostrar estado apropriado
-        const state = data?.state || 'disconnected';
-        if (state === 'not_found') {
-          setStatusError('Instância não encontrada');
-          localStorage.removeItem('whatsapp_instance_name');
-          setInstanceName(null);
-        } else if (state === 'close') {
-          setStatusError('Sessão encerrada');
-        } else {
-          setStatusError('Desconectado');
-        }
-      } else {
-        setStatusError(null);
-      }
+      setIsConnected(data?.connected === true);
       
     } catch (err) {
-      console.error('Erro ao verificar status do WhatsApp:', err);
-      setStatusError('Erro de conexão');
       setIsConnected(false);
     } finally {
       setIsLoadingStatus(false);
@@ -193,405 +154,307 @@ export default function WhatsApp() {
     setQrDialogOpen(false);
   };
 
-  // Filtra conversas pela busca
   const filteredChats = chats.filter(chat => 
     (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     chat.remote_jid.includes(searchTerm)
   );
 
-  // Formata número de telefone para exibição legível
+  // Formata número para exibição internacional
   const formatPhoneNumber = (jid: string) => {
-    // Remove sufixos do WhatsApp
     let number = jid
       .replace('@s.whatsapp.net', '')
       .replace('@g.us', '')
       .replace('@lid', '')
       .replace('@c.us', '');
     
-    // Se é um ID interno (contém letras), retorna vazio
-    if (/[a-zA-Z]/.test(number)) {
-      return '';
-    }
+    if (/[a-zA-Z]/.test(number)) return '';
     
-    // Limpa qualquer caractere não numérico
     number = number.replace(/\D/g, '');
-    
-    // Se não tem número, retorna vazio
     if (!number) return '';
     
-    // Formata número brasileiro (55 + DDD + número)
-    if (number.startsWith('55')) {
-      const ddd = number.slice(2, 4);
-      const restNumber = number.slice(4);
-      
-      // Celular com 9 dígitos
-      if (restNumber.length === 9) {
-        return `(${ddd}) ${restNumber.slice(0, 5)}-${restNumber.slice(5)}`;
-      }
-      // Fixo com 8 dígitos
-      if (restNumber.length === 8) {
-        return `(${ddd}) ${restNumber.slice(0, 4)}-${restNumber.slice(4)}`;
-      }
-      // Outro formato brasileiro
-      return `(${ddd}) ${restNumber}`;
+    // Formato internacional: +XX XXXXXXXXX
+    if (number.length > 4) {
+      const countryCode = number.slice(0, 2);
+      const rest = number.slice(2);
+      return `+${countryCode} ${rest}`;
     }
     
-    // Números internacionais - formato simples com código do país
-    if (number.length > 10) {
-      return `+${number.slice(0, 2)} ${number.slice(2)}`;
-    }
-    
-    return number;
+    return `+${number}`;
   };
 
-  // Retorna o nome de exibição do chat
   const getDisplayName = (chat: EvolutionChat) => {
-    // Se tem push_name (nome salvo no WhatsApp), usa ele
-    if (chat.push_name && chat.push_name.trim()) {
-      return chat.push_name;
-    }
-    // Senão, formata o número
-    const formatted = formatPhoneNumber(chat.remote_jid);
-    return formatted || 'Contato';
-  };
-  
-  // Retorna o subtítulo do chat (número formatado ou tipo)
-  const getChatSubtitle = (chat: EvolutionChat) => {
-    if (chat.is_group) return 'Grupo';
-    const formatted = formatPhoneNumber(chat.remote_jid);
-    return formatted || 'WhatsApp';
+    if (chat.push_name?.trim()) return chat.push_name;
+    return formatPhoneNumber(chat.remote_jid) || 'Contato';
   };
 
-  // Stats
-  const totalChats = chats.length;
-  const totalGroups = chats.filter(c => c.is_group).length;
-  const totalContacts = chats.filter(c => !c.is_group).length;
-  const totalUnread = chats.reduce((acc, c) => acc + c.unread_count, 0);
+  const getSubtitle = (chat: EvolutionChat) => {
+    if (chat.is_group) return 'Grupo';
+    return formatPhoneNumber(chat.remote_jid) || '';
+  };
+
+  // Avatar colors
+  const getAvatarColor = (index: number) => {
+    const colors = [
+      'bg-emerald-600', 'bg-blue-600', 'bg-purple-600', 
+      'bg-orange-500', 'bg-pink-600', 'bg-cyan-600', 'bg-yellow-600'
+    ];
+    return colors[index % colors.length];
+  };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/20 overflow-hidden">
-      {/* Compact Header */}
-      <header className="flex-shrink-0 px-4 py-3 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-          {/* Left: Logo & Status */}
+    <div className="fixed inset-0 top-16 flex bg-background">
+      {/* Sidebar */}
+      <aside className={`
+        w-full md:w-[380px] lg:w-[420px] flex-shrink-0 
+        flex flex-col border-r border-border/50 bg-card
+        transition-transform duration-300 ease-out
+        ${conversaSelecionada ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}
+        ${conversaSelecionada ? 'absolute md:relative z-10' : 'relative'}
+      `}>
+        {/* Header */}
+        <div className="h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/20">
-                <MessageSquare className="h-5 w-5 text-white" />
-              </div>
-              <div className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${
-                isConnected ? 'bg-green-500' : 'bg-muted'
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary/20 text-primary">
+                  <MessageSquare className="h-5 w-5" />
+                </AvatarFallback>
+              </Avatar>
+              <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${
+                isConnected ? 'bg-green-500' : 'bg-muted-foreground'
               }`} />
             </div>
             <div>
-              <h1 className="text-base font-semibold">WhatsApp</h1>
-              <div className="flex items-center gap-1.5">
-                {isLoadingStatus ? (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                    Verificando...
-                  </span>
-                ) : isConnected ? (
-                  <span className="flex items-center gap-1 text-[11px] text-green-500 font-medium">
-                    <Wifi className="h-2.5 w-2.5" />
-                    Conectado
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <WifiOff className="h-2.5 w-2.5" />
-                    {statusError || 'Desconectado'}
-                  </span>
-                )}
-              </div>
+              <p className="text-sm font-medium">WhatsApp</p>
+              <p className="text-xs text-muted-foreground">
+                {isLoadingStatus ? 'Verificando...' : isConnected ? 'Conectado' : 'Desconectado'}
+              </p>
             </div>
           </div>
-
-          {/* Center: Quick Stats */}
-          <div className="hidden md:flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-lg font-bold leading-none">{totalChats}</p>
-                <p className="text-[10px] text-muted-foreground">Conversas</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Users className="h-4 w-4 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-lg font-bold leading-none">{totalGroups}</p>
-                <p className="text-[10px] text-muted-foreground">Grupos</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                <User className="h-4 w-4 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-lg font-bold leading-none">{totalContacts}</p>
-                <p className="text-[10px] text-muted-foreground">Contatos</p>
-              </div>
-            </div>
-            {totalUnread > 0 && (
-              <Badge variant="destructive" className="h-6 px-2.5 text-xs font-medium">
-                {totalUnread} não lidas
-              </Badge>
-            )}
-          </div>
-
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={fetchWhatsappStatus}
-              disabled={isLoadingStatus}
-              className="h-8 w-8 p-0"
-            >
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={fetchWhatsappStatus} disabled={isLoadingStatus}>
               <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
             </Button>
             {isConnected && (
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => syncChats()}
-                disabled={isSyncing}
-                className="h-8 px-3 text-xs gap-1.5"
-              >
-                {isSyncing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                Sync
+              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => syncChats()} disabled={isSyncing}>
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
               </Button>
             )}
             <Button 
-              size="sm"
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9" 
               onClick={() => setQrDialogOpen(true)}
               disabled={isConnected || isLoadingStatus}
-              className="h-8 px-3 text-xs gap-1.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
             >
-              <QrCode className="h-3.5 w-3.5" />
-              Conectar
+              <QrCode className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </header>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Conversations Sidebar */}
-        <aside className={`
-          w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-border/40 
-          flex flex-col bg-card/50 backdrop-blur-sm
-          ${conversaSelecionada ? 'hidden md:flex' : 'flex'}
-        `}>
-          {/* Search */}
-          <div className="flex-shrink-0 p-3 border-b border-border/40">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar conversa..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-10 bg-muted/40 border-0 rounded-xl text-sm placeholder:text-muted-foreground/60"
-              />
-            </div>
+        {/* Search */}
+        <div className="px-3 py-2 border-b border-border/30">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar ou começar uma nova conversa"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-9 bg-muted/50 border-0 rounded-lg text-sm"
+            />
           </div>
+        </div>
 
-          {/* Chats List - with scroll */}
-          <div className="flex-1 overflow-y-auto">
-            {loadingChats ? (
-              <div className="p-4 space-y-3">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 animate-pulse">
-                    <div className="h-12 w-12 rounded-full bg-muted" />
-                    <div className="flex-1">
-                      <div className="h-4 w-24 bg-muted rounded mb-2" />
-                      <div className="h-3 w-36 bg-muted rounded" />
-                    </div>
+        {/* Chat List */}
+        <div className="flex-1 overflow-y-auto">
+          {loadingChats ? (
+            <div className="p-4 space-y-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3 animate-pulse">
+                  <div className="h-12 w-12 rounded-full bg-muted" />
+                  <div className="flex-1">
+                    <div className="h-4 w-28 bg-muted rounded mb-2" />
+                    <div className="h-3 w-40 bg-muted rounded" />
                   </div>
-                ))}
-              </div>
-            ) : filteredChats.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-4">
-                <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                  <MessageSquare className="h-7 w-7 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground text-center">
-                  {isConnected 
-                    ? 'Clique em "Sync" para carregar conversas' 
-                    : 'Conecte o WhatsApp para começar'
-                  }
-                </p>
+              ))}
+            </div>
+          ) : filteredChats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+              <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
               </div>
-            ) : (
-              <div className="divide-y divide-border/30">
-                {filteredChats.map((chat, index) => {
-                  const avatarColors = [
-                    'from-emerald-500/20 to-emerald-600/30 text-emerald-600',
-                    'from-blue-500/20 to-blue-600/30 text-blue-600',
-                    'from-purple-500/20 to-purple-600/30 text-purple-600',
-                    'from-orange-500/20 to-orange-600/30 text-orange-600',
-                    'from-pink-500/20 to-pink-600/30 text-pink-600',
-                    'from-cyan-500/20 to-cyan-600/30 text-cyan-600',
-                  ];
-                  const colorClass = avatarColors[index % avatarColors.length];
-                  
-                  return (
-                    <button
-                      key={chat.id}
-                      onClick={() => handleSelecionarConversa(chat)}
-                      className={`
-                        w-full p-3 flex items-center gap-3 transition-all
-                        hover:bg-muted/40 active:bg-muted/60
-                        ${conversaSelecionada?.id === chat.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}
-                      `}
-                    >
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm">
-                          <AvatarImage src={chat.profile_pic_url || undefined} />
-                          <AvatarFallback className={`bg-gradient-to-br ${colorClass} font-semibold text-sm`}>
-                            {chat.is_group ? (
-                              <Users className="h-4 w-4" />
-                            ) : (
-                              getDisplayName(chat)?.[0]?.toUpperCase() || '?'
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
-                        {chat.unread_count > 0 && (
-                          <span className="absolute -top-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center shadow ring-2 ring-background">
-                            {chat.unread_count}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <p className="font-medium text-sm truncate">{getDisplayName(chat)}</p>
-                          {chat.last_message_at && (
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                              {format(new Date(chat.last_message_at), "HH:mm", { locale: ptBR })}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {chat.last_message || getChatSubtitle(chat)}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </aside>
-
-        {/* Chat Content */}
-        <main className={`
-          flex-1 flex flex-col min-w-0 bg-[url('/placeholder.svg')] bg-repeat bg-[length:400px]
-          ${!conversaSelecionada ? 'hidden md:flex' : 'flex'}
-        `}>
-          {/* Background overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/90 to-background/95 pointer-events-none" style={{ position: 'absolute' }} />
-          
-          {!conversaSelecionada ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 relative z-10">
-              <div className="h-24 w-24 rounded-full bg-gradient-to-br from-green-500/10 to-green-600/20 flex items-center justify-center mb-6">
-                <MessageSquare className="h-10 w-10 text-green-500/60" />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">WhatsApp Web</h2>
-              <p className="text-sm text-muted-foreground text-center max-w-sm">
-                Selecione uma conversa para visualizar as mensagens
+              <p className="text-sm text-muted-foreground">
+                {isConnected ? 'Clique em sincronizar para carregar conversas' : 'Conecte o WhatsApp para começar'}
               </p>
             </div>
           ) : (
-            <>
-              {/* Chat Header */}
-              <header className="flex-shrink-0 px-4 py-2.5 border-b border-border/40 bg-card/90 backdrop-blur-sm flex items-center gap-3 relative z-10">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setConversaSelecionada(null)}
-                  className="h-8 w-8 p-0 md:hidden"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Avatar className="h-10 w-10 ring-2 ring-background">
-                  <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
-                  <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/30 text-primary">
-                    {conversaSelecionada.is_group ? <Users className="h-4 w-4" /> : (getDisplayName(conversaSelecionada)?.[0]?.toUpperCase() || '?')}
+            filteredChats.map((chat, index) => (
+              <button
+                key={chat.id}
+                onClick={() => handleSelecionarConversa(chat)}
+                className={`
+                  w-full px-3 py-3 flex items-center gap-3 
+                  transition-colors duration-150 hover:bg-muted/50
+                  ${conversaSelecionada?.id === chat.id ? 'bg-muted/70' : ''}
+                `}
+              >
+                <Avatar className="h-12 w-12 flex-shrink-0">
+                  <AvatarImage src={chat.profile_pic_url || undefined} />
+                  <AvatarFallback className={`${getAvatarColor(index)} text-white font-medium`}>
+                    {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || <User className="h-5 w-5" />)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{getDisplayName(conversaSelecionada)}</p>
-                  <p className="text-xs text-muted-foreground">{getChatSubtitle(conversaSelecionada)}</p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => syncMessages(conversaSelecionada.remote_jid)}
-                  className="h-8 w-8 p-0"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                </Button>
-              </header>
-
-              {/* Messages Area - with scroll */}
-              <div className="flex-1 overflow-y-auto relative z-10">
-                <div className="p-4 space-y-1 max-w-3xl mx-auto min-h-full flex flex-col justify-end">
-                  {loadingMensagens ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : mensagens.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <p className="text-sm text-muted-foreground">Nenhuma mensagem</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Clique no ícone de refresh para sincronizar</p>
-                    </div>
-                  ) : (
-                    mensagens.map((msg) => (
-                      <MessageBubble key={msg.id} message={msg} />
-                    ))
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-              </div>
-
-              {/* Message Input */}
-              <footer className="flex-shrink-0 p-3 border-t border-border/40 bg-card/90 backdrop-blur-sm relative z-10">
-                <div className="flex items-center gap-2 max-w-3xl mx-auto">
-                  <Input
-                    value={novaMensagem}
-                    onChange={(e) => setNovaMensagem(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    placeholder="Digite uma mensagem..."
-                    className="flex-1 h-11 bg-muted/40 border-0 rounded-full text-sm px-4"
-                    disabled={isSending}
-                  />
-                  <Button
-                    onClick={handleEnviarMensagem}
-                    disabled={!novaMensagem.trim() || isSending}
-                    size="sm"
-                    className="h-11 w-11 p-0 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/20"
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <p className="font-medium text-[15px] truncate">{getDisplayName(chat)}</p>
+                    {chat.last_message_at && (
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {format(new Date(chat.last_message_at), 'HH:mm', { locale: ptBR })}
+                      </span>
                     )}
-                  </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground truncate">
+                      {chat.last_message || getSubtitle(chat)}
+                    </p>
+                    {chat.unread_count > 0 && (
+                      <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-xs font-medium flex items-center justify-center">
+                        {chat.unread_count}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </footer>
-            </>
+              </button>
+            ))
           )}
-        </main>
-      </div>
+        </div>
+      </aside>
 
-      {/* QR Code Dialog */}
+      {/* Chat Area */}
+      <main className={`
+        flex-1 flex flex-col min-w-0 bg-[#0b141a]
+        transition-transform duration-300 ease-out
+        ${conversaSelecionada ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+        ${!conversaSelecionada ? 'absolute md:relative inset-0 top-0' : 'relative'}
+      `}>
+        {!conversaSelecionada ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-[#222e35]">
+            <div className="h-[280px] w-[280px] mb-8 rounded-full bg-[#364147] flex items-center justify-center">
+              <MessageSquare className="h-32 w-32 text-[#8696a0]" />
+            </div>
+            <h1 className="text-[32px] font-light text-[#d1d7db] mb-4">WhatsApp Web</h1>
+            <p className="text-sm text-[#8696a0] max-w-md leading-relaxed">
+              Envie e receba mensagens sem manter seu celular conectado.<br />
+              Use o WhatsApp em até 4 aparelhos conectados ao mesmo tempo.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Chat Header */}
+            <header className="h-[60px] px-4 flex items-center gap-3 bg-[#202c33] border-b border-[#2a3942]">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setConversaSelecionada(null)}
+                className="h-9 w-9 md:hidden text-[#aebac1] hover:bg-[#2a3942]"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
+                <AvatarFallback className="bg-[#6b7c85] text-white">
+                  {conversaSelecionada.is_group ? <Users className="h-5 w-5" /> : getDisplayName(conversaSelecionada)?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-[#e9edef] truncate">{getDisplayName(conversaSelecionada)}</p>
+                <p className="text-xs text-[#8696a0]">{getSubtitle(conversaSelecionada)}</p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 text-[#aebac1] hover:bg-[#2a3942]"
+                onClick={() => syncMessages(conversaSelecionada.remote_jid)}
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              </Button>
+            </header>
+
+            {/* Messages */}
+            <div 
+              className="flex-1 overflow-y-auto px-[5%] md:px-[10%] lg:px-[15%] py-4"
+              style={{ 
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.6'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                backgroundColor: '#0b141a'
+              }}
+            >
+              <div className="max-w-[900px] mx-auto space-y-1">
+                {loadingMensagens ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#8696a0]" />
+                  </div>
+                ) : mensagens.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <p className="text-sm text-[#8696a0]">Nenhuma mensagem</p>
+                  </div>
+                ) : (
+                  mensagens.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.from_me ? 'justify-end' : 'justify-start'} animate-fade-in`}
+                    >
+                      <div
+                        className={`
+                          max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm
+                          ${msg.from_me 
+                            ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' 
+                            : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
+                          }
+                        `}
+                      >
+                        <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words">
+                          {msg.body || '[Mídia]'}
+                        </p>
+                        <div className="flex items-center justify-end gap-1 -mb-0.5 mt-0.5">
+                          <span className="text-[11px] text-[#8696a0]">
+                            {format(new Date(msg.timestamp), 'HH:mm', { locale: ptBR })}
+                          </span>
+                          {msg.from_me && (
+                            <Check className="h-4 w-4 text-[#53bdeb]" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+
+            {/* Input */}
+            <footer className="px-4 py-2 bg-[#202c33] flex items-center gap-3">
+              <Input
+                value={novaMensagem}
+                onChange={(e) => setNovaMensagem(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="Digite uma mensagem"
+                className="flex-1 h-11 bg-[#2a3942] border-0 rounded-lg text-[#d1d7db] placeholder:text-[#8696a0] text-[15px] focus-visible:ring-0"
+                disabled={isSending}
+              />
+              <Button
+                onClick={handleEnviarMensagem}
+                disabled={!novaMensagem.trim() || isSending}
+                size="icon"
+                className="h-11 w-11 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white"
+              >
+                {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </Button>
+            </footer>
+          </>
+        )}
+      </main>
+
       <GerarQRCodeDialog
         open={qrDialogOpen}
         onOpenChange={setQrDialogOpen}
