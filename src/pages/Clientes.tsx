@@ -10,16 +10,14 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Users, TrendingUp, UserPlus, Activity } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
-import { Skeleton } from '@/components/ui/skeleton';
 
-const statusColors = {
-  ativo: 'bg-green-500',
-  inativo: 'bg-gray-500',
-  lead: 'bg-yellow-500'
+const statusColors: Record<string, string> = {
+  ativo: 'bg-primary/10 text-primary border-primary/20',
+  inativo: 'bg-muted text-muted-foreground border-border',
+  lead: 'bg-chart-4/10 text-chart-4 border-chart-4/20'
 };
 
 export default function Clientes() {
@@ -42,140 +40,113 @@ export default function Clientes() {
       : 0,
   };
 
+  const kpis = [
+    { label: 'Total', value: stats.total, icon: Users },
+    { label: 'Ativos', value: stats.ativos, icon: Activity },
+    { label: 'Leads', value: stats.leads, icon: UserPlus },
+    { label: 'Ticket Médio', value: `R$ ${stats.ticketMedio.toFixed(0)}`, icon: TrendingUp },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie sua base de clientes</p>
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Clientes</h1>
+            <p className="text-sm text-muted-foreground">Gerencie sua base de clientes</p>
+          </div>
         </div>
         <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
-      </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.ativos}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Leads</CardTitle>
-            <UserPlus className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.leads}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              R$ {stats.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+      {/* KPIs */}
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="rounded-2xl border border-border/50 bg-card/50 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <kpi.icon className="h-3.5 w-3.5 text-primary opacity-70" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                {kpi.label}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <p className="text-2xl font-semibold">{kpi.value}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por nome, e-mail ou telefone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-11 h-11 rounded-xl bg-muted/30 border-border/50"
+        />
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, e-mail ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-8 space-y-4">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
+      {/* Table */}
+      <div className="rounded-2xl border border-border/50 bg-card/50 overflow-hidden">
+        {isLoading ? (
+          <div className="p-6 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-12 bg-muted/50 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border/50">
+                <TableHead className="font-medium">Nome</TableHead>
+                <TableHead className="font-medium">Telefone</TableHead>
+                <TableHead className="font-medium">E-mail</TableHead>
+                <TableHead className="font-medium">Empresa</TableHead>
+                <TableHead className="font-medium">Ticket Médio</TableHead>
+                <TableHead className="font-medium">Status</TableHead>
+                <TableHead className="font-medium">Origem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredClientes.length === 0 ? (
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>E-mail</TableHead>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Ticket Médio</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Origem</TableHead>
-                  <TableHead>Data Cadastro</TableHead>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    {searchTerm ? 'Nenhum cliente encontrado' : 'Adicione o primeiro cliente'}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClientes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      {searchTerm 
-                        ? 'Nenhum cliente encontrado com os critérios de busca.'
-                        : 'Nenhum cliente cadastrado ainda. Adicione o primeiro cliente!'
-                      }
+              ) : (
+                filteredClientes.map((cliente) => (
+                  <TableRow
+                    key={cliente.id}
+                    className="cursor-pointer hover:bg-muted/30 border-border/30"
+                    onClick={() => navigate(`/cliente/${cliente.id}`)}
+                  >
+                    <TableCell className="font-medium">{cliente.nome}</TableCell>
+                    <TableCell className="text-muted-foreground">{cliente.telefone}</TableCell>
+                    <TableCell className="text-muted-foreground">{cliente.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{cliente.empresa || '-'}</TableCell>
+                    <TableCell>R$ {(cliente.ticketMedio || 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusColors[cliente.status]}>
+                        {cliente.status}
+                      </Badge>
                     </TableCell>
+                    <TableCell className="text-muted-foreground">{cliente.origem}</TableCell>
                   </TableRow>
-                ) : (
-                  filteredClientes.map((cliente) => (
-                    <TableRow
-                      key={cliente.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/cliente/${cliente.id}`)}
-                    >
-                      <TableCell className="font-medium">{cliente.nome}</TableCell>
-                      <TableCell>{cliente.telefone}</TableCell>
-                      <TableCell>{cliente.email}</TableCell>
-                      <TableCell>{cliente.empresa || '-'}</TableCell>
-                      <TableCell>
-                        R$ {(cliente.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[cliente.status as keyof typeof statusColors]}>
-                          {cliente.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{cliente.origem}</TableCell>
-                      <TableCell>
-                        {cliente.dataCadastro 
-                          ? new Date(cliente.dataCadastro).toLocaleDateString('pt-BR')
-                          : '-'
-                        }
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </div>
 
       {filteredClientes.length > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <p>Mostrando {filteredClientes.length} de {clientes.length} clientes</p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {filteredClientes.length} de {clientes.length} clientes
+        </p>
       )}
     </div>
   );
