@@ -188,12 +188,8 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
       
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-      toast({
-        title: 'Conversas sincronizadas!',
-        description: `${data.chats} conversas carregadas.`,
-      });
     },
     onError: (error) => {
       if (!handleDisconnectionError(error)) {
