@@ -507,6 +507,101 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_chats: {
+        Row: {
+          created_at: string
+          id: string
+          instance_name: string
+          is_group: boolean | null
+          last_message: string | null
+          last_message_at: string | null
+          profile_pic_url: string | null
+          push_name: string | null
+          remote_jid: string
+          unread_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_name: string
+          is_group?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          profile_pic_url?: string | null
+          push_name?: string | null
+          remote_jid: string
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_name?: string
+          is_group?: boolean | null
+          last_message?: string | null
+          last_message_at?: string | null
+          profile_pic_url?: string | null
+          push_name?: string | null
+          remote_jid?: string
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      evolution_messages: {
+        Row: {
+          body: string | null
+          chat_id: string | null
+          created_at: string
+          from_me: boolean
+          id: string
+          instance_name: string
+          media_url: string | null
+          message_id: string
+          message_type: string | null
+          remote_jid: string
+          status: string | null
+          timestamp: string
+        }
+        Insert: {
+          body?: string | null
+          chat_id?: string | null
+          created_at?: string
+          from_me?: boolean
+          id?: string
+          instance_name: string
+          media_url?: string | null
+          message_id: string
+          message_type?: string | null
+          remote_jid: string
+          status?: string | null
+          timestamp: string
+        }
+        Update: {
+          body?: string | null
+          chat_id?: string | null
+          created_at?: string
+          from_me?: boolean
+          id?: string
+          instance_name?: string
+          media_url?: string | null
+          message_id?: string
+          message_type?: string | null
+          remote_jid?: string
+          status?: string | null
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evolution_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       extra_hours_summary: {
         Row: {
           created_at: string
