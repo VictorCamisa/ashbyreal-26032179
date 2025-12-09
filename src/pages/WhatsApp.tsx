@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Zap,
   Send,
-  Users,
   FileText
 } from 'lucide-react';
 
@@ -38,7 +37,10 @@ export default function WhatsApp() {
   
   // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  const [instanceName, setInstanceName] = useState<string | null>(null);
+  const [instanceName, setInstanceName] = useState<string | null>(() => {
+    // Carrega instance_name do localStorage na inicialização
+    return localStorage.getItem('whatsapp_instance_name');
+  });
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
@@ -47,24 +49,31 @@ export default function WhatsApp() {
   );
 
   const fetchWhatsappStatus = useCallback(async () => {
+    // Precisa do instance_name para verificar status
+    const storedInstanceName = instanceName || localStorage.getItem('whatsapp_instance_name');
+    
+    if (!storedInstanceName) {
+      console.log('Sem instance_name configurado - WhatsApp não conectado');
+      setIsConnected(false);
+      setIsLoadingStatus(false);
+      return;
+    }
+    
     setIsLoadingStatus(true);
     setStatusError(null);
     
     try {
-      // Tenta primeiro com GET
-      let response = await fetch(STATUS_URL, { method: 'GET' });
+      console.log('Verificando status para instance_name:', storedInstanceName);
       
-      // Se GET falhar, tenta POST
-      if (!response.ok) {
-        response = await fetch(STATUS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-      }
+      const response = await fetch(STATUS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instance_name: storedInstanceName }),
+      });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const text = await response.text();
@@ -76,9 +85,12 @@ export default function WhatsApp() {
       const data = JSON.parse(text) as {
         state?: string;
         instanceName?: string;
+        instance_name?: string;
         isConnected?: boolean;
         connected?: boolean;
       };
+
+      console.log('Status response:', data);
 
       const connected =
         typeof data.isConnected === 'boolean'
@@ -88,16 +100,21 @@ export default function WhatsApp() {
             : data.state === 'CONNECTED' || data.state === 'open';
 
       setIsConnected(connected);
-      setInstanceName(data.instanceName ?? null);
+      
+      // Atualiza o instanceName se retornado
+      const returnedInstanceName = data.instanceName || data.instance_name;
+      if (returnedInstanceName) {
+        setInstanceName(returnedInstanceName);
+        localStorage.setItem('whatsapp_instance_name', returnedInstanceName);
+      }
     } catch (err) {
       console.error('Erro ao verificar status do WhatsApp:', err);
       setStatusError('Não consegui verificar o status');
       setIsConnected(null);
-      setInstanceName(null);
     } finally {
       setIsLoadingStatus(false);
     }
-  }, []);
+  }, [instanceName]);
 
   useEffect(() => {
     fetchWhatsappStatus();
@@ -126,6 +143,7 @@ export default function WhatsApp() {
   const handleConnected = (name: string) => {
     setIsConnected(true);
     setInstanceName(name);
+    localStorage.setItem('whatsapp_instance_name', name);
     setQrDialogOpen(false);
   };
 

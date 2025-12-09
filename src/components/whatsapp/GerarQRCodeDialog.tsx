@@ -14,6 +14,9 @@ const PROXY_BASE = 'https://chmhbrcugswwmpqzhugs.supabase.co/functions/v1/whatsa
 const QR_CODE_URL = `${PROXY_BASE}?action=qrcode`;
 const STATUS_URL = `${PROXY_BASE}?action=status`;
 
+// Client slug padrão para a instância WhatsApp
+const CLIENT_SLUG = 'ashby';
+
 interface GerarQRCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,6 +28,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentInstanceName, setCurrentInstanceName] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Formata o QR code para exibição (adiciona prefixo base64 se necessário)
@@ -47,13 +51,18 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     setError(null);
 
     try {
+      console.log('Enviando request para QR Code com client_slug:', CLIENT_SLUG);
+      
       const response = await fetch(QR_CODE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ client_slug: CLIENT_SLUG }),
       });
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
       const data = await response.json();
       console.log('QR Code Response:', data);
@@ -61,18 +70,24 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       // Tenta diferentes campos possíveis na resposta
       const qrCodeValue = data?.qrCode || data?.qrcode || data?.base64 || data?.image || data?.qr || null;
       const pairingCodeValue = data?.pairingCode || data?.pairingcode || data?.code || null;
+      const instanceNameValue = data?.instanceName || data?.instance_name || data?.instance || CLIENT_SLUG;
       
       if (qrCodeValue) {
         setQrCode(qrCodeValue);
         setPairingCode(pairingCodeValue);
+        setCurrentInstanceName(instanceNameValue);
+        
+        // Salva o instance_name no localStorage para uso futuro
+        localStorage.setItem('whatsapp_instance_name', instanceNameValue);
+        
         toast.success('QR Code gerado com sucesso!');
       } else {
         console.error('Resposta sem QR Code:', data);
-        setError('O servidor retornou resposta vazia. Verifique se a instância do WhatsApp está configurada no n8n/Evolution API.');
+        setError(data?.error || 'O servidor retornou resposta vazia. Verifique se a instância do WhatsApp está configurada.');
       }
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
-      setError('Erro ao gerar QR Code. Tente novamente.');
+      setError(err instanceof Error ? err.message : 'Erro ao gerar QR Code. Tente novamente.');
       setQrCode(null);
       setPairingCode(null);
     } finally {
@@ -81,18 +96,22 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
   };
 
   const checkConnectionStatus = async () => {
+    // Precisa do instance_name para verificar status
+    const instanceName = currentInstanceName || localStorage.getItem('whatsapp_instance_name');
+    
+    if (!instanceName) {
+      console.log('Sem instance_name para verificar status');
+      return;
+    }
+    
     try {
-      // Tenta primeiro com GET
-      let response = await fetch(STATUS_URL, { method: 'GET' });
+      console.log('Verificando status para instance_name:', instanceName);
       
-      // Se GET falhar, tenta POST
-      if (!response.ok) {
-        response = await fetch(STATUS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-      }
+      const response = await fetch(STATUS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instance_name: instanceName }),
+      });
 
       if (!response.ok) return;
 
@@ -107,8 +126,10 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
         return;
       }
       
+      console.log('Status response:', data);
+      
       const isConnected = data?.isConnected === true || data?.connected === true || data?.status === 'connected';
-      const instanceName = data.instanceName || data.instance || 'WhatsApp';
+      const connectedInstanceName = data?.instanceName || data?.instance_name || instanceName;
       
       if (isConnected) {
         if (intervalRef.current) {
@@ -116,30 +137,25 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
           intervalRef.current = null;
         }
         
-        // Envia o nome da instância para o webhook
-        try {
-          await fetch(STATUS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ instanceName, connected: true }),
-          });
-        } catch (err) {
-          console.log('Erro ao notificar conexão:', err);
-        }
+        // Salva o instance_name no localStorage
+        localStorage.setItem('whatsapp_instance_name', connectedInstanceName);
         
         toast.success('WhatsApp conectado!');
-        onConnected(instanceName);
+        onConnected(connectedInstanceName);
         onOpenChange(false);
       }
     } catch (err) {
-      console.log('Verificando status...');
+      console.log('Erro ao verificar status:', err);
     }
   };
 
   useEffect(() => {
     if (open) {
-      intervalRef.current = setInterval(checkConnectionStatus, 4000);
-      checkConnectionStatus();
+      // Só inicia polling de status se já tiver um QR code gerado
+      if (qrCode && currentInstanceName) {
+        intervalRef.current = setInterval(checkConnectionStatus, 4000);
+        checkConnectionStatus();
+      }
     } else {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -149,6 +165,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       setPairingCode(null);
       setError(null);
       setLoading(false);
+      setCurrentInstanceName(null);
     }
 
     return () => {
@@ -157,7 +174,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
         intervalRef.current = null;
       }
     };
-  }, [open]);
+  }, [open, qrCode, currentInstanceName]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
