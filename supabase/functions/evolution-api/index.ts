@@ -394,6 +394,106 @@ serve(async (req) => {
         }
       }
 
+      // === MESCLAR CHATS DUPLICADOS ===
+      // Buscar todos os chats desta instância
+      const { data: existingChats, error: fetchError } = await supabase
+        .from('evolution_chats')
+        .select('id, remote_jid, push_name, last_message_at, unread_count')
+        .eq('instance_name', instance_name);
+
+      if (!fetchError && existingChats && existingChats.length > 0) {
+        // Agrupar chats pelo número de telefone (extrair número do JID)
+        const phoneGroups: Record<string, typeof existingChats> = {};
+        
+        for (const chat of existingChats) {
+          // Extrair número do remote_jid
+          // Formatos: 5511999999999@s.whatsapp.net, 5511999999999@lid, grupo@g.us
+          const jid = chat.remote_jid;
+          
+          // Pular grupos
+          if (jid.includes('@g.us')) continue;
+          
+          // Extrair o número (remover sufixos)
+          const phoneMatch = jid.match(/^(\d+)@/);
+          if (!phoneMatch) continue;
+          
+          const phone = phoneMatch[1];
+          
+          if (!phoneGroups[phone]) {
+            phoneGroups[phone] = [];
+          }
+          phoneGroups[phone].push(chat);
+        }
+        
+        // Para cada grupo com mais de um chat, mesclar
+        let mergedCount = 0;
+        for (const [phone, chatsGroup] of Object.entries(phoneGroups)) {
+          if (chatsGroup.length <= 1) continue;
+          
+          console.log(`Found ${chatsGroup.length} duplicate chats for phone ${phone}`);
+          
+          // Escolher o chat principal:
+          // 1. Preferir o que tem push_name
+          // 2. Se empatar, preferir @s.whatsapp.net sobre @lid
+          // 3. Se ainda empatar, preferir o mais recente
+          chatsGroup.sort((a, b) => {
+            // Preferir com push_name
+            if (a.push_name && !b.push_name) return -1;
+            if (!a.push_name && b.push_name) return 1;
+            
+            // Preferir @s.whatsapp.net
+            const aIsNormal = a.remote_jid.includes('@s.whatsapp.net');
+            const bIsNormal = b.remote_jid.includes('@s.whatsapp.net');
+            if (aIsNormal && !bIsNormal) return -1;
+            if (!aIsNormal && bIsNormal) return 1;
+            
+            // Preferir mais recente
+            const aDate = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+            const bDate = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+            return bDate - aDate;
+          });
+          
+          const primaryChat = chatsGroup[0];
+          const duplicateChats = chatsGroup.slice(1);
+          
+          console.log(`Primary chat: ${primaryChat.remote_jid} (${primaryChat.push_name})`);
+          console.log(`Duplicates to merge: ${duplicateChats.map(c => c.remote_jid).join(', ')}`);
+          
+          for (const duplicate of duplicateChats) {
+            // Mover todas as mensagens do chat duplicado para o principal
+            const { error: moveError } = await supabase
+              .from('evolution_messages')
+              .update({ 
+                chat_id: primaryChat.id,
+                remote_jid: primaryChat.remote_jid
+              })
+              .eq('chat_id', duplicate.id);
+            
+            if (moveError) {
+              console.error(`Error moving messages from ${duplicate.remote_jid}:`, moveError);
+              continue;
+            }
+            
+            // Deletar o chat duplicado
+            const { error: deleteError } = await supabase
+              .from('evolution_chats')
+              .delete()
+              .eq('id', duplicate.id);
+            
+            if (deleteError) {
+              console.error(`Error deleting duplicate chat ${duplicate.remote_jid}:`, deleteError);
+            } else {
+              console.log(`Merged and deleted duplicate: ${duplicate.remote_jid}`);
+              mergedCount++;
+            }
+          }
+        }
+        
+        if (mergedCount > 0) {
+          console.log(`=== Merged ${mergedCount} duplicate chats ===`);
+        }
+      }
+
       return new Response(JSON.stringify({ 
         success: true, 
         chats: allChats.length 
