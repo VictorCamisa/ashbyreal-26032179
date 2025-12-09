@@ -416,16 +416,9 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     };
   }, [instanceName, queryClient]);
 
-  // Auto-sync mensagens a cada 5 segundos para tempo real
-  useEffect(() => {
-    if (!instanceName) return;
-
-    const interval = setInterval(() => {
-      syncChats.mutate();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [instanceName]);
+  // Realtime updates - sem polling, usando apenas Supabase Realtime
+  // As mensagens chegam via webhook e são inseridas no banco
+  // O Supabase Realtime detecta as mudanças e atualiza automaticamente
 
   // Helper para encontrar chats vinculados a um chat
   const getLinkedChats = useCallback((chatId: string): EvolutionChat[] => {
