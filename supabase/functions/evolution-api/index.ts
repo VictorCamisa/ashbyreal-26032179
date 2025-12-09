@@ -389,16 +389,15 @@ serve(async (req) => {
         }
       }
 
-      // === MESCLAR CHATS DUPLICADOS ===
+      // === VINCULAR CHATS DO MESMO CONTATO (em vez de deletar) ===
       // Buscar todos os chats desta instância
       const { data: existingChats, error: fetchError } = await supabase
         .from('evolution_chats')
-        .select('id, remote_jid, push_name, last_message_at, unread_count')
+        .select('id, remote_jid, push_name, last_message_at, unread_count, linked_to_chat_id')
         .eq('instance_name', instance_name);
 
       if (!fetchError && existingChats && existingChats.length > 0) {
         // Agrupar chats pelo número de telefone (normalizado)
-        // Formatos: 5511999999999@s.whatsapp.net, 30472893665429@lid, grupo@g.us
         const phoneGroups: Record<string, typeof existingChats> = {};
         
         for (const chat of existingChats) {
@@ -411,9 +410,6 @@ serve(async (req) => {
           const phoneMatch = jid.match(/^(\d+)@/);
           if (!phoneMatch) continue;
           
-          // Normalizar - pegar os últimos 8-9 dígitos para comparação
-          // Isso permite que +30472893665429@lid e 1299151951@s.whatsapp.net
-          // sejam identificados como o mesmo contato
           const fullPhone = phoneMatch[1];
           const normalizedPhone = fullPhone.slice(-9); // últimos 9 dígitos
           
@@ -423,22 +419,19 @@ serve(async (req) => {
           phoneGroups[normalizedPhone].push(chat);
         }
         
-        // Para cada grupo com mais de um chat, mesclar
-        let mergedCount = 0;
+        // Para cada grupo com mais de um chat, vincular (não deletar!)
+        let linkedCount = 0;
         for (const [phone, chatsGroup] of Object.entries(phoneGroups)) {
           if (chatsGroup.length <= 1) continue;
           
-          console.log(`Found ${chatsGroup.length} duplicate chats for phone ending in ${phone}`);
-          
-          // IMPORTANTE: Priorizar @lid sobre @s.whatsapp.net
-          // Porque mensagens recebidas de Business IDs vêm pelo @lid
-          // e precisamos responder para o @lid para funcionar
+          // Ordenar para escolher o chat principal
+          // Priorizar @s.whatsapp.net pois é o mais comum
           chatsGroup.sort((a, b) => {
-            // 1. Preferir @lid (mensagens recebidas usam esse formato)
-            const aIsLid = a.remote_jid.includes('@lid');
-            const bIsLid = b.remote_jid.includes('@lid');
-            if (aIsLid && !bIsLid) return -1;
-            if (!aIsLid && bIsLid) return 1;
+            // 1. Preferir @s.whatsapp.net como principal
+            const aIsStandard = a.remote_jid.includes('@s.whatsapp.net');
+            const bIsStandard = b.remote_jid.includes('@s.whatsapp.net');
+            if (aIsStandard && !bIsStandard) return -1;
+            if (!aIsStandard && bIsStandard) return 1;
             
             // 2. Se empatar, preferir com push_name
             if (a.push_name && !b.push_name) return -1;
@@ -451,52 +444,30 @@ serve(async (req) => {
           });
           
           const primaryChat = chatsGroup[0];
-          const duplicateChats = chatsGroup.slice(1);
+          const secondaryChats = chatsGroup.slice(1);
           
-          console.log(`Primary chat (will keep): ${primaryChat.remote_jid} (${primaryChat.push_name})`);
-          console.log(`Duplicates to merge and delete: ${duplicateChats.map(c => c.remote_jid).join(', ')}`);
-          
-          for (const duplicate of duplicateChats) {
-            // Mover todas as mensagens do chat duplicado para o principal
-            const { error: moveError } = await supabase
-              .from('evolution_messages')
-              .update({ 
-                chat_id: primaryChat.id,
-                remote_jid: primaryChat.remote_jid
-              })
-              .eq('chat_id', duplicate.id);
-            
-            if (moveError) {
-              console.error(`Error moving messages from ${duplicate.remote_jid}:`, moveError);
-            }
-            
-            // Também mover mensagens pelo remote_jid antigo
-            await supabase
-              .from('evolution_messages')
-              .update({ 
-                chat_id: primaryChat.id,
-                remote_jid: primaryChat.remote_jid
-              })
-              .eq('remote_jid', duplicate.remote_jid)
-              .eq('instance_name', instance_name);
-            
-            // Deletar o chat duplicado
-            const { error: deleteError } = await supabase
-              .from('evolution_chats')
-              .delete()
-              .eq('id', duplicate.id);
-            
-            if (deleteError) {
-              console.error(`Error deleting duplicate chat ${duplicate.remote_jid}:`, deleteError);
-            } else {
-              console.log(`Merged and deleted duplicate: ${duplicate.remote_jid}`);
-              mergedCount++;
+          // Vincular chats secundários ao principal (sem deletar!)
+          for (const secondary of secondaryChats) {
+            // Só vincular se ainda não estiver vinculado
+            if (secondary.linked_to_chat_id !== primaryChat.id) {
+              console.log(`Linking chat ${secondary.remote_jid} to ${primaryChat.remote_jid}`);
+              
+              const { error: linkError } = await supabase
+                .from('evolution_chats')
+                .update({ linked_to_chat_id: primaryChat.id })
+                .eq('id', secondary.id);
+              
+              if (linkError) {
+                console.error(`Error linking chat ${secondary.remote_jid}:`, linkError);
+              } else {
+                linkedCount++;
+              }
             }
           }
         }
         
-        if (mergedCount > 0) {
-          console.log(`=== Merged ${mergedCount} duplicate chats ===`);
+        if (linkedCount > 0) {
+          console.log(`=== Linked ${linkedCount} related chats ===`);
         }
       }
 
