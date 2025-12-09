@@ -18,7 +18,7 @@ import {
   FileText
 } from 'lucide-react';
 
-const STATUS_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/evolution-webhook';
+const STATUS_URL = 'https://victoecamisavs.app.n8n.cloud/webhook/whatsapp/evolution-webhook';
 
 export default function WhatsApp() {
   const {
