@@ -15,6 +15,7 @@ export interface EvolutionChat {
   is_group: boolean;
   created_at: string;
   updated_at: string;
+  linked_to_chat_id: string | null;
 }
 
 export interface EvolutionMessage {
@@ -86,18 +87,21 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     enabled: !!instanceName,
   });
 
-  // Query para buscar mensagens de um chat específico
-  const getMessages = (remoteJid: string | null) => {
+  // Query para buscar mensagens de um chat específico (incluindo chats vinculados)
+  const getMessages = (remoteJid: string | null, linkedRemoteJids: string[] = []) => {
     return useQuery({
-      queryKey: ['evolution-messages', instanceName, remoteJid],
+      queryKey: ['evolution-messages', instanceName, remoteJid, linkedRemoteJids],
       queryFn: async () => {
         if (!instanceName || !remoteJid) return [];
+        
+        // Buscar mensagens do chat principal e de chats vinculados
+        const allJids = [remoteJid, ...linkedRemoteJids];
         
         const { data, error } = await supabase
           .from('evolution_messages')
           .select('*')
           .eq('instance_name', instanceName)
-          .eq('remote_jid', remoteJid)
+          .in('remote_jid', allJids)
           .order('timestamp', { ascending: true });
 
         if (error) throw error;
@@ -106,6 +110,60 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
       enabled: !!instanceName && !!remoteJid,
     });
   };
+
+  // Mutation para vincular dois chats
+  const linkChats = useMutation({
+    mutationFn: async ({ chatId, targetChatId }: { chatId: string; targetChatId: string }) => {
+      // Vincular chat secundário ao principal
+      const { error } = await supabase
+        .from('evolution_chats')
+        .update({ linked_to_chat_id: targetChatId })
+        .eq('id', chatId);
+
+      if (error) throw error;
+      return { chatId, targetChatId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
+      toast({
+        title: 'Chats vinculados!',
+        description: 'As mensagens de ambos os chats agora serão exibidas juntas.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao vincular chats',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation para desvincular um chat
+  const unlinkChat = useMutation({
+    mutationFn: async (chatId: string) => {
+      const { error } = await supabase
+        .from('evolution_chats')
+        .update({ linked_to_chat_id: null })
+        .eq('id', chatId);
+
+      if (error) throw error;
+      return chatId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
+      toast({
+        title: 'Chat desvinculado!',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao desvincular chat',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
 
   // Mutation para sincronizar chats da Evolution API
   const syncChats = useMutation({
@@ -374,18 +432,34 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     return () => clearInterval(interval);
   }, [instanceName]);
 
+  // Helper para encontrar chats vinculados a um chat
+  const getLinkedChats = useCallback((chatId: string): EvolutionChat[] => {
+    return chats.filter(c => c.linked_to_chat_id === chatId);
+  }, [chats]);
+
+  // Helper para encontrar o chat principal de um chat vinculado
+  const getPrimaryChat = useCallback((linkedToChatId: string | null): EvolutionChat | null => {
+    if (!linkedToChatId) return null;
+    return chats.find(c => c.id === linkedToChatId) || null;
+  }, [chats]);
+
   return {
     chats,
     loadingChats,
     refetchChats,
     getMessages,
+    getLinkedChats,
+    getPrimaryChat,
     syncChats: syncChats.mutate,
     syncMessages: syncMessages.mutate,
     syncContacts: syncContacts.mutate,
     sendMessage: sendMessage.mutate,
     deleteChat: deleteChat.mutate,
+    linkChats: linkChats.mutate,
+    unlinkChat: unlinkChat.mutate,
     isSyncing: syncChats.isPending || syncMessages.isPending || syncContacts.isPending,
     isSending: sendMessage.isPending,
     isDeleting: deleteChat.isPending,
+    isLinking: linkChats.isPending,
   };
 }
