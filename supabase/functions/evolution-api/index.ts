@@ -38,6 +38,78 @@ serve(async (req) => {
     // Remove trailing slash from URL if present
     const baseUrl = EVOLUTION_API_URL.replace(/\/$/, '');
 
+    // Verificar status de conexão diretamente na Evolution API
+    if (action === 'check_connection') {
+      // GET /instance/connectionState/{instance}
+      const url = `${baseUrl}/instance/connectionState/${instance_name}`;
+      console.log(`Checking connection status from: ${url}`);
+
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log(`Connection check response status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error checking connection: ${errorText}`);
+          
+          // Se a instância não existe ou está desconectada
+          if (response.status === 404 || errorText.includes('not found') || errorText.includes('does not exist')) {
+            return new Response(JSON.stringify({ 
+              success: true, 
+              connected: false,
+              state: 'not_found',
+              message: 'Instância não encontrada'
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            connected: false,
+            state: 'error',
+            message: 'Erro ao verificar conexão'
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const result = await response.json();
+        console.log(`Connection state result:`, JSON.stringify(result));
+        
+        // A Evolution API retorna { instance: { instanceName, state } }
+        // state pode ser: 'open', 'close', 'connecting'
+        const state = result?.instance?.state || result?.state || 'unknown';
+        const isConnected = state === 'open';
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          connected: isConnected,
+          state: state,
+          instanceName: result?.instance?.instanceName || instance_name
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        console.error('Connection check error:', err);
+        return new Response(JSON.stringify({ 
+          success: true, 
+          connected: false,
+          state: 'error',
+          message: 'Erro ao verificar conexão'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     if (action === 'find_chats') {
       // POST /chat/findChats/{instance} - API v2 uses POST
       const url = `${baseUrl}/chat/findChats/${instance_name}`;
