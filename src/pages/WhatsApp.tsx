@@ -214,34 +214,40 @@ export default function WhatsApp() {
       .replace('@lid', '')
       .replace('@c.us', '');
     
-    // Se é um ID interno (contém letras ou é muito longo com formato estranho), retorna formatado
-    if (/[a-zA-Z]/.test(number) || number.length > 15) {
-      return 'Contato';
+    // Se é um ID interno (contém letras), retorna vazio
+    if (/[a-zA-Z]/.test(number)) {
+      return '';
     }
     
     // Limpa qualquer caractere não numérico
     number = number.replace(/\D/g, '');
     
+    // Se não tem número, retorna vazio
+    if (!number) return '';
+    
     // Formata número brasileiro (55 + DDD + número)
-    if (number.startsWith('55') && number.length >= 12) {
+    if (number.startsWith('55')) {
       const ddd = number.slice(2, 4);
-      const parte1 = number.slice(4, 9);
-      const parte2 = number.slice(9);
-      return `(${ddd}) ${parte1}-${parte2}`;
-    }
-    
-    // Formata outros números internacionais
-    if (number.length > 10) {
-      const countryCode = number.slice(0, 2);
-      const rest = number.slice(2);
-      if (rest.length >= 9) {
-        return `+${countryCode} ${rest.slice(0, 2)} ${rest.slice(2, 7)}-${rest.slice(7)}`;
+      const restNumber = number.slice(4);
+      
+      // Celular com 9 dígitos
+      if (restNumber.length === 9) {
+        return `(${ddd}) ${restNumber.slice(0, 5)}-${restNumber.slice(5)}`;
       }
-      return `+${countryCode} ${rest}`;
+      // Fixo com 8 dígitos
+      if (restNumber.length === 8) {
+        return `(${ddd}) ${restNumber.slice(0, 4)}-${restNumber.slice(4)}`;
+      }
+      // Outro formato brasileiro
+      return `(${ddd}) ${restNumber}`;
     }
     
-    // Número curto, retorna como está
-    return number || 'Contato';
+    // Números internacionais - formato simples com código do país
+    if (number.length > 10) {
+      return `+${number.slice(0, 2)} ${number.slice(2)}`;
+    }
+    
+    return number;
   };
 
   // Retorna o nome de exibição do chat
@@ -251,7 +257,15 @@ export default function WhatsApp() {
       return chat.push_name;
     }
     // Senão, formata o número
-    return formatPhoneNumber(chat.remote_jid);
+    const formatted = formatPhoneNumber(chat.remote_jid);
+    return formatted || 'Contato';
+  };
+  
+  // Retorna o subtítulo do chat (número formatado ou tipo)
+  const getChatSubtitle = (chat: EvolutionChat) => {
+    if (chat.is_group) return 'Grupo';
+    const formatted = formatPhoneNumber(chat.remote_jid);
+    return formatted || 'WhatsApp';
   };
 
   // Stats
@@ -422,54 +436,71 @@ export default function WhatsApp() {
                 </p>
               </div>
             ) : (
-              <div>
-                {filteredChats.map((chat) => (
-                  <button
-                    key={chat.id}
-                    onClick={() => handleSelecionarConversa(chat)}
-                    className={`
-                      w-full p-3 flex items-center gap-3 transition-all
-                      hover:bg-muted/50 active:bg-muted/70
-                      ${conversaSelecionada?.id === chat.id ? 'bg-muted/60' : ''}
-                    `}
-                  >
-                    <div className="relative">
-                      <Avatar className="h-12 w-12 ring-2 ring-background">
-                        <AvatarImage src={chat.profile_pic_url || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/30 text-primary font-medium">
-                          {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || '?')}
-                        </AvatarFallback>
-                      </Avatar>
-                      {chat.unread_count > 0 && (
-                        <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center shadow-lg">
-                          {chat.unread_count}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className="font-medium text-sm truncate">
-                          {getDisplayName(chat)}
-                        </p>
-                        {chat.last_message_at && (
-                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                            {format(new Date(chat.last_message_at), "HH:mm", { locale: ptBR })}
+              <div className="divide-y divide-border/30">
+                {filteredChats.map((chat, index) => {
+                  // Cores de avatar variadas baseadas no índice
+                  const avatarColors = [
+                    'from-emerald-500/20 to-emerald-600/30 text-emerald-600',
+                    'from-blue-500/20 to-blue-600/30 text-blue-600',
+                    'from-purple-500/20 to-purple-600/30 text-purple-600',
+                    'from-orange-500/20 to-orange-600/30 text-orange-600',
+                    'from-pink-500/20 to-pink-600/30 text-pink-600',
+                    'from-cyan-500/20 to-cyan-600/30 text-cyan-600',
+                  ];
+                  const colorClass = avatarColors[index % avatarColors.length];
+                  
+                  return (
+                    <button
+                      key={chat.id}
+                      onClick={() => handleSelecionarConversa(chat)}
+                      className={`
+                        w-full p-3.5 flex items-center gap-3.5 transition-all
+                        hover:bg-muted/40 active:bg-muted/60
+                        ${conversaSelecionada?.id === chat.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}
+                      `}
+                    >
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="h-12 w-12 ring-2 ring-background shadow-sm">
+                          <AvatarImage src={chat.profile_pic_url || undefined} />
+                          <AvatarFallback className={`bg-gradient-to-br ${colorClass} font-semibold`}>
+                            {chat.is_group ? (
+                              <Users className="h-5 w-5" />
+                            ) : (
+                              getDisplayName(chat)?.[0]?.toUpperCase() || '?'
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        {chat.unread_count > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md ring-2 ring-background">
+                            {chat.unread_count}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {chat.is_group && (
-                          <Badge variant="secondary" className="h-4 px-1.5 text-[9px]">
-                            Grupo
-                          </Badge>
-                        )}
-                        <p className="text-xs text-muted-foreground truncate flex-1">
-                          {chat.last_message || 'Sem mensagens'}
-                        </p>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <p className="font-semibold text-sm truncate text-foreground">
+                            {getDisplayName(chat)}
+                          </p>
+                          {chat.last_message_at && (
+                            <span className="text-[10px] text-muted-foreground/70 flex-shrink-0 font-medium">
+                              {format(new Date(chat.last_message_at), "HH:mm", { locale: ptBR })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {chat.is_group && (
+                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-500 bg-blue-500/10">
+                              Grupo
+                            </Badge>
+                          )}
+                          <p className="text-xs text-muted-foreground/80 truncate flex-1">
+                            {chat.last_message || getChatSubtitle(chat)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
@@ -509,11 +540,11 @@ export default function WhatsApp() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
+                  <p className="font-semibold text-sm truncate">
                     {getDisplayName(conversaSelecionada)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {conversaSelecionada.is_group ? 'Grupo' : (conversaSelecionada.push_name ? formatPhoneNumber(conversaSelecionada.remote_jid) : 'WhatsApp')}
+                  <p className="text-xs text-muted-foreground/80">
+                    {getChatSubtitle(conversaSelecionada)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
