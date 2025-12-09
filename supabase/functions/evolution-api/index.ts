@@ -224,46 +224,99 @@ serve(async (req) => {
     }
 
     if (action === 'find_chats') {
-      // POST /chat/findChats/{instance} - API v2 uses POST
-      const url = `${baseUrl}/chat/findChats/${instance_name}`;
-      console.log(`Fetching chats from: ${url}`);
+      let allChats: any[] = [];
+      
+      // 1. Buscar chats existentes
+      const chatsUrl = `${baseUrl}/chat/findChats/${instance_name}`;
+      console.log(`Fetching chats from: ${chatsUrl}`);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'apikey': EVOLUTION_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
+      try {
+        const chatsResponse = await fetch(chatsUrl, {
+          method: 'POST',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
 
-      console.log(`Response status: ${response.status}`);
+        console.log(`Chats response status: ${chatsResponse.status}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error fetching chats: ${errorText}`);
-        
-        // Detectar erro de conexão fechada
-        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
-            disconnected: true
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+        if (chatsResponse.ok) {
+          const chatsData = await chatsResponse.json();
+          if (Array.isArray(chatsData)) {
+            allChats = [...chatsData];
+            console.log(`Found ${chatsData.length} chats`);
+          }
+        } else {
+          const errorText = await chatsResponse.text();
+          console.error(`Error fetching chats: ${errorText}`);
+          
+          if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
+              disconnected: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
         }
-        
-        throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
+      } catch (err) {
+        console.error('Error fetching chats:', err);
       }
 
-      const chats = await response.json();
-      console.log(`Found ${Array.isArray(chats) ? chats.length : 0} chats`);
+      // 2. Buscar contatos também
+      const contactsUrl = `${baseUrl}/chat/findContacts/${instance_name}`;
+      console.log(`Fetching contacts from: ${contactsUrl}`);
+
+      try {
+        const contactsResponse = await fetch(contactsUrl, {
+          method: 'POST',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+
+        console.log(`Contacts response status: ${contactsResponse.status}`);
+
+        if (contactsResponse.ok) {
+          const contactsData = await contactsResponse.json();
+          if (Array.isArray(contactsData)) {
+            console.log(`Found ${contactsData.length} contacts`);
+            
+            // Adicionar contatos que não estão nos chats
+            for (const contact of contactsData) {
+              const contactJid = contact.id || contact.remoteJid;
+              if (!contactJid) continue;
+              
+              const exists = allChats.some(c => 
+                (c.remoteJid || c.id || c.jid) === contactJid
+              );
+              
+              if (!exists) {
+                allChats.push({
+                  remoteJid: contactJid,
+                  pushName: contact.pushName || contact.name || contact.notify || null,
+                  profilePicUrl: contact.profilePictureUrl || contact.imgUrl || null,
+                  unreadCount: 0,
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching contacts:', err);
+      }
+
+      console.log(`Total chats+contacts: ${allChats.length}`);
 
       // Salvar chats no Supabase
-      if (Array.isArray(chats) && chats.length > 0) {
-        for (const chat of chats) {
+      if (allChats.length > 0) {
+        for (const chat of allChats) {
           // A API retorna diferentes estruturas dependendo do tipo
           const remoteJid = chat.remoteJid || chat.id || chat.jid;
           if (!remoteJid) continue;
@@ -298,7 +351,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         success: true, 
-        chats: Array.isArray(chats) ? chats.length : 0 
+        chats: allChats.length 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

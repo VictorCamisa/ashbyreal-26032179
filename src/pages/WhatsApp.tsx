@@ -205,12 +205,53 @@ export default function WhatsApp() {
     chat.remote_jid.includes(searchTerm)
   );
 
+  // Formata número de telefone para exibição legível
   const formatPhoneNumber = (jid: string) => {
-    const number = jid.replace('@s.whatsapp.net', '').replace('@g.us', '').replace('@lid', '');
-    if (number.length > 10) {
-      return `+${number.slice(0, 2)} (${number.slice(2, 4)}) ${number.slice(4, 9)}-${number.slice(9)}`;
+    // Remove sufixos do WhatsApp
+    let number = jid
+      .replace('@s.whatsapp.net', '')
+      .replace('@g.us', '')
+      .replace('@lid', '')
+      .replace('@c.us', '');
+    
+    // Se é um ID interno (contém letras ou é muito longo com formato estranho), retorna formatado
+    if (/[a-zA-Z]/.test(number) || number.length > 15) {
+      return 'Contato';
     }
-    return number;
+    
+    // Limpa qualquer caractere não numérico
+    number = number.replace(/\D/g, '');
+    
+    // Formata número brasileiro (55 + DDD + número)
+    if (number.startsWith('55') && number.length >= 12) {
+      const ddd = number.slice(2, 4);
+      const parte1 = number.slice(4, 9);
+      const parte2 = number.slice(9);
+      return `(${ddd}) ${parte1}-${parte2}`;
+    }
+    
+    // Formata outros números internacionais
+    if (number.length > 10) {
+      const countryCode = number.slice(0, 2);
+      const rest = number.slice(2);
+      if (rest.length >= 9) {
+        return `+${countryCode} ${rest.slice(0, 2)} ${rest.slice(2, 7)}-${rest.slice(7)}`;
+      }
+      return `+${countryCode} ${rest}`;
+    }
+    
+    // Número curto, retorna como está
+    return number || 'Contato';
+  };
+
+  // Retorna o nome de exibição do chat
+  const getDisplayName = (chat: EvolutionChat) => {
+    // Se tem push_name (nome salvo no WhatsApp), usa ele
+    if (chat.push_name && chat.push_name.trim()) {
+      return chat.push_name;
+    }
+    // Senão, formata o número
+    return formatPhoneNumber(chat.remote_jid);
   };
 
   // Stats
@@ -396,7 +437,7 @@ export default function WhatsApp() {
                       <Avatar className="h-12 w-12 ring-2 ring-background">
                         <AvatarImage src={chat.profile_pic_url || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/30 text-primary font-medium">
-                          {chat.is_group ? <Users className="h-5 w-5" /> : (chat.push_name?.[0]?.toUpperCase() || '?')}
+                          {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || '?')}
                         </AvatarFallback>
                       </Avatar>
                       {chat.unread_count > 0 && (
@@ -408,7 +449,7 @@ export default function WhatsApp() {
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <p className="font-medium text-sm truncate">
-                          {chat.push_name || formatPhoneNumber(chat.remote_jid)}
+                          {getDisplayName(chat)}
                         </p>
                         {chat.last_message_at && (
                           <span className="text-[10px] text-muted-foreground flex-shrink-0">
@@ -464,15 +505,15 @@ export default function WhatsApp() {
                 <Avatar className="h-10 w-10 ring-2 ring-background">
                   <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
                   <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/30 text-primary">
-                    {conversaSelecionada.is_group ? <Users className="h-4 w-4" /> : (conversaSelecionada.push_name?.[0]?.toUpperCase() || '?')}
+                    {conversaSelecionada.is_group ? <Users className="h-4 w-4" /> : (getDisplayName(conversaSelecionada)?.[0]?.toUpperCase() || '?')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">
-                    {conversaSelecionada.push_name || formatPhoneNumber(conversaSelecionada.remote_jid)}
+                    {getDisplayName(conversaSelecionada)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {conversaSelecionada.is_group ? 'Grupo' : formatPhoneNumber(conversaSelecionada.remote_jid)}
+                    {conversaSelecionada.is_group ? 'Grupo' : (conversaSelecionada.push_name ? formatPhoneNumber(conversaSelecionada.remote_jid) : 'WhatsApp')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
