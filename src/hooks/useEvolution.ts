@@ -277,7 +277,7 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
 
     // Subscribe to chats changes
     const chatsChannel = supabase
-      .channel('evolution-chats-realtime')
+      .channel(`evolution-chats-${instanceName}`)
       .on(
         'postgres_changes',
         {
@@ -286,34 +286,52 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
           table: 'evolution_chats',
           filter: `instance_name=eq.${instanceName}`,
         },
-        () => {
+        (payload) => {
+          console.log('Chat change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Chats channel status:', status);
+      });
 
     // Subscribe to messages changes
     const messagesChannel = supabase
-      .channel('evolution-messages-realtime')
+      .channel(`evolution-messages-${instanceName}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'evolution_messages',
           filter: `instance_name=eq.${instanceName}`,
         },
-        () => {
+        (payload) => {
+          console.log('Message change detected:', payload);
           queryClient.invalidateQueries({ queryKey: ['evolution-messages'] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Messages channel status:', status);
+      });
 
     return () => {
       supabase.removeChannel(chatsChannel);
       supabase.removeChannel(messagesChannel);
     };
   }, [instanceName, queryClient]);
+
+  // Auto-sync mensagens a cada 30 segundos
+  useEffect(() => {
+    if (!instanceName) return;
+
+    const interval = setInterval(() => {
+      console.log('Auto-syncing chats...');
+      syncChats.mutate();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [instanceName]);
 
   return {
     chats,
