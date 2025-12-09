@@ -225,8 +225,7 @@ serve(async (req) => {
         console.log('Chat updated with last message');
       }
 
-      // Verificar se precisa vincular chats do mesmo contato
-      await autoLinkRelatedChats(supabase, instance, remoteJid);
+      // NÃO vincular chats - cada JID é uma conversa independente
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -322,61 +321,4 @@ serve(async (req) => {
   }
 });
 
-// Função para vincular automaticamente chats do mesmo contato
-async function autoLinkRelatedChats(supabase: any, instanceName: string, remoteJid: string) {
-  try {
-    // Pular grupos
-    if (remoteJid.includes('@g.us')) return;
-
-    // Extrair número do telefone
-    const phoneMatch = remoteJid.match(/^(\d+)@/);
-    if (!phoneMatch) return;
-
-    const fullPhone = phoneMatch[1];
-    const normalizedPhone = fullPhone.slice(-9); // últimos 9 dígitos
-
-    // Buscar chats com números semelhantes
-    const { data: relatedChats } = await supabase
-      .from('evolution_chats')
-      .select('id, remote_jid, linked_to_chat_id')
-      .eq('instance_name', instanceName)
-      .not('remote_jid', 'like', '%@g.us'); // excluir grupos
-
-    if (!relatedChats || relatedChats.length < 2) return;
-
-    // Filtrar chats com números similares
-    const matchingChats = relatedChats.filter((chat: any) => {
-      const match = chat.remote_jid.match(/^(\d+)@/);
-      if (!match) return false;
-      return match[1].slice(-9) === normalizedPhone;
-    });
-
-    if (matchingChats.length < 2) return;
-
-    // Ordenar para escolher o principal (preferir @s.whatsapp.net)
-    matchingChats.sort((a: any, b: any) => {
-      const aIsStandard = a.remote_jid.includes('@s.whatsapp.net');
-      const bIsStandard = b.remote_jid.includes('@s.whatsapp.net');
-      if (aIsStandard && !bIsStandard) return -1;
-      if (!aIsStandard && bIsStandard) return 1;
-      return 0;
-    });
-
-    const primaryChat = matchingChats[0];
-    const secondaryChats = matchingChats.slice(1);
-
-    // Vincular chats secundários
-    for (const secondary of secondaryChats) {
-      if (secondary.linked_to_chat_id !== primaryChat.id) {
-        console.log(`Auto-linking ${secondary.remote_jid} to ${primaryChat.remote_jid}`);
-        
-        await supabase
-          .from('evolution_chats')
-          .update({ linked_to_chat_id: primaryChat.id })
-          .eq('id', secondary.id);
-      }
-    }
-  } catch (error) {
-    console.error('Error auto-linking chats:', error);
-  }
-}
+// Função removida - cada chat é mantido separadamente pelo seu JID original
