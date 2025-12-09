@@ -160,18 +160,25 @@
 
 @layer utilities {
   .glass {
-    @apply bg-background/60 backdrop-blur-xl border-border/50;
+    background-color: hsl(var(--background) / 0.6);
+    @apply backdrop-blur-xl;
+    border-color: hsl(var(--border) / 0.5);
   }
   
   .glass-card {
-    @apply bg-card/50 backdrop-blur-sm border-border/40 shadow-sm;
+    background-color: hsl(var(--card) / 0.5);
+    @apply backdrop-blur-sm shadow-sm rounded-2xl border;
+    border-color: hsl(var(--border) / 0.4);
   }
 
   .surface {
-    @apply bg-card border border-border/50 rounded-2xl;
+    @apply bg-card border rounded-2xl;
+    border-color: hsl(var(--border) / 0.5);
   }
 
   .surface-muted {
-    @apply bg-muted/50 border border-border/30 rounded-xl;
+    background-color: hsl(var(--muted) / 0.5);
+    @apply border rounded-xl;
+    border-color: hsl(var(--border) / 0.3);
   }
 }
