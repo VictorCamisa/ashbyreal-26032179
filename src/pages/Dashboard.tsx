@@ -18,8 +18,8 @@ export default function Dashboard() {
   const insights = dashboardData ? [
     {
       icon: TrendingUp,
-      color: dashboardData.vendas.crescimento >= 0 ? 'text-primary' : 'text-destructive',
-      bgColor: dashboardData.vendas.crescimento >= 0 ? 'bg-primary/10' : 'bg-destructive/10',
+      color: dashboardData.vendas.crescimento >= 0 ? 'text-emerald-500' : 'text-rose-500',
+      bgColor: dashboardData.vendas.crescimento >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10',
       title: 'Vendas',
       description: dashboardData.vendas.crescimento >= 0
         ? `+${dashboardData.vendas.crescimento.toFixed(1)}% vs mês anterior`
@@ -27,15 +27,15 @@ export default function Dashboard() {
     },
     {
       icon: Target,
-      color: 'text-chart-2',
-      bgColor: 'bg-chart-2/10',
+      color: 'text-violet-500',
+      bgColor: 'bg-violet-500/10',
       title: 'Conversão',
       description: `${dashboardData.leads.conversao.toFixed(1)}% com ${dashboardData.leads.total} leads`,
     },
     {
       icon: AlertTriangle,
-      color: dashboardData.estoque.alertas > 0 ? 'text-chart-4' : 'text-primary',
-      bgColor: dashboardData.estoque.alertas > 0 ? 'bg-chart-4/10' : 'bg-primary/10',
+      color: dashboardData.estoque.alertas > 0 ? 'text-amber-500' : 'text-emerald-500',
+      bgColor: dashboardData.estoque.alertas > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10',
       title: 'Estoque',
       description: dashboardData.estoque.alertas > 0
         ? `${dashboardData.estoque.alertas} produtos com estoque baixo`
@@ -43,24 +43,24 @@ export default function Dashboard() {
     },
     {
       icon: ShoppingCart,
-      color: 'text-chart-3',
-      bgColor: 'bg-chart-3/10',
+      color: 'text-cyan-500',
+      bgColor: 'bg-cyan-500/10',
       title: 'Clientes',
       description: `${dashboardData.clientes.novos} novos este mês`,
     },
   ] : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <LayoutDashboard className="h-5 w-5 text-primary" />
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <LayoutDashboard className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Visão geral do negócio</p>
+            <h1 className="text-2xl font-semibold">Dashboard</h1>
+            <p className="text-muted-foreground">Visão geral do seu negócio</p>
           </div>
         </div>
         <DashboardFilters mesReferencia={mesReferencia} onMesChange={setMesReferencia} />
@@ -79,20 +79,20 @@ export default function Dashboard() {
 
       {/* Insights */}
       {!isLoading && dashboardData && (
-        <section className="rounded-2xl border border-border/50 bg-card/50 p-5">
-          <h2 className="text-sm font-semibold mb-4">Insights</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <section className="glass-card p-6">
+          <h2 className="font-semibold mb-5">Insights do Período</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {insights.map((insight) => (
               <div 
                 key={insight.title} 
-                className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border/30"
+                className="flex items-start gap-4 p-4 rounded-xl bg-muted/30 border border-border/50"
               >
-                <div className={`h-8 w-8 rounded-lg ${insight.bgColor} flex items-center justify-center flex-shrink-0`}>
-                  <insight.icon className={`h-4 w-4 ${insight.color}`} />
+                <div className={`h-10 w-10 rounded-xl ${insight.bgColor} flex items-center justify-center flex-shrink-0`}>
+                  <insight.icon className={`h-5 w-5 ${insight.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">{insight.title}</p>
-                  <p className="text-xs text-muted-foreground">{insight.description}</p>
+                  <p className="font-medium">{insight.title}</p>
+                  <p className="text-sm text-muted-foreground">{insight.description}</p>
                 </div>
               </div>
             ))}

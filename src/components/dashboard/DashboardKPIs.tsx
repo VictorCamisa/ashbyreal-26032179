@@ -12,9 +12,9 @@ export function DashboardKPIs({ data, isLoading }: DashboardKPIsProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="glass-card p-5 animate-pulse">
-            <div className="h-4 w-20 bg-muted/50 rounded mb-3" />
-            <div className="h-7 w-24 bg-muted/50 rounded mb-2" />
-            <div className="h-3 w-16 bg-muted/50 rounded" />
+            <div className="h-4 w-20 bg-muted rounded mb-3" />
+            <div className="h-7 w-24 bg-muted rounded mb-2" />
+            <div className="h-3 w-16 bg-muted rounded" />
           </div>
         ))}
       </div>
@@ -92,7 +92,7 @@ export function DashboardKPIs({ data, isLoading }: DashboardKPIsProps) {
       {kpis.map((kpi) => (
         <div
           key={kpi.title}
-          className="glass-card p-5 group hover:scale-[1.02] transition-all duration-300"
+          className="glass-card p-5 hover-lift"
         >
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-muted-foreground">{kpi.title}</span>
