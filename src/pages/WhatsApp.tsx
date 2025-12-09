@@ -48,7 +48,16 @@ export default function WhatsApp() {
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  // Hook da Evolution
+  // Handler para quando o WhatsApp desconecta
+  const handleDisconnect = useCallback(() => {
+    setIsConnected(false);
+    setStatusError('Sessão encerrada');
+    // Limpar instância do localStorage quando desconecta
+    localStorage.removeItem('whatsapp_instance_name');
+    setInstanceName(null);
+  }, []);
+
+  // Hook da Evolution com callback de desconexão
   const {
     chats,
     loadingChats,
@@ -58,7 +67,7 @@ export default function WhatsApp() {
     getMessages,
     isSyncing,
     isSending,
-  } = useEvolution(instanceName);
+  } = useEvolution(instanceName, handleDisconnect);
 
   // Mensagens do chat selecionado
   const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
