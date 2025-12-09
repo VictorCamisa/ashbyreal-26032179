@@ -258,6 +258,19 @@ serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Error sending message: ${errorText}`);
+        
+        // Detectar erro de conexão fechada
+        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
+            disconnected: true
+          }), {
+            status: 200, // Retornar 200 para o frontend tratar
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
         throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
       }
 
