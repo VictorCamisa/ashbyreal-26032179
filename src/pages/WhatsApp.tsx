@@ -362,22 +362,39 @@ export default function WhatsApp() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-3 py-2 border-b border-border/30">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Pesquisar ou começar uma nova conversa"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-9 bg-muted/50 border-0 rounded-lg text-sm"
-            />
+        {/* Conteúdo quando desconectado */}
+        {!isConnected ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <QrCode className="h-10 w-10 text-primary" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">WhatsApp não conectado</h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+              Escaneie o QR Code para conectar sua conta do WhatsApp
+            </p>
+            <Button onClick={() => setQrDialogOpen(true)} className="gap-2">
+              <QrCode className="h-4 w-4" />
+              Gerar QR Code
+            </Button>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Search */}
+            <div className="px-3 py-2 border-b border-border/30">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Pesquisar ou começar uma nova conversa"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-9 bg-muted/50 border-0 rounded-lg text-sm"
+                />
+              </div>
+            </div>
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
-          {loadingChats ? (
+            {/* Chat List */}
+            <div className="flex-1 overflow-y-auto">
+              {loadingChats ? (
             <div className="p-4 space-y-4">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="flex items-center gap-3 animate-pulse">
@@ -437,8 +454,10 @@ export default function WhatsApp() {
                 </div>
               </button>
             ))
-          )}
-        </div>
+            )}
+          </div>
+          </>
+        )}
       </aside>
 
       {/* Chat Area */}
