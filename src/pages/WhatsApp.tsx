@@ -1,27 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useEvolution, EvolutionChat, EvolutionMessage } from '@/hooks/useEvolution';
+import { useEvolution, EvolutionChat } from '@/hooks/useEvolution';
 import { supabase } from '@/integrations/supabase/client';
 import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
+import { MessageBubble } from '@/components/whatsapp/MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
   MessageSquare, 
   QrCode, 
   Loader2, 
-  CheckCircle2, 
-  XCircle, 
   RefreshCw,
   Send,
   Search,
   User,
   Users,
-  Phone,
-  MoreVertical,
-  Smile,
-  Paperclip,
   ArrowLeft,
   Wifi,
   WifiOff
@@ -397,11 +391,11 @@ export default function WhatsApp() {
           ${conversaSelecionada ? 'hidden md:flex' : 'flex'}
         `}>
           {/* Search */}
-          <div className="p-3 border-b border-border/40">
+          <div className="flex-shrink-0 p-3 border-b border-border/40">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar ou iniciar nova conversa"
+                placeholder="Buscar conversa..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 h-10 bg-muted/40 border-0 rounded-xl text-sm placeholder:text-muted-foreground/60"
@@ -409,8 +403,8 @@ export default function WhatsApp() {
             </div>
           </div>
 
-          {/* Chats List */}
-          <ScrollArea className="flex-1">
+          {/* Chats List - with scroll */}
+          <div className="flex-1 overflow-y-auto">
             {loadingChats ? (
               <div className="p-4 space-y-3">
                 {[...Array(6)].map((_, i) => (
@@ -438,7 +432,6 @@ export default function WhatsApp() {
             ) : (
               <div className="divide-y divide-border/30">
                 {filteredChats.map((chat, index) => {
-                  // Cores de avatar variadas baseadas no índice
                   const avatarColors = [
                     'from-emerald-500/20 to-emerald-600/30 text-emerald-600',
                     'from-blue-500/20 to-blue-600/30 text-blue-600',
@@ -454,77 +447,71 @@ export default function WhatsApp() {
                       key={chat.id}
                       onClick={() => handleSelecionarConversa(chat)}
                       className={`
-                        w-full p-3.5 flex items-center gap-3.5 transition-all
+                        w-full p-3 flex items-center gap-3 transition-all
                         hover:bg-muted/40 active:bg-muted/60
                         ${conversaSelecionada?.id === chat.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}
                       `}
                     >
                       <div className="relative flex-shrink-0">
-                        <Avatar className="h-12 w-12 ring-2 ring-background shadow-sm">
+                        <Avatar className="h-11 w-11 ring-2 ring-background shadow-sm">
                           <AvatarImage src={chat.profile_pic_url || undefined} />
-                          <AvatarFallback className={`bg-gradient-to-br ${colorClass} font-semibold`}>
+                          <AvatarFallback className={`bg-gradient-to-br ${colorClass} font-semibold text-sm`}>
                             {chat.is_group ? (
-                              <Users className="h-5 w-5" />
+                              <Users className="h-4 w-4" />
                             ) : (
                               getDisplayName(chat)?.[0]?.toUpperCase() || '?'
                             )}
                           </AvatarFallback>
                         </Avatar>
                         {chat.unread_count > 0 && (
-                          <span className="absolute -top-0.5 -right-0.5 h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md ring-2 ring-background">
+                          <span className="absolute -top-0.5 -right-0.5 h-5 min-w-[20px] px-1 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center shadow ring-2 ring-background">
                             {chat.unread_count}
                           </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <p className="font-semibold text-sm truncate text-foreground">
-                            {getDisplayName(chat)}
-                          </p>
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <p className="font-medium text-sm truncate">{getDisplayName(chat)}</p>
                           {chat.last_message_at && (
-                            <span className="text-[10px] text-muted-foreground/70 flex-shrink-0 font-medium">
+                            <span className="text-[10px] text-muted-foreground flex-shrink-0">
                               {format(new Date(chat.last_message_at), "HH:mm", { locale: ptBR })}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          {chat.is_group && (
-                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] border-blue-500/30 text-blue-500 bg-blue-500/10">
-                              Grupo
-                            </Badge>
-                          )}
-                          <p className="text-xs text-muted-foreground/80 truncate flex-1">
-                            {chat.last_message || getChatSubtitle(chat)}
-                          </p>
-                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {chat.last_message || getChatSubtitle(chat)}
+                        </p>
                       </div>
                     </button>
                   );
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </aside>
 
         {/* Chat Content */}
         <main className={`
-          flex-1 flex flex-col min-w-0 bg-gradient-to-b from-background to-muted/10
+          flex-1 flex flex-col min-w-0 bg-[url('/placeholder.svg')] bg-repeat bg-[length:400px]
           ${!conversaSelecionada ? 'hidden md:flex' : 'flex'}
         `}>
+          {/* Background overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/90 to-background/95 pointer-events-none" style={{ position: 'absolute' }} />
+          
           {!conversaSelecionada ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 relative z-10">
               <div className="h-24 w-24 rounded-full bg-gradient-to-br from-green-500/10 to-green-600/20 flex items-center justify-center mb-6">
                 <MessageSquare className="h-10 w-10 text-green-500/60" />
               </div>
               <h2 className="text-xl font-semibold mb-2">WhatsApp Web</h2>
               <p className="text-sm text-muted-foreground text-center max-w-sm">
-                Selecione uma conversa para visualizar as mensagens e interagir com seus contatos
+                Selecione uma conversa para visualizar as mensagens
               </p>
             </div>
           ) : (
             <>
               {/* Chat Header */}
-              <header className="flex-shrink-0 px-4 py-3 border-b border-border/40 bg-card/80 backdrop-blur-sm flex items-center gap-3">
+              <header className="flex-shrink-0 px-4 py-2.5 border-b border-border/40 bg-card/90 backdrop-blur-sm flex items-center gap-3 relative z-10">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -540,93 +527,56 @@ export default function WhatsApp() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">
-                    {getDisplayName(conversaSelecionada)}
-                  </p>
-                  <p className="text-xs text-muted-foreground/80">
-                    {getChatSubtitle(conversaSelecionada)}
-                  </p>
+                  <p className="font-semibold text-sm truncate">{getDisplayName(conversaSelecionada)}</p>
+                  <p className="text-xs text-muted-foreground">{getChatSubtitle(conversaSelecionada)}</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <Phone className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => syncMessages(conversaSelecionada.remote_jid)}
+                  className="h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </Button>
               </header>
 
-              {/* Messages Area */}
-              <ScrollArea className="flex-1 px-4">
-                <div className="py-4 space-y-3 max-w-3xl mx-auto">
+              {/* Messages Area - with scroll */}
+              <div className="flex-1 overflow-y-auto relative z-10">
+                <div className="p-4 space-y-1 max-w-3xl mx-auto min-h-full flex flex-col justify-end">
                   {loadingMensagens ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : mensagens.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
-                      <p className="text-sm text-muted-foreground">Nenhuma mensagem encontrada</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">As mensagens aparecerão aqui</p>
+                      <p className="text-sm text-muted-foreground">Nenhuma mensagem</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Clique no ícone de refresh para sincronizar</p>
                     </div>
                   ) : (
-                    mensagens.map((msg: EvolutionMessage) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${msg.from_me ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`
-                            max-w-[85%] md:max-w-[70%] px-3 py-2 rounded-2xl shadow-sm
-                            ${msg.from_me 
-                              ? 'bg-green-500 text-white rounded-br-md' 
-                              : 'bg-card border border-border/50 rounded-bl-md'
-                            }
-                          `}
-                        >
-                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                            {msg.body || '[Mídia]'}
-                          </p>
-                          <div className={`flex items-center justify-end gap-1 mt-1 ${msg.from_me ? 'text-white/70' : 'text-muted-foreground'}`}>
-                            <span className="text-[10px]">
-                              {format(new Date(msg.timestamp), 'HH:mm', { locale: ptBR })}
-                            </span>
-                            {msg.from_me && (
-                              <CheckCircle2 className="h-3 w-3" />
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                    mensagens.map((msg) => (
+                      <MessageBubble key={msg.id} message={msg} />
                     ))
                   )}
                   <div ref={messagesEndRef} />
                 </div>
-              </ScrollArea>
+              </div>
 
               {/* Message Input */}
-              <footer className="flex-shrink-0 p-3 border-t border-border/40 bg-card/80 backdrop-blur-sm">
-                <div className="flex items-end gap-2 max-w-3xl mx-auto">
-                  <Button variant="ghost" size="sm" className="h-10 w-10 p-0 flex-shrink-0">
-                    <Smile className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-10 w-10 p-0 flex-shrink-0">
-                    <Paperclip className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                  <div className="flex-1">
-                    <Input
-                      value={novaMensagem}
-                      onChange={(e) => setNovaMensagem(e.target.value)}
-                      onKeyDown={handleKeyPress}
-                      placeholder="Digite uma mensagem..."
-                      className="h-10 bg-muted/40 border-0 rounded-2xl text-sm"
-                      disabled={isSending}
-                    />
-                  </div>
+              <footer className="flex-shrink-0 p-3 border-t border-border/40 bg-card/90 backdrop-blur-sm relative z-10">
+                <div className="flex items-center gap-2 max-w-3xl mx-auto">
+                  <Input
+                    value={novaMensagem}
+                    onChange={(e) => setNovaMensagem(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    placeholder="Digite uma mensagem..."
+                    className="flex-1 h-11 bg-muted/40 border-0 rounded-full text-sm px-4"
+                    disabled={isSending}
+                  />
                   <Button
                     onClick={handleEnviarMensagem}
                     disabled={!novaMensagem.trim() || isSending}
                     size="sm"
-                    className="h-10 w-10 p-0 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/20"
+                    className="h-11 w-11 p-0 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/20"
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
