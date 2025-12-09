@@ -1,4 +1,4 @@
-import { TrendingUp, Package, Users, ShoppingCart, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
+import { TrendingUp, Package, Users, ShoppingCart } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -22,7 +22,7 @@ interface DashboardChartsProps {
   isLoading: boolean;
 }
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+const COLORS = ['hsl(172, 66%, 45%)', 'hsl(250, 60%, 60%)', 'hsl(330, 70%, 55%)', 'hsl(45, 90%, 55%)', 'hsl(200, 70%, 50%)'];
 
 export function DashboardCharts({
   vendasPorDia,
@@ -35,27 +35,29 @@ export function DashboardCharts({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="glass-card p-6 animate-pulse">
-            <div className="h-5 w-40 bg-muted/50 rounded mb-6" />
-            <div className="h-[280px] w-full bg-muted/30 rounded-2xl" />
+            <div className="h-5 w-40 bg-muted rounded mb-6" />
+            <div className="h-[280px] w-full bg-muted/50 rounded-xl" />
           </div>
         ))}
       </div>
     );
   }
 
-  const chartCardClass = "glass-card p-6";
-  const chartTitleClass = "flex items-center gap-2 mb-6";
-  const emptyStateClass = "h-[280px] flex flex-col items-center justify-center text-muted-foreground gap-2";
+  const chartTitleClass = "flex items-center gap-3 mb-6";
+  const emptyStateClass = "h-[280px] flex flex-col items-center justify-center text-muted-foreground gap-3";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Vendas por Dia */}
-      <div className={chartCardClass}>
+      <div className="glass-card p-6">
         <div className={chartTitleClass}>
-          <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-            <TrendingUp className="h-4 w-4 text-primary" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <TrendingUp className="h-5 w-5 text-primary" />
           </div>
-          <h3 className="font-medium">Evolução de Vendas</h3>
+          <div>
+            <h3 className="font-semibold">Evolução de Vendas</h3>
+            <p className="text-xs text-muted-foreground">Últimos dias do mês</p>
+          </div>
         </div>
         {vendasPorDia && vendasPorDia.length > 0 ? (
           <ResponsiveContainer width="100%" height={280}>
@@ -102,19 +104,22 @@ export function DashboardCharts({
           </ResponsiveContainer>
         ) : (
           <div className={emptyStateClass}>
-            <TrendingUp className="h-10 w-10 text-muted-foreground/30" />
+            <TrendingUp className="h-12 w-12 text-muted-foreground/30" />
             <span className="text-sm">Nenhuma venda registrada</span>
           </div>
         )}
       </div>
 
       {/* Produtos Mais Vendidos */}
-      <div className={chartCardClass}>
+      <div className="glass-card p-6">
         <div className={chartTitleClass}>
-          <div className="h-8 w-8 rounded-xl bg-violet-500/10 flex items-center justify-center">
-            <Package className="h-4 w-4 text-violet-500" />
+          <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-violet-500" />
           </div>
-          <h3 className="font-medium">Top 5 Produtos</h3>
+          <div>
+            <h3 className="font-semibold">Top 5 Produtos</h3>
+            <p className="text-xs text-muted-foreground">Mais vendidos</p>
+          </div>
         </div>
         {produtosMaisVendidos && produtosMaisVendidos.length > 0 ? (
           <ResponsiveContainer width="100%" height={280}>
@@ -146,7 +151,7 @@ export function DashboardCharts({
               />
               <Bar 
                 dataKey="quantidade" 
-                fill="hsl(var(--chart-2))" 
+                fill="hsl(250, 60%, 60%)" 
                 radius={[0, 8, 8, 0]}
                 name="Quantidade"
               />
@@ -154,29 +159,32 @@ export function DashboardCharts({
           </ResponsiveContainer>
         ) : (
           <div className={emptyStateClass}>
-            <Package className="h-10 w-10 text-muted-foreground/30" />
+            <Package className="h-12 w-12 text-muted-foreground/30" />
             <span className="text-sm">Nenhum produto vendido</span>
           </div>
         )}
       </div>
 
       {/* Leads por Origem */}
-      <div className={chartCardClass}>
+      <div className="glass-card p-6">
         <div className={chartTitleClass}>
-          <div className="h-8 w-8 rounded-xl bg-cyan-500/10 flex items-center justify-center">
-            <Users className="h-4 w-4 text-cyan-500" />
+          <div className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-cyan-500" />
           </div>
-          <h3 className="font-medium">Origem dos Leads</h3>
+          <div>
+            <h3 className="font-semibold">Origem dos Leads</h3>
+            <p className="text-xs text-muted-foreground">Distribuição por canal</p>
+          </div>
         </div>
         {leadsPorOrigem && leadsPorOrigem.length > 0 ? (
           <div className="flex items-center">
-            <ResponsiveContainer width="60%" height={280}>
+            <ResponsiveContainer width="55%" height={280}>
               <PieChart>
                 <Pie
                   data={leadsPorOrigem}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
+                  innerRadius={65}
                   outerRadius={100}
                   paddingAngle={4}
                   dataKey="total"
@@ -195,34 +203,37 @@ export function DashboardCharts({
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-3">
               {leadsPorOrigem.map((item, index) => (
-                <div key={item.origem} className="flex items-center gap-2">
+                <div key={item.origem} className="flex items-center gap-3">
                   <div 
-                    className="h-3 w-3 rounded-full" 
+                    className="h-3 w-3 rounded-full flex-shrink-0" 
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
-                  <span className="text-sm text-muted-foreground">{item.origem}</span>
-                  <span className="text-sm font-medium ml-auto">{item.total}</span>
+                  <span className="text-sm text-muted-foreground flex-1">{item.origem}</span>
+                  <span className="text-sm font-semibold">{item.total}</span>
                 </div>
               ))}
             </div>
           </div>
         ) : (
           <div className={emptyStateClass}>
-            <Users className="h-10 w-10 text-muted-foreground/30" />
+            <Users className="h-12 w-12 text-muted-foreground/30" />
             <span className="text-sm">Nenhum lead cadastrado</span>
           </div>
         )}
       </div>
 
       {/* Quantidade de Pedidos */}
-      <div className={chartCardClass}>
+      <div className="glass-card p-6">
         <div className={chartTitleClass}>
-          <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <ShoppingCart className="h-4 w-4 text-emerald-500" />
+          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+            <ShoppingCart className="h-5 w-5 text-emerald-500" />
           </div>
-          <h3 className="font-medium">Pedidos por Dia</h3>
+          <div>
+            <h3 className="font-semibold">Pedidos por Dia</h3>
+            <p className="text-xs text-muted-foreground">Volume de vendas</p>
+          </div>
         </div>
         {vendasPorDia && vendasPorDia.length > 0 ? (
           <ResponsiveContainer width="100%" height={280}>
@@ -251,7 +262,7 @@ export function DashboardCharts({
               />
               <Bar 
                 dataKey="quantidade" 
-                fill="hsl(var(--chart-3))" 
+                fill="hsl(172, 66%, 45%)" 
                 radius={[8, 8, 0, 0]}
                 name="Pedidos"
               />
@@ -259,7 +270,7 @@ export function DashboardCharts({
           </ResponsiveContainer>
         ) : (
           <div className={emptyStateClass}>
-            <ShoppingCart className="h-10 w-10 text-muted-foreground/30" />
+            <ShoppingCart className="h-12 w-12 text-muted-foreground/30" />
             <span className="text-sm">Nenhum pedido registrado</span>
           </div>
         )}
