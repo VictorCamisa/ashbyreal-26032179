@@ -18,7 +18,9 @@ import {
   FileText
 } from 'lucide-react';
 
-const STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
+// Edge function proxy URL
+const PROXY_BASE = 'https://chmhbrcugswwmpqzhugs.supabase.co/functions/v1/whatsapp-proxy';
+const STATUS_URL = `${PROXY_BASE}?action=status`;
 
 export default function WhatsApp() {
   const {
