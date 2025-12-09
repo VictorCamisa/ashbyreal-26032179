@@ -11,17 +11,15 @@ export function DespesasParticulares() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Despesas Particulares</h2>
-          <p className="text-sm text-muted-foreground">Controle suas despesas pessoais</p>
-        </div>
-        <Button onClick={() => setShowNovaTransacao(true)} size="lg">
-          <Plus className="h-4 w-4 mr-2" />
+      {/* Action Bar */}
+      <div className="flex justify-end">
+        <Button onClick={() => setShowNovaTransacao(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
           Nova Despesa
         </Button>
       </div>
 
+      {/* Transactions List */}
       <TransacoesList entityType="PARTICULAR" tipo="PAGAR" />
 
       {entity && (
