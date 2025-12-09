@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const STATUS_URL = 'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/state';
+const STATUS_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/state';
 const QR_CODE_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/getqrcode';
 
 interface GerarQRCodeDialogProps {
