@@ -1,7 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, CheckCheck, MessageSquare, Users, Eye, Clock } from 'lucide-react';
+import { MessageSquare, CheckCheck, Send, Users, Eye, Clock } from 'lucide-react';
 import { WhatsAppStats } from '@/hooks/useWhatsApp';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface WhatsAppKPIsProps {
   stats?: WhatsAppStats;
@@ -11,17 +9,12 @@ interface WhatsAppKPIsProps {
 export function WhatsAppKPIs({ stats, isLoading }: WhatsAppKPIsProps) {
   if (isLoading || !stats) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[...Array(6)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-4 rounded" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-20 mb-2" />
-            </CardContent>
-          </Card>
+          <div key={i} className="animate-pulse">
+            <div className="h-4 w-20 bg-muted rounded mb-2" />
+            <div className="h-8 w-16 bg-muted rounded" />
+          </div>
         ))}
       </div>
     );
@@ -29,56 +22,55 @@ export function WhatsAppKPIs({ stats, isLoading }: WhatsAppKPIsProps) {
 
   const kpis = [
     {
-      title: 'Total de Mensagens',
-      value: stats.totalMensagens.toString(),
+      label: 'Mensagens',
+      value: stats.totalMensagens,
       icon: MessageSquare,
-      subtitle: `${stats.mensagensEnviadas} enviadas`,
+      color: 'text-primary',
     },
     {
-      title: 'Taxa de Entrega',
-      value: `${stats.taxaEntrega.toFixed(1)}%`,
+      label: 'Entrega',
+      value: `${stats.taxaEntrega.toFixed(0)}%`,
       icon: CheckCheck,
-      subtitle: 'Mensagens entregues',
+      color: 'text-primary',
     },
     {
-      title: 'Taxa de Resposta',
-      value: `${stats.taxaResposta.toFixed(1)}%`,
+      label: 'Resposta',
+      value: `${stats.taxaResposta.toFixed(0)}%`,
       icon: Send,
-      subtitle: 'Clientes responderam',
+      color: 'text-primary',
     },
     {
-      title: 'Conversas Ativas',
-      value: stats.conversasAtivas.toString(),
+      label: 'Ativas',
+      value: stats.conversasAtivas,
       icon: Users,
-      subtitle: 'Conversas abertas',
+      color: 'text-primary',
     },
     {
-      title: 'Não Lidas',
-      value: stats.conversasNaoLidas.toString(),
+      label: 'Não lidas',
+      value: stats.conversasNaoLidas,
       icon: Eye,
-      subtitle: 'Aguardando resposta',
+      color: stats.conversasNaoLidas > 0 ? 'text-destructive' : 'text-primary',
     },
     {
-      title: 'Mensagens Recebidas',
-      value: stats.mensagensRecebidas.toString(),
+      label: 'Recebidas',
+      value: stats.mensagensRecebidas,
       icon: Clock,
-      subtitle: 'Dos clientes',
+      color: 'text-primary',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
       {kpis.map((kpi) => (
-        <Card key={kpi.title} className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-            <kpi.icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpi.value}</div>
-            <p className="text-xs text-muted-foreground mt-1">{kpi.subtitle}</p>
-          </CardContent>
-        </Card>
+        <div key={kpi.label} className="group">
+          <div className="flex items-center gap-2 mb-1">
+            <kpi.icon className={`h-3.5 w-3.5 ${kpi.color} opacity-70`} />
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              {kpi.label}
+            </span>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{kpi.value}</p>
+        </div>
       ))}
     </div>
   );

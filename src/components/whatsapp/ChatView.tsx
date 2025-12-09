@@ -1,9 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, FileText } from 'lucide-react';
+import { Send, FileText, MessageCircle } from 'lucide-react';
 import { WhatsAppConversa, WhatsAppMensagem } from '@/hooks/useWhatsApp';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,45 +54,51 @@ export function ChatView({
 
   if (!conversa) {
     return (
-      <Card className="h-full">
-        <CardContent className="flex items-center justify-center h-full text-muted-foreground">
-          <div className="text-center">
-            <Send className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <p>Selecione uma conversa para começar</p>
+      <div className="h-full rounded-xl border border-border/50 bg-card/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+            <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
           </div>
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground">
+            Selecione uma conversa
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="border-b">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>{conversa.nome_contato}</CardTitle>
-            <p className="text-sm text-muted-foreground">{conversa.telefone}</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={onSelecionarTemplate}>
-            <FileText className="h-4 w-4 mr-1" />
-            Templates
-          </Button>
+    <div className="h-full rounded-xl border border-border/50 bg-card/30 overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">{conversa.nome_contato}</h3>
+          <p className="text-xs text-muted-foreground">{conversa.telefone}</p>
         </div>
-      </CardHeader>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onSelecionarTemplate}
+          className="h-8 px-3 text-xs"
+        >
+          <FileText className="h-3.5 w-3.5 mr-1.5" />
+          Templates
+        </Button>
+      </div>
 
-      <CardContent className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[500px]">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className={i % 2 === 0 ? 'flex justify-end' : 'flex justify-start'}>
-                <Skeleton className="h-16 w-64" />
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                <div className="h-12 w-48 bg-muted rounded-2xl animate-pulse" />
               </div>
             ))}
           </div>
         ) : mensagens.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Nenhuma mensagem ainda</p>
-            <p className="text-sm mt-1">Envie a primeira mensagem para iniciar a conversa</p>
+          <div className="flex flex-col items-center justify-center h-full">
+            <p className="text-sm text-muted-foreground">Nenhuma mensagem</p>
           </div>
         ) : (
           mensagens.map((msg) => (
@@ -103,19 +107,23 @@ export function ChatView({
               className={`flex ${msg.tipo === 'enviada' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[70%] rounded-lg p-3 ${
-                  msg.tipo === 'enviada'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                }`}
+                className={`
+                  max-w-[75%] rounded-2xl px-4 py-2.5
+                  ${msg.tipo === 'enviada'
+                    ? 'bg-primary text-primary-foreground rounded-br-md'
+                    : 'bg-muted rounded-bl-md'
+                  }
+                `}
               >
-                <p className="text-sm whitespace-pre-wrap break-words">{msg.mensagem}</p>
+                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                  {msg.mensagem}
+                </p>
                 <div className="flex items-center justify-end gap-1 mt-1">
-                  <p className="text-xs opacity-70">
+                  <span className="text-[10px] opacity-60">
                     {format(new Date(msg.data_hora), 'HH:mm', { locale: ptBR })}
-                  </p>
+                  </span>
                   {msg.tipo === 'enviada' && (
-                    <span className="text-xs opacity-70">
+                    <span className="text-[10px] opacity-60">
                       {msg.status === 'lida' ? '✓✓' : msg.status === 'entregue' ? '✓✓' : '✓'}
                     </span>
                   )}
@@ -125,31 +133,29 @@ export function ChatView({
           ))
         )}
         <div ref={messagesEndRef} />
-      </CardContent>
+      </div>
 
-      <div className="border-t p-4">
+      {/* Input */}
+      <div className="p-4 border-t border-border/50">
         <div className="flex gap-2">
           <Textarea
             value={novaMensagem}
             onChange={(e) => setNovaMensagem(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Digite sua mensagem..."
-            className="min-h-[80px] resize-none"
+            placeholder="Digite uma mensagem..."
+            className="min-h-[48px] max-h-[120px] resize-none bg-muted/30 border-transparent focus:border-border text-sm rounded-xl"
             disabled={enviando}
           />
           <Button
             onClick={handleEnviar}
             disabled={!novaMensagem.trim() || enviando}
             size="icon"
-            className="h-[80px] w-12"
+            className="h-12 w-12 rounded-xl flex-shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Pressione Enter para enviar, Shift+Enter para nova linha
-        </p>
       </div>
-    </Card>
+    </div>
   );
 }

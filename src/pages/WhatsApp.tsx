@@ -4,17 +4,19 @@ import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
 import { ConversasList } from '@/components/whatsapp/ConversasList';
 import { ChatView } from '@/components/whatsapp/ChatView';
 import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { MessageSquare, QrCode, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { 
+  MessageSquare, 
+  QrCode, 
+  Loader2, 
+  CheckCircle2, 
+  XCircle, 
+  RefreshCw,
+  Zap,
+  Send,
+  Users,
+  FileText
+} from 'lucide-react';
 
 const STATUS_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/evolution-webhook';
 
@@ -29,10 +31,10 @@ export default function WhatsApp() {
   } = useWhatsApp();
 
   const [conversaSelecionada, setConversaSelecionada] = useState<WhatsAppConversa | undefined>();
-  const [dialogNovaConversa, setDialogNovaConversa] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'conversas' | 'campanhas' | 'templates'>('conversas');
   
-  // Estados de conexão conforme especificado
+  // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
@@ -42,7 +44,6 @@ export default function WhatsApp() {
     conversaSelecionada?.id || ''
   );
 
-  // Função para buscar o status no backend
   const fetchWhatsappStatus = useCallback(async () => {
     setIsLoadingStatus(true);
     setStatusError(null);
@@ -65,7 +66,6 @@ export default function WhatsApp() {
         connected?: boolean;
       };
 
-      // Fallback inteligente: suporta diferentes formatos do backend
       const connected =
         typeof data.isConnected === 'boolean'
           ? data.isConnected
@@ -77,7 +77,7 @@ export default function WhatsApp() {
       setInstanceName(data.instanceName ?? null);
     } catch (err) {
       console.error('Erro ao verificar status do WhatsApp:', err);
-      setStatusError('Não consegui verificar o status. Tente novamente.');
+      setStatusError('Não consegui verificar o status');
       setIsConnected(null);
       setInstanceName(null);
     } finally {
@@ -85,10 +85,10 @@ export default function WhatsApp() {
     }
   }, []);
 
-  // Chamar o status ao carregar a página
   useEffect(() => {
     fetchWhatsappStatus();
   }, [fetchWhatsappStatus]);
+
   const handleSelecionarConversa = async (conversa: WhatsAppConversa) => {
     setConversaSelecionada(conversa);
     if (conversa.nao_lida) {
@@ -115,103 +115,120 @@ export default function WhatsApp() {
     setQrDialogOpen(false);
   };
 
+  const tabs = [
+    { id: 'conversas' as const, label: 'Conversas', icon: MessageSquare },
+    { id: 'campanhas' as const, label: 'Campanhas', icon: Send },
+    { id: 'templates' as const, label: 'Templates', icon: FileText },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">WhatsApp Business</h1>
-          <p className="text-muted-foreground">Painel de Controle e Engajamento</p>
+    <div className="min-h-screen bg-background">
+      {/* Minimal Header */}
+      <header className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Title & Status */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold tracking-tight">WhatsApp</h1>
+                  <div className="flex items-center gap-2">
+                    {isLoadingStatus && (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Verificando...
+                      </span>
+                    )}
+                    {!isLoadingStatus && !statusError && isConnected === true && (
+                      <span className="flex items-center gap-1.5 text-xs text-primary">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Conectado {instanceName && `· ${instanceName}`}
+                      </span>
+                    )}
+                    {!isLoadingStatus && !statusError && isConnected === false && (
+                      <span className="flex items-center gap-1.5 text-xs text-destructive">
+                        <XCircle className="h-3 w-3" />
+                        Desconectado
+                      </span>
+                    )}
+                    {statusError && !isLoadingStatus && (
+                      <span className="text-xs text-muted-foreground">{statusError}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={fetchWhatsappStatus}
+                disabled={isLoadingStatus}
+                className="h-8 px-3 text-xs"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+                Atualizar
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => setQrDialogOpen(true)}
+                disabled={isConnected || isLoadingStatus}
+                className="h-8 px-3 text-xs"
+              >
+                <QrCode className="h-3.5 w-3.5 mr-1.5" />
+                Conectar
+              </Button>
+            </div>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-4">
-          {/* Status de Conexão */}
-          {isLoadingStatus && (
-            <Badge variant="outline" className="gap-2 bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Verificando...
-            </Badge>
-          )}
-          
-          {statusError && !isLoadingStatus && (
-            <span className="text-sm text-destructive">{statusError}</span>
-          )}
-          
-          {!isLoadingStatus && !statusError && isConnected === true && (
-            <Badge variant="outline" className="gap-2 bg-green-500/10 text-green-600 border-green-500/30">
-              <CheckCircle2 className="h-4 w-4" />
-              Conectado
-              {instanceName && (
-                <span className="opacity-80">({instanceName})</span>
-              )}
-            </Badge>
-          )}
-          
-          {!isLoadingStatus && !statusError && isConnected === false && (
-            <Badge variant="outline" className="gap-2 bg-destructive/10 text-destructive border-destructive/30">
-              <XCircle className="h-4 w-4" />
-              Desconectado
-            </Badge>
-          )}
-          
-          {!isLoadingStatus && !statusError && isConnected === null && (
-            <Badge variant="outline" className="gap-2 bg-muted text-muted-foreground border-muted-foreground/30">
-              Status desconhecido
-            </Badge>
-          )}
+      </header>
 
-          {/* Botão Verificar Status */}
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="gap-2" 
-            onClick={fetchWhatsappStatus}
-            disabled={isLoadingStatus}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
-            Verificar status
-          </Button>
+      {/* KPIs Section */}
+      <section className="px-6 py-6 border-b border-border/40">
+        <WhatsAppKPIs stats={stats} />
+      </section>
 
-          {/* Botão Gerar QR Code - desabilitado se conectado ou carregando */}
-          <Button 
-            variant="outline" 
-            className="gap-2" 
-            onClick={() => setQrDialogOpen(true)}
-            disabled={isConnected || isLoadingStatus}
-          >
-            <QrCode className="h-4 w-4" />
-            Gerar QR Code
-          </Button>
+      {/* Tab Navigation */}
+      <nav className="px-6 py-3 border-b border-border/40">
+        <div className="flex items-center gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                ${activeTab === tab.id 
+                  ? 'bg-primary/10 text-primary' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                }
+              `}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
+      </nav>
 
-      {/* KPIs */}
-      <WhatsAppKPIs stats={stats} />
-
-      {/* Tabs */}
-      <Tabs defaultValue="conversas" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="conversas">Conversas</TabsTrigger>
-          <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-        </TabsList>
-
-        {/* Aba Conversas */}
-        <TabsContent value="conversas" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Lista de Conversas */}
-            <div className="lg:col-span-1">
+      {/* Main Content */}
+      <main className="p-6">
+        {activeTab === 'conversas' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-320px)]">
+            <div className="lg:col-span-4 xl:col-span-3">
               <ConversasList
                 conversas={conversas}
                 isLoading={loadingConversas}
                 onSelectConversa={handleSelecionarConversa}
                 selectedConversaId={conversaSelecionada?.id}
-                onNovaConversa={() => setDialogNovaConversa(true)}
+                onNovaConversa={() => {}}
               />
             </div>
-
-            {/* Chat */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-8 xl:col-span-9">
               <ChatView
                 conversa={conversaSelecionada}
                 mensagens={mensagens}
@@ -221,61 +238,34 @@ export default function WhatsApp() {
               />
             </div>
           </div>
-        </TabsContent>
+        )}
 
-        {/* Aba Campanhas */}
-        <TabsContent value="campanhas">
-          <Card>
-            <CardHeader>
-              <CardTitle>Campanhas de WhatsApp</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium mb-2">Campanhas em Desenvolvimento</p>
-                <p className="text-sm">
-                  Em breve você poderá criar e gerenciar campanhas de mensagens em massa
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Aba Templates */}
-        <TabsContent value="templates">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Templates de Mensagem</CardTitle>
-                <Button>Novo Template</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium mb-2">Templates em Desenvolvimento</p>
-                <p className="text-sm">
-                  Em breve você poderá criar e gerenciar templates de mensagens
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Dialog Nova Conversa */}
-      <Dialog open={dialogNovaConversa} onOpenChange={setDialogNovaConversa}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nova Conversa</DialogTitle>
-          </DialogHeader>
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Funcionalidade em desenvolvimento</p>
+        {activeTab === 'campanhas' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <Send className="h-7 w-7 text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-medium mb-1">Campanhas</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+              Em breve você poderá criar e gerenciar campanhas de mensagens em massa
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      {/* Dialog QR Code */}
+        {activeTab === 'templates' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <FileText className="h-7 w-7 text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-medium mb-1">Templates</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+              Em breve você poderá criar e gerenciar templates de mensagens
+            </p>
+          </div>
+        )}
+      </main>
+
+      {/* QR Code Dialog */}
       <GerarQRCodeDialog
         open={qrDialogOpen}
         onOpenChange={setQrDialogOpen}

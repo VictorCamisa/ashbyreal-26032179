@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { QrCode, Loader2 } from 'lucide-react';
+import { QrCode, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STATUS_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/state';
@@ -32,24 +32,19 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     try {
       const response = await fetch(QR_CODE_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
 
-      if (!response.ok) {
-        throw new Error('Falha na requisição');
-      }
+      if (!response.ok) throw new Error('Falha na requisição');
 
       const data = await response.json();
-      
       setQrCode(data?.qrCode ?? null);
       setPairingCode(data?.pairingCode ?? null);
-      toast.success('QR Code gerado com sucesso!');
+      toast.success('QR Code gerado!');
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
-      setError('Não consegui gerar o QR Code. Tente novamente em alguns segundos.');
+      setError('Erro ao gerar QR Code. Tente novamente.');
       setQrCode(null);
       setPairingCode(null);
     } finally {
@@ -61,9 +56,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     try {
       const response = await fetch(STATUS_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
 
@@ -72,36 +65,28 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       const data = await response.json();
       
       if (data?.isConnected === true) {
-        // Conectou! Fechar modal e notificar
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        toast.success('WhatsApp conectado com sucesso!');
+        toast.success('WhatsApp conectado!');
         onConnected(data.instanceName || 'WhatsApp');
         onOpenChange(false);
       }
     } catch (err) {
-      // Ignora erro e tenta novamente no próximo ciclo
       console.error('Erro ao verificar status:', err);
     }
   };
 
-  // Polling quando o modal está aberto
   useEffect(() => {
     if (open) {
-      // Inicia polling a cada 4 segundos
       intervalRef.current = setInterval(checkConnectionStatus, 4000);
-      
-      // Verifica imediatamente também
       checkConnectionStatus();
     } else {
-      // Limpa o intervalo quando o modal fecha
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      // Reseta estados
       setQrCode(null);
       setPairingCode(null);
       setError(null);
@@ -118,61 +103,76 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-sm border-border/50 bg-background/95 backdrop-blur-sm">
         <DialogHeader>
-          <DialogTitle>QR Code WhatsApp</DialogTitle>
+          <DialogTitle className="text-center text-lg font-semibold">
+            Conectar WhatsApp
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col items-center gap-4 py-4">
+        <div className="flex flex-col items-center py-4">
           {!loading && !qrCode && !error && (
             <div className="text-center space-y-4">
-              <p className="text-muted-foreground">
-                Clique no botão abaixo para gerar o QR Code de conexão do WhatsApp.
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                <Smartphone className="h-7 w-7 text-primary" />
+              </div>
+              <p className="text-sm text-muted-foreground max-w-[240px]">
+                Gere o QR Code e escaneie com seu WhatsApp para conectar
               </p>
-              <Button onClick={handleGerarQRCode} className="gap-2">
-                <QrCode className="h-4 w-4" />
+              <Button onClick={handleGerarQRCode} className="w-full">
+                <QrCode className="h-4 w-4 mr-2" />
                 Gerar QR Code
               </Button>
             </div>
           )}
 
           {loading && (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-muted-foreground">Gerando QR Code...</p>
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Gerando...</p>
             </div>
           )}
 
           {error && (
             <div className="text-center space-y-4">
-              <p className="text-destructive">{error}</p>
-              <Button onClick={handleGerarQRCode} variant="outline" className="gap-2">
-                <QrCode className="h-4 w-4" />
+              <p className="text-sm text-destructive">{error}</p>
+              <Button onClick={handleGerarQRCode} variant="outline" className="w-full">
                 Tentar Novamente
               </Button>
             </div>
           )}
 
           {qrCode && (
-            <div className="flex flex-col items-center gap-4">
-              <img
-                src={qrCode}
-                alt="QR Code WhatsApp"
-                style={{ width: 250, height: 250, objectFit: 'contain' }}
-                className="rounded-lg border"
-              />
+            <div className="flex flex-col items-center gap-4 w-full">
+              <div className="p-3 bg-white rounded-xl">
+                <img
+                  src={qrCode}
+                  alt="QR Code"
+                  className="w-52 h-52 object-contain"
+                />
+              </div>
+              
               {pairingCode && (
-                <p className="text-sm text-center">
-                  <span className="font-medium">Código de Pareamento:</span>{' '}
-                  <span className="font-mono text-primary break-all">{pairingCode}</span>
-                </p>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Código de pareamento</p>
+                  <p className="font-mono text-lg font-semibold tracking-wider text-primary">
+                    {pairingCode}
+                  </p>
+                </div>
               )}
-              <p className="text-xs text-muted-foreground text-center">
-                Aguardando conexão... (verificando a cada 4s)
-              </p>
-              <Button onClick={handleGerarQRCode} variant="outline" size="sm" className="gap-2">
-                <QrCode className="h-4 w-4" />
-                Gerar Novo QR Code
+              
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Aguardando conexão...
+              </div>
+              
+              <Button 
+                onClick={handleGerarQRCode} 
+                variant="ghost" 
+                size="sm"
+                className="text-xs"
+              >
+                Gerar novo código
               </Button>
             </div>
           )}
