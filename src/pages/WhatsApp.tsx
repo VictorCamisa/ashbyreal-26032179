@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { MessageSquare, QrCode, Loader2, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 
-const STATUS_URL = 'https://clauberveiculos-n8n.fjsxhg.easypanel.host/webhook/whatsapp/state';
+const STATUS_URL = 'https://vssolutionsssss.app.n8n.cloud/webhook/whatsapp/state';
 
 export default function WhatsApp() {
   const {
