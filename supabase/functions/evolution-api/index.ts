@@ -57,6 +57,19 @@ serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Error fetching chats: ${errorText}`);
+        
+        // Detectar erro de conexão fechada
+        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
+            disconnected: true
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
         throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
       }
 
@@ -137,6 +150,19 @@ serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Error fetching messages: ${errorText}`);
+        
+        // Detectar erro de conexão fechada
+        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
+            disconnected: true
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
         throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
       }
 

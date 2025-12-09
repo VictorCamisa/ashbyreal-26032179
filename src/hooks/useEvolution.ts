@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface EvolutionChat {
   id: string;
@@ -32,9 +32,37 @@ export interface EvolutionMessage {
   created_at: string;
 }
 
-export function useEvolution(instanceName: string | null) {
+// Callback para notificar desconexão
+type DisconnectCallback = () => void;
+
+export function useEvolution(instanceName: string | null, onDisconnect?: DisconnectCallback) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Helper para detectar erro de desconexão
+  const isDisconnectionError = (error: unknown): boolean => {
+    const errorStr = error instanceof Error ? error.message : String(error);
+    return (
+      errorStr.toLowerCase().includes('connection closed') ||
+      errorStr.toLowerCase().includes('not connected') ||
+      errorStr.toLowerCase().includes('desconectado')
+    );
+  };
+
+  // Handler para erros de desconexão
+  const handleDisconnectionError = (error: unknown) => {
+    if (isDisconnectionError(error)) {
+      toast({
+        title: 'WhatsApp desconectado',
+        description: 'A sessão foi encerrada. Reconecte escaneando o QR code.',
+        variant: 'destructive',
+      });
+      // Notificar a página sobre a desconexão
+      onDisconnect?.();
+      return true;
+    }
+    return false;
+  };
 
   // Query para buscar chats do banco local
   const { 
@@ -92,6 +120,12 @@ export function useEvolution(instanceName: string | null) {
       });
 
       if (error) throw error;
+      
+      // Verificar se há indicação de desconexão na resposta
+      if (data?.disconnected) {
+        throw new Error('WhatsApp desconectado');
+      }
+      
       if (!data.success) throw new Error(data.error || 'Failed to sync chats');
       
       return data;
@@ -104,11 +138,13 @@ export function useEvolution(instanceName: string | null) {
       });
     },
     onError: (error) => {
-      toast({
-        title: 'Erro ao sincronizar',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
+      if (!handleDisconnectionError(error)) {
+        toast({
+          title: 'Erro ao sincronizar',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
     },
   });
 
@@ -126,6 +162,12 @@ export function useEvolution(instanceName: string | null) {
       });
 
       if (error) throw error;
+      
+      // Verificar se há indicação de desconexão na resposta
+      if (data?.disconnected) {
+        throw new Error('WhatsApp desconectado');
+      }
+      
       if (!data.success) throw new Error(data.error || 'Failed to sync messages');
       
       return { ...data, remote_jid: remoteJid };
@@ -136,11 +178,13 @@ export function useEvolution(instanceName: string | null) {
       });
     },
     onError: (error) => {
-      toast({
-        title: 'Erro ao carregar mensagens',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
+      if (!handleDisconnectionError(error)) {
+        toast({
+          title: 'Erro ao carregar mensagens',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
     },
   });
 
@@ -159,6 +203,12 @@ export function useEvolution(instanceName: string | null) {
       });
 
       if (error) throw error;
+      
+      // Verificar se há indicação de desconexão na resposta
+      if (data?.disconnected) {
+        throw new Error('WhatsApp desconectado');
+      }
+      
       if (!data.success) throw new Error(data.error || 'Failed to send message');
       
       return { ...data, remote_jid: remoteJid };
@@ -171,11 +221,13 @@ export function useEvolution(instanceName: string | null) {
       });
     },
     onError: (error) => {
-      toast({
-        title: 'Erro ao enviar mensagem',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
+      if (!handleDisconnectionError(error)) {
+        toast({
+          title: 'Erro ao enviar mensagem',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
     },
   });
 
