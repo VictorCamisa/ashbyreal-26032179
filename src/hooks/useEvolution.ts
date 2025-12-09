@@ -416,14 +416,13 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     };
   }, [instanceName, queryClient]);
 
-  // Auto-sync mensagens a cada 30 segundos
+  // Auto-sync mensagens a cada 5 segundos para tempo real
   useEffect(() => {
     if (!instanceName) return;
 
     const interval = setInterval(() => {
-      console.log('Auto-syncing chats...');
       syncChats.mutate();
-    }, 30000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [instanceName]);
