@@ -224,11 +224,11 @@ serve(async (req) => {
     }
 
     if (action === 'find_chats') {
-      let allChats: any[] = [];
-      
-      // 1. Buscar chats existentes
+      // Buscar APENAS chats reais (sem adicionar contatos da agenda)
       const chatsUrl = `${baseUrl}/chat/findChats/${instance_name}`;
       console.log(`Fetching chats from: ${chatsUrl}`);
+
+      let chatsData: any[] = [];
 
       try {
         const chatsResponse = await fetch(chatsUrl, {
@@ -243,10 +243,10 @@ serve(async (req) => {
         console.log(`Chats response status: ${chatsResponse.status}`);
 
         if (chatsResponse.ok) {
-          const chatsData = await chatsResponse.json();
-          if (Array.isArray(chatsData)) {
-            allChats = [...chatsData];
-            console.log(`Found ${chatsData.length} chats`);
+          const responseData = await chatsResponse.json();
+          if (Array.isArray(responseData)) {
+            chatsData = responseData;
+            console.log(`Found ${chatsData.length} real chats`);
           }
         } else {
           const errorText = await chatsResponse.text();
@@ -267,104 +267,17 @@ serve(async (req) => {
         console.error('Error fetching chats:', err);
       }
 
-      // 2. Buscar contatos também para enriquecer com nomes
-      const contactsUrl = `${baseUrl}/chat/findContacts/${instance_name}`;
-      console.log(`Fetching contacts from: ${contactsUrl}`);
+      console.log(`Total chats to save: ${chatsData.length}`);
 
-      // Mapa para associar números a nomes
-      const phoneToName: Record<string, { name: string; pic: string | null }> = {};
-
-      try {
-        const contactsResponse = await fetch(contactsUrl, {
-          method: 'POST',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        });
-
-        console.log(`Contacts response status: ${contactsResponse.status}`);
-
-        if (contactsResponse.ok) {
-          const contactsData = await contactsResponse.json();
-          console.log(`Contacts raw sample:`, JSON.stringify(contactsData.slice(0, 2)));
-          
-          if (Array.isArray(contactsData)) {
-            console.log(`Found ${contactsData.length} contacts`);
-            
-            // Processar contatos e criar mapeamento
-            for (const contact of contactsData) {
-              const contactJid = contact.id || contact.remoteJid;
-              const contactName = contact.pushName || contact.name || contact.notify || contact.verifiedName;
-              const contactPic = contact.profilePictureUrl || contact.imgUrl || null;
-              
-              if (!contactJid) continue;
-              
-              // Extrair número do JID para criar mapeamento
-              const phoneNumber = contactJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
-              if (contactName && /^\d+$/.test(phoneNumber)) {
-                phoneToName[phoneNumber] = { name: contactName, pic: contactPic };
-              }
-              
-              // Adicionar contatos que não estão nos chats
-              const exists = allChats.some(c => 
-                (c.remoteJid || c.id || c.jid) === contactJid
-              );
-              
-              if (!exists) {
-                allChats.push({
-                  remoteJid: contactJid,
-                  pushName: contactName,
-                  profilePicUrl: contactPic,
-                  unreadCount: 0,
-                });
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching contacts:', err);
-      }
-
-      // Criar mapeamento adicional a partir dos chats que têm push_name
-      for (const chat of allChats) {
-        const jid = chat.remoteJid || chat.id || chat.jid;
-        const name = chat.pushName || chat.name || chat.notify;
-        if (!jid || !name) continue;
-        
-        // Extrair número do JID
-        if (jid.includes('@s.whatsapp.net')) {
-          const phone = jid.replace('@s.whatsapp.net', '');
-          if (!phoneToName[phone]) {
-            phoneToName[phone] = { name, pic: chat.profilePicUrl || chat.imgUrl || null };
-            console.log(`Added mapping from chat: ${phone} -> ${name}`);
-          }
-        }
-      }
-      console.log(`Phone to name mappings: ${Object.keys(phoneToName).length}`);
-      console.log(`Total chats+contacts: ${allChats.length}`);
-
-      // Salvar chats no Supabase
-      if (allChats.length > 0) {
-        for (const chat of allChats) {
-          // A API retorna diferentes estruturas dependendo do tipo
+      // Salvar chats no Supabase (APENAS chats reais)
+      if (chatsData.length > 0) {
+        for (const chat of chatsData) {
           const remoteJid = chat.remoteJid || chat.id || chat.jid;
           if (!remoteJid) continue;
 
-          // Tentar obter nome do mapeamento de contatos se não tiver push_name
-          let pushName = chat.pushName || chat.name || chat.notify || null;
-          let profilePic = chat.profilePicUrl || chat.imgUrl || null;
-          
-          // Para JIDs de número normal, tentar buscar nome no mapeamento
-          if (!pushName && remoteJid.includes('@s.whatsapp.net')) {
-            const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
-            if (phoneToName[phoneNumber]) {
-              pushName = phoneToName[phoneNumber].name;
-              profilePic = phoneToName[phoneNumber].pic || profilePic;
-              console.log(`Found name mapping for ${phoneNumber}: ${pushName}`);
-            }
-          }
+          // Usar apenas dados que vêm diretamente do chat
+          const pushName = chat.pushName || chat.name || chat.notify || null;
+          const profilePic = chat.profilePicUrl || chat.imgUrl || null;
 
           const chatData = {
             instance_name,
@@ -496,7 +409,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ 
         success: true, 
-        chats: allChats.length 
+        chats: chatsData.length 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
