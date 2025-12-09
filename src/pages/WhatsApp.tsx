@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useWhatsApp, WhatsAppConversa } from '@/hooks/useWhatsApp';
+import { useEvolution, EvolutionChat } from '@/hooks/useEvolution';
 import { supabase } from '@/integrations/supabase/client';
-import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
-import { ConversasList } from '@/components/whatsapp/ConversasList';
-import { ChatView } from '@/components/whatsapp/ChatView';
 import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   MessageSquare, 
   QrCode, 
@@ -15,26 +15,25 @@ import {
   RefreshCw,
   Zap,
   Send,
-  FileText
+  FileText,
+  Download,
+  Search,
+  User,
+  Users
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // URLs diretas do n8n
 const N8N_STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
 const DEFAULT_CLIENT_SLUG = 'ashby';
 
 export default function WhatsApp() {
-  const {
-    conversas,
-    loadingConversas,
-    stats,
-    getMensagens,
-    enviarMensagem,
-    marcarComoLida,
-  } = useWhatsApp();
-
-  const [conversaSelecionada, setConversaSelecionada] = useState<WhatsAppConversa | undefined>();
+  const [conversaSelecionada, setConversaSelecionada] = useState<EvolutionChat | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'conversas' | 'campanhas' | 'templates'>('conversas');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [novaMensagem, setNovaMensagem] = useState('');
   
   // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
@@ -44,25 +43,33 @@ export default function WhatsApp() {
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  const { data: mensagens = [], isLoading: loadingMensagens } = getMensagens(
-    conversaSelecionada?.id || ''
+  // Hook da Evolution
+  const {
+    chats,
+    loadingChats,
+    syncChats,
+    syncMessages,
+    sendMessage,
+    getMessages,
+    isSyncing,
+    isSending,
+  } = useEvolution(instanceName);
+
+  // Mensagens do chat selecionado
+  const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
+    conversaSelecionada?.remote_jid || null
   );
 
   // Busca instance_name: primeiro do state/localStorage, depois do Supabase
   const getInstanceName = useCallback(async (): Promise<string | null> => {
-    // 1. Tenta do state
-    if (instanceName) {
-      return instanceName;
-    }
+    if (instanceName) return instanceName;
 
-    // 2. Tenta do localStorage
     const stored = localStorage.getItem('whatsapp_instance_name');
     if (stored) {
       setInstanceName(stored);
       return stored;
     }
 
-    // 3. Busca do Supabase pela client_slug
     const clientSlug = localStorage.getItem('whatsapp_client_slug') || DEFAULT_CLIENT_SLUG;
     
     const { data, error } = await supabase
@@ -74,17 +81,8 @@ export default function WhatsApp() {
       .limit(1)
       .maybeSingle();
 
-    if (error) {
-      console.error('Erro ao buscar instância no Supabase:', error);
-      return null;
-    }
+    if (error || !data?.instance_name) return null;
 
-    if (!data?.instance_name) {
-      console.log('Nenhuma instância encontrada no Supabase para client_slug:', clientSlug);
-      return null;
-    }
-
-    // Salva no localStorage e state
     localStorage.setItem('whatsapp_instance_name', data.instance_name);
     setInstanceName(data.instance_name);
     return data.instance_name;
@@ -96,13 +94,8 @@ export default function WhatsApp() {
     setStatusError(null);
     
     try {
-      // Busca instance_name
       const currentInstanceName = await getInstanceName();
-      
-      console.log('=== VERIFICAÇÃO DE STATUS ===');
-      console.log('Instance name:', currentInstanceName || '(não encontrado)');
 
-      // Se não tem instance_name, exibe aviso e NÃO chama o endpoint
       if (!currentInstanceName) {
         setStatusError('Nenhuma instância de WhatsApp encontrada para este cliente.');
         setIsConnected(false);
@@ -110,19 +103,12 @@ export default function WhatsApp() {
         return;
       }
 
-      // Chama diretamente o webhook do n8n
-      console.log('Chamando:', N8N_STATUS_URL);
-      console.log('Body:', JSON.stringify({ instance_name: currentInstanceName }));
-
       const response = await fetch(N8N_STATUS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instance_name: currentInstanceName }),
       });
 
-      console.log('Response status:', response.status);
-
-      // Trata erro HTTP (500, 404, etc)
       if (!response.ok) {
         setStatusError('Erro ao verificar status');
         setIsConnected(false);
@@ -130,27 +116,22 @@ export default function WhatsApp() {
       }
 
       const data = await response.json();
-      console.log('Response data:', JSON.stringify(data, null, 2));
 
-      // Verifica se found === false → instância não encontrada no backend
       if (data.found === false) {
         setStatusError('Nenhuma instância de WhatsApp encontrada para este cliente.');
         setIsConnected(false);
         return;
       }
 
-      // found === true → verifica is_connected
       const connected = data.is_connected === true;
       setIsConnected(connected);
       setStatusError(null);
       
-      // Atualiza instance_name se retornado
       if (data.instance_name) {
         setInstanceName(data.instance_name);
         localStorage.setItem('whatsapp_instance_name', data.instance_name);
       }
       
-      // Armazena client_slug se retornado
       if (data.client_slug) {
         localStorage.setItem('whatsapp_client_slug', data.client_slug);
       }
@@ -168,24 +149,19 @@ export default function WhatsApp() {
     fetchWhatsappStatus();
   }, [fetchWhatsappStatus]);
 
-  const handleSelecionarConversa = async (conversa: WhatsAppConversa) => {
-    setConversaSelecionada(conversa);
-    if (conversa.nao_lida) {
-      await marcarComoLida(conversa.id);
-    }
+  const handleSelecionarConversa = (chat: EvolutionChat) => {
+    setConversaSelecionada(chat);
+    syncMessages(chat.remote_jid);
   };
 
-  const handleEnviarMensagem = async (mensagem: string) => {
-    if (!conversaSelecionada) return;
+  const handleEnviarMensagem = async () => {
+    if (!conversaSelecionada || !novaMensagem.trim()) return;
 
-    await enviarMensagem({
-      conversa_id: conversaSelecionada.id,
-      nome_cliente: conversaSelecionada.nome_contato,
-      mensagem,
-      status: 'enviada',
-      tipo: 'enviada',
-      data_hora: new Date().toISOString(),
+    sendMessage({
+      remoteJid: conversaSelecionada.remote_jid,
+      text: novaMensagem.trim(),
     });
+    setNovaMensagem('');
   };
 
   const handleConnected = (name: string) => {
@@ -193,6 +169,16 @@ export default function WhatsApp() {
     setInstanceName(name);
     localStorage.setItem('whatsapp_instance_name', name);
     setQrDialogOpen(false);
+  };
+
+  // Filtra conversas pela busca
+  const filteredChats = chats.filter(chat => 
+    (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    chat.remote_jid.includes(searchTerm)
+  );
+
+  const formatPhoneNumber = (jid: string) => {
+    return jid.replace('@s.whatsapp.net', '').replace('@g.us', '');
   };
 
   const tabs = [
@@ -203,11 +189,10 @@ export default function WhatsApp() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Minimal Header */}
+      {/* Header */}
       <header className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Title & Status */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -242,7 +227,6 @@ export default function WhatsApp() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center gap-2">
               <Button 
                 variant="ghost" 
@@ -252,8 +236,20 @@ export default function WhatsApp() {
                 className="h-8 px-3 text-xs"
               >
                 <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoadingStatus ? 'animate-spin' : ''}`} />
-                Atualizar
+                Status
               </Button>
+              {isConnected && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncChats()}
+                  disabled={isSyncing}
+                  className="h-8 px-3 text-xs"
+                >
+                  <Download className={`h-3.5 w-3.5 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  Sincronizar
+                </Button>
+              )}
               <Button 
                 size="sm"
                 onClick={() => setQrDialogOpen(true)}
@@ -270,7 +266,52 @@ export default function WhatsApp() {
 
       {/* KPIs Section */}
       <section className="px-6 py-6 border-b border-border/40">
-        <WhatsAppKPIs stats={stats} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{chats.length}</p>
+                <p className="text-xs text-muted-foreground">Conversas</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{chats.filter(c => c.is_group).length}</p>
+                <p className="text-xs text-muted-foreground">Grupos</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <User className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{chats.filter(c => !c.is_group).length}</p>
+                <p className="text-xs text-muted-foreground">Contatos</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{chats.reduce((acc, c) => acc + c.unread_count, 0)}</p>
+                <p className="text-xs text-muted-foreground">Não lidas</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Tab Navigation */}
@@ -298,24 +339,168 @@ export default function WhatsApp() {
       {/* Main Content */}
       <main className="p-6">
         {activeTab === 'conversas' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-320px)]">
-            <div className="lg:col-span-4 xl:col-span-3">
-              <ConversasList
-                conversas={conversas}
-                isLoading={loadingConversas}
-                onSelectConversa={handleSelecionarConversa}
-                selectedConversaId={conversaSelecionada?.id}
-                onNovaConversa={() => {}}
-              />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-380px)]">
+            {/* Lista de Conversas */}
+            <div className="lg:col-span-4 xl:col-span-3 flex flex-col border border-border/50 rounded-xl bg-card overflow-hidden">
+              <div className="p-3 border-b border-border/40">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar conversas..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9 text-sm"
+                  />
+                </div>
+              </div>
+              
+              <ScrollArea className="flex-1">
+                {loadingChats ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredChats.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 px-4">
+                    <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground text-center">
+                      {isConnected 
+                        ? 'Clique em "Sincronizar" para carregar conversas' 
+                        : 'Conecte o WhatsApp para ver suas conversas'
+                      }
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {filteredChats.map((chat) => (
+                      <button
+                        key={chat.id}
+                        onClick={() => handleSelecionarConversa(chat)}
+                        className={`w-full p-3 text-left hover:bg-muted/50 transition-colors ${
+                          conversaSelecionada?.id === chat.id ? 'bg-muted/70' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={chat.profile_pic_url || undefined} />
+                            <AvatarFallback className="text-xs">
+                              {chat.is_group ? <Users className="h-4 w-4" /> : (chat.push_name?.[0] || '?')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-sm truncate">
+                                {chat.push_name || formatPhoneNumber(chat.remote_jid)}
+                              </p>
+                              {chat.unread_count > 0 && (
+                                <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                                  {chat.unread_count}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              {chat.last_message || formatPhoneNumber(chat.remote_jid)}
+                            </p>
+                            {chat.last_message_at && (
+                              <p className="text-[10px] text-muted-foreground/70 mt-1">
+                                {format(new Date(chat.last_message_at), "dd/MM HH:mm", { locale: ptBR })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
             </div>
-            <div className="lg:col-span-8 xl:col-span-9">
-              <ChatView
-                conversa={conversaSelecionada}
-                mensagens={mensagens}
-                isLoading={loadingMensagens}
-                onEnviarMensagem={handleEnviarMensagem}
-                onSelecionarTemplate={() => {}}
-              />
+
+            {/* Chat View */}
+            <div className="lg:col-span-8 xl:col-span-9 flex flex-col border border-border/50 rounded-xl bg-card overflow-hidden">
+              {!conversaSelecionada ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+                  <MessageSquare className="h-16 w-16 mb-4 opacity-20" />
+                  <p className="text-sm">Selecione uma conversa para ver as mensagens</p>
+                </div>
+              ) : (
+                <>
+                  {/* Chat Header */}
+                  <div className="p-4 border-b border-border/40 flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
+                      <AvatarFallback>
+                        {conversaSelecionada.is_group ? <Users className="h-4 w-4" /> : (conversaSelecionada.push_name?.[0] || '?')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">
+                        {conversaSelecionada.push_name || formatPhoneNumber(conversaSelecionada.remote_jid)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatPhoneNumber(conversaSelecionada.remote_jid)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Messages */}
+                  <ScrollArea className="flex-1 p-4">
+                    {loadingMensagens ? (
+                      <div className="flex items-center justify-center py-10">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : mensagens.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10">
+                        <p className="text-sm text-muted-foreground">Nenhuma mensagem encontrada</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {mensagens.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={`flex ${msg.from_me ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[70%] px-3 py-2 rounded-xl text-sm ${
+                                msg.from_me
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted'
+                              }`}
+                            >
+                              <p>{msg.body || '[Mídia]'}</p>
+                              <p className={`text-[10px] mt-1 ${msg.from_me ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                                {format(new Date(msg.timestamp), "HH:mm", { locale: ptBR })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+
+                  {/* Message Input */}
+                  <div className="p-4 border-t border-border/40">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Digite sua mensagem..."
+                        value={novaMensagem}
+                        onChange={(e) => setNovaMensagem(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleEnviarMensagem()}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleEnviarMensagem} 
+                        disabled={isSending || !novaMensagem.trim()}
+                        size="icon"
+                      >
+                        {isSending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
