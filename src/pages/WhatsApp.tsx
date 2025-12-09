@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useEvolution, EvolutionChat } from '@/hooks/useEvolution';
 import { supabase } from '@/integrations/supabase/client';
 import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
-import { VincularChatDialog } from '@/components/whatsapp/VincularChatDialog';
 import { MessageBubble } from '@/components/whatsapp/MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +18,7 @@ import {
   ArrowLeft,
   Check,
   LogOut,
-  Trash2,
-  Link,
-  Unlink
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -31,7 +28,6 @@ const DEFAULT_CLIENT_SLUG = 'ashby';
 export default function WhatsApp() {
   const [conversaSelecionada, setConversaSelecionada] = useState<EvolutionChat | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [vincularDialogOpen, setVincularDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [novaMensagem, setNovaMensagem] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,40 +49,19 @@ export default function WhatsApp() {
     loadingChats,
     syncChats,
     syncMessages,
-    syncContacts,
     sendMessage,
     deleteChat,
-    linkChats,
-    unlinkChat,
     getMessages,
-    getLinkedChats,
-    getPrimaryChat,
     isSyncing,
     isSending,
     isDeleting,
-    isLinking,
   } = useEvolution(instanceName, handleDisconnect);
 
-  // Encontrar chats vinculados à conversa selecionada
-  const linkedChats = useMemo(() => {
-    if (!conversaSelecionada) return [];
-    return getLinkedChats(conversaSelecionada.id);
-  }, [conversaSelecionada, getLinkedChats]);
-
-  // Encontrar o chat principal se a conversa selecionada é um chat vinculado
-  const primaryChat = useMemo(() => {
-    if (!conversaSelecionada?.linked_to_chat_id) return null;
-    return getPrimaryChat(conversaSelecionada.linked_to_chat_id);
-  }, [conversaSelecionada, getPrimaryChat]);
-
-  // JIDs de todos os chats vinculados (para buscar mensagens)
-  const linkedRemoteJids = useMemo(() => {
-    return linkedChats.map(c => c.remote_jid);
-  }, [linkedChats]);
+  // Cada chat é independente - sem vinculação
 
   const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
     conversaSelecionada?.remote_jid || null,
-    linkedRemoteJids
+    [] // Sem chats vinculados - cada JID é independente
   );
 
   useEffect(() => {
@@ -159,14 +134,8 @@ export default function WhatsApp() {
 
   const handleSelecionarConversa = (chat: EvolutionChat) => {
     setConversaSelecionada(chat);
-    // Sincronizar mensagens do chat principal
+    // Sincronizar mensagens do chat selecionado
     syncMessages(chat.remote_jid);
-    
-    // Também sincronizar mensagens de todos os chats vinculados
-    const linked = getLinkedChats(chat.id);
-    linked.forEach(linkedChat => {
-      syncMessages(linkedChat.remote_jid);
-    });
   };
 
   const handleEnviarMensagem = async () => {
@@ -214,29 +183,13 @@ export default function WhatsApp() {
     }
   };
 
-  const handleLinkChat = (targetChatId: string) => {
-    if (!conversaSelecionada) return;
-    linkChats({ chatId: conversaSelecionada.id, targetChatId });
-    setVincularDialogOpen(false);
-  };
-
-  const handleUnlinkChat = () => {
-    if (!conversaSelecionada) return;
-    unlinkChat(conversaSelecionada.id);
-  };
-
-  // Filtrar chats - esconder chats que são vinculados a outro (para evitar duplicatas na lista)
+  // Filtrar chats - mostrar todos sem lógica de vinculação
   const filteredChats = chats.filter(chat => {
-    // Sempre aplicar filtro de busca
+    // Aplicar filtro de busca
     const matchesSearch = (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       chat.remote_jid.includes(searchTerm);
     
-    if (!matchesSearch) return false;
-    
-    // Esconder chats que são vinculados a outro (eles aparecem dentro do chat principal)
-    if (chat.linked_to_chat_id) return false;
-    
-    return true;
+    return matchesSearch;
   });
 
   // Verifica se é um Linked ID (ID interno do WhatsApp Business)
@@ -528,38 +481,8 @@ export default function WhatsApp() {
                 <p className="font-medium text-[#e9edef] truncate">{getDisplayName(conversaSelecionada)}</p>
                 <p className="text-xs text-[#8696a0]">
                   {getSubtitle(conversaSelecionada)}
-                  {linkedChats.length > 0 && (
-                    <span className="ml-2 text-green-400">
-                      (+{linkedChats.length} vinculado{linkedChats.length > 1 ? 's' : ''})
-                    </span>
-                  )}
                 </p>
               </div>
-              
-              {/* Botão vincular/desvincular */}
-              {!conversaSelecionada.is_group && (
-                conversaSelecionada.linked_to_chat_id ? (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-9 w-9 text-orange-400 hover:bg-[#2a3942]"
-                    onClick={handleUnlinkChat}
-                    title="Desvincular este chat"
-                  >
-                    <Unlink className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-9 w-9 text-[#aebac1] hover:bg-[#2a3942]"
-                    onClick={() => setVincularDialogOpen(true)}
-                    title="Vincular com outro chat"
-                  >
-                    <Link className="h-4 w-4" />
-                  </Button>
-                )
-              )}
               
               <Button 
                 variant="ghost" 
@@ -642,14 +565,6 @@ export default function WhatsApp() {
         onConnected={handleConnected}
       />
       
-      <VincularChatDialog
-        open={vincularDialogOpen}
-        onOpenChange={setVincularDialogOpen}
-        currentChat={conversaSelecionada}
-        availableChats={chats}
-        onLink={handleLinkChat}
-        isLinking={isLinking}
-      />
     </div>
   );
 }
