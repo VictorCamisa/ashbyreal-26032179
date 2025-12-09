@@ -18,9 +18,9 @@ import {
   FileText
 } from 'lucide-react';
 
-// Edge function proxy URL
-const PROXY_BASE = 'https://chmhbrcugswwmpqzhugs.supabase.co/functions/v1/whatsapp-proxy';
-const STATUS_URL = `${PROXY_BASE}?action=status`;
+// URLs diretas do n8n
+const N8N_STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
+const DEFAULT_CLIENT_SLUG = 'ashby';
 
 export default function WhatsApp() {
   const {
@@ -48,48 +48,73 @@ export default function WhatsApp() {
     conversaSelecionada?.id || ''
   );
 
-  // Busca instance_name do Supabase se não tiver no localStorage
-  const getInstanceName = useCallback(async (): Promise<string> => {
-    // Primeiro tenta localStorage
-    const stored = instanceName || localStorage.getItem('whatsapp_instance_name');
+  // Busca instance_name: primeiro do state/localStorage, depois do Supabase
+  const getInstanceName = useCallback(async (): Promise<string | null> => {
+    // 1. Tenta do state
+    if (instanceName) {
+      return instanceName;
+    }
+
+    // 2. Tenta do localStorage
+    const stored = localStorage.getItem('whatsapp_instance_name');
     if (stored) {
+      setInstanceName(stored);
       return stored;
     }
 
-    // Se não tem, busca do Supabase
+    // 3. Busca do Supabase pela client_slug
+    const clientSlug = localStorage.getItem('whatsapp_client_slug') || DEFAULT_CLIENT_SLUG;
+    
     const { data, error } = await supabase
       .from('whatsapp_instances')
       .select('instance_name')
+      .eq('client_slug', clientSlug)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (error || !data?.instance_name) {
-      console.log('Nenhuma instância ativa encontrada no Supabase');
-      return '';
+    if (error) {
+      console.error('Erro ao buscar instância no Supabase:', error);
+      return null;
     }
 
-    // Salva no localStorage para próximas chamadas
+    if (!data?.instance_name) {
+      console.log('Nenhuma instância encontrada no Supabase para client_slug:', clientSlug);
+      return null;
+    }
+
+    // Salva no localStorage e state
     localStorage.setItem('whatsapp_instance_name', data.instance_name);
     setInstanceName(data.instance_name);
     return data.instance_name;
   }, [instanceName]);
 
+  // Verifica status da conexão WhatsApp
   const fetchWhatsappStatus = useCallback(async () => {
     setIsLoadingStatus(true);
     setStatusError(null);
     
-    // Busca instance_name (localStorage ou Supabase)
-    const currentInstanceName = await getInstanceName();
-    
-    console.log('=== INICIANDO VERIFICAÇÃO DE STATUS ===');
-    console.log('Instance name:', currentInstanceName || '(vazio)');
-    console.log('URL:', STATUS_URL);
-    
     try {
-      // POST para o proxy com instance_name no body
-      const response = await fetch(STATUS_URL, {
+      // Busca instance_name
+      const currentInstanceName = await getInstanceName();
+      
+      console.log('=== VERIFICAÇÃO DE STATUS ===');
+      console.log('Instance name:', currentInstanceName || '(não encontrado)');
+
+      // Se não tem instance_name, exibe aviso e não chama o endpoint
+      if (!currentInstanceName) {
+        setStatusError('Nenhuma instância de WhatsApp encontrada para este cliente.');
+        setIsConnected(false);
+        setIsLoadingStatus(false);
+        return;
+      }
+
+      // Chama diretamente o webhook do n8n
+      console.log('Chamando:', N8N_STATUS_URL);
+      console.log('Body:', JSON.stringify({ instance_name: currentInstanceName }));
+
+      const response = await fetch(N8N_STATUS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instance_name: currentInstanceName }),
@@ -98,36 +123,33 @@ export default function WhatsApp() {
       console.log('Response status:', response.status);
 
       const data = await response.json();
-      console.log('Status response:', JSON.stringify(data, null, 2));
+      console.log('Response data:', JSON.stringify(data, null, 2));
 
-      if (!data) {
-        setStatusError('Não foi possível verificar o status da conexão.');
+      // Trata resposta de erro
+      if (!response.ok || data.error) {
+        setStatusError(data.error || 'Erro ao verificar status');
         setIsConnected(false);
         return;
       }
 
-      if (data.error) {
-        setStatusError(data.error);
-        setIsConnected(false);
-        return;
-      }
-
-      // Atualiza estados conforme resposta
-      const connected = data.is_connected === true;
+      // Atualiza estado de conexão
+      const connected = data.is_connected === true || data.connected === true;
       setIsConnected(connected);
       
+      // Atualiza instance_name se retornado
       if (data.instance_name) {
         setInstanceName(data.instance_name);
         localStorage.setItem('whatsapp_instance_name', data.instance_name);
       }
       
+      // Armazena client_slug se retornado
       if (data.client_slug) {
         localStorage.setItem('whatsapp_client_slug', data.client_slug);
       }
       
     } catch (err) {
       console.error('Erro ao verificar status do WhatsApp:', err);
-      setStatusError('Não foi possível verificar o status da conexão.');
+      setStatusError('Erro de conexão ao verificar status.');
       setIsConnected(false);
     } finally {
       setIsLoadingStatus(false);
