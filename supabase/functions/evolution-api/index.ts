@@ -223,6 +223,51 @@ serve(async (req) => {
       }
     }
 
+    // Desconectar/logout da instância e limpar dados
+    if (action === 'logout') {
+      console.log(`Logging out instance: ${instance_name}`);
+      
+      // 1. Chamar logout na Evolution API
+      const logoutUrl = `${baseUrl}/instance/logout/${instance_name}`;
+      try {
+        const logoutResponse = await fetch(logoutUrl, {
+          method: 'DELETE',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+          },
+        });
+        console.log(`Logout response status: ${logoutResponse.status}`);
+      } catch (err) {
+        console.error('Error calling logout:', err);
+      }
+
+      // 2. Limpar dados do banco
+      // Deletar mensagens primeiro
+      await supabase
+        .from('evolution_messages')
+        .delete()
+        .eq('instance_name', instance_name);
+      
+      // Deletar chats
+      await supabase
+        .from('evolution_chats')
+        .delete()
+        .eq('instance_name', instance_name);
+      
+      // Atualizar instância como desconectada
+      await supabase
+        .from('whatsapp_instances')
+        .update({ is_connected: false })
+        .eq('instance_name', instance_name);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Instância desconectada e dados limpos'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'find_chats') {
       // Buscar APENAS chats reais (sem adicionar contatos da agenda)
       const chatsUrl = `${baseUrl}/chat/findChats/${instance_name}`;
