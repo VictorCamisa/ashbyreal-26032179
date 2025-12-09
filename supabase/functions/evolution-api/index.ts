@@ -559,6 +559,107 @@ serve(async (req) => {
       });
     }
 
+    // Sincronizar contatos da agenda do WhatsApp
+    if (action === 'sync_contacts') {
+      console.log(`Syncing contacts for instance: ${instance_name}`);
+      
+      // POST /chat/findContacts/{instance}
+      const contactsUrl = `${baseUrl}/chat/findContacts/${instance_name}`;
+      console.log(`Fetching contacts from: ${contactsUrl}`);
+
+      try {
+        const contactsResponse = await fetch(contactsUrl, {
+          method: 'POST',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+
+        console.log(`Contacts response status: ${contactsResponse.status}`);
+
+        if (!contactsResponse.ok) {
+          const errorText = await contactsResponse.text();
+          console.error(`Error fetching contacts: ${errorText}`);
+          
+          if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
+              disconnected: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          throw new Error(`Evolution API error: ${contactsResponse.status} - ${errorText}`);
+        }
+
+        const contactsData = await contactsResponse.json();
+        console.log(`Contacts data type: ${typeof contactsData}, isArray: ${Array.isArray(contactsData)}`);
+        
+        if (!Array.isArray(contactsData)) {
+          console.log(`Contacts response:`, JSON.stringify(contactsData));
+          return new Response(JSON.stringify({ 
+            success: true, 
+            contacts: 0,
+            message: 'No contacts array returned' 
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log(`Found ${contactsData.length} contacts to process`);
+
+        let updatedCount = 0;
+        
+        for (const contact of contactsData) {
+          const contactJid = contact.id || contact.remoteJid;
+          // O nome pode vir de diferentes campos
+          const contactName = contact.name || contact.pushName || contact.notify || contact.verifiedName;
+          
+          if (!contactJid) continue;
+          
+          console.log(`Processing contact: ${contactJid} - Name: ${contactName}`);
+          
+          // Atualizar o push_name no chat correspondente se tiver nome
+          if (contactName) {
+            const { error: updateError, count } = await supabase
+              .from('evolution_chats')
+              .update({ 
+                push_name: contactName,
+                updated_at: new Date().toISOString()
+              })
+              .eq('instance_name', instance_name)
+              .eq('remote_jid', contactJid);
+
+            if (updateError) {
+              console.error(`Error updating chat for ${contactJid}:`, updateError);
+            } else {
+              updatedCount++;
+              console.log(`Updated chat name for ${contactJid} to: ${contactName}`);
+            }
+          }
+        }
+
+        console.log(`Successfully updated ${updatedCount} contact names`);
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          contacts: contactsData.length,
+          updated: updatedCount
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+
+      } catch (err) {
+        console.error('Error syncing contacts:', err);
+        throw err;
+      }
+    }
+
     throw new Error(`Unknown action: ${action}`);
 
   } catch (error: unknown) {
