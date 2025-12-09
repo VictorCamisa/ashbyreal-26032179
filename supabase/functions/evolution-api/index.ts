@@ -288,6 +288,8 @@ serve(async (req) => {
 
         if (contactsResponse.ok) {
           const contactsData = await contactsResponse.json();
+          console.log(`Contacts raw sample:`, JSON.stringify(contactsData.slice(0, 2)));
+          
           if (Array.isArray(contactsData)) {
             console.log(`Found ${contactsData.length} contacts`);
             
@@ -325,6 +327,21 @@ serve(async (req) => {
         console.error('Error fetching contacts:', err);
       }
 
+      // Criar mapeamento adicional a partir dos chats que têm push_name
+      for (const chat of allChats) {
+        const jid = chat.remoteJid || chat.id || chat.jid;
+        const name = chat.pushName || chat.name || chat.notify;
+        if (!jid || !name) continue;
+        
+        // Extrair número do JID
+        if (jid.includes('@s.whatsapp.net')) {
+          const phone = jid.replace('@s.whatsapp.net', '');
+          if (!phoneToName[phone]) {
+            phoneToName[phone] = { name, pic: chat.profilePicUrl || chat.imgUrl || null };
+            console.log(`Added mapping from chat: ${phone} -> ${name}`);
+          }
+        }
+      }
       console.log(`Phone to name mappings: ${Object.keys(phoneToName).length}`);
       console.log(`Total chats+contacts: ${allChats.length}`);
 
