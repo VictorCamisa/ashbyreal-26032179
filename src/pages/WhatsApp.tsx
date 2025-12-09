@@ -16,7 +16,8 @@ import {
   User,
   Users,
   ArrowLeft,
-  Check
+  Check,
+  Contact
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -47,6 +48,7 @@ export default function WhatsApp() {
     loadingChats,
     syncChats,
     syncMessages,
+    syncContacts,
     sendMessage,
     getMessages,
     isSyncing,
@@ -283,13 +285,39 @@ export default function WhatsApp() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={fetchWhatsappStatus} disabled={isLoadingStatus}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9" 
+              onClick={fetchWhatsappStatus} 
+              disabled={isLoadingStatus}
+              title="Verificar status"
+            >
               <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
             </Button>
             {isConnected && (
-              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => syncChats()} disabled={isSyncing}>
-                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              </Button>
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={() => syncChats()} 
+                  disabled={isSyncing}
+                  title="Sincronizar conversas"
+                >
+                  <MessageSquare className={`h-4 w-4 ${isSyncing ? 'opacity-50' : ''}`} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={() => syncContacts()} 
+                  disabled={isSyncing}
+                  title="Sincronizar contatos (nomes da agenda)"
+                >
+                  <Contact className={`h-4 w-4 ${isSyncing ? 'opacity-50' : ''}`} />
+                </Button>
+              </>
             )}
             <Button 
               variant="ghost" 
@@ -297,6 +325,7 @@ export default function WhatsApp() {
               className="h-9 w-9" 
               onClick={() => setQrDialogOpen(true)}
               disabled={isConnected || isLoadingStatus}
+              title="Gerar QR Code"
             >
               <QrCode className="h-4 w-4" />
             </Button>

@@ -148,6 +148,46 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     },
   });
 
+  // Mutation para sincronizar contatos da agenda do WhatsApp
+  const syncContacts = useMutation({
+    mutationFn: async () => {
+      if (!instanceName) throw new Error('Instance name required');
+
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'sync_contacts',
+          instance_name: instanceName,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.disconnected) {
+        throw new Error('WhatsApp desconectado');
+      }
+      
+      if (!data.success) throw new Error(data.error || 'Failed to sync contacts');
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
+      toast({
+        title: 'Contatos sincronizados!',
+        description: `${data.updated || 0} nomes atualizados.`,
+      });
+    },
+    onError: (error) => {
+      if (!handleDisconnectionError(error)) {
+        toast({
+          title: 'Erro ao sincronizar contatos',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
+    },
+  });
+
   // Mutation para sincronizar mensagens de um chat
   const syncMessages = useMutation({
     mutationFn: async (remoteJid: string) => {
@@ -282,8 +322,9 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     getMessages,
     syncChats: syncChats.mutate,
     syncMessages: syncMessages.mutate,
+    syncContacts: syncContacts.mutate,
     sendMessage: sendMessage.mutate,
-    isSyncing: syncChats.isPending || syncMessages.isPending,
+    isSyncing: syncChats.isPending || syncMessages.isPending || syncContacts.isPending,
     isSending: sendMessage.isPending,
   };
 }
