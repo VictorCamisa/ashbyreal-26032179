@@ -159,7 +159,14 @@ export default function WhatsApp() {
 
   const handleSelecionarConversa = (chat: EvolutionChat) => {
     setConversaSelecionada(chat);
+    // Sincronizar mensagens do chat principal
     syncMessages(chat.remote_jid);
+    
+    // Também sincronizar mensagens de todos os chats vinculados
+    const linked = getLinkedChats(chat.id);
+    linked.forEach(linkedChat => {
+      syncMessages(linkedChat.remote_jid);
+    });
   };
 
   const handleEnviarMensagem = async () => {
