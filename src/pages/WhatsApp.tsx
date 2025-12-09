@@ -16,7 +16,8 @@ import {
   User,
   Users,
   ArrowLeft,
-  Check
+  Check,
+  LogOut
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -153,6 +154,27 @@ export default function WhatsApp() {
     setInstanceName(name);
     localStorage.setItem('whatsapp_instance_name', name);
     setQrDialogOpen(false);
+  };
+
+  const handleLogout = async () => {
+    if (!instanceName) return;
+    
+    try {
+      await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'logout',
+          instance_name: instanceName,
+        },
+      });
+      
+      // Limpar estado local
+      setIsConnected(false);
+      localStorage.removeItem('whatsapp_instance_name');
+      setInstanceName(null);
+      setConversaSelecionada(null);
+    } catch (err) {
+      console.error('Error logging out:', err);
+    }
   };
 
   const filteredChats = chats.filter(chat => 
@@ -295,16 +317,27 @@ export default function WhatsApp() {
               <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
             </Button>
 {isConnected && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9" 
-                onClick={() => syncChats()} 
-                disabled={isSyncing}
-                title="Sincronizar conversas"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              </Button>
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={() => syncChats()} 
+                  disabled={isSyncing}
+                  title="Sincronizar conversas"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 text-destructive hover:text-destructive" 
+                  onClick={handleLogout}
+                  title="Desconectar WhatsApp"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </>
             )}
             <Button 
               variant="ghost" 
