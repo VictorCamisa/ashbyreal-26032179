@@ -735,6 +735,105 @@ serve(async (req) => {
       });
     }
 
+    // Deletar chat do WhatsApp e do banco de dados
+    if (action === 'delete_chat') {
+      if (!remote_jid) {
+        throw new Error('remote_jid is required for delete_chat');
+      }
+
+      console.log(`Deleting chat: ${remote_jid} from instance: ${instance_name}`);
+
+      // 1. Deletar chat da Evolution API (limpar histórico no WhatsApp)
+      const deleteUrl = `${baseUrl}/chat/deleteMessage/${instance_name}`;
+      console.log(`Calling Evolution API delete: ${deleteUrl}`);
+
+      try {
+        // A Evolution API usa deleteMessage para limpar conversas
+        // Primeiro, tentar arquivar/deletar a conversa
+        const archiveUrl = `${baseUrl}/chat/archiveChat/${instance_name}`;
+        const archiveResponse = await fetch(archiveUrl, {
+          method: 'PUT',
+          headers: {
+            'apikey': EVOLUTION_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            lastMessage: {
+              key: {
+                remoteJid: remote_jid,
+              },
+            },
+            archive: true,
+          }),
+        });
+        console.log(`Archive response status: ${archiveResponse.status}`);
+
+        // Tentar também deletar as mensagens usando outro endpoint se disponível
+        const clearUrl = `${baseUrl}/chat/clearChat/${instance_name}`;
+        try {
+          const clearResponse = await fetch(clearUrl, {
+            method: 'DELETE',
+            headers: {
+              'apikey': EVOLUTION_API_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              remoteJid: remote_jid,
+            }),
+          });
+          console.log(`Clear chat response status: ${clearResponse.status}`);
+        } catch (clearErr) {
+          console.log('Clear chat endpoint not available, continuing...');
+        }
+
+      } catch (err) {
+        console.error('Error calling Evolution API delete:', err);
+        // Continuar mesmo se falhar na Evolution API, vamos limpar do banco
+      }
+
+      // 2. Buscar o chat_id para deletar as mensagens associadas
+      const { data: chatData } = await supabase
+        .from('evolution_chats')
+        .select('id')
+        .eq('instance_name', instance_name)
+        .eq('remote_jid', remote_jid)
+        .single();
+
+      if (chatData?.id) {
+        // 3. Deletar mensagens do banco
+        const { error: msgError } = await supabase
+          .from('evolution_messages')
+          .delete()
+          .eq('chat_id', chatData.id);
+
+        if (msgError) {
+          console.error('Error deleting messages:', msgError);
+        } else {
+          console.log(`Deleted messages for chat ${chatData.id}`);
+        }
+
+        // 4. Deletar o chat do banco
+        const { error: chatError } = await supabase
+          .from('evolution_chats')
+          .delete()
+          .eq('id', chatData.id);
+
+        if (chatError) {
+          console.error('Error deleting chat:', chatError);
+          throw chatError;
+        }
+
+        console.log(`Deleted chat ${chatData.id} from database`);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Conversa apagada com sucesso'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Sincronizar contatos da agenda do WhatsApp
     if (action === 'sync_contacts') {
       console.log(`Syncing contacts for instance: ${instance_name}`);

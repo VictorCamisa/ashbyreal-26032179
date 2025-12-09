@@ -271,6 +271,47 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     },
   });
 
+  // Mutation para deletar chat
+  const deleteChat = useMutation({
+    mutationFn: async (remoteJid: string) => {
+      if (!instanceName) throw new Error('Instance name required');
+
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'delete_chat',
+          instance_name: instanceName,
+          remote_jid: remoteJid,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (data?.disconnected) {
+        throw new Error('WhatsApp desconectado');
+      }
+      
+      if (!data.success) throw new Error(data.error || 'Failed to delete chat');
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
+      toast({
+        title: 'Conversa apagada!',
+        description: 'A conversa foi removida com sucesso.',
+      });
+    },
+    onError: (error) => {
+      if (!handleDisconnectionError(error)) {
+        toast({
+          title: 'Erro ao apagar conversa',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
+      }
+    },
+  });
+
   // Realtime subscription para novos chats/mensagens
   useEffect(() => {
     if (!instanceName) return;
@@ -342,7 +383,9 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     syncMessages: syncMessages.mutate,
     syncContacts: syncContacts.mutate,
     sendMessage: sendMessage.mutate,
+    deleteChat: deleteChat.mutate,
     isSyncing: syncChats.isPending || syncMessages.isPending || syncContacts.isPending,
     isSending: sendMessage.isPending,
+    isDeleting: deleteChat.isPending,
   };
 }

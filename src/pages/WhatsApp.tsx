@@ -17,7 +17,8 @@ import {
   Users,
   ArrowLeft,
   Check,
-  LogOut
+  LogOut,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -50,9 +51,11 @@ export default function WhatsApp() {
     syncMessages,
     syncContacts,
     sendMessage,
+    deleteChat,
     getMessages,
     isSyncing,
     isSending,
+    isDeleting,
   } = useEvolution(instanceName, handleDisconnect);
 
   const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
@@ -476,8 +479,24 @@ export default function WhatsApp() {
                 size="icon" 
                 className="h-9 w-9 text-[#aebac1] hover:bg-[#2a3942]"
                 onClick={() => syncMessages(conversaSelecionada.remote_jid)}
+                title="Atualizar mensagens"
               >
                 <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 text-destructive hover:bg-[#2a3942] hover:text-destructive"
+                onClick={() => {
+                  if (confirm('Tem certeza que deseja apagar esta conversa? Esta ação não pode ser desfeita.')) {
+                    deleteChat(conversaSelecionada.remote_jid);
+                    setConversaSelecionada(null);
+                  }
+                }}
+                disabled={isDeleting}
+                title="Apagar conversa"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </Button>
             </header>
 
