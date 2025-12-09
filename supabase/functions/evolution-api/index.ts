@@ -27,8 +27,7 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const body = await req.json();
-    const { action, instance_name, remote_jid, text } = body;
+    const { action, instance_name, remote_jid } = await req.json();
 
     console.log(`=== Evolution API Request ===`);
     console.log(`Action: ${action}`);
@@ -39,17 +38,16 @@ serve(async (req) => {
     const baseUrl = EVOLUTION_API_URL.replace(/\/$/, '');
 
     if (action === 'find_chats') {
-      // POST /chat/findChats/{instance} - API v2 uses POST!
-      const url = `${baseUrl}/chat/findChats/${encodeURIComponent(instance_name)}`;
+      // GET /chat/findChats/{instance}
+      const url = `${baseUrl}/chat/findChats/${instance_name}`;
       console.log(`Fetching chats from: ${url}`);
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'apikey': EVOLUTION_API_KEY,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
       });
 
       console.log(`Response status: ${response.status}`);
@@ -62,7 +60,6 @@ serve(async (req) => {
 
       const chats = await response.json();
       console.log(`Found ${Array.isArray(chats) ? chats.length : 0} chats`);
-      console.log(`First chat sample:`, JSON.stringify(chats?.[0]).substring(0, 500));
 
       // Salvar chats no Supabase
       if (Array.isArray(chats) && chats.length > 0) {
@@ -78,19 +75,13 @@ serve(async (req) => {
             unread_count: chat.unreadCount || 0,
             last_message: chat.lastMessage?.message?.conversation || 
                           chat.lastMessage?.message?.extendedTextMessage?.text || 
-                          chat.lastMsg?.message?.conversation ||
-                          chat.lastMsg?.message?.extendedTextMessage?.text ||
                           null,
             last_message_at: chat.lastMessage?.messageTimestamp 
-              ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString()
-              : chat.lastMsg?.messageTimestamp
-              ? new Date(Number(chat.lastMsg.messageTimestamp) * 1000).toISOString()
+              ? new Date(chat.lastMessage.messageTimestamp * 1000).toISOString()
               : null,
             is_group: remoteJid.includes('@g.us'),
             updated_at: new Date().toISOString(),
           };
-
-          console.log(`Upserting chat: ${remoteJid} - ${chatData.push_name}`);
 
           const { error } = await supabase
             .from('evolution_chats')
@@ -116,7 +107,7 @@ serve(async (req) => {
       }
 
       // POST /chat/findMessages/{instance}
-      const url = `${baseUrl}/chat/findMessages/${encodeURIComponent(instance_name)}`;
+      const url = `${baseUrl}/chat/findMessages/${instance_name}`;
       console.log(`Fetching messages from: ${url}`);
       console.log(`For remoteJid: ${remote_jid}`);
 
@@ -131,8 +122,7 @@ serve(async (req) => {
             key: {
               remoteJid: remote_jid
             }
-          },
-          limit: 100
+          }
         }),
       });
 
@@ -144,11 +134,8 @@ serve(async (req) => {
         throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
       }
 
-      const messagesResponse = await response.json();
-      // A API pode retornar { messages: [] } ou diretamente um array
-      const messages = messagesResponse.messages || messagesResponse;
+      const messages = await response.json();
       console.log(`Found ${Array.isArray(messages) ? messages.length : 0} messages`);
-      console.log(`First message sample:`, JSON.stringify(messages?.[0]).substring(0, 500));
 
       // Buscar o chat_id correspondente
       const { data: chatData } = await supabase
@@ -192,7 +179,7 @@ serve(async (req) => {
                        msg.message?.documentMessage?.url ||
                        null,
             timestamp: msg.messageTimestamp 
-              ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()
+              ? new Date(msg.messageTimestamp * 1000).toISOString()
               : new Date().toISOString(),
             status: msg.status || null,
           };
@@ -220,12 +207,13 @@ serve(async (req) => {
         throw new Error('remote_jid is required for send_message');
       }
 
+      const { text } = await req.json();
       if (!text) {
         throw new Error('text is required for send_message');
       }
 
       // POST /message/sendText/{instance}
-      const url = `${baseUrl}/message/sendText/${encodeURIComponent(instance_name)}`;
+      const url = `${baseUrl}/message/sendText/${instance_name}`;
       console.log(`Sending message to: ${url}`);
 
       const response = await fetch(url, {
