@@ -1225,6 +1225,30 @@ export type Database = {
           },
         ]
       }
+      whatsapp_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          instance_name: string
+          name: string | null
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_name: string
+          name?: string | null
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_name?: string
+          name?: string | null
+          phone?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversas: {
         Row: {
           cliente_id: string | null
@@ -1275,6 +1299,50 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          chat_id: string
+          contact_id: string | null
+          created_at: string
+          id: string
+          instance_name: string
+          is_archived: boolean
+          last_message: string | null
+          last_message_at: string | null
+          unread_count: number
+        }
+        Insert: {
+          chat_id: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          instance_name: string
+          is_archived?: boolean
+          last_message?: string | null
+          last_message_at?: string | null
+          unread_count?: number
+        }
+        Update: {
+          chat_id?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          instance_name?: string
+          is_archived?: boolean
+          last_message?: string | null
+          last_message_at?: string | null
+          unread_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_instances: {
         Row: {
           client_slug: string | null
@@ -1301,6 +1369,53 @@ export type Database = {
           is_connected?: boolean | null
         }
         Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          body: string | null
+          conversation_id: string
+          created_at: string
+          from_me: boolean
+          id: string
+          media_url: string | null
+          status: string | null
+          timestamp: string
+          type: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          conversation_id: string
+          created_at?: string
+          from_me: boolean
+          id?: string
+          media_url?: string | null
+          status?: string | null
+          timestamp: string
+          type?: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          conversation_id?: string
+          created_at?: string
+          from_me?: boolean
+          id?: string
+          media_url?: string | null
+          status?: string | null
+          timestamp?: string
+          type?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_templates: {
         Row: {
