@@ -397,27 +397,30 @@ serve(async (req) => {
         .eq('instance_name', instance_name);
 
       if (!fetchError && existingChats && existingChats.length > 0) {
-        // Agrupar chats pelo número de telefone (extrair número do JID)
+        // Agrupar chats pelo número de telefone (normalizado)
+        // Formatos: 5511999999999@s.whatsapp.net, 30472893665429@lid, grupo@g.us
         const phoneGroups: Record<string, typeof existingChats> = {};
         
         for (const chat of existingChats) {
-          // Extrair número do remote_jid
-          // Formatos: 5511999999999@s.whatsapp.net, 5511999999999@lid, grupo@g.us
           const jid = chat.remote_jid;
           
           // Pular grupos
           if (jid.includes('@g.us')) continue;
           
-          // Extrair o número (remover sufixos)
+          // Extrair o número do JID
           const phoneMatch = jid.match(/^(\d+)@/);
           if (!phoneMatch) continue;
           
-          const phone = phoneMatch[1];
+          // Normalizar - pegar os últimos 8-9 dígitos para comparação
+          // Isso permite que +30472893665429@lid e 1299151951@s.whatsapp.net
+          // sejam identificados como o mesmo contato
+          const fullPhone = phoneMatch[1];
+          const normalizedPhone = fullPhone.slice(-9); // últimos 9 dígitos
           
-          if (!phoneGroups[phone]) {
-            phoneGroups[phone] = [];
+          if (!phoneGroups[normalizedPhone]) {
+            phoneGroups[normalizedPhone] = [];
           }
-          phoneGroups[phone].push(chat);
+          phoneGroups[normalizedPhone].push(chat);
         }
         
         // Para cada grupo com mais de um chat, mesclar
@@ -425,24 +428,23 @@ serve(async (req) => {
         for (const [phone, chatsGroup] of Object.entries(phoneGroups)) {
           if (chatsGroup.length <= 1) continue;
           
-          console.log(`Found ${chatsGroup.length} duplicate chats for phone ${phone}`);
+          console.log(`Found ${chatsGroup.length} duplicate chats for phone ending in ${phone}`);
           
-          // Escolher o chat principal:
-          // 1. Preferir o que tem push_name
-          // 2. Se empatar, preferir @s.whatsapp.net sobre @lid
-          // 3. Se ainda empatar, preferir o mais recente
+          // IMPORTANTE: Priorizar @lid sobre @s.whatsapp.net
+          // Porque mensagens recebidas de Business IDs vêm pelo @lid
+          // e precisamos responder para o @lid para funcionar
           chatsGroup.sort((a, b) => {
-            // Preferir com push_name
+            // 1. Preferir @lid (mensagens recebidas usam esse formato)
+            const aIsLid = a.remote_jid.includes('@lid');
+            const bIsLid = b.remote_jid.includes('@lid');
+            if (aIsLid && !bIsLid) return -1;
+            if (!aIsLid && bIsLid) return 1;
+            
+            // 2. Se empatar, preferir com push_name
             if (a.push_name && !b.push_name) return -1;
             if (!a.push_name && b.push_name) return 1;
             
-            // Preferir @s.whatsapp.net
-            const aIsNormal = a.remote_jid.includes('@s.whatsapp.net');
-            const bIsNormal = b.remote_jid.includes('@s.whatsapp.net');
-            if (aIsNormal && !bIsNormal) return -1;
-            if (!aIsNormal && bIsNormal) return 1;
-            
-            // Preferir mais recente
+            // 3. Preferir mais recente
             const aDate = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
             const bDate = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
             return bDate - aDate;
@@ -451,8 +453,8 @@ serve(async (req) => {
           const primaryChat = chatsGroup[0];
           const duplicateChats = chatsGroup.slice(1);
           
-          console.log(`Primary chat: ${primaryChat.remote_jid} (${primaryChat.push_name})`);
-          console.log(`Duplicates to merge: ${duplicateChats.map(c => c.remote_jid).join(', ')}`);
+          console.log(`Primary chat (will keep): ${primaryChat.remote_jid} (${primaryChat.push_name})`);
+          console.log(`Duplicates to merge and delete: ${duplicateChats.map(c => c.remote_jid).join(', ')}`);
           
           for (const duplicate of duplicateChats) {
             // Mover todas as mensagens do chat duplicado para o principal
@@ -466,8 +468,17 @@ serve(async (req) => {
             
             if (moveError) {
               console.error(`Error moving messages from ${duplicate.remote_jid}:`, moveError);
-              continue;
             }
+            
+            // Também mover mensagens pelo remote_jid antigo
+            await supabase
+              .from('evolution_messages')
+              .update({ 
+                chat_id: primaryChat.id,
+                remote_jid: primaryChat.remote_jid
+              })
+              .eq('remote_jid', duplicate.remote_jid)
+              .eq('instance_name', instance_name);
             
             // Deletar o chat duplicado
             const { error: deleteError } = await supabase
@@ -644,52 +655,25 @@ serve(async (req) => {
       // Determinar o formato correto do número
       // @lid = Business ID interno, precisa enviar o remoteJid completo
       // @g.us = Grupo, precisa enviar o remoteJid completo  
-      // @s.whatsapp.net = Número normal, pode extrair só o número
+      // @s.whatsapp.net = Número normal
       const isGroup = remote_jid.includes('@g.us');
       const isLid = remote_jid.includes('@lid');
       
       let requestBody;
       
-      // Se o JID atual é @s.whatsapp.net, verificar se o contato tem um @lid associado
-      // Pois mensagens recebidas de @lid devem ser respondidas para @lid
-      if (!isGroup && !isLid && remote_jid.includes('@s.whatsapp.net')) {
-        // Extrair o número do JID
-        const phoneNumber = remote_jid.replace('@s.whatsapp.net', '');
-        
-        // Buscar a última mensagem recebida (from_me = false) deste contato
-        // para descobrir qual JID ele realmente usa
-        const { data: lastReceivedMsg } = await supabase
-          .from('evolution_messages')
-          .select('remote_jid')
-          .eq('instance_name', instance_name)
-          .eq('from_me', false)
-          .or(`remote_jid.like.${phoneNumber}%,remote_jid.like.%${phoneNumber.slice(-8)}%`)
-          .order('timestamp', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (lastReceivedMsg?.remote_jid) {
-          const receivedJid = lastReceivedMsg.remote_jid;
-          console.log(`Found last received message JID: ${receivedJid}`);
-          
-          // Se a última mensagem recebida foi de um @lid, usar esse JID
-          if (receivedJid.includes('@lid')) {
-            console.log(`Using @lid JID for response: ${receivedJid}`);
-            requestBody = { number: receivedJid, text };
-          } else {
-            // Usar o número normal
-            requestBody = { number: phoneNumber, text };
-          }
-        } else {
-          // Não encontrou mensagem recebida, usar o número normal
-          requestBody = { number: phoneNumber, text };
-        }
-      } else if (isGroup || isLid) {
-        // Para grupos e contatos @lid, enviar o remoteJid completo
+      if (isLid) {
+        // @lid: enviar o JID completo - IMPORTANTE para Business IDs
+        console.log(`Sending to @lid: ${remote_jid}`);
+        requestBody = { number: remote_jid, text };
+      } else if (isGroup) {
+        // Grupos: enviar JID completo
+        console.log(`Sending to group: ${remote_jid}`);
         requestBody = { number: remote_jid, text };
       } else {
-        // Para contatos normais @s.whatsapp.net, extrair só o número
-        requestBody = { number: remote_jid.replace('@s.whatsapp.net', ''), text };
+        // @s.whatsapp.net: extrair o número
+        const phoneNumber = remote_jid.replace('@s.whatsapp.net', '');
+        console.log(`Sending to phone number: ${phoneNumber}`);
+        requestBody = { number: phoneNumber, text };
       }
       
       console.log(`Request body: ${JSON.stringify(requestBody)}`);
