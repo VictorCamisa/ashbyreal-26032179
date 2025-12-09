@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWhatsApp, WhatsAppConversa } from '@/hooks/useWhatsApp';
+import { supabase } from '@/integrations/supabase/client';
 import { WhatsAppKPIs } from '@/components/whatsapp/WhatsAppKPIs';
 import { ConversasList } from '@/components/whatsapp/ConversasList';
 import { ChatView } from '@/components/whatsapp/ChatView';
@@ -38,7 +39,6 @@ export default function WhatsApp() {
   // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(() => {
-    // Carrega instance_name do localStorage na inicialização
     return localStorage.getItem('whatsapp_instance_name');
   });
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
@@ -48,57 +48,79 @@ export default function WhatsApp() {
     conversaSelecionada?.id || ''
   );
 
+  // Busca instance_name do Supabase se não tiver no localStorage
+  const getInstanceName = useCallback(async (): Promise<string> => {
+    // Primeiro tenta localStorage
+    const stored = instanceName || localStorage.getItem('whatsapp_instance_name');
+    if (stored) {
+      return stored;
+    }
+
+    // Se não tem, busca do Supabase
+    const { data, error } = await supabase
+      .from('whatsapp_instances')
+      .select('instance_name')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data?.instance_name) {
+      console.log('Nenhuma instância ativa encontrada no Supabase');
+      return '';
+    }
+
+    // Salva no localStorage para próximas chamadas
+    localStorage.setItem('whatsapp_instance_name', data.instance_name);
+    setInstanceName(data.instance_name);
+    return data.instance_name;
+  }, [instanceName]);
+
   const fetchWhatsappStatus = useCallback(async () => {
     setIsLoadingStatus(true);
     setStatusError(null);
     
-    // Pega instance_name do state ou localStorage
-    const storedInstanceName = instanceName || localStorage.getItem('whatsapp_instance_name') || '';
+    // Busca instance_name (localStorage ou Supabase)
+    const currentInstanceName = await getInstanceName();
     
     console.log('=== INICIANDO VERIFICAÇÃO DE STATUS ===');
-    console.log('Instance name:', storedInstanceName || '(vazio)');
+    console.log('Instance name:', currentInstanceName || '(vazio)');
     console.log('URL:', STATUS_URL);
     
     try {
-      // SEMPRE faz POST para o proxy - o backend decide o que retornar
+      // POST para o proxy com instance_name no body
       const response = await fetch(STATUS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instance_name: storedInstanceName }),
+        body: JSON.stringify({ instance_name: currentInstanceName }),
       });
 
       console.log('Response status:', response.status);
 
-      // Aguarda a resposta JSON completa
       const data = await response.json();
-      console.log('Status response:', data);
+      console.log('Status response:', JSON.stringify(data, null, 2));
 
-      // Verifica se houve erro ou JSON vazio
       if (!data) {
         setStatusError('Não foi possível verificar o status da conexão.');
         setIsConnected(false);
         return;
       }
 
-      // Se tem erro na resposta, exibe
       if (data.error) {
         setStatusError(data.error);
         setIsConnected(false);
         return;
       }
 
-      // Atualiza estados conforme resposta do n8n
-      // Formato esperado: { found, instance_name, is_connected, client_slug }
+      // Atualiza estados conforme resposta
       const connected = data.is_connected === true;
       setIsConnected(connected);
       
-      // Atualiza instance_name se retornado
       if (data.instance_name) {
         setInstanceName(data.instance_name);
         localStorage.setItem('whatsapp_instance_name', data.instance_name);
       }
       
-      // Armazena client_slug se retornado
       if (data.client_slug) {
         localStorage.setItem('whatsapp_client_slug', data.client_slug);
       }
@@ -110,7 +132,7 @@ export default function WhatsApp() {
     } finally {
       setIsLoadingStatus(false);
     }
-  }, [instanceName]);
+  }, [getInstanceName]);
 
   useEffect(() => {
     fetchWhatsappStatus();
