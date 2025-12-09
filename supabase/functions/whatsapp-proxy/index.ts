@@ -49,17 +49,9 @@ serve(async (req) => {
       );
     }
 
-    if (action === "status" && !body.instance_name) {
-      // Se não tem instance_name, retorna erro específico
-      console.log("Status check without instance_name");
-      return new Response(
-        JSON.stringify({ 
-          found: false, 
-          is_connected: false, 
-          error: "Instance_name não encontrado no sistema." 
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Log instance_name status
+    if (action === "status") {
+      console.log("Status check with instance_name:", body.instance_name || "(empty)");
     }
 
     console.log(`Proxying ${action} request to ${targetUrl} with body:`, JSON.stringify(body));
