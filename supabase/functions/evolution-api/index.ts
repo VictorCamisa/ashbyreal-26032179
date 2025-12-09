@@ -307,6 +307,43 @@ serve(async (req) => {
         }
       }
 
+      // === DELETAR CHATS QUE NÃO EXISTEM MAIS NO WHATSAPP ===
+      // Criar lista de remote_jids que vieram do WhatsApp
+      const whatsappJids = new Set(
+        chatsData
+          .map(c => c.remoteJid || c.id || c.jid)
+          .filter(Boolean)
+      );
+      
+      console.log(`WhatsApp has ${whatsappJids.size} chats`);
+
+      // Buscar todos os chats desta instância no banco
+      const { data: dbChats, error: dbError } = await supabase
+        .from('evolution_chats')
+        .select('id, remote_jid')
+        .eq('instance_name', instance_name);
+
+      if (!dbError && dbChats) {
+        // Deletar chats que não existem mais no WhatsApp
+        for (const dbChat of dbChats) {
+          if (!whatsappJids.has(dbChat.remote_jid)) {
+            console.log(`Deleting chat no longer in WhatsApp: ${dbChat.remote_jid}`);
+            
+            // Deletar mensagens primeiro
+            await supabase
+              .from('evolution_messages')
+              .delete()
+              .eq('chat_id', dbChat.id);
+            
+            // Deletar o chat
+            await supabase
+              .from('evolution_chats')
+              .delete()
+              .eq('id', dbChat.id);
+          }
+        }
+      }
+
       // === MESCLAR CHATS DUPLICADOS ===
       // Buscar todos os chats desta instância
       const { data: existingChats, error: fetchError } = await supabase
