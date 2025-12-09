@@ -32,7 +32,7 @@ serve(async (req) => {
     }
 
     // Get body from request if present
-    let body = null;
+    let body: Record<string, unknown> = {};
     if (req.method === "POST") {
       try {
         body = await req.json();
@@ -41,12 +41,29 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Proxying ${action} request to ${targetUrl}`);
+    // Validate required fields based on action
+    if (action === "qrcode" && !body.client_slug) {
+      return new Response(
+        JSON.stringify({ error: "client_slug is required for QR code generation" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (action === "status" && !body.instance_name) {
+      // Se não tem instance_name, retorna "não conectado" em vez de erro
+      console.log("Status check without instance_name - returning not connected");
+      return new Response(
+        JSON.stringify({ connected: false, isConnected: false, message: "No instance configured" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Proxying ${action} request to ${targetUrl} with body:`, JSON.stringify(body));
 
     const response = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
