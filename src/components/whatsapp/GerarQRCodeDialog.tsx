@@ -9,8 +9,10 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
-const STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
-const QR_CODE_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/getqrcode';
+// Edge function proxy URLs
+const PROXY_BASE = 'https://chmhbrcugswwmpqzhugs.supabase.co/functions/v1/whatsapp-proxy';
+const QR_CODE_URL = `${PROXY_BASE}?action=qrcode`;
+const STATUS_URL = `${PROXY_BASE}?action=status`;
 
 interface GerarQRCodeDialogProps {
   open: boolean;
@@ -45,17 +47,11 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     setError(null);
 
     try {
-      // Tenta primeiro com GET
-      let response = await fetch(QR_CODE_URL, { method: 'GET' });
-      
-      // Se GET falhar, tenta POST
-      if (!response.ok) {
-        response = await fetch(QR_CODE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-      }
+      const response = await fetch(QR_CODE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
