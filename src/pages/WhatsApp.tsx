@@ -49,37 +49,40 @@ export default function WhatsApp() {
   );
 
   const fetchWhatsappStatus = useCallback(async () => {
-    // Precisa do instance_name para verificar status
-    const storedInstanceName = instanceName || localStorage.getItem('whatsapp_instance_name');
-    
-    if (!storedInstanceName) {
-      console.log('Sem instance_name configurado');
-      setStatusError('Instance_name não encontrado no sistema.');
-      setIsConnected(false);
-      setIsLoadingStatus(false);
-      return;
-    }
-    
     setIsLoadingStatus(true);
     setStatusError(null);
     
+    // Pega instance_name do state ou localStorage
+    const storedInstanceName = instanceName || localStorage.getItem('whatsapp_instance_name') || '';
+    
+    console.log('=== INICIANDO VERIFICAÇÃO DE STATUS ===');
+    console.log('Instance name:', storedInstanceName || '(vazio)');
+    console.log('URL:', STATUS_URL);
+    
     try {
-      console.log('Verificando status para instance_name:', storedInstanceName);
-      
-      // POST para o proxy com instance_name no body
+      // SEMPRE faz POST para o proxy - o backend decide o que retornar
       const response = await fetch(STATUS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instance_name: storedInstanceName }),
       });
 
+      console.log('Response status:', response.status);
+
       // Aguarda a resposta JSON completa
       const data = await response.json();
       console.log('Status response:', data);
 
       // Verifica se houve erro ou JSON vazio
-      if (!data || data.error) {
-        setStatusError(data?.error || 'Não foi possível verificar o status da conexão.');
+      if (!data) {
+        setStatusError('Não foi possível verificar o status da conexão.');
+        setIsConnected(false);
+        return;
+      }
+
+      // Se tem erro na resposta, exibe
+      if (data.error) {
+        setStatusError(data.error);
         setIsConnected(false);
         return;
       }
