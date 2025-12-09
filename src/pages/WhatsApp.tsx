@@ -18,7 +18,7 @@ import {
   FileText
 } from 'lucide-react';
 
-const STATUS_URL = 'https://victoecamisavs.app.n8n.cloud/webhook/whatsapp/checkstatus';
+const STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
 
 export default function WhatsApp() {
   const {
