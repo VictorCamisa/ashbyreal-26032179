@@ -39,9 +39,7 @@ export default function WhatsApp() {
   
   // Connection states
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  const [instanceName, setInstanceName] = useState<string | null>(() => {
-    return localStorage.getItem('whatsapp_instance_name');
-  });
+  const [instanceName, setInstanceName] = useState<string | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
@@ -62,15 +60,9 @@ export default function WhatsApp() {
     conversaSelecionada?.remote_jid || null
   );
 
-  // Busca instance_name: primeiro do state/localStorage, depois do Supabase
+  // Busca instance_name do Supabase (sempre busca do banco para garantir valor correto)
   const getInstanceName = useCallback(async (): Promise<string | null> => {
     if (instanceName) return instanceName;
-
-    const stored = localStorage.getItem('whatsapp_instance_name');
-    if (stored) {
-      setInstanceName(stored);
-      return stored;
-    }
 
     const clientSlug = localStorage.getItem('whatsapp_client_slug') || DEFAULT_CLIENT_SLUG;
     
