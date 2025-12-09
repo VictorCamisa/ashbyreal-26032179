@@ -49,17 +49,29 @@ export default function WhatsApp() {
     setStatusError(null);
     
     try {
-      const response = await fetch(STATUS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      // Tenta primeiro com GET
+      let response = await fetch(STATUS_URL, { method: 'GET' });
+      
+      // Se GET falhar, tenta POST
+      if (!response.ok) {
+        response = await fetch(STATUS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data = await response.json() as {
+      const text = await response.text();
+      if (!text) {
+        setIsConnected(false);
+        return;
+      }
+
+      const data = JSON.parse(text) as {
         state?: string;
         instanceName?: string;
         isConnected?: boolean;

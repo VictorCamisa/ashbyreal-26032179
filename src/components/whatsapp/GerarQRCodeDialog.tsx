@@ -45,13 +45,19 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     setError(null);
 
     try {
-      const response = await fetch(QR_CODE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      // Tenta primeiro com GET
+      let response = await fetch(QR_CODE_URL, { method: 'GET' });
+      
+      // Se GET falhar, tenta POST
+      if (!response.ok) {
+        response = await fetch(QR_CODE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+      }
 
-      if (!response.ok) throw new Error('Falha na requisição');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
       console.log('QR Code Response:', data);
@@ -80,11 +86,17 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
 
   const checkConnectionStatus = async () => {
     try {
-      const response = await fetch(STATUS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      // Tenta primeiro com GET
+      let response = await fetch(STATUS_URL, { method: 'GET' });
+      
+      // Se GET falhar, tenta POST
+      if (!response.ok) {
+        response = await fetch(STATUS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+      }
 
       if (!response.ok) return;
 
