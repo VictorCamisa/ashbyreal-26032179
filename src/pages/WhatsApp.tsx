@@ -29,8 +29,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// URLs diretas do n8n
-const N8N_STATUS_URL = 'https://vssolutionscamisa.app.n8n.cloud/webhook/whatsapp/checkstatus';
+// Constantes
 const DEFAULT_CLIENT_SLUG = 'ashby';
 
 export default function WhatsApp() {
@@ -107,7 +106,7 @@ export default function WhatsApp() {
     return data.instance_name;
   }, [instanceName]);
 
-  // Verifica status da conexão WhatsApp
+  // Verifica status da conexão WhatsApp diretamente na Evolution API
   const fetchWhatsappStatus = useCallback(async () => {
     setIsLoadingStatus(true);
     setStatusError(null);
@@ -122,37 +121,40 @@ export default function WhatsApp() {
         return;
       }
 
-      const response = await fetch(N8N_STATUS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instance_name: currentInstanceName }),
+      // Chamar a Edge Function para verificar o status diretamente na Evolution API
+      const { data, error } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'check_connection',
+          instance_name: currentInstanceName,
+        },
       });
 
-      if (!response.ok) {
+      if (error) {
+        console.error('Erro ao verificar status:', error);
         setStatusError('Erro ao verificar');
         setIsConnected(false);
         return;
       }
 
-      const data = await response.json();
+      console.log('Status da conexão:', data);
 
-      if (data.found === false) {
-        setStatusError('Instância não encontrada');
-        setIsConnected(false);
-        return;
-      }
-
-      const connected = data.is_connected === true;
+      const connected = data?.connected === true;
       setIsConnected(connected);
-      setStatusError(null);
       
-      if (data.instance_name) {
-        setInstanceName(data.instance_name);
-        localStorage.setItem('whatsapp_instance_name', data.instance_name);
-      }
-      
-      if (data.client_slug) {
-        localStorage.setItem('whatsapp_client_slug', data.client_slug);
+      if (!connected) {
+        // Se desconectado, limpar localStorage e mostrar estado apropriado
+        const state = data?.state || 'disconnected';
+        if (state === 'not_found') {
+          setStatusError('Instância não encontrada');
+          localStorage.removeItem('whatsapp_instance_name');
+          setInstanceName(null);
+        } else if (state === 'close') {
+          setStatusError('Sessão encerrada');
+        } else {
+          setStatusError('Desconectado');
+        }
+      } else {
+        setStatusError(null);
       }
       
     } catch (err) {
