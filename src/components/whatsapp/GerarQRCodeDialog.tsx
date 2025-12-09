@@ -88,19 +88,30 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
 
       if (!response.ok) return;
 
-      const data = await response.json();
+      const text = await response.text();
+      if (!text) return;
       
-      if (data?.isConnected === true) {
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.log('Resposta não é JSON:', text.substring(0, 100));
+        return;
+      }
+      
+      const isConnected = data?.isConnected === true || data?.connected === true || data?.status === 'connected';
+      
+      if (isConnected) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
         toast.success('WhatsApp conectado!');
-        onConnected(data.instanceName || 'WhatsApp');
+        onConnected(data.instanceName || data.instance || 'WhatsApp');
         onOpenChange(false);
       }
     } catch (err) {
-      console.error('Erro ao verificar status:', err);
+      console.log('Verificando status...');
     }
   };
 
