@@ -1,7 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Users, Target, Package, MessageSquare, DollarSign } from 'lucide-react';
+import { DollarSign, Users, Target, Package, MessageSquare, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import { DashboardData } from '@/hooks/useDashboard';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface DashboardKPIsProps {
   data?: DashboardData;
@@ -11,18 +9,13 @@ interface DashboardKPIsProps {
 export function DashboardKPIs({ data, isLoading }: DashboardKPIsProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[...Array(6)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-4 rounded" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-32 mb-2" />
-              <Skeleton className="h-3 w-24" />
-            </CardContent>
-          </Card>
+          <div key={i} className="glass-card p-5 animate-pulse">
+            <div className="h-4 w-20 bg-muted/50 rounded mb-3" />
+            <div className="h-7 w-24 bg-muted/50 rounded mb-2" />
+            <div className="h-3 w-16 bg-muted/50 rounded" />
+          </div>
         ))}
       </div>
     );
@@ -38,87 +31,94 @@ export function DashboardKPIs({ data, isLoading }: DashboardKPIsProps) {
         currency: 'BRL',
       }).format(data.vendas.total),
       icon: DollarSign,
-      change: `${data.vendas.crescimento >= 0 ? '+' : ''}${data.vendas.crescimento.toFixed(1)}%`,
-      changeType: data.vendas.crescimento >= 0 ? 'positive' : 'negative',
+      change: data.vendas.crescimento,
       subtitle: `${data.vendas.quantidade} pedidos`,
+      color: 'text-emerald-500',
+      bgColor: 'bg-emerald-500/10',
     },
     {
-      title: 'Total de Clientes',
+      title: 'Clientes',
       value: data.clientes.total.toString(),
       icon: Users,
-      change: `${data.clientes.crescimento >= 0 ? '+' : ''}${data.clientes.crescimento.toFixed(1)}%`,
-      changeType: data.clientes.crescimento >= 0 ? 'positive' : 'negative',
-      subtitle: `${data.clientes.novos} novos este mês`,
+      change: data.clientes.crescimento,
+      subtitle: `${data.clientes.novos} novos`,
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
     },
     {
       title: 'Leads Ativos',
       value: data.leads.total.toString(),
       icon: Target,
-      change: `${data.leads.conversao.toFixed(1)}% conversão`,
-      changeType: 'neutral',
-      subtitle: 'Taxa de conversão',
+      change: null,
+      subtitle: `${data.leads.conversao.toFixed(1)}% conversão`,
+      color: 'text-violet-500',
+      bgColor: 'bg-violet-500/10',
     },
     {
-      title: 'Valor em Estoque',
+      title: 'Valor Estoque',
       value: new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',
+        notation: 'compact',
       }).format(data.estoque.valor),
       icon: Package,
-      change: data.estoque.alertas > 0 ? `${data.estoque.alertas} alertas` : 'Tudo OK',
-      changeType: data.estoque.alertas > 0 ? 'negative' : 'positive',
+      change: null,
       subtitle: `${data.estoque.total} unidades`,
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
     },
     {
-      title: 'Campanhas Ativas',
+      title: 'Campanhas',
       value: data.campanhas.total.toString(),
       icon: MessageSquare,
-      change: `${data.campanhas.taxaResposta.toFixed(1)}% resposta`,
-      changeType: 'neutral',
-      subtitle: 'Taxa de resposta',
+      change: null,
+      subtitle: `${data.campanhas.taxaResposta.toFixed(1)}% resposta`,
+      color: 'text-cyan-500',
+      bgColor: 'bg-cyan-500/10',
     },
     {
-      title: 'Alertas de Estoque',
+      title: 'Alertas',
       value: data.estoque.alertas.toString(),
-      icon: TrendingDown,
-      change: data.estoque.alertas > 0 ? 'Atenção necessária' : 'Tudo OK',
-      changeType: data.estoque.alertas > 0 ? 'negative' : 'positive',
-      subtitle: 'Produtos abaixo do mínimo',
+      icon: AlertTriangle,
+      change: null,
+      subtitle: 'Estoque baixo',
+      color: data.estoque.alertas > 0 ? 'text-rose-500' : 'text-emerald-500',
+      bgColor: data.estoque.alertas > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       {kpis.map((kpi) => (
-        <Card key={kpi.title} className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
-            <kpi.icon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpi.value}</div>
-            <div className="flex items-center gap-1 mt-1">
-              {kpi.changeType === 'positive' && (
-                <TrendingUp className="h-3 w-3 text-green-500" />
-              )}
-              {kpi.changeType === 'negative' && (
-                <TrendingDown className="h-3 w-3 text-red-500" />
-              )}
-              <p
-                className={`text-xs ${
-                  kpi.changeType === 'positive'
-                    ? 'text-green-500'
-                    : kpi.changeType === 'negative'
-                    ? 'text-red-500'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {kpi.change}
-              </p>
+        <div
+          key={kpi.title}
+          className="glass-card p-5 group hover:scale-[1.02] transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-muted-foreground">{kpi.title}</span>
+            <div className={`h-8 w-8 rounded-xl ${kpi.bgColor} flex items-center justify-center`}>
+              <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{kpi.subtitle}</p>
-          </CardContent>
-        </Card>
+          </div>
+          
+          <p className="text-xl font-semibold tracking-tight mb-1">{kpi.value}</p>
+          
+          <div className="flex items-center gap-1.5">
+            {kpi.change !== null && (
+              <>
+                {kpi.change >= 0 ? (
+                  <TrendingUp className="h-3 w-3 text-emerald-500" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-rose-500" />
+                )}
+                <span className={`text-xs font-medium ${kpi.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {kpi.change >= 0 ? '+' : ''}{kpi.change.toFixed(1)}%
+                </span>
+              </>
+            )}
+            <span className="text-xs text-muted-foreground">{kpi.subtitle}</span>
+          </div>
+        </div>
       ))}
     </div>
   );
