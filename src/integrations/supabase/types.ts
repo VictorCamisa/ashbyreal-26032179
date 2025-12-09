@@ -515,6 +515,7 @@ export type Database = {
           is_group: boolean | null
           last_message: string | null
           last_message_at: string | null
+          linked_to_chat_id: string | null
           profile_pic_url: string | null
           push_name: string | null
           remote_jid: string
@@ -528,6 +529,7 @@ export type Database = {
           is_group?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
+          linked_to_chat_id?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid: string
@@ -541,13 +543,22 @@ export type Database = {
           is_group?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
+          linked_to_chat_id?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid?: string
           unread_count?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "evolution_chats_linked_to_chat_id_fkey"
+            columns: ["linked_to_chat_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_chats"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       evolution_messages: {
         Row: {
