@@ -66,7 +66,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
         toast.success('QR Code gerado com sucesso!');
       } else {
         console.error('Resposta sem QR Code:', data);
-        setError('QR Code não encontrado na resposta');
+        setError('O servidor retornou resposta vazia. Verifique se a instância do WhatsApp está configurada no n8n/Evolution API.');
       }
     } catch (err) {
       console.error('Erro ao buscar QR Code:', err);
