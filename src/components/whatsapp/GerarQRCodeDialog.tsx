@@ -100,14 +100,27 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       }
       
       const isConnected = data?.isConnected === true || data?.connected === true || data?.status === 'connected';
+      const instanceName = data.instanceName || data.instance || 'WhatsApp';
       
       if (isConnected) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
+        
+        // Envia o nome da instância para o webhook
+        try {
+          await fetch(STATUS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instanceName, connected: true }),
+          });
+        } catch (err) {
+          console.log('Erro ao notificar conexão:', err);
+        }
+        
         toast.success('WhatsApp conectado!');
-        onConnected(data.instanceName || data.instance || 'WhatsApp');
+        onConnected(instanceName);
         onOpenChange(false);
       }
     } catch (err) {
