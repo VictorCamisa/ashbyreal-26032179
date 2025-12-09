@@ -68,8 +68,9 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       console.log('QR Code Response:', data);
       
       // Tenta diferentes campos possíveis na resposta
-      const qrCodeValue = data?.qrCode || data?.qrcode || data?.base64 || data?.image || data?.qr || null;
-      const pairingCodeValue = data?.pairingCode || data?.pairingcode || data?.code || null;
+      // IMPORTANTE: 'code' NÃO é pairing code - é dado interno do WhatsApp, não exibir
+      const qrCodeValue = data?.base64 || data?.qrCode || data?.qrcode || data?.image || data?.qr || null;
+      const pairingCodeValue = data?.pairingCode || data?.pairingcode || null;
       const instanceNameValue = data?.instanceName || data?.instance_name || data?.instance || CLIENT_SLUG;
       
       if (qrCodeValue) {
