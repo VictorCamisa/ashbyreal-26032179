@@ -8,11 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { QrCode, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Edge function proxy URLs
-const PROXY_BASE = 'https://chmhbrcugswwmpqzhugs.supabase.co/functions/v1/whatsapp-proxy';
-const QR_CODE_URL = `${PROXY_BASE}?action=qrcode`;
-const STATUS_URL = `${PROXY_BASE}?action=status`;
+import { supabase } from '@/integrations/supabase/client';
 
 // Client slug padrão para a instância WhatsApp
 const CLIENT_SLUG = 'ashby';
@@ -29,7 +25,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentInstanceName, setCurrentInstanceName] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Formata o QR code para exibição (adiciona prefixo base64 se necessário)
   const formatQrCodeSrc = (qrCodeData: string): string => {
@@ -51,27 +47,29 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     setError(null);
 
     try {
-      console.log('Enviando request para QR Code com client_slug:', CLIENT_SLUG);
+      console.log('Criando nova instância WhatsApp...');
       
-      const response = await fetch(QR_CODE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_slug: CLIENT_SLUG }),
+      // Chamar a Edge Function para criar instância
+      const { data, error: fnError } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'create_instance',
+          client_slug: CLIENT_SLUG,
+        },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+      if (fnError) {
+        throw new Error(fnError.message);
       }
 
-      const data = await response.json();
-      console.log('QR Code Response:', data);
+      console.log('Resposta da criação:', data);
       
-      // Tenta diferentes campos possíveis na resposta
-      // IMPORTANTE: 'code' NÃO é pairing code - é dado interno do WhatsApp, não exibir
-      const qrCodeValue = data?.base64 || data?.qrCode || data?.qrcode || data?.image || data?.qr || null;
-      const pairingCodeValue = data?.pairingCode || data?.pairingcode || null;
-      const instanceNameValue = data?.instanceName || data?.instance_name || data?.instance || CLIENT_SLUG;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao criar instância');
+      }
+
+      const qrCodeValue = data?.qrcode;
+      const pairingCodeValue = data?.pairingCode;
+      const instanceNameValue = data?.instance_name;
       
       if (qrCodeValue) {
         setQrCode(qrCodeValue);
@@ -79,15 +77,18 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
         setCurrentInstanceName(instanceNameValue);
         
         // Salva o instance_name no localStorage para uso futuro
-        localStorage.setItem('whatsapp_instance_name', instanceNameValue);
+        if (instanceNameValue) {
+          localStorage.setItem('whatsapp_instance_name', instanceNameValue);
+          localStorage.setItem('whatsapp_client_slug', CLIENT_SLUG);
+        }
         
         toast.success('QR Code gerado com sucesso!');
       } else {
         console.error('Resposta sem QR Code:', data);
-        setError(data?.error || 'O servidor retornou resposta vazia. Verifique se a instância do WhatsApp está configurada.');
+        setError('Não foi possível gerar o QR Code. Tente novamente.');
       }
     } catch (err) {
-      console.error('Erro ao buscar QR Code:', err);
+      console.error('Erro ao criar instância:', err);
       setError(err instanceof Error ? err.message : 'Erro ao gerar QR Code. Tente novamente.');
       setQrCode(null);
       setPairingCode(null);
@@ -97,7 +98,6 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
   };
 
   const checkConnectionStatus = async () => {
-    // Precisa do instance_name para verificar status
     const instanceName = currentInstanceName || localStorage.getItem('whatsapp_instance_name');
     
     if (!instanceName) {
@@ -106,31 +106,23 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     }
     
     try {
-      console.log('Verificando status para instance_name:', instanceName);
+      console.log('Verificando conexão para:', instanceName);
       
-      const response = await fetch(STATUS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instance_name: instanceName }),
+      const { data, error: fnError } = await supabase.functions.invoke('evolution-api', {
+        body: {
+          action: 'check_connection',
+          instance_name: instanceName,
+        },
       });
 
-      if (!response.ok) return;
-
-      const text = await response.text();
-      if (!text) return;
-      
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.log('Resposta não é JSON:', text.substring(0, 100));
+      if (fnError) {
+        console.error('Erro ao verificar status:', fnError);
         return;
       }
       
-      console.log('Status response:', data);
+      console.log('Status da conexão:', data);
       
-      const isConnected = data?.isConnected === true || data?.connected === true || data?.status === 'connected';
-      const connectedInstanceName = data?.instanceName || data?.instance_name || instanceName;
+      const isConnected = data?.connected === true;
       
       if (isConnected) {
         if (intervalRef.current) {
@@ -138,11 +130,14 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
           intervalRef.current = null;
         }
         
-        // Salva o instance_name no localStorage
-        localStorage.setItem('whatsapp_instance_name', connectedInstanceName);
+        // Atualizar no banco
+        await supabase
+          .from('whatsapp_instances')
+          .update({ is_connected: true })
+          .eq('instance_name', instanceName);
         
         toast.success('WhatsApp conectado!');
-        onConnected(connectedInstanceName);
+        onConnected(instanceName);
         onOpenChange(false);
       }
     } catch (err) {
@@ -205,7 +200,7 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
           {loading && (
             <div className="flex flex-col items-center gap-3 py-8">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Gerando...</p>
+              <p className="text-sm text-muted-foreground">Criando instância...</p>
             </div>
           )}
 

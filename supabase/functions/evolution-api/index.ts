@@ -38,6 +38,119 @@ serve(async (req) => {
     // Remove trailing slash from URL if present
     const baseUrl = EVOLUTION_API_URL.replace(/\/$/, '');
 
+    // Criar nova instância WhatsApp
+    if (action === 'create_instance') {
+      const { client_slug } = body;
+      const newInstanceName = `${client_slug || 'whatsapp'}-${Date.now()}`;
+      
+      console.log(`Creating new instance: ${newInstanceName}`);
+      
+      // POST /instance/create
+      const url = `${baseUrl}/instance/create`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'apikey': EVOLUTION_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instanceName: newInstanceName,
+          qrcode: true,
+          integration: 'WHATSAPP-BAILEYS',
+        }),
+      });
+
+      console.log(`Create instance response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error creating instance: ${errorText}`);
+        throw new Error(`Failed to create instance: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`Instance created:`, JSON.stringify(result));
+      
+      // Salvar instância no Supabase
+      const { error: dbError } = await supabase
+        .from('whatsapp_instances')
+        .upsert({
+          instance_name: newInstanceName,
+          client_slug: client_slug || 'default',
+          is_active: true,
+          is_connected: false,
+        }, { onConflict: 'instance_name' });
+
+      if (dbError) {
+        console.error('Error saving instance to DB:', dbError);
+      }
+
+      // Extrair QR code da resposta
+      const qrCode = result?.qrcode?.base64 || result?.base64 || result?.qr || null;
+      const pairingCode = result?.qrcode?.pairingCode || result?.pairingCode || null;
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        instance_name: newInstanceName,
+        qrcode: qrCode,
+        pairingCode: pairingCode,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Obter QR code de uma instância existente
+    if (action === 'get_qrcode') {
+      console.log(`Getting QR code for instance: ${instance_name}`);
+      
+      // GET /instance/connect/{instance}
+      const url = `${baseUrl}/instance/connect/${instance_name}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': EVOLUTION_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`Get QR code response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error getting QR code: ${errorText}`);
+        
+        // Se a instância não existe, criar uma nova
+        if (response.status === 404 || errorText.includes('not found')) {
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: 'Instance not found',
+            create_new: true
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        throw new Error(`Failed to get QR code: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`QR code result:`, JSON.stringify(result));
+      
+      const qrCode = result?.base64 || result?.qrcode?.base64 || result?.qr || null;
+      const pairingCode = result?.pairingCode || result?.qrcode?.pairingCode || null;
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        instance_name: instance_name,
+        qrcode: qrCode,
+        pairingCode: pairingCode,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Verificar status de conexão diretamente na Evolution API
     if (action === 'check_connection') {
       // GET /instance/connectionState/{instance}
