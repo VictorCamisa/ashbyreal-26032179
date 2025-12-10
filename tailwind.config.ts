@@ -115,6 +115,7 @@ export default {
           "40%": { clipPath: "inset(0 0% 0 0)" },
           "60%": { clipPath: "inset(0 0% 0 0)" },
           "100%": { clipPath: "inset(0 100% 0 0)" },
+        },
         pulse: {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
