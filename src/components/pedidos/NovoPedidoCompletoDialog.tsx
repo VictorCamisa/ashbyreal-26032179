@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -32,6 +25,9 @@ import {
   Banknote,
   Smartphone,
   Receipt,
+  ArrowLeft,
+  ArrowRight,
+  Check,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePedidosMutations, CartItem } from '@/hooks/usePedidosMutations';
@@ -103,18 +99,26 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setProdutos(data || []);
   };
 
-  const filteredProdutos = produtos.filter(
-    (p) =>
-      p.nome.toLowerCase().includes(searchProduto.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchProduto.toLowerCase()) ||
-      p.categoria?.toLowerCase().includes(searchProduto.toLowerCase())
-  );
+  const filteredProdutos = useMemo(() => {
+    if (!searchProduto) return produtos;
+    const search = searchProduto.toLowerCase();
+    return produtos.filter(
+      (p) =>
+        p.nome.toLowerCase().includes(search) ||
+        p.sku?.toLowerCase().includes(search) ||
+        p.categoria?.toLowerCase().includes(search)
+    );
+  }, [produtos, searchProduto]);
 
-  const filteredClientes = clientes.filter(
-    (c) =>
-      c.nome.toLowerCase().includes(searchCliente.toLowerCase()) ||
-      c.telefone.includes(searchCliente)
-  );
+  const filteredClientes = useMemo(() => {
+    if (!searchCliente) return clientes;
+    const search = searchCliente.toLowerCase();
+    return clientes.filter(
+      (c) =>
+        c.nome.toLowerCase().includes(search) ||
+        c.telefone.includes(searchCliente)
+    );
+  }, [clientes, searchCliente]);
 
   const addToCart = (produto: Produto) => {
     const existing = cart.find((item) => item.produtoId === produto.id);
@@ -181,17 +185,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         dataEntrega,
       });
 
-      // Reset state
+      resetDialog();
       setOpen(false);
-      setStep('cliente');
-      setSelectedCliente(null);
-      setCart([]);
-      setMetodoPagamento('');
-      setObservacoes('');
-      setDataEntrega('');
-      setSearchProduto('');
-      setSearchCliente('');
-
       onSuccess?.();
     } catch (error) {
       // Error handled in mutation
@@ -209,6 +204,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setSearchCliente('');
   };
 
+  const stepIndex = ['cliente', 'produtos', 'pagamento'].indexOf(step);
+
   return (
     <Dialog
       open={open}
@@ -223,59 +220,60 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
           Nova Venda
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="text-xl">
-            {step === 'cliente' && 'Selecionar Cliente'}
-            {step === 'produtos' && 'Adicionar Produtos'}
-            {step === 'pagamento' && 'Finalizar Pedido'}
-          </DialogTitle>
-          {/* Progress Steps */}
-          <div className="flex items-center gap-2 mt-4">
-            {['cliente', 'produtos', 'pagamento'].map((s, i) => (
-              <div key={s} className="flex items-center">
-                <div
-                  className={cn(
-                    'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
-                    step === s
-                      ? 'bg-primary text-primary-foreground'
-                      : i < ['cliente', 'produtos', 'pagamento'].indexOf(step)
-                      ? 'bg-primary/20 text-primary'
-                      : 'bg-muted text-muted-foreground'
-                  )}
-                >
-                  {i + 1}
-                </div>
-                {i < 2 && (
-                  <div
+      <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0">
+        {/* Header with Steps */}
+        <DialogHeader className="px-6 py-4 border-b shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-semibold">
+              Nova Venda
+            </DialogTitle>
+            <div className="flex items-center gap-1">
+              {['Cliente', 'Produtos', 'Pagamento'].map((label, i) => (
+                <div key={label} className="flex items-center">
+                  <button
+                    onClick={() => {
+                      if (i === 0) setStep('cliente');
+                      else if (i === 1 && selectedCliente) setStep('produtos');
+                      else if (i === 2 && cart.length > 0) setStep('pagamento');
+                    }}
                     className={cn(
-                      'w-12 h-1 mx-1 rounded',
-                      i < ['cliente', 'produtos', 'pagamento'].indexOf(step)
-                        ? 'bg-primary/50'
-                        : 'bg-muted'
+                      'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors',
+                      i === stepIndex
+                        ? 'bg-primary text-primary-foreground'
+                        : i < stepIndex
+                        ? 'bg-primary/20 text-primary'
+                        : 'bg-muted text-muted-foreground'
                     )}
-                  />
-                )}
-              </div>
-            ))}
+                  >
+                    <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs font-medium">
+                      {i < stepIndex ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                  {i < 2 && <div className="w-6 h-px bg-border mx-1" />}
+                </div>
+              ))}
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden px-6">
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
           {/* Step 1: Cliente */}
           {step === 'cliente' && (
-            <div className="space-y-4 h-full flex flex-col">
-              <div className="relative">
+            <div className="h-full flex flex-col p-6">
+              <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar cliente por nome ou telefone..."
                   value={searchCliente}
                   onChange={(e) => setSearchCliente(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-11"
+                  autoFocus
                 />
               </div>
-              <ScrollArea className="flex-1">
-                <div className="grid gap-2 pr-4">
+              <ScrollArea className="flex-1 -mx-2 px-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {filteredClientes.map((cliente) => (
                     <button
                       key={cliente.id}
@@ -284,18 +282,18 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                         setStep('produtos');
                       }}
                       className={cn(
-                        'w-full p-4 rounded-lg border text-left transition-all hover:border-primary/50 hover:bg-muted/50',
+                        'p-4 rounded-xl border text-left transition-all hover:border-primary/50 hover:bg-muted/50',
                         selectedCliente?.id === cliente.id &&
-                          'border-primary bg-primary/5'
+                          'border-primary bg-primary/5 ring-2 ring-primary/20'
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                           <User className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="font-medium">{cliente.nome}</p>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{cliente.nome}</p>
+                          <p className="text-sm text-muted-foreground truncate">
                             {cliente.telefone}
                           </p>
                         </div>
@@ -303,9 +301,10 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     </button>
                   ))}
                   {filteredClientes.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum cliente encontrado
-                    </p>
+                    <div className="col-span-full text-center text-muted-foreground py-12">
+                      <User className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>Nenhum cliente encontrado</p>
+                    </div>
                   )}
                 </div>
               </ScrollArea>
@@ -314,9 +313,9 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
 
           {/* Step 2: Produtos */}
           {step === 'produtos' && (
-            <div className="grid grid-cols-5 gap-4 h-full">
-              {/* Products List */}
-              <div className="col-span-3 flex flex-col h-full">
+            <div className="h-full flex">
+              {/* Products Grid */}
+              <div className="flex-1 flex flex-col p-4 border-r">
                 <div className="relative mb-3">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -324,10 +323,11 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     value={searchProduto}
                     onChange={(e) => setSearchProduto(e.target.value)}
                     className="pl-10"
+                    autoFocus
                   />
                 </div>
                 <ScrollArea className="flex-1">
-                  <div className="grid grid-cols-2 gap-2 pr-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 pr-2">
                     {filteredProdutos.map((produto) => {
                       const inCart = cart.find((c) => c.produtoId === produto.id);
                       return (
@@ -335,31 +335,29 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                           key={produto.id}
                           onClick={() => addToCart(produto)}
                           className={cn(
-                            'p-3 rounded-lg border text-left transition-all hover:border-primary/50 hover:bg-muted/30',
+                            'p-3 rounded-lg border text-left transition-all hover:border-primary/50 hover:bg-muted/30 relative',
                             inCart && 'border-primary bg-primary/5'
                           )}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">
-                                {produto.nome}
-                              </p>
-                              {produto.categoria && (
-                                <Badge variant="secondary" className="text-xs mt-1">
-                                  {produto.categoria}
-                                </Badge>
-                              )}
-                            </div>
-                            {inCart && (
-                              <Badge className="shrink-0">{inCart.quantidade}</Badge>
-                            )}
-                          </div>
+                          {inCart && (
+                            <Badge className="absolute -top-2 -right-2 h-6 w-6 p-0 flex items-center justify-center">
+                              {inCart.quantidade}
+                            </Badge>
+                          )}
+                          <p className="font-medium text-sm truncate pr-4">
+                            {produto.nome}
+                          </p>
+                          {produto.categoria && (
+                            <Badge variant="secondary" className="text-xs mt-1.5">
+                              {produto.categoria}
+                            </Badge>
+                          )}
                           <div className="flex items-center justify-between mt-2">
-                            <span className="text-primary font-semibold">
+                            <span className="text-primary font-bold">
                               R$ {produto.preco.toFixed(2)}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              Est: {produto.estoque}
+                              {produto.estoque} un
                             </span>
                           </div>
                         </button>
@@ -369,33 +367,39 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                 </ScrollArea>
               </div>
 
-              {/* Cart */}
-              <div className="col-span-2 flex flex-col bg-muted/30 rounded-lg p-4 h-full">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4" />
-                    Carrinho
-                  </h3>
-                  <Badge variant="outline">{totalItems} itens</Badge>
+              {/* Cart Sidebar */}
+              <div className="w-80 flex flex-col bg-muted/20">
+                <div className="p-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4" />
+                      Carrinho
+                    </h3>
+                    <Badge variant="outline">{totalItems}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {selectedCliente?.nome}
+                  </p>
                 </div>
-                <Separator className="mb-3" />
-                <ScrollArea className="flex-1">
+
+                <ScrollArea className="flex-1 p-4">
                   {cart.length === 0 ? (
                     <div className="text-center text-muted-foreground py-8">
-                      <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">Carrinho vazio</p>
+                      <p className="text-xs mt-1">Clique nos produtos para adicionar</p>
                     </div>
                   ) : (
-                    <div className="space-y-2 pr-2">
+                    <div className="space-y-2">
                       {cart.map((item) => (
                         <div
                           key={item.produtoId}
-                          className="flex items-center gap-2 p-2 bg-background rounded-lg"
+                          className="flex items-center gap-2 p-3 bg-background rounded-lg"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{item.nome}</p>
-                            <p className="text-xs text-muted-foreground">
-                              R$ {item.precoUnitario.toFixed(2)} x {item.quantidade}
+                            <p className="text-xs text-primary font-semibold">
+                              R$ {(item.precoUnitario * item.quantidade).toFixed(2)}
                             </p>
                           </div>
                           <div className="flex items-center gap-1">
@@ -433,13 +437,9 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     </div>
                   )}
                 </ScrollArea>
-                <Separator className="my-3" />
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>R$ {totalValue.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold">
+
+                <div className="p-4 border-t bg-background">
+                  <div className="flex justify-between text-lg font-bold mb-3">
                     <span>Total</span>
                     <span className="text-primary">R$ {totalValue.toFixed(2)}</span>
                   </div>
@@ -450,70 +450,93 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
 
           {/* Step 3: Pagamento */}
           {step === 'pagamento' && (
-            <div className="space-y-6">
-              {/* Summary */}
-              <div className="p-4 bg-muted/30 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{selectedCliente?.nome}</span>
+            <ScrollArea className="h-full">
+              <div className="p-6 max-w-2xl mx-auto space-y-6">
+                {/* Summary */}
+                <div className="p-5 bg-muted/30 rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{selectedCliente?.nome}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Total</p>
+                      <p className="text-2xl font-bold text-primary">
+                        R$ {totalValue.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-                  <Badge variant="outline">{totalItems} itens</Badge>
+                  <Separator className="my-4" />
+                  <div className="space-y-1.5 text-sm">
+                    {cart.map((item) => (
+                      <div key={item.produtoId} className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          {item.quantidade}x {item.nome}
+                        </span>
+                        <span>R$ {(item.quantidade * item.precoUnitario).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-2xl font-bold text-primary">
-                  R$ {totalValue.toFixed(2)}
+
+                {/* Payment Method */}
+                <div className="space-y-3">
+                  <Label className="text-base">Forma de Pagamento</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {metodoPagamentoOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setMetodoPagamento(option.value)}
+                        className={cn(
+                          'p-4 rounded-xl border flex flex-col items-center gap-2 transition-all hover:border-primary/50',
+                          metodoPagamento === option.value &&
+                            'border-primary bg-primary/5 ring-2 ring-primary/20'
+                        )}
+                      >
+                        <option.icon className="h-6 w-6" />
+                        <span className="text-sm font-medium">{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delivery Date */}
+                <div className="space-y-2">
+                  <Label htmlFor="dataEntrega">Data de Entrega (opcional)</Label>
+                  <Input
+                    id="dataEntrega"
+                    type="date"
+                    value={dataEntrega}
+                    onChange={(e) => setDataEntrega(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div className="space-y-2">
+                  <Label htmlFor="observacoes">Observações</Label>
+                  <Textarea
+                    id="observacoes"
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    placeholder="Observações sobre o pedido..."
+                    rows={3}
+                  />
                 </div>
               </div>
-
-              {/* Payment Method */}
-              <div className="space-y-3">
-                <Label>Método de Pagamento</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {metodoPagamentoOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setMetodoPagamento(option.value)}
-                      className={cn(
-                        'p-4 rounded-lg border flex flex-col items-center gap-2 transition-all hover:border-primary/50',
-                        metodoPagamento === option.value &&
-                          'border-primary bg-primary/5'
-                      )}
-                    >
-                      <option.icon className="h-5 w-5" />
-                      <span className="text-sm font-medium">{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Delivery Date */}
-              <div className="space-y-2">
-                <Label htmlFor="dataEntrega">Data de Entrega (opcional)</Label>
-                <Input
-                  id="dataEntrega"
-                  type="date"
-                  value={dataEntrega}
-                  onChange={(e) => setDataEntrega(e.target.value)}
-                />
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  placeholder="Observações sobre o pedido..."
-                  rows={3}
-                />
-              </div>
-            </div>
+            </ScrollArea>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t flex items-center justify-between">
+        <div className="px-6 py-4 border-t flex items-center justify-between shrink-0 bg-background">
           <Button
             variant="outline"
             onClick={() => {
@@ -521,38 +544,55 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
               else if (step === 'pagamento') setStep('produtos');
               else setOpen(false);
             }}
+            className="gap-2"
           >
+            <ArrowLeft className="h-4 w-4" />
             {step === 'cliente' ? 'Cancelar' : 'Voltar'}
           </Button>
 
-          {step === 'cliente' && selectedCliente && (
-            <Button onClick={() => setStep('produtos')}>
-              Continuar
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {step === 'produtos' && (
+              <span className="text-sm text-muted-foreground">
+                Total: <span className="font-bold text-foreground">R$ {totalValue.toFixed(2)}</span>
+              </span>
+            )}
 
-          {step === 'produtos' && (
-            <Button onClick={() => setStep('pagamento')} disabled={cart.length === 0}>
-              Ir para Pagamento ({totalItems} itens)
-            </Button>
-          )}
+            {step === 'cliente' && selectedCliente && (
+              <Button onClick={() => setStep('produtos')} className="gap-2">
+                Continuar
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
 
-          {step === 'pagamento' && (
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading || !metodoPagamento}
-              className="gap-2"
-            >
-              {isLoading ? (
-                'Criando...'
-              ) : (
-                <>
-                  <ShoppingCart className="h-4 w-4" />
-                  Finalizar Pedido
-                </>
-              )}
-            </Button>
-          )}
+            {step === 'produtos' && (
+              <Button
+                onClick={() => setStep('pagamento')}
+                disabled={cart.length === 0}
+                className="gap-2"
+              >
+                Pagamento
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+
+            {step === 'pagamento' && (
+              <Button
+                onClick={handleSubmit}
+                disabled={isLoading || !metodoPagamento}
+                size="lg"
+                className="gap-2 px-8"
+              >
+                {isLoading ? (
+                  'Finalizando...'
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Finalizar Venda
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

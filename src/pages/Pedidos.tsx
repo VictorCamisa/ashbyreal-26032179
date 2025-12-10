@@ -21,6 +21,7 @@ import { Search, Beer, ShoppingCart, Eye, Filter } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { VincularAshbyDialog } from '@/components/pedidos/VincularAshbyDialog';
+import { DetalhesPedidoDrawer } from '@/components/pedidos/DetalhesPedidoDrawer';
 import { PedidosKPIs } from '@/components/pedidos/PedidosKPIs';
 import { PedidoStatusWorkflow } from '@/components/pedidos/PedidoStatusWorkflow';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +33,8 @@ export default function Pedidos() {
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
   const [selectedPedido, setSelectedPedido] = useState<any>(null);
   const [showVincularAshby, setShowVincularAshby] = useState(false);
+  const [showDetalhes, setShowDetalhes] = useState(false);
+  const [detalhesPedidoId, setDetalhesPedidoId] = useState<string | null>(null);
   const { pedidos, isLoading, refetch } = usePedidos();
 
   useEffect(() => {
@@ -58,6 +61,12 @@ export default function Pedidos() {
   const handleVincularAshby = (pedido: any) => {
     setSelectedPedido(pedido);
     setShowVincularAshby(true);
+  };
+
+  const handleViewDetails = (pedido: any) => {
+    setDetalhesPedidoId(pedido.id);
+    setSelectedPedido(pedido);
+    setShowDetalhes(true);
   };
 
   return (
@@ -135,7 +144,11 @@ export default function Pedidos() {
                   </TableRow>
                 ) : (
                   filteredPedidos.map((pedido) => (
-                    <TableRow key={pedido.id} className="hover:bg-muted/30">
+                    <TableRow 
+                      key={pedido.id} 
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => handleViewDetails(pedido)}
+                    >
                       <TableCell className="font-mono text-sm">
                         #{pedido.id.slice(0, 8)}
                       </TableCell>
@@ -151,20 +164,21 @@ export default function Pedidos() {
                       <TableCell className="text-muted-foreground">
                         {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <PedidoStatusWorkflow
                           pedidoId={pedido.id}
                           currentStatus={pedido.status}
                           onStatusChange={refetch}
                         />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8"
                             title="Ver detalhes"
+                            onClick={() => handleViewDetails(pedido)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -199,6 +213,15 @@ export default function Pedidos() {
             .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
         </p>
       </div>
+
+      {/* Drawers & Dialogs */}
+      <DetalhesPedidoDrawer
+        open={showDetalhes}
+        onOpenChange={setShowDetalhes}
+        pedidoId={detalhesPedidoId}
+        clienteNome={selectedPedido ? clientesMap[selectedPedido.clienteId] : undefined}
+        onStatusChange={refetch}
+      />
 
       {selectedPedido && (
         <VincularAshbyDialog
