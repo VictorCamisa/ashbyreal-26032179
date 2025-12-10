@@ -238,44 +238,44 @@ export function GerenciamentoBoletos() {
   const totalPago = pagos.reduce((sum, b) => sum + b.amount, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 sm:gap-4">
         <Card className="glass-card border-yellow-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pendentes</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalPendente)}</p>
-                <p className="text-xs text-muted-foreground">{pendentes.length} boletos</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Pendentes</p>
+                <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(totalPendente)}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{pendentes.length} boletos</p>
               </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-600 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-blue-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Aprovados (A Pagar)</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalAprovado)}</p>
-                <p className="text-xs text-muted-foreground">{aprovados.length} boletos</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">A Pagar</p>
+                <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(totalAprovado)}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{aprovados.length} boletos</p>
               </div>
-              <Check className="h-8 w-8 text-blue-600" />
+              <Check className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-green-500/20">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pagos (Este Mês)</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalPago)}</p>
-                <p className="text-xs text-muted-foreground">{pagos.length} boletos</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Pagos</p>
+                <p className="text-lg sm:text-2xl font-bold truncate">{formatCurrency(totalPago)}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{pagos.length} boletos</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
+              <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -283,38 +283,48 @@ export function GerenciamentoBoletos() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="pendentes" className="gap-2">
-            <Clock className="h-4 w-4" />
-            Pendentes ({pendentes.length})
-          </TabsTrigger>
-          <TabsTrigger value="aprovados" className="gap-2">
-            <Check className="h-4 w-4" />
-            A Pagar ({aprovados.length})
-          </TabsTrigger>
-          <TabsTrigger value="pagos" className="gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            Pagos ({pagos.length})
-          </TabsTrigger>
-          <TabsTrigger value="outros" className="gap-2">
-            <XCircle className="h-4 w-4" />
-            Outros ({outros.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-4">
+            <TabsTrigger value="pendentes" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4">
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Pendentes</span>
+              <span className="xs:hidden">Pend.</span>
+              ({pendentes.length})
+            </TabsTrigger>
+            <TabsTrigger value="aprovados" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4">
+              <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">A Pagar</span>
+              <span className="xs:hidden">Pagar</span>
+              ({aprovados.length})
+            </TabsTrigger>
+            <TabsTrigger value="pagos" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4">
+              <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Pagos</span>
+              <span className="xs:hidden">Pago</span>
+              ({pagos.length})
+            </TabsTrigger>
+            <TabsTrigger value="outros" className="gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-4">
+              <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Outros</span>
+              <span className="xs:hidden">Out.</span>
+              ({outros.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="pendentes" className="mt-4">
+        <TabsContent value="pendentes" className="mt-3 sm:mt-4">
           {renderBoletoList(pendentes, 'Nenhum boleto pendente de aprovação')}
         </TabsContent>
 
-        <TabsContent value="aprovados" className="mt-4">
+        <TabsContent value="aprovados" className="mt-3 sm:mt-4">
           {renderBoletoList(aprovados, 'Nenhum boleto aprovado aguardando pagamento')}
         </TabsContent>
 
-        <TabsContent value="pagos" className="mt-4">
+        <TabsContent value="pagos" className="mt-3 sm:mt-4">
           {renderBoletoList(pagos, 'Nenhum boleto pago')}
         </TabsContent>
 
-        <TabsContent value="outros" className="mt-4">
+        <TabsContent value="outros" className="mt-3 sm:mt-4">
           {renderBoletoList(outros, 'Nenhum boleto rejeitado ou cancelado')}
         </TabsContent>
       </Tabs>
