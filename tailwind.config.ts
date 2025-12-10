@@ -106,9 +106,9 @@ export default {
           "100%": { backgroundPosition: "-200% 0" },
         },
         "wave-fill": {
-          "0%": { backgroundPosition: "100% 0" },
+          "0%": { backgroundPosition: "200% 0" },
           "50%": { backgroundPosition: "0% 0" },
-          "100%": { backgroundPosition: "100% 0" },
+          "100%": { backgroundPosition: "200% 0" },
         },
         pulse: {
           "0%, 100%": { opacity: "1" },
