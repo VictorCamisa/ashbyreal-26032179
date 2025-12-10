@@ -129,7 +129,7 @@ export default {
         "scale-in": "scale-in 0.2s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         shimmer: "shimmer 3s ease-in-out infinite",
-        "wave-fill": "wave-fill 6s ease-in-out infinite",
+        "wave-fill": "wave-fill 8s ease-in-out infinite",
         "text-reveal": "text-reveal 4s ease-in-out infinite",
         pulse: "pulse 2s ease-in-out infinite",
       },
