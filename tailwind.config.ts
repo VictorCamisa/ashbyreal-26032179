@@ -62,6 +62,7 @@ export default {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        pacifico: ["Pacifico", "cursive"],
       },
       borderRadius: {
         "3xl": "1.5rem",
@@ -101,8 +102,8 @@ export default {
           to: { transform: "translateX(0)" },
         },
         shimmer: {
-          "0%": { transform: "translateX(-100%)" },
-          "100%": { transform: "translateX(100%)" },
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
         },
         pulse: {
           "0%, 100%": { opacity: "1" },
@@ -116,7 +117,7 @@ export default {
         "fade-out": "fade-out 0.2s ease-out",
         "scale-in": "scale-in 0.2s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
-        shimmer: "shimmer 2s infinite",
+        shimmer: "shimmer 3s ease-in-out infinite",
         pulse: "pulse 2s ease-in-out infinite",
       },
     },
