@@ -26,6 +26,13 @@ interface EntradaBoletoDialogProps {
 
 type Step = 'tipo' | 'captura' | 'revisao';
 
+interface BoletoItemProduto {
+  descricao: string;
+  quantidade: string;
+  valor_unitario: string;
+  valor_total: string;
+}
+
 interface BoletoItem {
   id: string;
   description: string;
@@ -36,6 +43,7 @@ interface BoletoItem {
   notes: string;
   imageData: string | null;
   processed: boolean;
+  itens: BoletoItemProduto[];
 }
 
 export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogProps) {
@@ -85,6 +93,7 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
     notes: tipoNota === 'COM_NOTA' ? 'Boleto COM NOTA FISCAL' : 'Boleto SEM NOTA FISCAL',
     imageData: null,
     processed: false,
+    itens: [],
   });
 
   // Auto-select LOJA entity
@@ -148,6 +157,7 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                 due_date: data.extracted.due_date || '',
                 beneficiario: data.extracted.beneficiario || '',
                 numero_movimento: data.extracted.numero_movimento || '',
+                itens: Array.isArray(data.extracted.itens) ? data.extracted.itens : [],
                 processed: true,
               }
             : b
@@ -462,6 +472,40 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                     placeholder="Descrição do boleto"
                   />
                 </div>
+
+                {/* Itens da Nota */}
+                {currentBoleto.itens && currentBoleto.itens.length > 0 && (
+                  <div className="grid gap-2">
+                    <Label className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Itens da Nota ({currentBoleto.itens.length})
+                    </Label>
+                    <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Produto</th>
+                              <th className="text-center p-2 font-medium w-16">Qtd</th>
+                              <th className="text-right p-2 font-medium w-24">Unit.</th>
+                              <th className="text-right p-2 font-medium w-24">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentBoleto.itens.map((item, idx) => (
+                              <tr key={idx} className="border-t border-border/50">
+                                <td className="p-2 text-xs">{item.descricao}</td>
+                                <td className="p-2 text-center text-xs">{item.quantidade}</td>
+                                <td className="p-2 text-right text-xs">{item.valor_unitario}</td>
+                                <td className="p-2 text-right text-xs font-medium">{item.valor_total}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
