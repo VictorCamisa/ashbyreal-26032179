@@ -29,20 +29,25 @@ export function useAdminUsers() {
         body: null,
       });
 
-      // Handle the response properly - Supabase functions.invoke returns { data, error }
+      // Handle 403 gracefully - user is not admin yet
       if (response.error) {
-        throw new Error(response.error.message || 'Erro ao carregar usuários');
+        const errorMsg = response.error.message || '';
+        if (errorMsg.includes('403') || response.data?.error?.includes('Não autorizado')) {
+          return [] as AdminUser[]; // Return empty array, will show bootstrap button
+        }
+        throw new Error(errorMsg || 'Erro ao carregar usuários');
       }
 
-      // The actual response data is in response.data
       const responseData = response.data;
       
-      if (responseData?.error) {
-        throw new Error(responseData.error);
+      // Handle not authorized error gracefully
+      if (responseData?.error?.includes('Não autorizado')) {
+        return [] as AdminUser[];
       }
 
       return responseData?.users as AdminUser[] || [];
     },
+    retry: false, // Don't retry on auth errors
   });
 
   const createUser = useMutation({
