@@ -28,26 +28,38 @@ serve(async (req) => {
 
     console.log('Processando boleto', tipoNota);
 
-    // Build the prompt based on boleto type
-    const prompt = `Você é um especialista em leitura de boletos bancários brasileiros.
-Analise a imagem do boleto e extraia as seguintes informações:
+    // Build the prompt to extract all fields from boleto
+    const prompt = `Você é um especialista em leitura de boletos bancários e notas fiscais brasileiras.
+Analise a imagem com atenção e extraia TODAS as informações disponíveis:
 
-1. **Valor do boleto** (campo "Valor do Documento" ou similar)
-2. **Data de vencimento** (campo "Vencimento")
-3. **Beneficiário/Cedente** (quem vai receber o pagamento)
-4. **Descrição/Finalidade** (se houver informação sobre o que é o boleto)
+**CAMPOS OBRIGATÓRIOS:**
+1. **Valor** - Valor total do documento/boleto (campo "Valor do Documento", "Total", "Valor a Pagar")
+2. **Vencimento** - Data de vencimento do boleto
+3. **Beneficiário/Cedente** - Nome da empresa/pessoa que vai receber o pagamento
+4. **Descrição** - O que está sendo cobrado (produtos, serviços, descrição da mercadoria)
 
-${tipoNota === 'COM_NOTA' ? 'Este boleto possui nota fiscal anexa.' : 'Este boleto NÃO possui nota fiscal.'}
+**CAMPOS ADICIONAIS (se disponíveis):**
+- CNPJ do beneficiário
+- Número da nota fiscal
+- Número do pedido
+- Itens/produtos listados
+- Código de barras (números)
+
+${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens.' : 'Este é um boleto SEM nota fiscal anexa.'}
 
 Responda APENAS em formato JSON com a seguinte estrutura:
 {
-  "amount": "valor numérico com vírgula como separador decimal, ex: 136,03",
+  "amount": "valor numérico com vírgula como separador decimal, ex: 2.108,00",
   "due_date": "data no formato YYYY-MM-DD",
-  "beneficiario": "nome do beneficiário/cedente",
-  "description": "descrição breve do boleto"
+  "beneficiario": "nome completo do beneficiário/cedente",
+  "description": "descrição detalhada incluindo produtos/serviços cobrados",
+  "cnpj": "CNPJ do beneficiário se disponível",
+  "numero_nf": "número da nota fiscal se disponível",
+  "numero_pedido": "número do pedido se disponível",
+  "itens": "lista de itens/produtos se disponível"
 }
 
-Se não conseguir identificar algum campo, deixe como string vazia.
+IMPORTANTE: Extraia o máximo de informações possível. Se não conseguir identificar algum campo, deixe como string vazia.
 Responda APENAS o JSON, sem markdown ou explicações.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
