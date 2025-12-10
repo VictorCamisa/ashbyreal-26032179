@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertTriangle, Package, Filter, Trash2 } from 'lucide-react';
+import { Search, AlertTriangle, Package, Filter, Trash2, Box, DollarSign, TrendingUp } from 'lucide-react';
 import { useEstoque, ProdutoEstoque } from '@/hooks/useEstoque';
-import { EstoqueKPIs } from '@/components/estoque/EstoqueKPIs';
 import { ImportarEstoqueDialog } from '@/components/estoque/ImportarEstoqueDialog';
 import { NovoProdutoDialog } from '@/components/estoque/NovoProdutoDialog';
 import { EditarProdutoDialog } from '@/components/estoque/EditarProdutoDialog';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,9 +32,9 @@ import {
 } from '@/components/ui/table';
 
 const statusColors: Record<string, string> = {
-  disponivel: 'bg-primary/10 text-primary border-primary/20',
-  baixo: 'bg-chart-4/10 text-chart-4 border-chart-4/20',
-  esgotado: 'bg-destructive/10 text-destructive border-destructive/20',
+  disponivel: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+  baixo: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+  esgotado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
 };
 
 const getStatusEstoque = (produto: ProdutoEstoque): 'disponivel' | 'baixo' | 'esgotado' => {
@@ -69,54 +71,63 @@ export default function Estoque() {
   const produtosComAlerta = filteredProdutos.filter(p => getStatusEstoque(p) !== 'disponivel');
   const displayProdutos = activeTab === 'alerta' ? produtosComAlerta : filteredProdutos;
 
+  const totalValue = produtos.reduce((acc, p) => acc + (p.estoque * p.precoCusto), 0);
+  const avgMargin = produtos.length > 0 
+    ? produtos.reduce((acc, p) => acc + p.margemLucro, 0) / produtos.length 
+    : 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Package className="h-5 w-5 text-primary" />
+      <PageHeader
+        title="Estoque"
+        subtitle="Controle de produtos e inventário"
+        icon={Package}
+        actions={
+          <div className="flex gap-2">
+            <ImportarEstoqueDialog onSuccess={refetch} />
+            <NovoProdutoDialog onSuccess={refetch} />
           </div>
-          <div>
-            <h1 className="text-lg font-semibold">Estoque</h1>
-            <p className="text-sm text-muted-foreground">Controle de produtos</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <ImportarEstoqueDialog onSuccess={refetch} />
-          <NovoProdutoDialog onSuccess={refetch} />
-        </div>
-      </header>
+        }
+      />
 
       {isLoading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 bg-muted/50 rounded-2xl animate-pulse" />
+              <div key={i} className="h-20 bg-muted/50 rounded-lg animate-pulse" />
             ))}
           </div>
-          <div className="h-64 bg-muted/50 rounded-2xl animate-pulse" />
+          <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
         </div>
       ) : (
         <>
-          <EstoqueKPIs produtos={produtos} />
+          {/* KPIs */}
+          <KPIGrid>
+            <KPICard label="Total Produtos" value={produtos.filter(p => p.ativo).length} icon={Box} />
+            <KPICard label="Em Alerta" value={produtosComAlerta.length} icon={AlertTriangle} variant="warning" />
+            <KPICard label="Valor Estoque" value={`R$ ${(totalValue / 1000).toFixed(0)}k`} icon={DollarSign} />
+            <KPICard label="Margem Média" value={`${avgMargin.toFixed(0)}%`} icon={TrendingUp} variant="success" />
+          </KPIGrid>
 
           {/* Alert Banner */}
           {produtosComAlerta.length > 0 && (
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-chart-4/5 border border-chart-4/20">
-              <AlertTriangle className="h-4 w-4 text-chart-4" />
-              <p className="text-sm">
-                <strong>{produtosComAlerta.length}</strong> produto(s) requerem atenção
-              </p>
-            </div>
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+              <CardContent className="py-3 px-4 flex items-center gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <p className="text-sm">
+                  <strong>{produtosComAlerta.length}</strong> produto(s) requerem atenção
+                </p>
+              </CardContent>
+            </Card>
           )}
 
           {/* Tabs & Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex gap-1 p-1 rounded-xl bg-muted/30 border border-border/50">
+            <div className="flex gap-1 p-1 rounded-lg bg-muted/50 w-fit">
               <button
                 onClick={() => setActiveTab('todos')}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTab === 'todos' ? 'bg-background shadow-sm' : 'text-muted-foreground'
                 }`}
               >
@@ -124,7 +135,7 @@ export default function Estoque() {
               </button>
               <button
                 onClick={() => setActiveTab('alerta')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
                   activeTab === 'alerta' ? 'bg-background shadow-sm' : 'text-muted-foreground'
                 }`}
               >
@@ -140,15 +151,15 @@ export default function Estoque() {
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-11 h-10 rounded-xl bg-muted/30 border-border/50"
+                  className="pl-11 h-10"
                 />
               </div>
               <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger className="w-[160px] h-10 rounded-xl bg-muted/30 border-border/50">
+                <SelectTrigger className="w-[160px] h-10">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
+                <SelectContent>
                   {categorias.map(cat => (
                     <SelectItem key={cat} value={cat}>
                       {cat === 'todas' ? 'Todas' : cat}
@@ -160,97 +171,99 @@ export default function Estoque() {
           </div>
 
           {/* Table */}
-          <div className="rounded-2xl border border-border/50 bg-card/50 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-border/50">
-                  <TableHead className="font-medium">Produto</TableHead>
-                  <TableHead className="font-medium">SKU</TableHead>
-                  <TableHead className="font-medium">Estoque</TableHead>
-                  <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="font-medium">Custo</TableHead>
-                  <TableHead className="font-medium">Venda</TableHead>
-                  <TableHead className="font-medium">Margem</TableHead>
-                  <TableHead className="font-medium text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayProdutos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                      Nenhum produto encontrado
-                    </TableCell>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="font-medium">Produto</TableHead>
+                    <TableHead className="font-medium">SKU</TableHead>
+                    <TableHead className="font-medium">Estoque</TableHead>
+                    <TableHead className="font-medium">Status</TableHead>
+                    <TableHead className="font-medium">Custo</TableHead>
+                    <TableHead className="font-medium">Venda</TableHead>
+                    <TableHead className="font-medium">Margem</TableHead>
+                    <TableHead className="font-medium text-right">Ações</TableHead>
                   </TableRow>
-                ) : (
-                  displayProdutos.map((produto) => {
-                    const status = getStatusEstoque(produto);
-                    return (
-                      <TableRow key={produto.id} className="border-border/30 hover:bg-muted/30">
-                        <TableCell className="font-medium">{produto.nome}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {produto.sku || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{produto.estoque}</span>
-                            <span className="text-xs text-muted-foreground">/ {produto.estoqueMinimo}</span>
-                            {status !== 'disponivel' && (
-                              <AlertTriangle className="h-3.5 w-3.5 text-chart-4" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={statusColors[status]}>
-                            {getStatusLabel(status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          R$ {produto.precoCusto.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          R$ {produto.preco.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono">
-                            {produto.margemLucro.toFixed(0)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <EditarProdutoDialog produto={produto} onSave={updateProduto} />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="rounded-2xl">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Esta ação não pode ser desfeita.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => deleteProduto(produto.id)}
-                                    className="rounded-xl"
-                                  >
-                                    Excluir
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {displayProdutos.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                        Nenhum produto encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    displayProdutos.map((produto) => {
+                      const status = getStatusEstoque(produto);
+                      return (
+                        <TableRow key={produto.id} className="hover:bg-muted/30">
+                          <TableCell className="font-medium">{produto.nome}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {produto.sku || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{produto.estoque}</span>
+                              <span className="text-xs text-muted-foreground">/ {produto.estoqueMinimo}</span>
+                              {status !== 'disponivel' && (
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={statusColors[status]}>
+                              {getStatusLabel(status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            R$ {produto.precoCusto.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            R$ {produto.preco.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono">
+                              {produto.margemLucro.toFixed(0)}%
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <EditarProdutoDialog produto={produto} onSave={updateProduto} />
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => deleteProduto(produto.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
           <p className="text-xs text-muted-foreground">
             {displayProdutos.length} de {produtos.filter(p => p.ativo).length} produtos
