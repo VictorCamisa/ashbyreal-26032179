@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useState, useEffect } from 'react';
 import { useCategorias, useSubcategorias } from '@/hooks/useCategorias';
 import { useAccounts } from '@/hooks/useAccounts';
-import { Loader2 } from 'lucide-react';
+import { useEntities } from '@/hooks/useEntities';
+import { Loader2, Building2, User } from 'lucide-react';
 
 interface EditarTransacaoDialogProps {
   open: boolean;
@@ -25,6 +26,7 @@ export function EditarTransacaoDialog({
   isLoading = false
 }: EditarTransacaoDialogProps) {
   const [formData, setFormData] = useState({
+    entity_id: '',
     description: '',
     amount: '',
     due_date: '',
@@ -37,14 +39,16 @@ export function EditarTransacaoDialog({
     reference_month: ''
   });
 
+  const { data: entities } = useEntities();
   const tipo = transaction?.tipo === 'PAGAR' ? 'DESPESA' : 'RECEITA';
   const { data: categories } = useCategorias(tipo);
   const { data: subcategories } = useSubcategorias(formData.category_id);
-  const { data: accounts } = useAccounts(transaction?.entity_id);
+  const { data: accounts } = useAccounts(formData.entity_id);
 
   useEffect(() => {
     if (transaction && open) {
       setFormData({
+        entity_id: transaction.entity_id || '',
         description: transaction.description || '',
         amount: transaction.amount?.toString() || '',
         due_date: transaction.due_date || '',
@@ -59,11 +63,17 @@ export function EditarTransacaoDialog({
     }
   }, [transaction, open]);
 
+  // Reset account when entity changes
+  const handleEntityChange = (entityId: string) => {
+    setFormData(prev => ({ ...prev, entity_id: entityId, account_id: '' }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const updates = {
       id: transaction.id,
+      entity_id: formData.entity_id,
       description: formData.description,
       amount: parseFloat(formData.amount),
       due_date: formData.due_date,
@@ -79,6 +89,8 @@ export function EditarTransacaoDialog({
     onSave(updates);
   };
 
+  const selectedEntity = entities?.find(e => e.id === formData.entity_id);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -88,6 +100,30 @@ export function EditarTransacaoDialog({
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            {/* Entidade */}
+            <div className="col-span-2">
+              <Label>Entidade *</Label>
+              <Select value={formData.entity_id} onValueChange={handleEntityChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a entidade..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {entities?.map((entity) => (
+                    <SelectItem key={entity.id} value={entity.id}>
+                      <div className="flex items-center gap-2">
+                        {entity.type === 'LOJA' ? (
+                          <Building2 className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <User className="h-4 w-4 text-purple-500" />
+                        )}
+                        {entity.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="col-span-2">
               <Label htmlFor="description">Descrição *</Label>
               <Input
@@ -189,9 +225,13 @@ export function EditarTransacaoDialog({
 
             <div>
               <Label htmlFor="account">Conta</Label>
-              <Select value={formData.account_id} onValueChange={(v) => setFormData({ ...formData, account_id: v })}>
+              <Select 
+                value={formData.account_id} 
+                onValueChange={(v) => setFormData({ ...formData, account_id: v })}
+                disabled={!formData.entity_id}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
+                  <SelectValue placeholder={formData.entity_id ? "Selecione..." : "Selecione entidade primeiro"} />
                 </SelectTrigger>
                 <SelectContent>
                   {accounts?.map((acc) => (
@@ -229,7 +269,7 @@ export function EditarTransacaoDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || !formData.entity_id}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar
             </Button>

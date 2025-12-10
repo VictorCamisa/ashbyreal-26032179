@@ -177,6 +177,47 @@ export function TransacoesUnificadas() {
     }
   });
 
+  // Create transaction mutation
+  const createMutation = useMutation({
+    mutationFn: async (transaction: any) => {
+      const { error } = await supabase
+        .from('transactions')
+        .insert([transaction]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
+      toast.success('Transação criada com sucesso!');
+      setShowNovaTransacao(false);
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao criar transação: ' + error.message);
+    }
+  });
+
+  // Update transaction mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...updates }: any) => {
+      const { error } = await supabase
+        .from('transactions')
+        .update(updates)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
+      toast.success('Transação atualizada com sucesso!');
+      setEditingTransaction(null);
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar transação: ' + error.message);
+    }
+  });
+
   // Navigate months
   const handlePrevMonth = () => {
     setReferenceMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -250,13 +291,6 @@ export function TransacoesUnificadas() {
     updateTagsMutation.mutate({ id: transactionId, tags: tags.filter(t => t !== tagToRemove) });
   };
 
-  // Get entity ID for creating transactions
-  const getEntityIdForCreate = () => {
-    if (entityFilter !== 'todos') {
-      return entities?.find(e => e.type === entityFilter)?.id;
-    }
-    return entities?.find(e => e.type === 'LOJA')?.id || entities?.[0]?.id;
-  };
 
   return (
     <div className="space-y-4">
@@ -594,28 +628,21 @@ export function TransacoesUnificadas() {
         onOpenChange={setShowImport} 
       />
 
-      {getEntityIdForCreate() && (
-        <NovaTransacaoDialog
-          open={showNovaTransacao}
-          onOpenChange={setShowNovaTransacao}
-          entityId={getEntityIdForCreate()!}
-          tipo={tipoTransacao}
-          onSave={() => {
-            queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
-            setShowNovaTransacao(false);
-          }}
-          isLoading={false}
-        />
-      )}
+      <NovaTransacaoDialog
+        open={showNovaTransacao}
+        onOpenChange={setShowNovaTransacao}
+        tipo={tipoTransacao}
+        onSave={(transaction) => createMutation.mutate(transaction)}
+        isLoading={createMutation.isPending}
+        defaultEntityId={entityFilter !== 'todos' ? entities?.find(e => e.type === entityFilter)?.id : undefined}
+      />
 
       <EditarTransacaoDialog
         open={!!editingTransaction}
         onOpenChange={(open) => !open && setEditingTransaction(null)}
         transaction={editingTransaction}
-        onSave={() => {
-          queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
-          setEditingTransaction(null);
-        }}
+        onSave={(updates) => updateMutation.mutate(updates)}
+        isLoading={updateMutation.isPending}
       />
 
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
