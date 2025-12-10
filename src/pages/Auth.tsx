@@ -62,14 +62,24 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-muted/50 via-background to-background p-4">
       <div className="w-full max-w-sm space-y-10">
-        {/* Name with wave fill animation */}
+        {/* Name with Apple-style typing reveal animation */}
         <div className="flex flex-col items-center">
-          <h1 
-            className="text-5xl font-light tracking-tight animate-wave-fill bg-gradient-to-r from-primary via-primary to-muted-foreground/30 bg-[length:300%_100%] bg-clip-text text-transparent select-none"
-            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
-          >
-            Alexandre
-          </h1>
+          <div className="relative">
+            {/* Base text (invisible, just for sizing) */}
+            <h1 
+              className="text-5xl font-light tracking-tight text-transparent select-none"
+              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+            >
+              Alexandre
+            </h1>
+            {/* Revealed text with clip animation */}
+            <h1 
+              className="absolute inset-0 text-5xl font-light tracking-tight text-primary select-none animate-text-reveal"
+              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+            >
+              Alexandre
+            </h1>
+          </div>
         </div>
 
         {/* Login Form */}
