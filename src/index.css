@@ -220,3 +220,43 @@
     animation: text-reveal 6s ease-in-out infinite;
   }
 }
+
+/* Print styles for receipts */
+@media print {
+  body {
+    background: white !important;
+  }
+  
+  .print\\:hidden {
+    display: none !important;
+  }
+  
+  [data-radix-dialog-overlay],
+  [data-radix-dialog-content] {
+    position: static !important;
+    transform: none !important;
+    max-height: none !important;
+    max-width: none !important;
+    width: 100% !important;
+    overflow: visible !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  
+  .print\\:border-black {
+    border-color: black !important;
+  }
+  
+  .print\\:text-black {
+    color: black !important;
+  }
+  
+  .print\\:bg-gray-200 {
+    background-color: #e5e7eb !important;
+  }
+  
+  canvas {
+    border: 1px solid black !important;
+  }
+}
