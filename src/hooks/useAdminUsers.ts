@@ -23,10 +23,9 @@ export function useAdminUsers() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
-      const response = await supabase.functions.invoke('admin-users', {
+      const response = await supabase.functions.invoke('admin-users?action=list', {
         method: 'GET',
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: null,
       });
 
       // Handle 403 gracefully - user is not admin yet
