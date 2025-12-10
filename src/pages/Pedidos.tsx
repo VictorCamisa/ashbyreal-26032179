@@ -303,6 +303,7 @@ export default function Pedidos() {
         pedidoId={detalhesPedidoId}
         clienteNome={selectedPedido ? clientesMap[selectedPedido.clienteId] : undefined}
         onStatusChange={refetch}
+        onDelete={refetch}
       />
 
       {selectedPedido && (
