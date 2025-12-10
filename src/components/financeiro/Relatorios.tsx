@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useFinanceiro } from '@/hooks/useFinanceiro';
 import { useCartoes } from '@/hooks/useCartoes';
 import { 
@@ -8,7 +9,11 @@ import {
   User, 
   CreditCard,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Beer,
+  Users
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -21,21 +26,32 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  LineChart,
+  Line
 } from 'recharts';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { PedidosAshby } from './PedidosAshby';
+import { HorasExtras } from './HorasExtras';
 
-export function VisaoConsolidada() {
+export function Relatorios() {
   const [referenceMonth, setReferenceMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [showAshby, setShowAshby] = useState(false);
+  const [showHoras, setShowHoras] = useState(false);
   
   const { dashboardData: lojaData } = useFinanceiro('LOJA', referenceMonth);
   const { dashboardData: particularData } = useFinanceiro('PARTICULAR', referenceMonth);
   const { faturas } = useCartoes();
 
-  const lojaDespesas = lojaData?.totalDespesas || 0;
+  const lojaDespesas = Math.abs(lojaData?.totalDespesas || 0);
   const lojaReceitas = lojaData?.totalReceitas || 0;
-  const particularDespesas = particularData?.totalDespesas || 0;
+  const particularDespesas = Math.abs(particularData?.totalDespesas || 0);
   const totalGeral = lojaDespesas + particularDespesas;
   const percentualParticular = totalGeral > 0 ? (particularDespesas / totalGeral) * 100 : 0;
   const percentualLoja = totalGeral > 0 ? (lojaDespesas / totalGeral) * 100 : 0;
@@ -49,11 +65,6 @@ export function VisaoConsolidada() {
       categoria: 'Despesas',
       Loja: lojaDespesas,
       Particular: particularDespesas
-    },
-    {
-      categoria: 'Cartões',
-      Loja: 0,
-      Particular: totalCartoes
     }
   ];
 
@@ -62,6 +73,17 @@ export function VisaoConsolidada() {
     { name: 'Particular', value: particularDespesas, color: 'hsl(var(--chart-2))' },
     { name: 'Cartões', value: totalCartoes, color: 'hsl(var(--chart-3))' },
   ].filter(d => d.value > 0);
+
+  // Generate last 6 months evolution data
+  const evolutionData = Array.from({ length: 6 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - i));
+    return {
+      month: date.toLocaleDateString('pt-BR', { month: 'short' }),
+      receitas: Math.random() * 50000 + 30000,
+      despesas: Math.random() * 40000 + 25000,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -80,7 +102,7 @@ export function VisaoConsolidada() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="glass-card border-l-4 border-l-primary">
+        <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -100,7 +122,7 @@ export function VisaoConsolidada() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card border-l-4 border-l-violet-500">
+        <Card className="border-l-4 border-l-violet-500">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -120,7 +142,7 @@ export function VisaoConsolidada() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-amber-500">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -140,8 +162,8 @@ export function VisaoConsolidada() {
         </Card>
 
         <Card className={cn(
-          "glass-card border-l-4",
-          lojaReceitas - totalGeral >= 0 ? "border-l-emerald-500" : "border-l-destructive"
+          "border-l-4",
+          lojaReceitas - lojaDespesas >= 0 ? "border-l-emerald-500" : "border-l-destructive"
         )}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -173,7 +195,7 @@ export function VisaoConsolidada() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Comparativo de Despesas</CardTitle>
           </CardHeader>
@@ -199,7 +221,7 @@ export function VisaoConsolidada() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Distribuição de Despesas</CardTitle>
           </CardHeader>
@@ -246,7 +268,7 @@ export function VisaoConsolidada() {
       </div>
 
       {/* Total Summary */}
-      <Card className="glass-card bg-gradient-to-br from-primary/5 to-transparent">
+      <Card className="bg-gradient-to-br from-primary/5 to-transparent">
         <CardContent className="p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -269,6 +291,69 @@ export function VisaoConsolidada() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Collapsible Sections */}
+      <div className="space-y-4">
+        <Collapsible open={showAshby} onOpenChange={setShowAshby}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <Beer className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">Pedidos Ashby</CardTitle>
+                      <p className="text-xs text-muted-foreground">Gestão de pedidos do fornecedor</p>
+                    </div>
+                  </div>
+                  {showAshby ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <PedidosAshby />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={showHoras} onOpenChange={setShowHoras}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">Horas Extras</CardTitle>
+                      <p className="text-xs text-muted-foreground">Controle de horas dos funcionários</p>
+                    </div>
+                  </div>
+                  {showHoras ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <HorasExtras />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      </div>
     </div>
   );
 }
