@@ -18,10 +18,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Beer, ShoppingCart, Eye, Filter, BarChart3, List } from 'lucide-react';
+import { Search, ShoppingCart, Eye, Filter, BarChart3, List } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
-import { VincularAshbyDialog } from '@/components/pedidos/VincularAshbyDialog';
 import { DetalhesPedidoDrawer } from '@/components/pedidos/DetalhesPedidoDrawer';
 import { PedidosKPIs } from '@/components/pedidos/PedidosKPIs';
 import { PedidoStatusWorkflow } from '@/components/pedidos/PedidoStatusWorkflow';
@@ -51,7 +50,6 @@ export default function Pedidos() {
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
   const [allItems, setAllItems] = useState<PedidoItemWithProduto[]>([]);
   const [selectedPedido, setSelectedPedido] = useState<any>(null);
-  const [showVincularAshby, setShowVincularAshby] = useState(false);
   const [showDetalhes, setShowDetalhes] = useState(false);
   const [detalhesPedidoId, setDetalhesPedidoId] = useState<string | null>(null);
   const { pedidos, isLoading, refetch } = usePedidos();
@@ -105,11 +103,6 @@ export default function Pedidos() {
     const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
-  const handleVincularAshby = (pedido: any) => {
-    setSelectedPedido(pedido);
-    setShowVincularAshby(true);
-  };
 
   const handleViewDetails = (pedido: any) => {
     setDetalhesPedidoId(pedido.id);
@@ -238,26 +231,15 @@ export default function Pedidos() {
                             className="text-right"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                title="Ver detalhes"
-                                onClick={() => handleViewDetails(pedido)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleVincularAshby(pedido)}
-                                className="h-8 w-8"
-                                title="Vincular Ashby"
-                              >
-                                <Beer className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              title="Ver detalhes"
+                              onClick={() => handleViewDetails(pedido)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -306,13 +288,6 @@ export default function Pedidos() {
         onDelete={refetch}
       />
 
-      {selectedPedido && (
-        <VincularAshbyDialog
-          open={showVincularAshby}
-          onOpenChange={setShowVincularAshby}
-          pedido={selectedPedido}
-        />
-      )}
     </div>
   );
 }
