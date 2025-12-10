@@ -33,19 +33,21 @@ serve(async (req) => {
 Analise a imagem com atenção e extraia TODAS as informações disponíveis:
 
 **CAMPOS OBRIGATÓRIOS:**
-1. **Valor** - Valor total do documento/boleto (campo "Valor do Documento", "Total", "Valor a Pagar")
-2. **Vencimento** - Data de vencimento do boleto
+1. **Valor** - Valor total do documento/boleto (campo "TOTAL", "Valor do Documento", "Total à Pagar")
+2. **Vencimento** - Data de vencimento (campo "VENCIMENTO")
 3. **Beneficiário/Cedente** - Nome da empresa/pessoa que vai receber o pagamento
 4. **Descrição** - O que está sendo cobrado (produtos, serviços, descrição da mercadoria)
+5. **NÚM.MOV** - MUITO IMPORTANTE: Número do movimento/identificação que aparece geralmente ACIMA da data de vencimento. Pode aparecer como "NÚM.MOV:", "Nº MOV", "NUM MOV", "Número Movimento". Este é um número de identificação único do documento (ex: 122653).
 
 **CAMPOS ADICIONAIS (se disponíveis):**
 - CNPJ do beneficiário
 - Número da nota fiscal
 - Número do pedido
+- Código do cliente
 - Itens/produtos listados
 - Código de barras (números)
 
-${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens.' : 'Este é um boleto SEM nota fiscal anexa.'}
+${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens.' : 'Este é um documento SEM nota fiscal - PRESTE ATENÇÃO ESPECIAL ao NÚM.MOV que é o identificador principal.'}
 
 Responda APENAS em formato JSON com a seguinte estrutura:
 {
@@ -53,14 +55,18 @@ Responda APENAS em formato JSON com a seguinte estrutura:
   "due_date": "data no formato YYYY-MM-DD",
   "beneficiario": "nome completo do beneficiário/cedente",
   "description": "descrição detalhada incluindo produtos/serviços cobrados",
+  "numero_movimento": "NÚM.MOV - número de identificação do movimento (MUITO IMPORTANTE para documentos sem nota)",
   "cnpj": "CNPJ do beneficiário se disponível",
   "numero_nf": "número da nota fiscal se disponível",
   "numero_pedido": "número do pedido se disponível",
+  "codigo_cliente": "código do cliente se disponível",
   "itens": "lista de itens/produtos se disponível"
 }
 
-IMPORTANTE: Extraia o máximo de informações possível. Se não conseguir identificar algum campo, deixe como string vazia.
-Responda APENAS o JSON, sem markdown ou explicações.`;
+IMPORTANTE: 
+- O campo "numero_movimento" (NÚM.MOV) é CRÍTICO e deve ser extraído sempre que visível.
+- Se não conseguir identificar algum campo, deixe como string vazia.
+- Responda APENAS o JSON, sem markdown ou explicações.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
