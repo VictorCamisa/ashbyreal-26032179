@@ -13,6 +13,7 @@ import {
   Ban,
   Loader2,
   ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,7 +51,7 @@ export function GerenciamentoBoletos() {
   const [showImage, setShowImage] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: string; boleto: Boleto } | null>(null);
 
-  const { boletos, isLoading, aprovarBoleto, pagarBoleto, rejeitarBoleto, cancelarBoleto } = useBoletos();
+  const { boletos, isLoading, aprovarBoleto, pagarBoleto, rejeitarBoleto, cancelarBoleto, deleteBoleto } = useBoletos();
 
   const pendentes = boletos?.filter(b => b.status === 'PENDENTE') || [];
   const aprovados = boletos?.filter(b => b.status === 'APROVADO') || [];
@@ -76,6 +77,9 @@ export function GerenciamentoBoletos() {
         break;
       case 'cancelar':
         cancelarBoleto(confirmAction.boleto.id);
+        break;
+      case 'excluir':
+        deleteBoleto(confirmAction.boleto.id);
         break;
     }
     setConfirmAction(null);
@@ -187,6 +191,16 @@ export function GerenciamentoBoletos() {
                   </Button>
                 </>
               )}
+
+              {/* Delete button for all statuses */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setConfirmAction({ type: 'excluir', boleto })}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -330,16 +344,19 @@ export function GerenciamentoBoletos() {
               {confirmAction?.type === 'pagar' && 'Confirmar Pagamento'}
               {confirmAction?.type === 'rejeitar' && 'Rejeitar Boleto'}
               {confirmAction?.type === 'cancelar' && 'Cancelar Boleto'}
+              {confirmAction?.type === 'excluir' && 'Excluir Boleto'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.type === 'aprovar' && 
                 `Ao aprovar, será criada uma transação de despesa no valor de ${confirmAction?.boleto ? formatCurrency(confirmAction.boleto.amount) : ''}.`}
               {confirmAction?.type === 'pagar' && 
-                `Confirma o pagamento do boleto no valor de ${confirmAction?.boleto ? formatCurrency(confirmAction.boleto.amount) : ''}?`}
+                `Confirma o pagamento do boleto no valor de ${confirmAction?.boleto ? formatCurrency(confirmAction.boleto.amount) : ''}? Será criada uma transação de despesa.`}
               {confirmAction?.type === 'rejeitar' && 
                 'O boleto será marcado como rejeitado e não será criada nenhuma transação.'}
               {confirmAction?.type === 'cancelar' && 
                 'O boleto e a transação vinculada serão cancelados.'}
+              {confirmAction?.type === 'excluir' && 
+                'O boleto será excluído permanentemente. Esta ação não pode ser desfeita.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
