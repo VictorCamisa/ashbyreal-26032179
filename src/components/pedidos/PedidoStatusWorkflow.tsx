@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
 import { cn } from '@/lib/utils';
+import { ComprovanteEntregaDialog } from './ComprovanteEntregaDialog';
 
 interface PedidoStatusWorkflowProps {
   pedidoId: string;
@@ -71,8 +73,18 @@ export function PedidoStatusWorkflow({
   const { updatePedidoStatus, isLoading } = usePedidosMutations();
   const config = statusConfig[currentStatus] || statusConfig.pendente;
   const StatusIcon = config.icon;
+  
+  const [showComprovante, setShowComprovante] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const handleStatusChange = async (newStatus: string) => {
+    // Se for marcar como pago, mostrar o comprovante primeiro
+    if (newStatus === 'pago') {
+      setPendingAction(newStatus);
+      setShowComprovante(true);
+      return;
+    }
+
     try {
       await updatePedidoStatus(pedidoId, newStatus, statusHistory);
       onStatusChange?.();
@@ -81,59 +93,80 @@ export function PedidoStatusWorkflow({
     }
   };
 
+  const handleComprovanteConfirm = async () => {
+    if (pendingAction) {
+      try {
+        await updatePedidoStatus(pedidoId, pendingAction, statusHistory);
+        onStatusChange?.();
+      } catch (error) {
+        // Error handled in mutation
+      }
+    }
+    setPendingAction(null);
+  };
+
   const nextActions = config.nextActions;
   const primaryAction = nextActions[0];
   const secondaryActions = nextActions.slice(1);
 
   return (
-    <div className="flex items-center gap-2">
-      <Badge variant="outline" className={cn('gap-1.5', config.color)}>
-        <StatusIcon className="h-3 w-3" />
-        {config.label}
-      </Badge>
+    <>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className={cn('gap-1.5', config.color)}>
+          <StatusIcon className="h-3 w-3" />
+          {config.label}
+        </Badge>
 
-      {primaryAction && (
-        <Button
-          size="sm"
-          variant={actionConfig[primaryAction]?.variant || 'default'}
-          onClick={() => handleStatusChange(primaryAction)}
-          disabled={isLoading}
-          className="h-7 text-xs gap-1.5"
-        >
-          {(() => {
-            const Icon = actionConfig[primaryAction]?.icon;
-            return Icon ? <Icon className="h-3 w-3" /> : null;
-          })()}
-          {actionConfig[primaryAction]?.label}
-        </Button>
-      )}
+        {primaryAction && (
+          <Button
+            size="sm"
+            variant={actionConfig[primaryAction]?.variant || 'default'}
+            onClick={() => handleStatusChange(primaryAction)}
+            disabled={isLoading}
+            className="h-7 text-xs gap-1.5"
+          >
+            {(() => {
+              const Icon = actionConfig[primaryAction]?.icon;
+              return Icon ? <Icon className="h-3 w-3" /> : null;
+            })()}
+            {actionConfig[primaryAction]?.label}
+          </Button>
+        )}
 
-      {secondaryActions.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="h-7 w-7">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {secondaryActions.map((action) => {
-              const Icon = actionConfig[action]?.icon;
-              return (
-                <DropdownMenuItem
-                  key={action}
-                  onClick={() => handleStatusChange(action)}
-                  className={cn(
-                    action === 'cancelado' && 'text-destructive focus:text-destructive'
-                  )}
-                >
-                  {Icon && <Icon className="h-4 w-4 mr-2" />}
-                  {actionConfig[action]?.label}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
+        {secondaryActions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="h-7 w-7">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {secondaryActions.map((action) => {
+                const Icon = actionConfig[action]?.icon;
+                return (
+                  <DropdownMenuItem
+                    key={action}
+                    onClick={() => handleStatusChange(action)}
+                    className={cn(
+                      action === 'cancelado' && 'text-destructive focus:text-destructive'
+                    )}
+                  >
+                    {Icon && <Icon className="h-4 w-4 mr-2" />}
+                    {actionConfig[action]?.label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      <ComprovanteEntregaDialog
+        open={showComprovante}
+        onOpenChange={setShowComprovante}
+        pedidoId={pedidoId}
+        onConfirm={handleComprovanteConfirm}
+      />
+    </>
   );
 }
