@@ -110,6 +110,11 @@ export default {
           "50%": { backgroundPosition: "0% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        "text-reveal": {
+          "0%": { clipPath: "inset(0 100% 0 0)" },
+          "40%": { clipPath: "inset(0 0% 0 0)" },
+          "60%": { clipPath: "inset(0 0% 0 0)" },
+          "100%": { clipPath: "inset(0 100% 0 0)" },
         pulse: {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
@@ -124,6 +129,7 @@ export default {
         "slide-in-right": "slide-in-right 0.3s ease-out",
         shimmer: "shimmer 3s ease-in-out infinite",
         "wave-fill": "wave-fill 6s ease-in-out infinite",
+        "text-reveal": "text-reveal 4s ease-in-out infinite",
         pulse: "pulse 2s ease-in-out infinite",
       },
     },
