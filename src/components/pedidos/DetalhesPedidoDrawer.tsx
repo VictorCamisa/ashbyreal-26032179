@@ -12,10 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   User,
   Phone,
-  Calendar,
   Package,
   CreditCard,
-  Truck,
   Clock,
   CheckCircle,
   XCircle,
@@ -23,6 +21,9 @@ import {
   Printer,
   RotateCcw,
   MessageCircle,
+  DollarSign,
+  Link2,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
@@ -49,6 +50,7 @@ interface PedidoDetails {
   metodo_pagamento: string | null;
   observacoes: string | null;
   status_history: any[];
+  transaction_id: string | null;
 }
 
 interface PedidoItem {
@@ -68,6 +70,12 @@ interface Cliente {
   nome: string;
   telefone: string;
   email: string;
+}
+
+interface TransactionInfo {
+  id: string;
+  status: string;
+  amount: string;
 }
 
 const statusIcons: Record<string, React.ElementType> = {
@@ -94,6 +102,7 @@ export function DetalhesPedidoDrawer({
   const [pedido, setPedido] = useState<PedidoDetails | null>(null);
   const [items, setItems] = useState<PedidoItem[]>([]);
   const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [transaction, setTransaction] = useState<TransactionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -151,6 +160,19 @@ export function DetalhesPedidoDrawer({
           .single();
 
         setCliente(clienteData);
+      }
+
+      // Fetch transaction if linked
+      if (pedidoData.transaction_id) {
+        const { data: transactionData } = await supabase
+          .from('transactions')
+          .select('id, status, amount')
+          .eq('id', pedidoData.transaction_id)
+          .single();
+
+        setTransaction(transactionData);
+      } else {
+        setTransaction(null);
       }
     } catch (error) {
       console.error('Erro ao buscar detalhes:', error);
@@ -311,6 +333,65 @@ export function DetalhesPedidoDrawer({
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Pago em</span>
                       <span>{formatDate(pedido.data_pagamento)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Integration */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Integração Financeira
+                </h3>
+                <div className="p-4 bg-muted/30 rounded-lg">
+                  {transaction ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                          <DollarSign className="h-5 w-5 text-emerald-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Transação Vinculada</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                'text-xs',
+                                transaction.status === 'PAGO' && 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                                transaction.status === 'PREVISTO' && 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+                                transaction.status === 'CANCELADO' && 'bg-red-500/10 text-red-500 border-red-500/20'
+                              )}
+                            >
+                              {transaction.status}
+                            </Badge>
+                            <span>R$ {parseFloat(transaction.amount).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open('/financeiro', '_blank')}
+                        className="gap-1"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <Link2 className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Sem Transação</p>
+                          <p className="text-xs text-muted-foreground">
+                            {pedido?.status === 'pago' 
+                              ? 'Transação será criada automaticamente'
+                              : 'Marque como pago para gerar transação'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
