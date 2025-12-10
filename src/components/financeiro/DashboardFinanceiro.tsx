@@ -107,20 +107,21 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Compact Alerts - Only show if there are alerts */}
       {hasAlerts && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {alertStats.overdueCount > 0 && (
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive"
+              className="gap-1 sm:gap-2 border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
               onClick={() => onNavigateToTransactions?.('overdue')}
             >
-              <AlertTriangle className="h-4 w-4" />
-              <span>{alertStats.overdueCount} atrasada(s)</span>
-              <span className="font-semibold">
+              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{alertStats.overdueCount} atrasada(s)</span>
+              <span className="sm:hidden">{alertStats.overdueCount}</span>
+              <span className="font-semibold hidden xs:inline">
                 {alertStats.overdueAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -131,12 +132,13 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-600"
+              className="gap-1 sm:gap-2 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-600 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
               onClick={() => onNavigateToTransactions?.('pending')}
             >
-              <CalendarClock className="h-4 w-4" />
-              <span>{alertStats.pendingCount} vencendo em 7 dias</span>
-              <span className="font-semibold">
+              <CalendarClock className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{alertStats.pendingCount} vencendo</span>
+              <span className="sm:hidden">{alertStats.pendingCount}</span>
+              <span className="font-semibold hidden xs:inline">
                 {alertStats.pendingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -147,12 +149,13 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10"
+              className="gap-1 sm:gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
               onClick={onNavigateToCartoes}
             >
-              <CreditCard className="h-4 w-4" />
-              <span>{alertStats.invoicesCount} fatura(s)</span>
-              <span className="font-semibold">
+              <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{alertStats.invoicesCount} fatura(s)</span>
+              <span className="sm:hidden">{alertStats.invoicesCount}</span>
+              <span className="font-semibold hidden xs:inline">
                 {alertStats.invoicesAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -162,47 +165,47 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
       )}
 
       {/* Month Navigation */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-          <ChevronLeft className="h-4 w-4" />
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={handlePrevMonth}>
+          <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
         </Button>
-        <span className="text-lg font-medium capitalize min-w-[160px] text-center">
+        <span className="text-sm sm:text-lg font-medium capitalize min-w-[120px] sm:min-w-[160px] text-center">
           {monthLabel}
         </span>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-          <ChevronRight className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={handleNextMonth}>
+          <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
         </Button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Receitas</p>
-                <p className="text-xl font-bold text-emerald-600">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Receitas</p>
+                <p className="text-base sm:text-xl font-bold text-emerald-600 truncate">
                   {totalReceitas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                <ArrowUpRight className="h-5 w-5 text-emerald-600" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Despesas</p>
-                <p className="text-xl font-bold text-destructive">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Despesas</p>
+                <p className="text-base sm:text-xl font-bold text-destructive truncate">
                   {totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <ArrowDownRight className="h-5 w-5 text-destructive" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
               </div>
             </div>
           </CardContent>
@@ -211,23 +214,23 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
         <Card className={cn(
           isPositive ? "ring-1 ring-emerald-200 dark:ring-emerald-800" : "ring-1 ring-red-200 dark:ring-red-800"
         )}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Resultado</p>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Resultado</p>
                 <p className={cn(
-                  "text-xl font-bold",
+                  "text-base sm:text-xl font-bold truncate",
                   isPositive ? "text-emerald-600" : "text-destructive"
                 )}>
                   {resultado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
               </div>
               <div className={cn(
-                "h-10 w-10 rounded-full flex items-center justify-center",
+                "h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center flex-shrink-0",
                 isPositive ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"
               )}>
                 <Wallet className={cn(
-                  "h-5 w-5",
+                  "h-4 w-4 sm:h-5 sm:w-5",
                   isPositive ? "text-emerald-600" : "text-destructive"
                 )} />
               </div>
@@ -239,19 +242,19 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
           className="cursor-pointer hover:bg-muted/50 transition-colors"
           onClick={onNavigateToCartoes}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Cartões</p>
-                <p className="text-xl font-bold">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Cartões</p>
+                <p className="text-base sm:text-xl font-bold truncate">
                   {totalFaturas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {faturasPendentes.length} faturas abertas
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  {faturasPendentes.length} faturas
                 </p>
               </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-primary" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -259,7 +262,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
       </div>
 
       {/* Evolution Chart + Health Gauge Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <EvolutionChart data={evolutionData} />
         <HealthGauge
           receitas={totalReceitas}
@@ -270,14 +273,14 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Bar Chart - Receitas vs Despesas */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Resultado do Mês</CardTitle>
+          <CardHeader className="p-3 sm:p-6 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Resultado do Mês</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <ResponsiveContainer width="100%" height={160} className="sm:!h-[200px]">
               <BarChart 
                 data={[
                   { name: 'Receitas', value: totalReceitas, fill: '#10b981' },
@@ -286,7 +289,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                 margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} />
                 <YAxis hide />
                 <Tooltip 
                   formatter={(value: number) => [value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), '']}
@@ -294,10 +297,10 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                     backgroundColor: 'hsl(var(--card))', 
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
-                    fontSize: '12px'
+                    fontSize: '11px'
                   }}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={80} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -305,20 +308,20 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
 
         {/* Pie Chart - Despesas por Categoria */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Despesas por Categoria</CardTitle>
+          <CardHeader className="p-3 sm:p-6 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Despesas por Categoria</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 sm:p-6 pt-0">
             {despesasPorCategoria.length > 0 ? (
-              <div className="flex items-start gap-4">
-                <ResponsiveContainer width={160} height={160}>
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
+                <ResponsiveContainer width={120} height={120} className="sm:!w-[160px] sm:!h-[160px] flex-shrink-0">
                   <PieChart>
                     <Pie
                       data={despesasPorCategoria.slice(0, 6)}
                       cx="50%"
                       cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
+                      innerRadius={30}
+                      outerRadius={55}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -332,22 +335,22 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                         backgroundColor: 'hsl(var(--card))', 
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
-                        fontSize: '12px'
+                        fontSize: '11px'
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex-1 space-y-2 pt-2">
-                  {despesasPorCategoria.slice(0, 5).map((cat, index) => (
-                    <div key={cat.name} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-1.5 sm:space-y-2 w-full sm:pt-2">
+                  {despesasPorCategoria.slice(0, 4).map((cat, index) => (
+                    <div key={cat.name} className="flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                         <div 
-                          className="h-2.5 w-2.5 rounded-full" 
+                          className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full flex-shrink-0" 
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
-                        <span className="text-muted-foreground truncate max-w-[100px]">{cat.name}</span>
+                        <span className="text-muted-foreground truncate">{cat.name}</span>
                       </div>
-                      <span className="font-medium tabular-nums">
+                      <span className="font-medium tabular-nums flex-shrink-0 ml-2">
                         {cat.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
@@ -355,7 +358,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                 </div>
               </div>
             ) : (
-              <div className="h-[160px] flex items-center justify-center text-sm text-muted-foreground">
+              <div className="h-[120px] sm:h-[160px] flex items-center justify-center text-xs sm:text-sm text-muted-foreground">
                 Nenhuma despesa no período
               </div>
             )}
@@ -365,12 +368,12 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
 
       {/* Recent Transactions */}
       <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-medium">Transações Recentes</CardTitle>
+        <CardHeader className="p-3 sm:p-6 pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-xs sm:text-sm font-medium">Transações Recentes</CardTitle>
           <Button 
             variant="ghost" 
             size="sm" 
-            className="text-xs text-muted-foreground"
+            className="text-[10px] sm:text-xs text-muted-foreground h-6 sm:h-8 px-2"
             onClick={() => onNavigateToTransactions?.('all')}
           >
             Ver todas
@@ -382,33 +385,33 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
               {recentTransactions.map((t) => {
                 const isPagar = t.tipo === 'PAGAR';
                 return (
-                  <div key={t.id} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
+                  <div key={t.id} className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 hover:bg-muted/30 transition-colors gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                       <div className={cn(
-                        "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                        "h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center shrink-0",
                         isPagar ? "bg-red-100 dark:bg-red-900/30" : "bg-emerald-100 dark:bg-emerald-900/30"
                       )}>
                         {isPagar 
-                          ? <ArrowDownRight className="h-4 w-4 text-destructive" />
-                          : <ArrowUpRight className="h-4 w-4 text-emerald-600" />
+                          ? <ArrowDownRight className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
+                          : <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600" />
                         }
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{t.description || 'Sem descrição'}</p>
-                        <p className="text-xs text-muted-foreground">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs sm:text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                           {new Date(t.due_date).toLocaleDateString('pt-BR')} • {(t.categories as any)?.name || 'Sem categoria'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
                       <Badge 
                         variant={t.status === 'PAGO' ? 'default' : 'secondary'}
-                        className="text-xs"
+                        className="text-[10px] sm:text-xs h-5 sm:h-6 hidden xs:flex"
                       >
-                        {t.status === 'PAGO' ? 'Pago' : 'Pendente'}
+                        {t.status === 'PAGO' ? 'Pago' : 'Pend'}
                       </Badge>
                       <span className={cn(
-                        "text-sm font-semibold tabular-nums",
+                        "text-xs sm:text-sm font-semibold tabular-nums",
                         isPagar ? "text-destructive" : "text-emerald-600"
                       )}>
                         {isPagar ? '-' : '+'}

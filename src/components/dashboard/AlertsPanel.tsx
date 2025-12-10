@@ -110,9 +110,9 @@ export function AlertsPanel({
   };
 
   return (
-    <div className="glass-card p-4">
-      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-amber-600" />
+    <div className="glass-card p-3 sm:p-4">
+      <h3 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-2">
+        <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600" />
         Alertas Importantes
       </h3>
       <div className="space-y-2">
@@ -122,26 +122,26 @@ export function AlertsPanel({
             <div
               key={index}
               className={cn(
-                'flex items-center gap-3 p-3 rounded-xl border',
+                'flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl border',
                 styles.bg,
                 styles.border
               )}
             >
-              <div className={cn('h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0', styles.iconBg)}>
-                <alert.icon className={cn('h-4 w-4', styles.icon)} />
+              <div className={cn('h-7 w-7 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center flex-shrink-0', styles.iconBg)}>
+                <alert.icon className={cn('h-3.5 w-3.5 sm:h-4 sm:w-4', styles.icon)} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{alert.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{alert.description}</p>
+                <p className="text-xs sm:text-sm font-medium truncate">{alert.title}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{alert.description}</p>
               </div>
               {alert.route && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="flex-shrink-0 gap-1"
+                  className="flex-shrink-0 gap-1 h-7 sm:h-8 px-2 sm:px-3 text-xs"
                   onClick={() => navigate(alert.route!)}
                 >
-                  {alert.action}
+                  <span className="hidden sm:inline">{alert.action}</span>
                   <ArrowRight className="h-3 w-3" />
                 </Button>
               )}
