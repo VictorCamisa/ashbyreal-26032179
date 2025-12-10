@@ -1,0 +1,414 @@
+import { useState, useEffect } from 'react';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  User,
+  Phone,
+  Calendar,
+  Package,
+  CreditCard,
+  Truck,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Copy,
+  Printer,
+  RotateCcw,
+  MessageCircle,
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
+interface DetalhesPedidoDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pedidoId: string | null;
+  clienteNome?: string;
+  onStatusChange?: () => void;
+}
+
+interface PedidoDetails {
+  id: string;
+  numero_pedido: string;
+  cliente_id: string;
+  status: string;
+  valor_total: number;
+  data_pedido: string;
+  data_entrega: string | null;
+  data_pagamento: string | null;
+  metodo_pagamento: string | null;
+  observacoes: string | null;
+  status_history: any[];
+}
+
+interface PedidoItem {
+  id: string;
+  produto_id: string;
+  quantidade: number;
+  preco_unitario: number;
+  subtotal: number;
+  produtos: {
+    nome: string;
+    categoria: string | null;
+    sku: string | null;
+  } | null;
+}
+
+interface Cliente {
+  nome: string;
+  telefone: string;
+  email: string;
+}
+
+const statusIcons: Record<string, React.ElementType> = {
+  pendente: Clock,
+  pago: CreditCard,
+  entregue: CheckCircle,
+  cancelado: XCircle,
+};
+
+const statusColors: Record<string, string> = {
+  pendente: 'bg-amber-500',
+  pago: 'bg-emerald-500',
+  entregue: 'bg-blue-500',
+  cancelado: 'bg-red-500',
+};
+
+export function DetalhesPedidoDrawer({
+  open,
+  onOpenChange,
+  pedidoId,
+  clienteNome,
+  onStatusChange,
+}: DetalhesPedidoDrawerProps) {
+  const [pedido, setPedido] = useState<PedidoDetails | null>(null);
+  const [items, setItems] = useState<PedidoItem[]>([]);
+  const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (open && pedidoId) {
+      fetchPedidoDetails();
+    }
+  }, [open, pedidoId]);
+
+  const fetchPedidoDetails = async () => {
+    if (!pedidoId) return;
+    setIsLoading(true);
+
+    try {
+      // Fetch pedido
+      const { data: pedidoData, error: pedidoError } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('id', pedidoId)
+        .single();
+
+      if (pedidoError) throw pedidoError;
+
+      // Parse status_history safely
+      let statusHistory: any[] = [];
+      if (pedidoData.status_history) {
+        try {
+          statusHistory = typeof pedidoData.status_history === 'string'
+            ? JSON.parse(pedidoData.status_history)
+            : pedidoData.status_history;
+        } catch {
+          statusHistory = [];
+        }
+      }
+
+      setPedido({ ...pedidoData, status_history: statusHistory });
+
+      // Fetch items with products
+      const { data: itemsData } = await supabase
+        .from('pedido_itens')
+        .select(`
+          *,
+          produtos (nome, categoria, sku)
+        `)
+        .eq('pedido_id', pedidoId);
+
+      setItems(itemsData || []);
+
+      // Fetch cliente
+      if (pedidoData.cliente_id) {
+        const { data: clienteData } = await supabase
+          .from('clientes')
+          .select('nome, telefone, email')
+          .eq('id', pedidoData.cliente_id)
+          .single();
+
+        setCliente(clienteData);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCopyId = () => {
+    if (pedido?.numero_pedido) {
+      navigator.clipboard.writeText(pedido.numero_pedido);
+      toast({ title: 'Copiado!', description: 'Número do pedido copiado.' });
+    }
+  };
+
+  const handleWhatsApp = () => {
+    if (cliente?.telefone && pedido) {
+      const phone = cliente.telefone.replace(/\D/g, '');
+      const message = encodeURIComponent(
+        `Olá ${cliente.nome}! Seu pedido #${pedido.numero_pedido} está ${pedido.status}. Valor: R$ ${pedido.valor_total.toFixed(2)}`
+      );
+      window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+    }
+  };
+
+  const formatDate = (date: string | null) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <SheetTitle className="text-xl">
+                Pedido #{pedido?.numero_pedido?.slice(-8) || pedidoId?.slice(0, 8)}
+              </SheetTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatDate(pedido?.data_pedido || null)}
+              </p>
+            </div>
+            {pedido && (
+              <PedidoStatusWorkflow
+                pedidoId={pedido.id}
+                currentStatus={pedido.status}
+                statusHistory={pedido.status_history}
+                onStatusChange={() => {
+                  fetchPedidoDetails();
+                  onStatusChange?.();
+                }}
+              />
+            )}
+          </div>
+        </SheetHeader>
+
+        {isLoading ? (
+          <div className="flex-1 p-6 space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-20 bg-muted/50 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-6">
+              {/* Cliente Info */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Cliente
+                </h3>
+                <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{cliente?.nome || clienteNome || '-'}</p>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {cliente?.telefone || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Itens do Pedido
+                </h3>
+                {items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 bg-muted/30 rounded-lg">
+                    Nenhum item registrado
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                            <Package className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              {item.produtos?.nome || 'Produto'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantidade}x R$ {item.preco_unitario.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-semibold text-primary">
+                          R$ {item.subtotal.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Info */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Pagamento
+                </h3>
+                <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>R$ {pedido?.valor_total.toFixed(2)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total</span>
+                    <span className="text-primary">R$ {pedido?.valor_total.toFixed(2)}</span>
+                  </div>
+                  {pedido?.metodo_pagamento && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Método</span>
+                      <Badge variant="outline" className="capitalize">
+                        {pedido.metodo_pagamento}
+                      </Badge>
+                    </div>
+                  )}
+                  {pedido?.data_pagamento && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Pago em</span>
+                      <span>{formatDate(pedido.data_pagamento)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              {pedido?.status_history && pedido.status_history.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Histórico
+                  </h3>
+                  <div className="space-y-0">
+                    {pedido.status_history.map((event, index) => {
+                      const Icon = statusIcons[event.status] || Clock;
+                      const isLast = index === pedido.status_history.length - 1;
+                      return (
+                        <div key={index} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={cn(
+                                'w-8 h-8 rounded-full flex items-center justify-center',
+                                statusColors[event.status] || 'bg-muted'
+                              )}
+                            >
+                              <Icon className="h-4 w-4 text-white" />
+                            </div>
+                            {!isLast && (
+                              <div className="w-0.5 h-8 bg-border" />
+                            )}
+                          </div>
+                          <div className="pb-4">
+                            <p className="font-medium capitalize">{event.status}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(event.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {pedido?.observacoes && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Observações
+                  </h3>
+                  <p className="text-sm p-4 bg-muted/30 rounded-lg">
+                    {pedido.observacoes}
+                  </p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        )}
+
+        {/* Quick Actions */}
+        <div className="p-4 border-t bg-muted/20">
+          <div className="grid grid-cols-4 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyId}
+              className="flex-col h-auto py-3 gap-1"
+            >
+              <Copy className="h-4 w-4" />
+              <span className="text-xs">Copiar</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleWhatsApp}
+              className="flex-col h-auto py-3 gap-1"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="text-xs">WhatsApp</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-col h-auto py-3 gap-1"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="text-xs">Imprimir</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-col h-auto py-3 gap-1"
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span className="text-xs">Duplicar</span>
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
