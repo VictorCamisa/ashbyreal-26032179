@@ -974,11 +974,15 @@ export type Database = {
           cliente_id: string
           created_at: string
           data_entrega: string | null
+          data_pagamento: string | null
           data_pedido: string
           id: string
+          metodo_pagamento: string | null
           numero_pedido: string
           observacoes: string | null
           status: string
+          status_history: Json | null
+          transaction_id: string | null
           updated_at: string
           valor_total: number
         }
@@ -986,11 +990,15 @@ export type Database = {
           cliente_id: string
           created_at?: string
           data_entrega?: string | null
+          data_pagamento?: string | null
           data_pedido?: string
           id?: string
+          metodo_pagamento?: string | null
           numero_pedido: string
           observacoes?: string | null
           status?: string
+          status_history?: Json | null
+          transaction_id?: string | null
           updated_at?: string
           valor_total?: number
         }
@@ -998,11 +1006,15 @@ export type Database = {
           cliente_id?: string
           created_at?: string
           data_entrega?: string | null
+          data_pagamento?: string | null
           data_pedido?: string
           id?: string
+          metodo_pagamento?: string | null
           numero_pedido?: string
           observacoes?: string | null
           status?: string
+          status_history?: Json | null
+          transaction_id?: string | null
           updated_at?: string
           valor_total?: number
         }
@@ -1012,6 +1024,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
