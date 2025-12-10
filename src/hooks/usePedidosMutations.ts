@@ -165,7 +165,30 @@ export function usePedidosMutations() {
     setIsLoading(true);
 
     try {
-      // First delete items
+      // First, get the pedido to check for linked transaction
+      const { data: pedido } = await supabase
+        .from('pedidos')
+        .select('transaction_id, status')
+        .eq('id', pedidoId)
+        .single();
+
+      // Cancel linked transaction if exists
+      if (pedido?.transaction_id) {
+        await supabase
+          .from('transactions')
+          .update({ status: 'CANCELADO' })
+          .eq('id', pedido.transaction_id);
+      }
+
+      // Restore stock by setting status to 'cancelado' first (triggers stock restoration)
+      if (pedido?.status !== 'cancelado') {
+        await supabase
+          .from('pedidos')
+          .update({ status: 'cancelado' })
+          .eq('id', pedidoId);
+      }
+
+      // Delete items
       const { error: itemsError } = await supabase
         .from('pedido_itens')
         .delete()
@@ -173,7 +196,7 @@ export function usePedidosMutations() {
 
       if (itemsError) throw itemsError;
 
-      // Then delete the order
+      // Delete the order
       const { error } = await supabase
         .from('pedidos')
         .delete()
@@ -183,7 +206,7 @@ export function usePedidosMutations() {
 
       toast({
         title: 'Pedido excluído',
-        description: 'O pedido foi removido com sucesso.'
+        description: 'O pedido foi removido e o estoque restaurado.'
       });
 
       return true;

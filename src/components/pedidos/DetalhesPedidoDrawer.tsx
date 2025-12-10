@@ -10,6 +10,17 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
   User,
   Phone,
   Package,
@@ -24,9 +35,11 @@ import {
   DollarSign,
   Link2,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
+import { usePedidosMutations } from '@/hooks/usePedidosMutations';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,6 +49,7 @@ interface DetalhesPedidoDrawerProps {
   pedidoId: string | null;
   clienteNome?: string;
   onStatusChange?: () => void;
+  onDelete?: () => void;
 }
 
 interface PedidoDetails {
@@ -98,6 +112,7 @@ export function DetalhesPedidoDrawer({
   pedidoId,
   clienteNome,
   onStatusChange,
+  onDelete,
 }: DetalhesPedidoDrawerProps) {
   const [pedido, setPedido] = useState<PedidoDetails | null>(null);
   const [items, setItems] = useState<PedidoItem[]>([]);
@@ -105,12 +120,24 @@ export function DetalhesPedidoDrawer({
   const [transaction, setTransaction] = useState<TransactionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { deletePedido, isLoading: isDeleting } = usePedidosMutations();
 
   useEffect(() => {
     if (open && pedidoId) {
       fetchPedidoDetails();
     }
   }, [open, pedidoId]);
+
+  const handleDelete = async () => {
+    if (!pedidoId) return;
+    try {
+      await deletePedido(pedidoId);
+      onOpenChange(false);
+      onDelete?.();
+    } catch (error) {
+      // Error handled in mutation
+    }
+  };
 
   const fetchPedidoDetails = async () => {
     if (!pedidoId) return;
@@ -451,7 +478,7 @@ export function DetalhesPedidoDrawer({
         )}
 
         {/* Quick Actions */}
-        <div className="p-4 border-t bg-muted/20">
+        <div className="p-4 border-t bg-muted/20 space-y-3">
           <div className="grid grid-cols-4 gap-2">
             <Button
               variant="outline"
@@ -488,6 +515,42 @@ export function DetalhesPedidoDrawer({
               <span className="text-xs">Duplicar</span>
             </Button>
           </div>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir Pedido
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir Pedido</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja excluir o pedido #{pedido?.numero_pedido?.slice(-8)}? 
+                  Esta ação irá:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Restaurar o estoque dos produtos</li>
+                    <li>Cancelar a transação financeira vinculada</li>
+                    <li>Remover permanentemente o pedido</li>
+                  </ul>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </SheetContent>
     </Sheet>
