@@ -62,24 +62,14 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-muted/50 via-background to-background p-4">
       <div className="w-full max-w-sm space-y-10">
-        {/* Name with Apple-style typing reveal animation */}
+        {/* Name with wave fill animation */}
         <div className="flex flex-col items-center">
-          <div className="relative">
-            {/* Base text (invisible, just for sizing) */}
-            <h1 
-              className="text-6xl text-transparent select-none"
-              style={{ fontFamily: '"Allura", cursive' }}
-            >
-              Alexandre
-            </h1>
-            {/* Revealed text with clip animation */}
-            <h1 
-              className="absolute inset-0 text-6xl text-primary select-none animate-text-reveal"
-              style={{ fontFamily: '"Allura", cursive' }}
-            >
-              Alexandre
-            </h1>
-          </div>
+          <h1 
+            className="text-6xl select-none animate-wave-fill bg-gradient-to-r from-muted-foreground/20 via-primary to-muted-foreground/20 bg-[length:300%_100%] bg-clip-text text-transparent"
+            style={{ fontFamily: '"Allura", cursive' }}
+          >
+            Alexandre
+          </h1>
         </div>
 
         {/* Login Form */}
