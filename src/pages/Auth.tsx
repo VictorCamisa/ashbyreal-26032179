@@ -64,10 +64,10 @@ export default function Auth() {
       <div className="w-full max-w-sm space-y-10">
         {/* Name with wave fill animation */}
         <div className="flex flex-col items-center">
-          <h1 className="text-5xl font-medium tracking-tight text-foreground/20 relative select-none">
-            <span className="absolute inset-0 animate-wave-fill bg-gradient-to-r from-primary via-primary to-transparent bg-[length:200%_100%] bg-clip-text text-transparent">
-              Alexandre
-            </span>
+          <h1 
+            className="text-5xl font-light tracking-tight animate-wave-fill bg-gradient-to-r from-foreground/20 via-primary via-50% to-foreground/20 bg-[length:200%_100%] bg-clip-text text-transparent select-none"
+            style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+          >
             Alexandre
           </h1>
         </div>
