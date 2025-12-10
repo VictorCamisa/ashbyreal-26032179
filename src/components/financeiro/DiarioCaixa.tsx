@@ -82,11 +82,11 @@ export function DiarioCaixa() {
   const totals = useMemo(() => {
     const receitas = filteredTransactions
       .filter(t => t.tipo === 'RECEBER')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
     
     const despesas = filteredTransactions
       .filter(t => t.tipo === 'PAGAR')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
     
     return { receitas, despesas, saldo: receitas - despesas };
   }, [filteredTransactions]);
