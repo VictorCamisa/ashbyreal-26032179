@@ -1464,6 +1464,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_contacts: {
         Row: {
           created_at: string
@@ -1694,10 +1715,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       account_type: "BANCO" | "CAIXA" | "CARTAO_CREDITO"
+      app_role: "admin" | "moderator" | "user"
       ashby_status: "PREVISTO" | "FATURADO" | "PAGO" | "CANCELADO"
       card_invoice_status: "ABERTA" | "FECHADA" | "PAGA"
       category_group:
@@ -1850,6 +1878,7 @@ export const Constants = {
   public: {
     Enums: {
       account_type: ["BANCO", "CAIXA", "CARTAO_CREDITO"],
+      app_role: ["admin", "moderator", "user"],
       ashby_status: ["PREVISTO", "FATURADO", "PAGO", "CANCELADO"],
       card_invoice_status: ["ABERTA", "FECHADA", "PAGA"],
       category_group: [
