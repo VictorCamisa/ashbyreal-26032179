@@ -4,16 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTransacoes } from '@/hooks/useTransacoes';
 import { useCartoes } from '@/hooks/useCartoes';
+import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
+import { HealthGauge } from './HealthGauge';
+import { AlertsBanner } from './AlertsBanner';
+import { EvolutionChart } from './EvolutionChart';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  TrendingUp,
-  TrendingDown,
   Wallet,
   CreditCard,
   ArrowUpRight,
   ArrowDownRight,
-  MoreHorizontal
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -39,6 +40,7 @@ export function DashboardFinanceiro() {
   const { transacoes: despesas, isLoading: isLoadingDespesas } = useTransacoes('LOJA', 'PAGAR');
   const { transacoes: receitas, isLoading: isLoadingReceitas } = useTransacoes('LOJA', 'RECEBER');
   const { faturas } = useCartoes();
+  const { evolutionData, alertStats, isLoading: isLoadingStats } = useFinanceiroStats(referenceMonth);
 
   // Navigate months
   const handlePrevMonth = () => {
@@ -96,6 +98,16 @@ export function DashboardFinanceiro() {
 
   return (
     <div className="space-y-6">
+      {/* Alerts Banner */}
+      <AlertsBanner
+        transacoesAtrasadas={alertStats.overdueCount}
+        valorAtrasado={alertStats.overdueAmount}
+        transacoesPendentes={alertStats.pendingCount}
+        valorPendente={alertStats.pendingAmount}
+        faturasVencendo={alertStats.invoicesCount}
+        valorFaturas={alertStats.invoicesAmount}
+      />
+
       {/* Month Navigation */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
@@ -188,6 +200,17 @@ export function DashboardFinanceiro() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Evolution Chart + Health Gauge Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <EvolutionChart data={evolutionData} />
+        <HealthGauge
+          receitas={totalReceitas}
+          despesas={totalDespesas}
+          transacoesAtrasadas={alertStats.overdueCount}
+          faturasAbertas={alertStats.invoicesCount}
+        />
       </div>
 
       {/* Charts Row */}
