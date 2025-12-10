@@ -1,32 +1,42 @@
 import { useState } from 'react';
-import { useDashboard } from '@/hooks/useDashboard';
-import { DashboardKPIs } from '@/components/dashboard/DashboardKPIs';
-import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
+import { useDashboardEnhanced } from '@/hooks/useDashboardEnhanced';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { EnhancedKPIs } from '@/components/dashboard/EnhancedKPIs';
+import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
+import { CashFlowChart } from '@/components/dashboard/CashFlowChart';
+import { LeadFunnelChart } from '@/components/dashboard/LeadFunnelChart';
+import { RankingsPanel } from '@/components/dashboard/RankingsPanel';
+import { PedidosTimeline } from '@/components/dashboard/PedidosTimeline';
+import { WhatsAppStatus } from '@/components/dashboard/WhatsAppStatus';
+import { QuickActions } from '@/components/dashboard/QuickActions';
+import { HealthGauge } from '@/components/financeiro/HealthGauge';
+import { EvolutionChart } from '@/components/financeiro/EvolutionChart';
+import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  TrendingUp, 
-  AlertTriangle, 
-  Target, 
-  ShoppingCart, 
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const [mesReferencia, setMesReferencia] = useState(new Date());
+  const [entityFilter, setEntityFilter] = useState<'all' | 'LOJA' | 'PARTICULAR'>('all');
+  
   const {
     dashboardData,
-    vendasPorDia,
-    produtosMaisVendidos,
-    leadsPorOrigem,
+    cashFlowForecast,
+    leadFunnel,
     isLoading,
-  } = useDashboard(mesReferencia);
+    refetch,
+  } = useDashboardEnhanced(mesReferencia, entityFilter);
+
+  const { evolutionData, alertStats } = useFinanceiroStats(mesReferencia);
 
   const handlePrevMonth = () => {
     setMesReferencia(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -38,100 +48,122 @@ export default function Dashboard() {
 
   const monthLabel = format(mesReferencia, 'MMMM yyyy', { locale: ptBR });
 
-  const insights = dashboardData ? [
-    {
-      icon: TrendingUp,
-      color: dashboardData.vendas.crescimento >= 0 ? 'text-emerald-600' : 'text-destructive',
-      bgColor: dashboardData.vendas.crescimento >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30',
-      title: 'Vendas',
-      description: dashboardData.vendas.crescimento >= 0
-        ? `+${dashboardData.vendas.crescimento.toFixed(1)}% vs mês anterior`
-        : `${dashboardData.vendas.crescimento.toFixed(1)}% vs mês anterior`,
-    },
-    {
-      icon: Target,
-      color: 'text-violet-600',
-      bgColor: 'bg-violet-100 dark:bg-violet-900/30',
-      title: 'Conversão',
-      description: `${dashboardData.leads.conversao.toFixed(1)}% com ${dashboardData.leads.total} leads`,
-    },
-    {
-      icon: AlertTriangle,
-      color: dashboardData.estoque.alertas > 0 ? 'text-amber-600' : 'text-emerald-600',
-      bgColor: dashboardData.estoque.alertas > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30',
-      title: 'Estoque',
-      description: dashboardData.estoque.alertas > 0
-        ? `${dashboardData.estoque.alertas} produtos com estoque baixo`
-        : 'Estoque adequado',
-    },
-    {
-      icon: ShoppingCart,
-      color: 'text-cyan-600',
-      bgColor: 'bg-cyan-100 dark:bg-cyan-900/30',
-      title: 'Clientes',
-      description: `${dashboardData.clientes.novos} novos este mês`,
-    },
-  ] : [];
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="Dashboard"
-        subtitle="Visão geral do seu negócio"
+        subtitle="Visão geral completa do seu negócio"
         icon={LayoutDashboard}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            {/* Entity Filter */}
+            <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
+              <SelectTrigger className="w-[130px] h-8">
+                <Filter className="h-3 w-3 mr-1" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="LOJA">Loja</SelectItem>
+                <SelectItem value="PARTICULAR">Particular</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Month Navigation */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium capitalize min-w-[110px] text-center">
+                {monthLabel}
+              </span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Refresh */}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium capitalize min-w-[120px] text-center">
-              {monthLabel}
-            </span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+
+            {/* Quick Actions */}
+            <QuickActions />
           </div>
         }
       />
 
-      {/* KPIs */}
-      <DashboardKPIs data={dashboardData} isLoading={isLoading} />
+      {/* KPIs Grid */}
+      <EnhancedKPIs data={dashboardData} isLoading={isLoading} />
 
-      {/* Charts */}
-      <DashboardCharts
-        vendasPorDia={vendasPorDia}
-        produtosMaisVendidos={produtosMaisVendidos}
-        leadsPorOrigem={leadsPorOrigem}
-        isLoading={isLoading}
-      />
-
-      {/* Insights */}
-      {!isLoading && dashboardData && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Insights do Período</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {insights.map((insight) => (
-                <div 
-                  key={insight.title} 
-                  className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border/50"
-                >
-                  <div className={`h-9 w-9 rounded-lg ${insight.bgColor} flex items-center justify-center flex-shrink-0`}>
-                    <insight.icon className={`h-4 w-4 ${insight.color}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{insight.title}</p>
-                    <p className="text-xs text-muted-foreground">{insight.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Alerts + WhatsApp Row */}
+      {dashboardData && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <AlertsPanel
+              atrasadas={dashboardData.financeiro.atrasadas}
+              valorAtrasado={dashboardData.financeiro.valorAtrasado}
+              pendentes={dashboardData.financeiro.pendentes7dias}
+              valorPendente={dashboardData.financeiro.valorPendente}
+              faturasAbertas={dashboardData.financeiro.faturasAbertas}
+              valorFaturas={dashboardData.financeiro.valorFaturas}
+              alertasEstoque={dashboardData.estoque.alertas}
+              produtosEmAlerta={dashboardData.estoque.produtosEmAlerta}
+            />
+          </div>
+          <WhatsAppStatus
+            isConnected={dashboardData.whatsapp.isConnected}
+            conversasAtivas={dashboardData.whatsapp.conversasAtivas}
+            naoLidas={dashboardData.whatsapp.naoLidas}
+          />
+        </div>
       )}
+
+      {/* Financial Health + Evolution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {dashboardData && (
+          <HealthGauge
+            receitas={dashboardData.financeiro.receitas}
+            despesas={dashboardData.financeiro.despesas}
+            transacoesAtrasadas={dashboardData.financeiro.atrasadas}
+            faturasAbertas={dashboardData.financeiro.faturasAbertas}
+          />
+        )}
+        <EvolutionChart data={evolutionData} />
+      </div>
+
+      {/* Cash Flow + Lead Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CashFlowChart data={cashFlowForecast} />
+        {dashboardData && (
+          <LeadFunnelChart
+            data={leadFunnel}
+            totalLeads={dashboardData.leads.total}
+            taxaConversao={dashboardData.leads.conversao}
+          />
+        )}
+      </div>
+
+      {/* Rankings + Pedidos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {dashboardData && (
+          <>
+            <RankingsPanel
+              topClientes={dashboardData.topClientes}
+              topProdutos={dashboardData.topProdutos}
+              topCategorias={dashboardData.topCategoriasDespesa}
+            />
+            <PedidosTimeline
+              total={dashboardData.pedidos.total}
+              pendentes={dashboardData.pedidos.pendentes}
+              emAndamento={dashboardData.pedidos.emAndamento}
+              valorPendente={dashboardData.pedidos.valorPendente}
+              byStatus={dashboardData.pedidos.byStatus}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
