@@ -57,9 +57,9 @@ export function DashboardFinanceiro() {
   const filteredDespesas = filterByMonth(despesas);
   const filteredReceitas = filterByMonth(receitas);
 
-  // Calculate totals
-  const totalDespesas = filteredDespesas.reduce((acc, t) => acc + Number(t.amount), 0);
-  const totalReceitas = filteredReceitas.reduce((acc, t) => acc + Number(t.amount), 0);
+  // Calculate totals (use Math.abs because despesas are stored as negative values)
+  const totalDespesas = filteredDespesas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+  const totalReceitas = filteredReceitas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
   const resultado = totalReceitas - totalDespesas;
   const isPositive = resultado >= 0;
 
@@ -67,14 +67,14 @@ export function DashboardFinanceiro() {
   const faturasPendentes = faturas?.filter(f => f.status !== 'PAGA').slice(0, 3) || [];
   const totalFaturas = faturasPendentes.reduce((acc, f) => acc + f.total_value, 0);
 
-  // Group by category
+  // Group by category (use absolute values)
   const despesasPorCategoria = filteredDespesas.reduce((acc: any[], t) => {
     const catName = (t.categories as any)?.name || 'Outros';
     const existing = acc.find(c => c.name === catName);
     if (existing) {
-      existing.value += Number(t.amount);
+      existing.value += Math.abs(Number(t.amount));
     } else {
-      acc.push({ name: catName, value: Number(t.amount) });
+      acc.push({ name: catName, value: Math.abs(Number(t.amount)) });
     }
     return acc;
   }, []).sort((a, b) => b.value - a.value);
