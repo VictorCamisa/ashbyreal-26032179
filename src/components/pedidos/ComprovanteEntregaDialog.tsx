@@ -62,6 +62,8 @@ export function ComprovanteEntregaDialog({
     periodoEntrega: 'integral',
     metodoPagamento: 'pix',
     observacoes: '',
+    cpfCnpj: '',
+    telefone: '',
     // Controle de barris
     barril50: { estoque: '', entregue: '', retirado: '' },
     barril30: { estoque: '', entregue: '', retirado: '' },
@@ -120,6 +122,8 @@ export function ComprovanteEntregaDialog({
       setFormData(prev => ({
         ...prev,
         observacoes: pedido.observacoes || '',
+        cpfCnpj: cliente?.cpf_cnpj || '',
+        telefone: cliente?.telefone || '',
       }));
     } catch (error) {
       console.error('Error fetching pedido:', error);
@@ -256,7 +260,12 @@ export function ComprovanteEntregaDialog({
             </div>
             <div className="col-span-2 sm:col-span-1">
               <Label className="text-xs text-muted-foreground">CNPJ/CPF</Label>
-              <p className="font-medium">{pedidoData?.cliente?.cpf_cnpj || '-'}</p>
+              <Input
+                value={formData.cpfCnpj}
+                onChange={(e) => setFormData(prev => ({ ...prev, cpfCnpj: e.target.value }))}
+                className="h-8 font-medium"
+                placeholder="CPF ou CNPJ"
+              />
             </div>
             <div className="col-span-2">
               <Label className="text-xs text-muted-foreground">Endereço</Label>
@@ -264,7 +273,12 @@ export function ComprovanteEntregaDialog({
             </div>
             <div className="col-span-2 sm:col-span-1">
               <Label className="text-xs text-muted-foreground">Fone</Label>
-              <p className="font-medium">{pedidoData?.cliente?.telefone || '-'}</p>
+              <Input
+                value={formData.telefone}
+                onChange={(e) => setFormData(prev => ({ ...prev, telefone: e.target.value }))}
+                className="h-8 font-medium"
+                placeholder="Telefone"
+              />
             </div>
           </div>
 
