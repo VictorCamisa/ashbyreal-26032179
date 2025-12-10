@@ -36,36 +36,49 @@ Analise a imagem com atenção e extraia TODAS as informações disponíveis:
 1. **Valor** - Valor total do documento/boleto (campo "TOTAL", "Valor do Documento", "Total à Pagar")
 2. **Vencimento** - Data de vencimento (campo "VENCIMENTO")
 3. **Beneficiário/Cedente** - Nome da empresa/pessoa que vai receber o pagamento
-4. **Descrição** - O que está sendo cobrado (produtos, serviços, descrição da mercadoria)
+4. **Descrição** - Resumo do que está sendo cobrado
 5. **NÚM.MOV** - MUITO IMPORTANTE: Número do movimento/identificação que aparece geralmente ACIMA da data de vencimento. Pode aparecer como "NÚM.MOV:", "Nº MOV", "NUM MOV", "Número Movimento". Este é um número de identificação único do documento (ex: 122653).
+
+**ITENS DA NOTA (MUITO IMPORTANTE):**
+Extraia TODOS os itens/produtos listados no documento. Para cada item, extraia:
+- Descrição do produto (ex: "CHOPP PILSEN CLARO 30L", "CHOPP WEISS 30L")
+- Quantidade
+- Valor unitário
+- Valor total do item
 
 **CAMPOS ADICIONAIS (se disponíveis):**
 - CNPJ do beneficiário
 - Número da nota fiscal
 - Número do pedido
 - Código do cliente
-- Itens/produtos listados
 - Código de barras (números)
 
-${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens.' : 'Este é um documento SEM nota fiscal - PRESTE ATENÇÃO ESPECIAL ao NÚM.MOV que é o identificador principal.'}
+${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens detalhados.' : 'Este é um documento SEM nota fiscal - PRESTE ATENÇÃO ESPECIAL ao NÚM.MOV que é o identificador principal.'}
 
 Responda APENAS em formato JSON com a seguinte estrutura:
 {
   "amount": "valor numérico com vírgula como separador decimal, ex: 2.108,00",
   "due_date": "data no formato YYYY-MM-DD",
   "beneficiario": "nome completo do beneficiário/cedente",
-  "description": "descrição detalhada incluindo produtos/serviços cobrados",
-  "numero_movimento": "NÚM.MOV - número de identificação do movimento (MUITO IMPORTANTE para documentos sem nota)",
+  "description": "descrição resumida",
+  "numero_movimento": "NÚM.MOV - número de identificação do movimento",
   "cnpj": "CNPJ do beneficiário se disponível",
   "numero_nf": "número da nota fiscal se disponível",
   "numero_pedido": "número do pedido se disponível",
-  "codigo_cliente": "código do cliente se disponível",
-  "itens": "lista de itens/produtos se disponível"
+  "itens": [
+    {
+      "descricao": "nome do produto",
+      "quantidade": "quantidade",
+      "valor_unitario": "valor unitário",
+      "valor_total": "valor total do item"
+    }
+  ]
 }
 
 IMPORTANTE: 
 - O campo "numero_movimento" (NÚM.MOV) é CRÍTICO e deve ser extraído sempre que visível.
-- Se não conseguir identificar algum campo, deixe como string vazia.
+- EXTRAIA TODOS OS ITENS da nota, mesmo que sejam muitos.
+- Se não conseguir identificar algum campo, deixe como string vazia ou array vazio para itens.
 - Responda APENAS o JSON, sem markdown ou explicações.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
