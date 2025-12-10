@@ -664,6 +664,60 @@ export type Database = {
           },
         ]
       }
+      import_csv_raw: {
+        Row: {
+          c1: string | null
+          c10: string | null
+          c11: string | null
+          c12: string | null
+          c13: string | null
+          c14: string | null
+          c15: string | null
+          c2: string | null
+          c3: string | null
+          c4: string | null
+          c5: string | null
+          c6: string | null
+          c7: string | null
+          c8: string | null
+          c9: string | null
+        }
+        Insert: {
+          c1?: string | null
+          c10?: string | null
+          c11?: string | null
+          c12?: string | null
+          c13?: string | null
+          c14?: string | null
+          c15?: string | null
+          c2?: string | null
+          c3?: string | null
+          c4?: string | null
+          c5?: string | null
+          c6?: string | null
+          c7?: string | null
+          c8?: string | null
+          c9?: string | null
+        }
+        Update: {
+          c1?: string | null
+          c10?: string | null
+          c11?: string | null
+          c12?: string | null
+          c13?: string | null
+          c14?: string | null
+          c15?: string | null
+          c2?: string | null
+          c3?: string | null
+          c4?: string | null
+          c5?: string | null
+          c6?: string | null
+          c7?: string | null
+          c8?: string | null
+          c9?: string | null
+        }
+        Relationships: []
+      }
       interacoes: {
         Row: {
           cliente_id: string
@@ -1241,7 +1295,8 @@ export type Database = {
       transactions: {
         Row: {
           account_id: string | null
-          amount: number
+          amount: string
+          amount_raw: string | null
           category_id: string | null
           created_at: string
           description: string | null
@@ -1259,7 +1314,8 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
-          amount: number
+          amount: string
+          amount_raw?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -1277,7 +1333,8 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
-          amount?: number
+          amount?: string
+          amount_raw?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -1330,6 +1387,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      transactions_import_stage: {
+        Row: {
+          account_id: string | null
+          amount: number | null
+          category_id: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          entity_id: string | null
+          notes: string | null
+          origin: Database["public"]["Enums"]["transaction_origin"] | null
+          payment_date: string | null
+          recurrence_id: string | null
+          reference_month: string | null
+          status: Database["public"]["Enums"]["transaction_status"] | null
+          subcategory_id: string | null
+          tipo: Database["public"]["Enums"]["transaction_type"] | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount?: number | null
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          entity_id?: string | null
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["transaction_origin"] | null
+          payment_date?: string | null
+          recurrence_id?: string | null
+          reference_month?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"] | null
+          subcategory_id?: string | null
+          tipo?: Database["public"]["Enums"]["transaction_type"] | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number | null
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          entity_id?: string | null
+          notes?: string | null
+          origin?: Database["public"]["Enums"]["transaction_origin"] | null
+          payment_date?: string | null
+          recurrence_id?: string | null
+          reference_month?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"] | null
+          subcategory_id?: string | null
+          tipo?: Database["public"]["Enums"]["transaction_type"] | null
+        }
+        Relationships: []
       }
       whatsapp_contacts: {
         Row: {
