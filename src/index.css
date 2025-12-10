@@ -217,6 +217,6 @@
   }
 
   .animate-text-reveal {
-    animation: text-reveal 4s ease-in-out infinite;
+    animation: text-reveal 6s ease-in-out infinite;
   }
 }

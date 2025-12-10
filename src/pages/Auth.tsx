@@ -68,14 +68,14 @@ export default function Auth() {
             {/* Base text (invisible, just for sizing) */}
             <h1 
               className="text-6xl text-transparent select-none"
-              style={{ fontFamily: '"Great Vibes", cursive' }}
+              style={{ fontFamily: '"Allura", cursive' }}
             >
               Alexandre
             </h1>
             {/* Revealed text with clip animation */}
             <h1 
               className="absolute inset-0 text-6xl text-primary select-none animate-text-reveal"
-              style={{ fontFamily: '"Great Vibes", cursive' }}
+              style={{ fontFamily: '"Allura", cursive' }}
             >
               Alexandre
             </h1>
