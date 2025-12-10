@@ -6,8 +6,8 @@ import { useTransacoes } from '@/hooks/useTransacoes';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { HealthGauge } from './HealthGauge';
-import { AlertsBanner } from './AlertsBanner';
 import { EvolutionChart } from './EvolutionChart';
+import type { TransactionFilter } from '@/pages/Financeiro';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -15,6 +15,9 @@ import {
   CreditCard,
   ArrowUpRight,
   ArrowDownRight,
+  AlertTriangle,
+  CalendarClock,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -32,7 +35,12 @@ import { cn } from '@/lib/utils';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#f97316', '#14b8a6', '#8b5cf6', '#6b7280'];
 
-export function DashboardFinanceiro() {
+interface DashboardFinanceiroProps {
+  onNavigateToTransactions?: (filter: TransactionFilter) => void;
+  onNavigateToCartoes?: () => void;
+}
+
+export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCartoes }: DashboardFinanceiroProps) {
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   
   const monthStr = referenceMonth.toISOString().slice(0, 7);
@@ -88,6 +96,8 @@ export function DashboardFinanceiro() {
 
   const monthLabel = referenceMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
+  const hasAlerts = alertStats.overdueCount > 0 || alertStats.pendingCount > 0 || alertStats.invoicesCount > 0;
+
   if (isLoadingDespesas || isLoadingReceitas) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -98,15 +108,58 @@ export function DashboardFinanceiro() {
 
   return (
     <div className="space-y-6">
-      {/* Alerts Banner */}
-      <AlertsBanner
-        transacoesAtrasadas={alertStats.overdueCount}
-        valorAtrasado={alertStats.overdueAmount}
-        transacoesPendentes={alertStats.pendingCount}
-        valorPendente={alertStats.pendingAmount}
-        faturasVencendo={alertStats.invoicesCount}
-        valorFaturas={alertStats.invoicesAmount}
-      />
+      {/* Compact Alerts - Only show if there are alerts */}
+      {hasAlerts && (
+        <div className="flex flex-wrap gap-2">
+          {alertStats.overdueCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive"
+              onClick={() => onNavigateToTransactions?.('overdue')}
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <span>{alertStats.overdueCount} atrasada(s)</span>
+              <span className="font-semibold">
+                {alertStats.overdueAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <ChevronRightIcon className="h-3 w-3" />
+            </Button>
+          )}
+          
+          {alertStats.pendingCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-600"
+              onClick={() => onNavigateToTransactions?.('pending')}
+            >
+              <CalendarClock className="h-4 w-4" />
+              <span>{alertStats.pendingCount} vencendo em 7 dias</span>
+              <span className="font-semibold">
+                {alertStats.pendingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <ChevronRightIcon className="h-3 w-3" />
+            </Button>
+          )}
+          
+          {alertStats.invoicesCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10"
+              onClick={onNavigateToCartoes}
+            >
+              <CreditCard className="h-4 w-4" />
+              <span>{alertStats.invoicesCount} fatura(s)</span>
+              <span className="font-semibold">
+                {alertStats.invoicesAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <ChevronRightIcon className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Month Navigation */}
       <div className="flex items-center gap-3">
@@ -182,7 +235,10 @@ export function DashboardFinanceiro() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={onNavigateToCartoes}
+        >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -311,7 +367,12 @@ export function DashboardFinanceiro() {
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-medium">Transações Recentes</CardTitle>
-          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-xs text-muted-foreground"
+            onClick={() => onNavigateToTransactions?.('all')}
+          >
             Ver todas
           </Button>
         </CardHeader>

@@ -53,8 +53,15 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { TransactionFilter } from '@/pages/Financeiro';
+import { useEffect } from 'react';
 
-export function TransacoesUnificadas() {
+interface TransacoesUnificadasProps {
+  initialFilter?: TransactionFilter;
+  onFilterChange?: (filter: TransactionFilter) => void;
+}
+
+export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: TransacoesUnificadasProps) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
@@ -68,6 +75,31 @@ export function TransacoesUnificadas() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+
+  // Apply initial filter when component mounts or filter changes
+  useEffect(() => {
+    if (initialFilter === 'overdue') {
+      setStatusFilter('ATRASADO');
+    } else if (initialFilter === 'pending') {
+      setStatusFilter('PREVISTO');
+    } else {
+      setStatusFilter('todos');
+    }
+  }, [initialFilter]);
+
+  // Notify parent when filter changes
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    if (onFilterChange) {
+      if (value === 'ATRASADO') {
+        onFilterChange('overdue');
+      } else if (value === 'PREVISTO') {
+        onFilterChange('pending');
+      } else {
+        onFilterChange('all');
+      }
+    }
+  };
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
   const monthLabel = referenceMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -380,7 +412,7 @@ export function TransacoesUnificadas() {
             </SelectContent>
           </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
