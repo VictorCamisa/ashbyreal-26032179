@@ -67,15 +67,15 @@ export default function Auth() {
           <div className="relative">
             {/* Base text (invisible, just for sizing) */}
             <h1 
-              className="text-5xl font-light tracking-tight text-transparent select-none"
-              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+              className="text-6xl text-transparent select-none"
+              style={{ fontFamily: '"Great Vibes", cursive' }}
             >
               Alexandre
             </h1>
             {/* Revealed text with clip animation */}
             <h1 
-              className="absolute inset-0 text-5xl font-light tracking-tight text-primary select-none animate-text-reveal"
-              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
+              className="absolute inset-0 text-6xl text-primary select-none animate-text-reveal"
+              style={{ fontFamily: '"Great Vibes", cursive' }}
             >
               Alexandre
             </h1>
