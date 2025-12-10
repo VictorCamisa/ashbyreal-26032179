@@ -27,13 +27,33 @@ const tabs = [
   { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
 ];
 
+export type TransactionFilter = 'all' | 'overdue' | 'pending';
+
 const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showQuickGasto, setShowQuickGasto] = useState(false);
   const [showBoletoDialog, setShowBoletoDialog] = useState(false);
+  const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all');
   
   const { cartoes } = useCartoes();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
+
+  const handleNavigateToTransactions = (filter: TransactionFilter) => {
+    setTransactionFilter(filter);
+    setActiveTab('transacoes');
+  };
+
+  const handleNavigateToCartoes = () => {
+    setActiveTab('cartoes');
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    // Reset filter when manually changing tabs
+    if (tab !== 'transacoes') {
+      setTransactionFilter('all');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -44,7 +64,7 @@ const Financeiro = () => {
         icon={Wallet}
         tabs={tabs}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         actions={
           <div className="flex gap-2">
             <Button 
@@ -71,9 +91,19 @@ const Financeiro = () => {
 
       {/* Content Area */}
       <div className="animate-fade-in">
-        {activeTab === 'dashboard' && <DashboardFinanceiro />}
+        {activeTab === 'dashboard' && (
+          <DashboardFinanceiro 
+            onNavigateToTransactions={handleNavigateToTransactions}
+            onNavigateToCartoes={handleNavigateToCartoes}
+          />
+        )}
         {activeTab === 'boletos' && <GerenciamentoBoletos />}
-        {activeTab === 'transacoes' && <TransacoesUnificadas />}
+        {activeTab === 'transacoes' && (
+          <TransacoesUnificadas 
+            initialFilter={transactionFilter}
+            onFilterChange={setTransactionFilter}
+          />
+        )}
         {activeTab === 'cartoes' && <ControleCartoes />}
         {activeTab === 'relatorios' && <Relatorios />}
       </div>
