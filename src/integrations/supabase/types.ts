@@ -130,6 +130,78 @@ export type Database = {
           },
         ]
       }
+      boletos: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          beneficiario: string | null
+          created_at: string
+          description: string | null
+          due_date: string
+          entity_id: string
+          id: string
+          image_base64: string | null
+          notes: string | null
+          paid_at: string | null
+          status: string
+          tipo_nota: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          beneficiario?: string | null
+          created_at?: string
+          description?: string | null
+          due_date: string
+          entity_id: string
+          id?: string
+          image_base64?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          status?: string
+          tipo_nota: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          beneficiario?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          entity_id?: string
+          id?: string
+          image_base64?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          status?: string
+          tipo_nota?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boletos_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletos_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanhas: {
         Row: {
           conversoes: number | null

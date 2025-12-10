@@ -11,16 +11,17 @@ import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro
 import { TransacoesUnificadas } from '@/components/financeiro/TransacoesUnificadas';
 import { ControleCartoes } from '@/components/financeiro/ControleCartoes';
 import { Relatorios } from '@/components/financeiro/Relatorios';
+import { GerenciamentoBoletos } from '@/components/financeiro/GerenciamentoBoletos';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { NovoGastoCartaoDialog } from '@/components/financeiro/NovoGastoCartaoDialog';
 import { EntradaBoletoDialog } from '@/components/financeiro/EntradaBoletoDialog';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
-import { useTransacoes } from '@/hooks/useTransacoes';
 
 const tabs = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'boletos', label: 'Boletos', icon: Receipt },
   { id: 'transacoes', label: 'Transações', icon: ArrowLeftRight },
   { id: 'cartoes', label: 'Cartões', icon: CreditCard },
   { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
@@ -33,7 +34,6 @@ const Financeiro = () => {
   
   const { cartoes } = useCartoes();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
-  const { createTransaction, isCreating: isCreatingTransaction } = useTransacoes('LOJA', 'PAGAR');
 
   return (
     <div className="space-y-6">
@@ -72,6 +72,7 @@ const Financeiro = () => {
       {/* Content Area */}
       <div className="animate-fade-in">
         {activeTab === 'dashboard' && <DashboardFinanceiro />}
+        {activeTab === 'boletos' && <GerenciamentoBoletos />}
         {activeTab === 'transacoes' && <TransacoesUnificadas />}
         {activeTab === 'cartoes' && <ControleCartoes />}
         {activeTab === 'relatorios' && <Relatorios />}
@@ -92,11 +93,6 @@ const Financeiro = () => {
       <EntradaBoletoDialog
         open={showBoletoDialog}
         onOpenChange={setShowBoletoDialog}
-        onSave={(transaction) => {
-          createTransaction(transaction);
-          setShowBoletoDialog(false);
-        }}
-        isLoading={isCreatingTransaction}
       />
     </div>
   );
