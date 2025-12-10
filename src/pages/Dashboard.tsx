@@ -2,8 +2,21 @@ import { useState } from 'react';
 import { useDashboard } from '@/hooks/useDashboard';
 import { DashboardKPIs } from '@/components/dashboard/DashboardKPIs';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
-import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
-import { TrendingUp, AlertTriangle, Target, ShoppingCart, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  TrendingUp, 
+  AlertTriangle, 
+  Target, 
+  ShoppingCart, 
+  LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const [mesReferencia, setMesReferencia] = useState(new Date());
@@ -15,11 +28,21 @@ export default function Dashboard() {
     isLoading,
   } = useDashboard(mesReferencia);
 
+  const handlePrevMonth = () => {
+    setMesReferencia(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+  
+  const handleNextMonth = () => {
+    setMesReferencia(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const monthLabel = format(mesReferencia, 'MMMM yyyy', { locale: ptBR });
+
   const insights = dashboardData ? [
     {
       icon: TrendingUp,
-      color: dashboardData.vendas.crescimento >= 0 ? 'text-emerald-500' : 'text-rose-500',
-      bgColor: dashboardData.vendas.crescimento >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10',
+      color: dashboardData.vendas.crescimento >= 0 ? 'text-emerald-600' : 'text-destructive',
+      bgColor: dashboardData.vendas.crescimento >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30',
       title: 'Vendas',
       description: dashboardData.vendas.crescimento >= 0
         ? `+${dashboardData.vendas.crescimento.toFixed(1)}% vs mês anterior`
@@ -27,15 +50,15 @@ export default function Dashboard() {
     },
     {
       icon: Target,
-      color: 'text-violet-500',
-      bgColor: 'bg-violet-500/10',
+      color: 'text-violet-600',
+      bgColor: 'bg-violet-100 dark:bg-violet-900/30',
       title: 'Conversão',
       description: `${dashboardData.leads.conversao.toFixed(1)}% com ${dashboardData.leads.total} leads`,
     },
     {
       icon: AlertTriangle,
-      color: dashboardData.estoque.alertas > 0 ? 'text-amber-500' : 'text-emerald-500',
-      bgColor: dashboardData.estoque.alertas > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10',
+      color: dashboardData.estoque.alertas > 0 ? 'text-amber-600' : 'text-emerald-600',
+      bgColor: dashboardData.estoque.alertas > 0 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30',
       title: 'Estoque',
       description: dashboardData.estoque.alertas > 0
         ? `${dashboardData.estoque.alertas} produtos com estoque baixo`
@@ -43,28 +66,34 @@ export default function Dashboard() {
     },
     {
       icon: ShoppingCart,
-      color: 'text-cyan-500',
-      bgColor: 'bg-cyan-500/10',
+      color: 'text-cyan-600',
+      bgColor: 'bg-cyan-100 dark:bg-cyan-900/30',
       title: 'Clientes',
       description: `${dashboardData.clientes.novos} novos este mês`,
     },
   ] : [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral do seu negócio"
+        icon={LayoutDashboard}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePrevMonth}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium capitalize min-w-[120px] text-center">
+              {monthLabel}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleNextMonth}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold">Dashboard</h1>
-            <p className="text-muted-foreground">Visão geral do seu negócio</p>
-          </div>
-        </div>
-        <DashboardFilters mesReferencia={mesReferencia} onMesChange={setMesReferencia} />
-      </header>
+        }
+      />
 
       {/* KPIs */}
       <DashboardKPIs data={dashboardData} isLoading={isLoading} />
@@ -79,25 +108,29 @@ export default function Dashboard() {
 
       {/* Insights */}
       {!isLoading && dashboardData && (
-        <section className="glass-card p-6">
-          <h2 className="font-semibold mb-5">Insights do Período</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {insights.map((insight) => (
-              <div 
-                key={insight.title} 
-                className="flex items-start gap-4 p-4 rounded-xl bg-muted/30 border border-border/50"
-              >
-                <div className={`h-10 w-10 rounded-xl ${insight.bgColor} flex items-center justify-center flex-shrink-0`}>
-                  <insight.icon className={`h-5 w-5 ${insight.color}`} />
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Insights do Período</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {insights.map((insight) => (
+                <div 
+                  key={insight.title} 
+                  className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border/50"
+                >
+                  <div className={`h-9 w-9 rounded-lg ${insight.bgColor} flex items-center justify-center flex-shrink-0`}>
+                    <insight.icon className={`h-4 w-4 ${insight.color}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{insight.title}</p>
+                    <p className="text-xs text-muted-foreground">{insight.description}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-medium">{insight.title}</p>
-                  <p className="text-sm text-muted-foreground">{insight.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
