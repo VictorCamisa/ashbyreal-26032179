@@ -107,7 +107,8 @@ export default {
         },
         "wave-fill": {
           "0%": { backgroundPosition: "100% 0" },
-          "100%": { backgroundPosition: "0% 0" },
+          "50%": { backgroundPosition: "0% 0" },
+          "100%": { backgroundPosition: "100% 0" },
         },
         pulse: {
           "0%, 100%": { opacity: "1" },
@@ -122,7 +123,7 @@ export default {
         "scale-in": "scale-in 0.2s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         shimmer: "shimmer 3s ease-in-out infinite",
-        "wave-fill": "wave-fill 4s ease-in-out infinite",
+        "wave-fill": "wave-fill 6s ease-in-out infinite",
         pulse: "pulse 2s ease-in-out infinite",
       },
     },
