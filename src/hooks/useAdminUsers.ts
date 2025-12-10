@@ -85,8 +85,8 @@ export function useAdminUsers() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
-      const response = await supabase.functions.invoke('admin-users', {
-        method: 'DELETE',
+      const response = await supabase.functions.invoke('admin-users?action=delete', {
+        method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: { userId },
       });
