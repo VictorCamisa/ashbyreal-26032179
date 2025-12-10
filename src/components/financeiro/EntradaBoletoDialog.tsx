@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Camera, FileText, Receipt, Loader2, Upload, X, Plus, Trash2 } from 'lucide-react';
 import {
   Dialog,
@@ -32,6 +32,7 @@ interface BoletoItem {
   amount: string;
   due_date: string;
   beneficiario: string;
+  numero_movimento: string;
   notes: string;
   imageData: string | null;
   processed: boolean;
@@ -80,10 +81,19 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
     amount: '',
     due_date: '',
     beneficiario: '',
+    numero_movimento: '',
     notes: tipoNota === 'COM_NOTA' ? 'Boleto COM NOTA FISCAL' : 'Boleto SEM NOTA FISCAL',
     imageData: null,
     processed: false,
   });
+
+  // Auto-select LOJA entity
+  useEffect(() => {
+    const lojaEntity = entities.find(e => e.type === 'LOJA');
+    if (lojaEntity && !entityId) {
+      setEntityId(lojaEntity.id);
+    }
+  }, [entities, entityId]);
 
   const handleImageCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -137,6 +147,7 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                 amount: data.extracted.amount || '',
                 due_date: data.extracted.due_date || '',
                 beneficiario: data.extracted.beneficiario || '',
+                numero_movimento: data.extracted.numero_movimento || '',
                 processed: true,
               }
             : b
@@ -415,29 +426,31 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
 
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="entity">Entidade *</Label>
-                  <Select value={entityId} onValueChange={setEntityId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a entidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {entities.map((entity) => (
-                        <SelectItem key={entity.id} value={entity.id}>
-                          {entity.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Entidade</Label>
+                  <div className="flex items-center h-10 px-3 rounded-md border bg-muted/50 text-sm">
+                    LOJA
+                  </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="beneficiario">Beneficiário</Label>
-                  <Input
-                    id="beneficiario"
-                    value={currentBoleto.beneficiario}
-                    onChange={(e) => updateCurrentBoleto('beneficiario', e.target.value)}
-                    placeholder="Nome do beneficiário"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="beneficiario">Beneficiário</Label>
+                    <Input
+                      id="beneficiario"
+                      value={currentBoleto.beneficiario}
+                      onChange={(e) => updateCurrentBoleto('beneficiario', e.target.value)}
+                      placeholder="Nome do beneficiário"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="numero_movimento">NÚM. MOV</Label>
+                    <Input
+                      id="numero_movimento"
+                      value={currentBoleto.numero_movimento}
+                      onChange={(e) => updateCurrentBoleto('numero_movimento', e.target.value)}
+                      placeholder="Ex: 122653"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid gap-2">
