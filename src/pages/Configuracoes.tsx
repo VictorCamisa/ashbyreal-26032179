@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Save, Building, Palette, Users, Settings as SettingsIcon } from 'lucide-react';
+import GestaoUsuarios from '@/components/configuracoes/GestaoUsuarios';
 
 export default function Configuracoes() {
   return (
@@ -117,20 +118,7 @@ export default function Configuracoes() {
         </TabsContent>
 
         <TabsContent value="usuarios">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gestão de Usuários e Permissões</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Gestão de usuários será habilitada após configuração de autenticação</p>
-                <Button className="mt-4" variant="outline">
-                  Configurar Autenticação
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <GestaoUsuarios />
         </TabsContent>
 
         <TabsContent value="parametros">
