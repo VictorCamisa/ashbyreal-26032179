@@ -1310,6 +1310,7 @@ export type Database = {
           reference_month: string | null
           status: Database["public"]["Enums"]["transaction_status"]
           subcategory_id: string | null
+          tags: Json | null
           tipo: Database["public"]["Enums"]["transaction_type"]
         }
         Insert: {
@@ -1329,6 +1330,7 @@ export type Database = {
           reference_month?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           subcategory_id?: string | null
+          tags?: Json | null
           tipo: Database["public"]["Enums"]["transaction_type"]
         }
         Update: {
@@ -1348,6 +1350,7 @@ export type Database = {
           reference_month?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           subcategory_id?: string | null
+          tags?: Json | null
           tipo?: Database["public"]["Enums"]["transaction_type"]
         }
         Relationships: [
