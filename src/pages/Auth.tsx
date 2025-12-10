@@ -62,12 +62,12 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-muted/50 via-background to-background p-4">
       <div className="w-full max-w-sm space-y-10">
-        {/* Name with animated color */}
+        {/* Name with wave fill animation */}
         <div className="flex flex-col items-center">
-          <h1 
-            className="text-5xl font-pacifico animate-shimmer bg-gradient-to-r from-foreground via-primary to-foreground bg-[length:200%_100%] bg-clip-text text-transparent"
-            style={{ fontFamily: 'Pacifico, cursive' }}
-          >
+          <h1 className="text-5xl font-medium tracking-tight text-foreground/20 relative select-none">
+            <span className="absolute inset-0 animate-wave-fill bg-gradient-to-r from-primary via-primary to-transparent bg-[length:200%_100%] bg-clip-text text-transparent">
+              Alexandre
+            </span>
             Alexandre
           </h1>
         </div>
