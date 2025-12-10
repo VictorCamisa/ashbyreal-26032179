@@ -27,6 +27,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
 const navItems = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -49,10 +50,12 @@ export function TopNavbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <NavLink to="/" className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
-              <span className="text-primary-foreground font-bold text-lg">G</span>
-            </div>
-            <span className="font-semibold text-lg hidden sm:block">Gestão Pro</span>
+            <img 
+              src={logoTaubateChopp} 
+              alt="Taubaté Chopp" 
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+            <span className="font-semibold text-lg hidden sm:block">Taubaté Chopp</span>
           </NavLink>
 
           {/* Desktop Navigation */}
