@@ -10,7 +10,7 @@ export function useGastosCartaoMutations() {
       const totalInstallments = newTransaction.total_installments || 1;
       const installmentNumber = newTransaction.installment_number || 1;
       const createRemainingInstallments = newTransaction.create_remaining_installments ?? false;
-      const transactions = [];
+      const transactionsToCreate = [];
 
       // Quantas parcelas criar:
       // - Se create_remaining_installments=true e total > 1, criar da parcela atual até a última
@@ -24,25 +24,50 @@ export function useGastosCartaoMutations() {
         if (remainingCount > 1) {
           purchaseDate.setMonth(purchaseDate.getMonth() + i);
         }
+        const purchaseDateStr = purchaseDate.toISOString().split('T')[0];
+        const currentInstallment = installmentNumber + i;
+        
+        // Verificar se já existe esta transação (evitar duplicatas na reimportação)
+        const competencia = `${purchaseDate.getFullYear()}-${String(purchaseDate.getMonth() + 1).padStart(2, '0')}-01`;
+        const { data: existing } = await supabase
+          .from('credit_card_transactions')
+          .select('id')
+          .eq('credit_card_id', newTransaction.credit_card_id)
+          .eq('description', newTransaction.description)
+          .eq('installment_number', currentInstallment)
+          .eq('total_installments', totalInstallments)
+          .gte('purchase_date', competencia)
+          .lt('purchase_date', new Date(purchaseDate.getFullYear(), purchaseDate.getMonth() + 1, 1).toISOString().split('T')[0])
+          .maybeSingle();
+        
+        if (existing) {
+          console.log(`Parcela ${currentInstallment}/${totalInstallments} de "${newTransaction.description}" já existe, pulando...`);
+          continue;
+        }
         
         const transaction = {
           credit_card_id: newTransaction.credit_card_id,
           description: newTransaction.description,
-          amount: newTransaction.amount, // valor já é o da parcela
-          purchase_date: purchaseDate.toISOString().split('T')[0],
-          installment_number: installmentNumber + i,
+          amount: newTransaction.amount,
+          purchase_date: purchaseDateStr,
+          installment_number: currentInstallment,
           total_installments: totalInstallments,
           category_id: newTransaction.category_id || null,
           subcategory_id: newTransaction.subcategory_id || null,
           entity_id: newTransaction.entity_id || null,
         };
         
-        transactions.push(transaction);
+        transactionsToCreate.push(transaction);
+      }
+
+      if (transactionsToCreate.length === 0) {
+        console.log('Todas as parcelas já existem, nada a criar');
+        return [];
       }
 
       const { data, error } = await supabase
         .from('credit_card_transactions')
-        .insert(transactions)
+        .insert(transactionsToCreate)
         .select();
       
       if (error) throw error;
