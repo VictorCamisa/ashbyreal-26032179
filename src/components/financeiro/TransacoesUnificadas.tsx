@@ -125,7 +125,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         .from('transactions')
         .select(`
           *,
-          categories(name),
+          categories(name, group),
           subcategories(name),
           accounts(name),
           entities(name, type)
@@ -138,6 +138,20 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       return data;
     }
   });
+
+  // Category color mapping based on group
+  const getCategoryColor = (group: string | null) => {
+    switch (group) {
+      case 'FIXA': return 'bg-blue-500/10 text-blue-700 border-blue-500/30';
+      case 'VARIAVEL': return 'bg-purple-500/10 text-purple-700 border-purple-500/30';
+      case 'IMPOSTO': return 'bg-red-500/10 text-red-700 border-red-500/30';
+      case 'PESSOA': return 'bg-amber-500/10 text-amber-700 border-amber-500/30';
+      case 'ASHBY': return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
+      case 'PARTICULAR': return 'bg-pink-500/10 text-pink-700 border-pink-500/30';
+      case 'GERAL': return 'bg-gray-500/10 text-gray-700 border-gray-500/30';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
 
   // Get all unique tags from transactions
   const allTags = useMemo(() => {
@@ -552,7 +566,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                               {format(new Date(t.due_date), 'dd/MM/yyyy')}
                             </span>
                             {t.categories?.name && (
-                              <Badge variant="outline" className="text-xs py-0 h-5">
+                              <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
                                 {t.categories.name}
                               </Badge>
                             )}

@@ -12,7 +12,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Wallet
+  Wallet,
+  Upload
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
@@ -22,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { NovoCartaoDialog } from './NovoCartaoDialog';
 import { NovaFaturaDialog } from './NovaFaturaDialog';
 import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
+import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +35,7 @@ export function ControleCartoes() {
   const [showNovoCartao, setShowNovoCartao] = useState(false);
   const [showNovaFatura, setShowNovaFatura] = useState(false);
   const [showNovoGasto, setShowNovoGasto] = useState(false);
+  const [showImportarFatura, setShowImportarFatura] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   if (isLoading) {
@@ -74,6 +77,10 @@ export function ControleCartoes() {
         <Button onClick={() => setShowNovoGasto(true)} className="gap-2">
           <ShoppingCart className="h-4 w-4" />
           Lançar Gasto
+        </Button>
+        <Button onClick={() => setShowImportarFatura(true)} variant="default" className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600">
+          <Upload className="h-4 w-4" />
+          Importar Fatura
         </Button>
         <Button onClick={() => setShowNovaFatura(true)} variant="outline" className="gap-2">
           <Receipt className="h-4 w-4" />
@@ -390,6 +397,14 @@ export function ControleCartoes() {
           setShowNovoGasto(false);
         }}
         isLoading={isCreatingGasto}
+      />
+
+      <ImportarFaturaCartaoDialog
+        open={showImportarFatura}
+        onOpenChange={setShowImportarFatura}
+        onSuccess={() => {
+          // Refresh data
+        }}
       />
     </div>
   );
