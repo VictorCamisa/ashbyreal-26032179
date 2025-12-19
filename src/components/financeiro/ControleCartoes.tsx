@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   Clock,
   Wallet,
-  Upload
+  Upload,
+  FileText
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
@@ -26,6 +27,7 @@ import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
 import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
 import { DetalhesCartaoSheet } from './DetalhesCartaoSheet';
 import { CartaoAlerts } from './CartaoAlerts';
+import { TodasFaturasSheet } from './TodasFaturasSheet';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +40,7 @@ export function ControleCartoes() {
   const [showNovaFatura, setShowNovaFatura] = useState(false);
   const [showNovoGasto, setShowNovoGasto] = useState(false);
   const [showImportarFatura, setShowImportarFatura] = useState(false);
+  const [showTodasFaturas, setShowTodasFaturas] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
 
   if (isLoading) {
@@ -97,6 +100,10 @@ export function ControleCartoes() {
         <Button onClick={() => setShowImportarFatura(true)} variant="default" className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600">
           <Upload className="h-4 w-4" />
           Importar Fatura
+        </Button>
+        <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" className="gap-2">
+          <FileText className="h-4 w-4" />
+          Ver Faturas
         </Button>
         <Button onClick={() => setShowNovaFatura(true)} variant="outline" className="gap-2">
           <Receipt className="h-4 w-4" />
@@ -426,6 +433,13 @@ export function ControleCartoes() {
         open={!!selectedCard}
         onOpenChange={(open) => !open && setSelectedCard(null)}
         cartao={selectedCard}
+      />
+
+      <TodasFaturasSheet
+        open={showTodasFaturas}
+        onOpenChange={setShowTodasFaturas}
+        faturas={faturas || []}
+        cartoes={cartoes || []}
       />
     </div>
   );
