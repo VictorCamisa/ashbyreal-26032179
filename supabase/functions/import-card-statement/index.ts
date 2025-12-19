@@ -16,117 +16,96 @@ interface ParsedTransaction {
   category_suggestion?: string;
 }
 
-// Parser for LATAM CSV format
-function parseLatamCSV(content: string): ParsedTransaction[] {
+// Generic CSV parser that tries multiple formats
+function parseGenericCSV(content: string): ParsedTransaction[] {
   const lines = content.split('\n').filter(line => line.trim());
   const transactions: ParsedTransaction[] = [];
   
-  // Skip header lines until we find data
-  let dataStarted = false;
+  console.log(`Parsing ${lines.length} lines`);
+  console.log(`First 5 lines:`, lines.slice(0, 5));
   
-  for (const line of lines) {
-    const parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
+  // Try to detect delimiter
+  const firstDataLine = lines.find(line => /\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/.test(line)) || lines[1];
+  const semicolonCount = (firstDataLine.match(/;/g) || []).length;
+  const commaCount = (firstDataLine.match(/,/g) || []).length;
+  const tabCount = (firstDataLine.match(/\t/g) || []).length;
+  
+  let delimiter = ';';
+  if (commaCount > semicolonCount && commaCount > tabCount) delimiter = ',';
+  if (tabCount > semicolonCount && tabCount > commaCount) delimiter = '\t';
+  
+  console.log(`Detected delimiter: "${delimiter}" (semicolons: ${semicolonCount}, commas: ${commaCount}, tabs: ${tabCount})`);
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
     
-    // Check if this looks like a data row (starts with date format DD/MM/YYYY)
-    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
-      dataStarted = true;
-      
-      const dateStr = parts[0]; // DD/MM/YYYY
-      const description = parts[1] || '';
-      const valueStr = parts[2] || parts[3] || '0';
-      
-      // Parse date
-      const [day, month, year] = dateStr.split('/');
-      const date = `${year}-${month}-${day}`;
-      
-      // Parse value (Brazilian format: 1.234,56)
-      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
-      
-      // Check for installments in description (ex: "PARCELA 2/10")
-      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
-      
-      transactions.push({
-        date,
-        description,
-        amount: Math.abs(amount),
-        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
-      });
-    }
-  }
-  
-  return transactions;
-}
-
-// Parser for AZUL CSV format
-function parseAzulCSV(content: string): ParsedTransaction[] {
-  const lines = content.split('\n').filter(line => line.trim());
-  const transactions: ParsedTransaction[] = [];
-  
-  for (const line of lines) {
-    const parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
+    console.log(`Line ${i}: ${parts.length} parts: ${JSON.stringify(parts.slice(0, 5))}`);
     
-    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
-      const dateStr = parts[0];
-      const description = parts[1] || '';
-      const valueStr = parts[2] || '0';
-      
-      const [day, month, year] = dateStr.split('/');
-      const date = `${year}-${month}-${day}`;
-      
-      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
-      
-      transactions.push({
-        date,
-        description,
-        amount: Math.abs(amount),
-        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
-      });
-    }
-  }
-  
-  return transactions;
-}
-
-// Parser for Itaú Empresas XLSX (expects JSON array from client-side parsing)
-function parseItauEmpresasXLSX(data: any[]): ParsedTransaction[] {
-  const transactions: ParsedTransaction[] = [];
-  
-  for (const row of data) {
-    // Try different column names
-    const dateVal = row['Data'] || row['DATA'] || row['data'] || row['Lançamento'] || '';
-    const description = row['Descrição'] || row['DESCRICAO'] || row['Histórico'] || row['HISTORICO'] || '';
-    const valueVal = row['Valor'] || row['VALOR'] || row['valor'] || 0;
+    // Try to find date in any column
+    let dateCol = -1;
+    let dateStr = '';
     
-    if (!dateVal || !description) continue;
-    
-    let date = '';
-    if (typeof dateVal === 'string') {
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
-        const [day, month, year] = dateVal.split('/');
-        date = `${year}-${month}-${day}`;
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
-        date = dateVal;
+    for (let j = 0; j < parts.length; j++) {
+      const val = parts[j];
+      // Match DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY, YYYY-MM-DD
+      if (/^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}$/.test(val) || /^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(val)) {
+        dateCol = j;
+        dateStr = val;
+        break;
       }
-    } else if (dateVal instanceof Date || typeof dateVal === 'number') {
-      // Excel date serial number
-      const excelDate = new Date((dateVal as number - 25569) * 86400 * 1000);
-      date = excelDate.toISOString().split('T')[0];
+    }
+    
+    if (dateCol === -1) continue;
+    
+    // Parse date
+    let date = '';
+    if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(dateStr)) {
+      // DD/MM/YYYY or DD-MM-YYYY
+      const sep = dateStr.includes('/') ? '/' : '-';
+      const [day, month, year] = dateStr.split(sep);
+      date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    } else if (/^\d{2}[\/\-]\d{2}[\/\-]\d{2}$/.test(dateStr)) {
+      // DD/MM/YY
+      const sep = dateStr.includes('/') ? '/' : '-';
+      const [day, month, year] = dateStr.split(sep);
+      const fullYear = parseInt(year) > 50 ? `19${year}` : `20${year}`;
+      date = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    } else if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(dateStr)) {
+      // YYYY-MM-DD
+      date = dateStr.replace(/\//g, '-');
     }
     
     if (!date) continue;
     
+    // Description is usually the column after date or a specific column
+    let description = '';
     let amount = 0;
-    if (typeof valueVal === 'number') {
-      amount = Math.abs(valueVal);
-    } else if (typeof valueVal === 'string') {
-      amount = Math.abs(parseFloat(valueVal.replace(/\./g, '').replace(',', '.')) || 0);
+    
+    // Try to find description and amount
+    for (let j = 0; j < parts.length; j++) {
+      if (j === dateCol) continue;
+      
+      const val = parts[j];
+      
+      // Check if it's a monetary value
+      const cleanedVal = val.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+      const numVal = parseFloat(cleanedVal);
+      
+      if (!isNaN(numVal) && Math.abs(numVal) > 0.01 && Math.abs(numVal) < 1000000) {
+        if (amount === 0) {
+          amount = Math.abs(numVal);
+        }
+      } else if (val.length > 3 && !description) {
+        // Probably description
+        description = val;
+      }
     }
     
-    const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
+    if (!description || amount === 0) continue;
+    
+    // Check for installments
+    const installmentMatch = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
     
     transactions.push({
       date,
@@ -140,8 +119,168 @@ function parseItauEmpresasXLSX(data: any[]): ParsedTransaction[] {
   return transactions;
 }
 
-// Parser for Mercado Livre (expects extracted text from PDF)
+// Parser for LATAM CSV format - Itaucard
+function parseLatamCSV(content: string): ParsedTransaction[] {
+  console.log('=== LATAM CSV Parser ===');
+  console.log('Content length:', content.length);
+  console.log('First 500 chars:', content.substring(0, 500));
+  
+  // Try generic parser first
+  const transactions = parseGenericCSV(content);
+  
+  if (transactions.length > 0) {
+    return transactions;
+  }
+  
+  // Fallback to line-by-line parsing
+  const lines = content.split('\n').filter(line => line.trim());
+  const result: ParsedTransaction[] = [];
+  
+  for (const line of lines) {
+    // Try semicolon first, then comma, then tab
+    let parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
+    if (parts.length < 3) {
+      parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+    }
+    if (parts.length < 3) {
+      parts = line.split('\t').map(p => p.trim().replace(/"/g, ''));
+    }
+    
+    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
+      const [day, month, year] = parts[0].split('/');
+      const date = `${year}-${month}-${day}`;
+      const description = parts[1] || '';
+      const valueStr = parts[2] || parts[3] || '0';
+      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
+      
+      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
+      
+      result.push({
+        date,
+        description,
+        amount: Math.abs(amount),
+        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
+        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
+      });
+    }
+  }
+  
+  return result;
+}
+
+// Parser for AZUL CSV format - Itaucard
+function parseAzulCSV(content: string): ParsedTransaction[] {
+  console.log('=== AZUL CSV Parser ===');
+  console.log('Content length:', content.length);
+  console.log('First 500 chars:', content.substring(0, 500));
+  
+  // Try generic parser first
+  const transactions = parseGenericCSV(content);
+  
+  if (transactions.length > 0) {
+    return transactions;
+  }
+  
+  // Specific AZUL format parsing
+  const lines = content.split('\n').filter(line => line.trim());
+  const result: ParsedTransaction[] = [];
+  
+  for (const line of lines) {
+    let parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
+    if (parts.length < 3) {
+      parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
+    }
+    
+    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
+      const [day, month, year] = parts[0].split('/');
+      const date = `${year}-${month}-${day}`;
+      const description = parts[1] || '';
+      const valueStr = parts[2] || '0';
+      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
+      
+      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
+      
+      result.push({
+        date,
+        description,
+        amount: Math.abs(amount),
+        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
+        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
+      });
+    }
+  }
+  
+  return result;
+}
+
+// Parser for Itaú Empresas XLSX (expects JSON array from client-side parsing)
+function parseItauEmpresasXLSX(data: any[]): ParsedTransaction[] {
+  console.log('=== ITAU EMPRESAS XLSX Parser ===');
+  console.log('Data rows:', data.length);
+  console.log('First 3 rows:', JSON.stringify(data.slice(0, 3), null, 2));
+  
+  const transactions: ParsedTransaction[] = [];
+  
+  for (const row of data) {
+    // Try different column names
+    const dateVal = row['Data'] || row['DATA'] || row['data'] || row['Lançamento'] || row['LANCAMENTO'] || 
+                    row['Data da compra'] || row['DATA DA COMPRA'] || Object.values(row)[0];
+    const description = row['Descrição'] || row['DESCRICAO'] || row['Histórico'] || row['HISTORICO'] || 
+                       row['Estabelecimento'] || row['ESTABELECIMENTO'] || Object.values(row)[1];
+    const valueVal = row['Valor'] || row['VALOR'] || row['valor'] || row['Valor (R$)'] || 
+                    row['VALOR (R$)'] || Object.values(row)[2];
+    
+    console.log(`Row: date=${dateVal}, desc=${description}, val=${valueVal}`);
+    
+    if (!dateVal || !description) continue;
+    
+    let date = '';
+    if (typeof dateVal === 'string') {
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
+        const [day, month, year] = dateVal.split('/');
+        date = `${year}-${month}-${day}`;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        date = dateVal;
+      } else if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateVal)) {
+        const [day, month, year] = dateVal.split('/');
+        date = `20${year}-${month}-${day}`;
+      }
+    } else if (typeof dateVal === 'number') {
+      // Excel date serial number
+      const excelDate = new Date((dateVal - 25569) * 86400 * 1000);
+      date = excelDate.toISOString().split('T')[0];
+    }
+    
+    if (!date) continue;
+    
+    let amount = 0;
+    if (typeof valueVal === 'number') {
+      amount = Math.abs(valueVal);
+    } else if (typeof valueVal === 'string') {
+      amount = Math.abs(parseFloat(valueVal.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')) || 0);
+    }
+    
+    if (amount === 0) continue;
+    
+    const installmentMatch = String(description).match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
+    
+    transactions.push({
+      date,
+      description: String(description),
+      amount,
+      installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
+      total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
+    });
+  }
+  
+  return transactions;
+}
+
+// Parser for Mercado Livre
 function parseMercadoLivrePDF(data: any[]): ParsedTransaction[] {
+  console.log('=== MERCADO LIVRE Parser ===');
+  console.log('Data:', JSON.stringify(data.slice(0, 5), null, 2));
+  
   const transactions: ParsedTransaction[] = [];
   
   for (const item of data) {
@@ -232,6 +371,13 @@ serve(async (req) => {
       competencia 
     } = await req.json();
 
+    console.log('=== IMPORT REQUEST ===');
+    console.log('creditCardId:', creditCardId);
+    console.log('cardProvider:', cardProvider);
+    console.log('fileType:', fileType);
+    console.log('content length:', content?.length || 0);
+    console.log('data rows:', data?.length || 0);
+
     if (!creditCardId || !cardProvider) {
       return new Response(
         JSON.stringify({ error: 'creditCardId e cardProvider são obrigatórios' }),
@@ -245,21 +391,26 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log(`Processando fatura ${cardProvider}, tipo: ${fileType}`);
-
     let transactions: ParsedTransaction[] = [];
 
-    switch (cardProvider.toUpperCase()) {
+    const provider = cardProvider.toUpperCase();
+    console.log(`Processing provider: ${provider}, fileType: ${fileType}`);
+
+    switch (provider) {
       case 'LATAM':
       case 'LATAM_BLACK':
-        transactions = parseLatamCSV(content);
+        transactions = parseLatamCSV(content || '');
         break;
       case 'AZUL':
-        transactions = parseAzulCSV(content);
+        transactions = parseAzulCSV(content || '');
         break;
       case 'ITAU_EMPRESAS':
       case 'ITAU':
-        transactions = parseItauEmpresasXLSX(data || []);
+        if (data && data.length > 0) {
+          transactions = parseItauEmpresasXLSX(data);
+        } else if (content) {
+          transactions = parseGenericCSV(content);
+        }
         break;
       case 'MERCADO_LIVRE':
       case 'MERCADOLIVRE':
@@ -267,15 +418,25 @@ serve(async (req) => {
         break;
       case 'SANTANDER_SMILES':
       case 'SANTANDER':
-        // TODO: Implement when format is provided
-        transactions = data || [];
+        if (content) {
+          transactions = parseGenericCSV(content);
+        } else if (data) {
+          transactions = parseItauEmpresasXLSX(data);
+        }
         break;
       default:
-        // Generic CSV parser
-        transactions = parseLatamCSV(content);
+        // Generic parser
+        if (content) {
+          transactions = parseGenericCSV(content);
+        } else if (data && data.length > 0) {
+          transactions = parseItauEmpresasXLSX(data);
+        }
     }
 
     console.log(`Parsed ${transactions.length} transactions`);
+    if (transactions.length > 0) {
+      console.log('First transaction:', JSON.stringify(transactions[0]));
+    }
 
     // Get categories for AI categorization
     const { data: categories } = await supabase
@@ -284,7 +445,7 @@ serve(async (req) => {
       .eq('type', 'DESPESA');
 
     // Categorize using AI if API key available
-    if (openaiKey && categories) {
+    if (openaiKey && categories && transactions.length > 0) {
       transactions = await categorizeTransactions(transactions, categories, openaiKey);
     }
 
