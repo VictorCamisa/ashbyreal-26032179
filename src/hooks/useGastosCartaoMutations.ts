@@ -2,6 +2,23 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Função para calcular competência baseada no dia de fechamento do cartão
+function calculateCompetencia(purchaseDate: Date, closingDay: number): string {
+  const day = purchaseDate.getDate();
+  const year = purchaseDate.getFullYear();
+  const month = purchaseDate.getMonth();
+  
+  // Se compra foi APÓS o fechamento, vai para o próximo mês
+  if (day > closingDay) {
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear = month === 11 ? year + 1 : year;
+    return `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-01`;
+  }
+  
+  // Se compra foi ATÉ o fechamento, fica no mês atual
+  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+}
+
 export function useGastosCartaoMutations() {
   const queryClient = useQueryClient();
 
@@ -11,6 +28,15 @@ export function useGastosCartaoMutations() {
       const installmentNumber = newTransaction.installment_number || 1;
       const createRemainingInstallments = newTransaction.create_remaining_installments ?? false;
       const transactionsToCreate = [];
+
+      // Buscar informações do cartão para usar o closing_day
+      const { data: card } = await supabase
+        .from('credit_cards')
+        .select('closing_day, due_day')
+        .eq('id', newTransaction.credit_card_id)
+        .single();
+      
+      const closingDay = card?.closing_day || 10;
 
       // Quantas parcelas criar:
       // - Se create_remaining_installments=true e total > 1, criar da parcela atual até a última
@@ -27,8 +53,14 @@ export function useGastosCartaoMutations() {
         const purchaseDateStr = purchaseDate.toISOString().split('T')[0];
         const currentInstallment = installmentNumber + i;
         
+        // Calcular competência correta baseada no dia de fechamento
+        const competencia = calculateCompetencia(purchaseDate, closingDay);
+        
         // Verificar se já existe esta transação (evitar duplicatas na reimportação)
-        const competencia = `${purchaseDate.getFullYear()}-${String(purchaseDate.getMonth() + 1).padStart(2, '0')}-01`;
+        const competenciaDate = new Date(competencia);
+        const nextMonthDate = new Date(competenciaDate);
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+        
         const { data: existing } = await supabase
           .from('credit_card_transactions')
           .select('id')
@@ -37,7 +69,7 @@ export function useGastosCartaoMutations() {
           .eq('installment_number', currentInstallment)
           .eq('total_installments', totalInstallments)
           .gte('purchase_date', competencia)
-          .lt('purchase_date', new Date(purchaseDate.getFullYear(), purchaseDate.getMonth() + 1, 1).toISOString().split('T')[0])
+          .lt('purchase_date', nextMonthDate.toISOString().split('T')[0])
           .maybeSingle();
         
         if (existing) {
@@ -72,9 +104,9 @@ export function useGastosCartaoMutations() {
       
       if (error) throw error;
       
-      // Atualizar as faturas correspondentes
+      // Atualizar as faturas correspondentes (passando closingDay para cálculo correto)
       if (data && data.length > 0) {
-        await updateInvoicesForTransactions(data);
+        await updateInvoicesForTransactions(data, closingDay);
       }
       
       return data;
@@ -99,13 +131,14 @@ export function useGastosCartaoMutations() {
 }
 
 // Função auxiliar para atualizar valores das faturas
-async function updateInvoicesForTransactions(transactions: any[]) {
-  // Agrupar transações por cartão e competência
+async function updateInvoicesForTransactions(transactions: any[], closingDay: number) {
+  // Agrupar transações por cartão e competência (calculada corretamente)
   const groupedTransactions: Record<string, { cardId: string; competencia: string; total: number; transactionIds: string[] }> = {};
 
   for (const transaction of transactions) {
     const purchaseDate = new Date(transaction.purchase_date);
-    const competencia = `${purchaseDate.getFullYear()}-${String(purchaseDate.getMonth() + 1).padStart(2, '0')}-01`;
+    // Usar a função de cálculo de competência correta
+    const competencia = calculateCompetencia(purchaseDate, closingDay);
     const key = `${transaction.credit_card_id}_${competencia}`;
 
     if (!groupedTransactions[key]) {
@@ -146,7 +179,7 @@ async function updateInvoicesForTransactions(transactions: any[]) {
       if (error) console.error('Erro ao atualizar fatura:', error);
       invoiceId = existingInvoice.id;
     } else {
-      // Buscar informações do cartão para calcular datas
+      // Buscar informações do cartão para calcular datas de fechamento e vencimento
       const { data: card } = await supabase
         .from('credit_cards')
         .select('closing_day, due_day')
@@ -155,9 +188,12 @@ async function updateInvoicesForTransactions(transactions: any[]) {
       
       if (card) {
         const competenciaDate = new Date(group.competencia);
+        
+        // Data de fechamento = dia do fechamento no mês da competência
         const closingDate = new Date(competenciaDate);
         closingDate.setDate(card.closing_day || 10);
         
+        // Data de vencimento = dia de vencimento no mês SEGUINTE à competência
         const dueDate = new Date(competenciaDate);
         dueDate.setMonth(dueDate.getMonth() + 1);
         dueDate.setDate(card.due_day || 15);
