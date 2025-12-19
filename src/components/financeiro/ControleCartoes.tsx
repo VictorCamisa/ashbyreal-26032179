@@ -25,6 +25,7 @@ import { NovaFaturaDialog } from './NovaFaturaDialog';
 import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
 import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
 import { DetalhesCartaoSheet } from './DetalhesCartaoSheet';
+import { CartaoAlerts } from './CartaoAlerts';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -82,6 +83,11 @@ export function ControleCartoes() {
 
   return (
     <div className="space-y-6">
+      {/* Alerts */}
+      {cartoes && faturas && (
+        <CartaoAlerts cartoes={cartoes} faturas={faturas} />
+      )}
+
       {/* Action Bar */}
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => setShowNovoGasto(true)} className="gap-2">
