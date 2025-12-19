@@ -31,15 +31,30 @@ function parsePtBrNumber(value: unknown): number {
   // Remove R$ e espaços
   cleaned = cleaned.replace(/[R$\s]/g, "");
   
-  // Detectar formato brasileiro (1.234,56) vs americano (1,234.56)
-  const hasBrazilianFormat = /\d{1,3}(\.\d{3})*,\d{2}$/.test(cleaned);
-  const hasAmericanFormat = /\d{1,3}(,\d{3})*\.\d{2}$/.test(cleaned);
+  // Se não tem nem ponto nem vírgula, é um inteiro
+  if (!cleaned.includes('.') && !cleaned.includes(',')) {
+    return parseFloat(cleaned) || 0;
+  }
   
-  if (hasBrazilianFormat) {
+  // Detectar formato brasileiro (1.234,56 ou 123,45) - vírgula como decimal
+  const hasBrazilianDecimal = /,\d{1,2}$/.test(cleaned);
+  
+  // Detectar formato americano com milhares (1,234.56)
+  const hasAmericanWithThousands = /,\d{3}/.test(cleaned) && /\.\d{1,2}$/.test(cleaned);
+  
+  // Formato americano simples (123.45 ou 1234.5) - ponto como decimal, sem vírgula
+  const hasSimpleAmericanDecimal = /\.\d{1,2}$/.test(cleaned) && !cleaned.includes(',');
+  
+  if (hasBrazilianDecimal) {
+    // Brasileiro: remove pontos de milhares, troca vírgula por ponto
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  } else if (hasAmericanFormat) {
+  } else if (hasAmericanWithThousands) {
+    // Americano com milhares: remove vírgulas
     cleaned = cleaned.replace(/,/g, "");
+  } else if (hasSimpleAmericanDecimal) {
+    // Americano simples: já está ok, não faz nada
   } else {
+    // Fallback: assume brasileiro
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   }
   
