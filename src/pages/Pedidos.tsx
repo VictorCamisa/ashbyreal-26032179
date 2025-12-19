@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, ShoppingCart, Eye, Filter, BarChart3, List } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
@@ -29,7 +28,8 @@ import { VendasCategoriaChart } from '@/components/pedidos/VendasCategoriaChart'
 import { RankingClientes } from '@/components/pedidos/RankingClientes';
 import { TopProdutos } from '@/components/pedidos/TopProdutos';
 import { supabase } from '@/integrations/supabase/client';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLayout } from '@/components/layout/PageLayout';
+import { cn } from '@/lib/utils';
 
 interface PedidoItemWithProduto {
   id: string;
@@ -42,6 +42,11 @@ interface PedidoItemWithProduto {
     categoria?: string;
   };
 }
+
+const tabs = [
+  { id: 'lista', label: 'Lista de Pedidos', icon: List },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+];
 
 export default function Pedidos() {
   const [activeTab, setActiveTab] = useState('lista');
@@ -111,172 +116,159 @@ export default function Pedidos() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        title="Pedidos & Vendas"
-        subtitle="Gestão completa de vendas e entregas"
-        icon={ShoppingCart}
-        actions={<NovoPedidoCompletoDialog onSuccess={() => { refetch(); fetchAllItems(); }} />}
-      />
+    <PageLayout
+      title="Pedidos & Vendas"
+      subtitle="Gestão completa de vendas e entregas"
+      icon={ShoppingCart}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      actions={<NovoPedidoCompletoDialog onSuccess={() => { refetch(); fetchAllItems(); }} />}
+    >
+      <div className="space-y-6">
+        {/* KPIs */}
+        <PedidosKPIs pedidos={pedidos} />
 
-      {/* KPIs */}
-      <PedidosKPIs pedidos={pedidos} />
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="lista" className="gap-2">
-            <List className="h-4 w-4" />
-            Lista de Pedidos
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Analytics
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Lista de Pedidos */}
-        <TabsContent value="lista" className="mt-6 space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente ou número do pedido..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-11 h-11"
-              />
+        {activeTab === 'lista' && (
+          <>
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por cliente ou número do pedido..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-11 h-11 rounded-xl"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48 h-11 rounded-xl">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filtrar status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="entregue">Entregue</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48 h-11">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filtrar status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="pago">Pago</SelectItem>
-                <SelectItem value="entregue">Entregue</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Table */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-medium">Lista de Pedidos</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-6 space-y-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-14 bg-muted/50 rounded-lg animate-pulse" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="font-medium">Pedido</TableHead>
-                      <TableHead className="font-medium">Cliente</TableHead>
-                      <TableHead className="font-medium">Valor</TableHead>
-                      <TableHead className="font-medium">Data</TableHead>
-                      <TableHead className="font-medium">Status / Ações</TableHead>
-                      <TableHead className="font-medium text-right">Mais</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredPedidos.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="text-center py-12 text-muted-foreground"
-                        >
-                          Nenhum pedido encontrado
-                        </TableCell>
+            {/* Table */}
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Lista de Pedidos</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isLoading ? (
+                  <div className="p-6 space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="h-14 bg-muted/50 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="font-medium">Pedido</TableHead>
+                        <TableHead className="font-medium">Cliente</TableHead>
+                        <TableHead className="font-medium">Valor</TableHead>
+                        <TableHead className="font-medium">Data</TableHead>
+                        <TableHead className="font-medium">Status / Ações</TableHead>
+                        <TableHead className="font-medium text-right">Mais</TableHead>
                       </TableRow>
-                    ) : (
-                      filteredPedidos.map((pedido) => (
-                        <TableRow
-                          key={pedido.id}
-                          className="hover:bg-muted/30 cursor-pointer"
-                          onClick={() => handleViewDetails(pedido)}
-                        >
-                          <TableCell className="font-mono text-sm">
-                            #{pedido.id.slice(0, 8)}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {clientesMap[pedido.clienteId] || '-'}
-                          </TableCell>
-                          <TableCell className="font-semibold text-primary">
-                            R${' '}
-                            {pedido.valorTotal.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                            })}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <PedidoStatusWorkflow
-                              pedidoId={pedido.id}
-                              currentStatus={pedido.status}
-                              onStatusChange={refetch}
-                            />
-                          </TableCell>
-                          <TableCell
-                            className="text-right"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              title="Ver detalhes"
-                              onClick={() => handleViewDetails(pedido)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPedidos.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-12">
+                            <div className="flex flex-col items-center gap-2">
+                              <ShoppingCart className="h-10 w-10 text-muted-foreground/30" />
+                              <p className="text-muted-foreground">Nenhum pedido encontrado</p>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                      ) : (
+                        filteredPedidos.map((pedido) => (
+                          <TableRow
+                            key={pedido.id}
+                            className="hover:bg-muted/30 cursor-pointer"
+                            onClick={() => handleViewDetails(pedido)}
+                          >
+                            <TableCell className="font-mono text-sm">
+                              #{pedido.id.slice(0, 8)}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {clientesMap[pedido.clienteId] || '-'}
+                            </TableCell>
+                            <TableCell className="font-semibold text-primary">
+                              R${' '}
+                              {pedido.valorTotal.toLocaleString('pt-BR', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <PedidoStatusWorkflow
+                                pedidoId={pedido.id}
+                                currentStatus={pedido.status}
+                                onStatusChange={refetch}
+                              />
+                            </TableCell>
+                            <TableCell
+                              className="text-right"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                title="Ver detalhes"
+                                onClick={() => handleViewDetails(pedido)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between text-sm">
-            <p className="text-muted-foreground">{filteredPedidos.length} pedidos</p>
-            <p className="font-medium">
-              Total: R${' '}
-              {filteredPedidos
-                .reduce((acc, p) => acc + p.valorTotal, 0)
-                .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-          </div>
-        </TabsContent>
+            {/* Footer */}
+            <div className="flex items-center justify-between text-sm">
+              <p className="text-muted-foreground">{filteredPedidos.length} pedidos</p>
+              <p className="font-medium">
+                Total: R${' '}
+                {filteredPedidos
+                  .reduce((acc, p) => acc + p.valorTotal, 0)
+                  .toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </>
+        )}
 
-        {/* Analytics */}
-        <TabsContent value="analytics" className="mt-6 space-y-6">
-          {/* Charts Row 1 */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <VendasPeriodoChart pedidos={pedidos} />
-            <VendasCategoriaChart items={allItems} />
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <VendasPeriodoChart pedidos={pedidos} />
+              <VendasCategoriaChart items={allItems} />
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <RankingClientes pedidos={pedidos} clientesMap={clientesMap} />
+              <TopProdutos items={allItems} />
+            </div>
           </div>
-
-          {/* Charts Row 2 */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <RankingClientes pedidos={pedidos} clientesMap={clientesMap} />
-            <TopProdutos items={allItems} />
-          </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
 
       {/* Drawers & Dialogs */}
       <DetalhesPedidoDrawer
@@ -287,7 +279,6 @@ export default function Pedidos() {
         onStatusChange={refetch}
         onDelete={refetch}
       />
-
-    </div>
+    </PageLayout>
   );
 }

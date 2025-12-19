@@ -9,7 +9,7 @@ import { useEstoque, ProdutoEstoque } from '@/hooks/useEstoque';
 import { ImportarEstoqueDialog } from '@/components/estoque/ImportarEstoqueDialog';
 import { NovoProdutoDialog } from '@/components/estoque/NovoProdutoDialog';
 import { EditarProdutoDialog } from '@/components/estoque/EditarProdutoDialog';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import {
   AlertDialog,
@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 const statusColors: Record<string, string> = {
   disponivel: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
@@ -77,20 +78,17 @@ export default function Estoque() {
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        title="Estoque"
-        subtitle="Controle de produtos e inventário"
-        icon={Package}
-        actions={
-          <div className="flex gap-2">
-            <ImportarEstoqueDialog onSuccess={refetch} />
-            <NovoProdutoDialog onSuccess={refetch} />
-          </div>
-        }
-      />
-
+    <PageLayout
+      title="Estoque"
+      subtitle="Controle de produtos e inventário"
+      icon={Package}
+      actions={
+        <div className="flex gap-2">
+          <ImportarEstoqueDialog onSuccess={refetch} />
+          <NovoProdutoDialog onSuccess={refetch} />
+        </div>
+      }
+    >
       {isLoading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -101,7 +99,7 @@ export default function Estoque() {
           <div className="h-64 bg-muted/50 rounded-lg animate-pulse" />
         </div>
       ) : (
-        <>
+        <div className="space-y-6">
           {/* KPIs */}
           <KPIGrid>
             <KPICard label="Total Produtos" value={produtos.filter(p => p.ativo).length} icon={Box} />
@@ -124,20 +122,22 @@ export default function Estoque() {
 
           {/* Tabs & Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex gap-1 p-1 rounded-lg bg-muted/50 w-fit">
+            <div className="flex gap-1 p-1 rounded-xl bg-muted/50 w-fit">
               <button
                 onClick={() => setActiveTab('todos')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  activeTab === 'todos' ? 'bg-background shadow-sm' : 'text-muted-foreground'
-                }`}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                  activeTab === 'todos' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 Todos ({filteredProdutos.length})
               </button>
               <button
                 onClick={() => setActiveTab('alerta')}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  activeTab === 'alerta' ? 'bg-background shadow-sm' : 'text-muted-foreground'
-                }`}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                  activeTab === 'alerta' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Alertas ({produtosComAlerta.length})
@@ -151,11 +151,11 @@ export default function Estoque() {
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-11 h-10"
+                  className="pl-11 h-10 rounded-xl"
                 />
               </div>
               <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger className="w-[160px] h-10">
+                <SelectTrigger className="w-[160px] h-10 rounded-xl">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
@@ -171,7 +171,7 @@ export default function Estoque() {
           </div>
 
           {/* Table */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -189,8 +189,11 @@ export default function Estoque() {
                 <TableBody>
                   {displayProdutos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                        Nenhum produto encontrado
+                      <TableCell colSpan={8} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-2">
+                          <Package className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-muted-foreground">Nenhum produto encontrado</p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -268,8 +271,8 @@ export default function Estoque() {
           <p className="text-xs text-muted-foreground">
             {displayProdutos.length} de {produtos.filter(p => p.ativo).length} produtos
           </p>
-        </>
+        </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

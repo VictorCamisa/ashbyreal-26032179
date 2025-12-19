@@ -14,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Search, Users, TrendingUp, UserPlus, Activity } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 
 const statusColors: Record<string, string> = {
@@ -44,101 +44,105 @@ export default function Clientes() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        title="Clientes"
-        subtitle="Gerencie sua base de clientes"
-        icon={Users}
-        actions={
-          <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
-        }
-      />
+    <PageLayout
+      title="Clientes"
+      subtitle="Gerencie sua base de clientes"
+      icon={Users}
+      actions={
+        <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
+      }
+    >
+      <div className="space-y-6">
+        {/* KPIs */}
+        <KPIGrid>
+          <KPICard label="Total" value={stats.total} icon={Users} />
+          <KPICard label="Ativos" value={stats.ativos} icon={Activity} variant="success" />
+          <KPICard label="Leads" value={stats.leads} icon={UserPlus} variant="warning" />
+          <KPICard 
+            label="Ticket Médio" 
+            value={`R$ ${stats.ticketMedio.toFixed(0)}`} 
+            icon={TrendingUp} 
+          />
+        </KPIGrid>
 
-      {/* KPIs */}
-      <KPIGrid>
-        <KPICard label="Total" value={stats.total} icon={Users} />
-        <KPICard label="Ativos" value={stats.ativos} icon={Activity} variant="success" />
-        <KPICard label="Leads" value={stats.leads} icon={UserPlus} variant="warning" />
-        <KPICard 
-          label="Ticket Médio" 
-          value={`R$ ${stats.ticketMedio.toFixed(0)}`} 
-          icon={TrendingUp} 
-        />
-      </KPIGrid>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, e-mail ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-11 h-11 rounded-xl"
+          />
+        </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, e-mail ou telefone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-11 h-11"
-        />
-      </div>
-
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-12 bg-muted/50 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-medium">Nome</TableHead>
-                  <TableHead className="font-medium">Telefone</TableHead>
-                  <TableHead className="font-medium">E-mail</TableHead>
-                  <TableHead className="font-medium">Empresa</TableHead>
-                  <TableHead className="font-medium">Ticket Médio</TableHead>
-                  <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="font-medium">Origem</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClientes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                      {searchTerm ? 'Nenhum cliente encontrado' : 'Adicione o primeiro cliente'}
-                    </TableCell>
+        {/* Table */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-12 bg-muted/50 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="font-medium">Nome</TableHead>
+                    <TableHead className="font-medium">Telefone</TableHead>
+                    <TableHead className="font-medium">E-mail</TableHead>
+                    <TableHead className="font-medium">Empresa</TableHead>
+                    <TableHead className="font-medium">Ticket Médio</TableHead>
+                    <TableHead className="font-medium">Status</TableHead>
+                    <TableHead className="font-medium">Origem</TableHead>
                   </TableRow>
-                ) : (
-                  filteredClientes.map((cliente) => (
-                    <TableRow
-                      key={cliente.id}
-                      className="cursor-pointer hover:bg-muted/30"
-                      onClick={() => navigate(`/cliente/${cliente.id}`)}
-                    >
-                      <TableCell className="font-medium">{cliente.nome}</TableCell>
-                      <TableCell className="text-muted-foreground">{cliente.telefone}</TableCell>
-                      <TableCell className="text-muted-foreground">{cliente.email}</TableCell>
-                      <TableCell className="text-muted-foreground">{cliente.empresa || '-'}</TableCell>
-                      <TableCell>R$ {(cliente.ticketMedio || 0).toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusColors[cliente.status]}>
-                          {cliente.status}
-                        </Badge>
+                </TableHeader>
+                <TableBody>
+                  {filteredClientes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-muted-foreground">
+                            {searchTerm ? 'Nenhum cliente encontrado' : 'Adicione o primeiro cliente'}
+                          </p>
+                        </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{cliente.origem}</TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  ) : (
+                    filteredClientes.map((cliente) => (
+                      <TableRow
+                        key={cliente.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => navigate(`/cliente/${cliente.id}`)}
+                      >
+                        <TableCell className="font-medium">{cliente.nome}</TableCell>
+                        <TableCell className="text-muted-foreground">{cliente.telefone}</TableCell>
+                        <TableCell className="text-muted-foreground">{cliente.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{cliente.empresa || '-'}</TableCell>
+                        <TableCell>R$ {(cliente.ticketMedio || 0).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={statusColors[cliente.status]}>
+                            {cliente.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{cliente.origem}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
-      {filteredClientes.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {filteredClientes.length} de {clientes.length} clientes
-        </p>
-      )}
-    </div>
+        {filteredClientes.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {filteredClientes.length} de {clientes.length} clientes
+          </p>
+        )}
+      </div>
+    </PageLayout>
   );
 }
