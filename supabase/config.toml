@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.import-card-statement]
 verify_jwt = false
+
+[functions.scan-order]
+verify_jwt = false

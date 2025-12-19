@@ -20,6 +20,7 @@ import {
 import { Search, ShoppingCart, Eye, Filter, BarChart3, List } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
+import { EscanearPedidoDialog } from '@/components/pedidos/EscanearPedidoDialog';
 import { DetalhesPedidoDrawer } from '@/components/pedidos/DetalhesPedidoDrawer';
 import { PedidosKPIs } from '@/components/pedidos/PedidosKPIs';
 import { PedidoStatusWorkflow } from '@/components/pedidos/PedidoStatusWorkflow';
@@ -123,7 +124,12 @@ export default function Pedidos() {
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
-      actions={<NovoPedidoCompletoDialog onSuccess={() => { refetch(); fetchAllItems(); }} />}
+      actions={
+        <div className="flex gap-2">
+          <EscanearPedidoDialog onSuccess={() => { refetch(); fetchAllItems(); }} />
+          <NovoPedidoCompletoDialog onSuccess={() => { refetch(); fetchAllItems(); }} />
+        </div>
+      }
     >
       <div className="space-y-6">
         {/* KPIs */}
