@@ -111,9 +111,22 @@ export function useGastosCartaoMutations() {
       
       if (error) throw error;
       
-      // Atualizar as faturas correspondentes (passando closingDay para cálculo correto)
+      // Se force_competencia estiver presente, forçamos TODAS as transações criadas nessa chamada
+      // a entrarem na mesma fatura (útil quando o CSV traz a "data original" da compra/parcela).
+      const forcedCompetencia = (() => {
+        const raw = newTransaction.force_competencia as string | undefined;
+        if (!raw) return undefined;
+
+        // Aceita YYYY-MM, YYYY-MM-01, ou YYYY-MM-DD (normaliza para YYYY-MM-01)
+        if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+        if (/^\d{4}-\d{2}-01$/.test(raw)) return raw;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
+        return undefined;
+      })();
+
+      // Atualizar as faturas correspondentes
       if (data && data.length > 0) {
-        await updateInvoicesForTransactions(data, closingDay);
+        await updateInvoicesForTransactions(data, closingDay, forcedCompetencia);
       }
       
       return data;
@@ -138,14 +151,18 @@ export function useGastosCartaoMutations() {
 }
 
 // Função auxiliar para atualizar valores das faturas
-async function updateInvoicesForTransactions(transactions: any[], closingDay: number) {
-  // Agrupar transações por cartão e competência (calculada corretamente)
+async function updateInvoicesForTransactions(
+  transactions: any[],
+  closingDay: number,
+  forcedCompetencia?: string
+) {
+  // Agrupar transações por cartão e competência
   const groupedTransactions: Record<string, { cardId: string; competencia: string; total: number; transactionIds: string[] }> = {};
 
   for (const transaction of transactions) {
     const purchaseDate = new Date(transaction.purchase_date);
-    // Usar a função de cálculo de competência correta
-    const competencia = calculateCompetencia(purchaseDate, closingDay);
+    // Se foi fornecida competência forçada, use-a; caso contrário, calcule pelo closingDay
+    const competencia = forcedCompetencia || calculateCompetencia(purchaseDate, closingDay);
     const key = `${transaction.credit_card_id}_${competencia}`;
 
     if (!groupedTransactions[key]) {
