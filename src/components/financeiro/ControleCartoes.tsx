@@ -28,7 +28,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 export function ControleCartoes() {
-  const { cartoes, faturas, isLoading } = useCartoes();
+  const { cartoes, faturas, transacoesPorCartao, isLoading } = useCartoes();
   const { createCartao, isCreating } = useCartoesMutations();
   const { createFatura, isCreating: isCreatingFatura } = useFaturasMutations();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
@@ -65,9 +65,18 @@ export function ControleCartoes() {
     return faturas?.filter(f => f.credit_card_id === cardId) || [];
   };
 
-  const getCardCurrentFatura = (cardId: string) => {
+  // Pegar valor atual do cartão - usar transações ou fatura do mês
+  const getCardCurrentValue = (cardId: string): number => {
+    // Primeiro tentar das transações
+    const fromTransactions = transacoesPorCartao?.get(cardId);
+    if (fromTransactions && fromTransactions > 0) {
+      return fromTransactions;
+    }
+    
+    // Fallback para fatura do mês atual
     const cardFaturas = getCardFaturas(cardId);
-    return cardFaturas.find(f => f.competencia.startsWith(currentMonth));
+    const currentFatura = cardFaturas.find(f => f.competencia.startsWith(currentMonth));
+    return currentFatura?.total_value || 0;
   };
 
   return (
@@ -158,8 +167,8 @@ export function ControleCartoes() {
         {cartoes && cartoes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {cartoes.map((cartao) => {
-              const currentFatura = getCardCurrentFatura(cartao.id);
-              const usedLimit = currentFatura?.total_value || 0;
+              const currentValue = getCardCurrentValue(cartao.id);
+              const usedLimit = currentValue;
               const limitValue = cartao.limit_value || 0;
               const usagePercent = limitValue > 0 ? (usedLimit / limitValue) * 100 : 0;
               const isHighUsage = usagePercent > 80;
@@ -223,7 +232,7 @@ export function ControleCartoes() {
                     )}
 
                     {/* Current Fatura Info */}
-                    {currentFatura && (
+                    {currentValue > 0 && (
                       <div className="pt-3 border-t border-border/50">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -231,7 +240,7 @@ export function ControleCartoes() {
                             <span className="text-sm">Fatura Atual</span>
                           </div>
                           <span className="font-semibold">
-                            R$ {currentFatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>

@@ -25,11 +25,27 @@ const hasLetters = (s: string) => /[A-Za-zÀ-ÿ]/.test(s);
 function parsePtBrNumber(value: unknown): number {
   if (typeof value === "number") return value;
   if (typeof value !== "string") return 0;
-  const cleaned = value
-    .replace(/[R$\s]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .trim();
+  
+  let cleaned = value.trim();
+  
+  // Remove R$ e espaços
+  cleaned = cleaned.replace(/[R$\s]/g, "");
+  
+  // Detectar formato brasileiro (1.234,56) vs americano (1,234.56)
+  const hasBrazilianFormat = /\d{1,3}(\.\d{3})*,\d{2}$/.test(cleaned);
+  const hasAmericanFormat = /\d{1,3}(,\d{3})*\.\d{2}$/.test(cleaned);
+  
+  if (hasBrazilianFormat) {
+    // Formato brasileiro: 1.234,56 -> 1234.56
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  } else if (hasAmericanFormat) {
+    // Formato americano: 1,234.56 -> 1234.56
+    cleaned = cleaned.replace(/,/g, "");
+  } else {
+    // Formato simples: pode ser só vírgula como decimal
+    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+  }
+  
   const n = parseFloat(cleaned);
   return Number.isFinite(n) ? n : 0;
 }
@@ -79,11 +95,29 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 function extractInstallments(description: string): { num: number; total: number } {
-  const match = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
-  if (match) {
-    return { num: parseInt(match[1], 10), total: parseInt(match[2], 10) };
+  // Match patterns like: 03/12, PARCELA 3/12, PARC 3 DE 12, 3x12
+  const patterns = [
+    /(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i,
+    /(\d+)\s*[\/xX]\s*(\d+)$/,
+    /(\d{2})\/(\d{2})$/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = description.match(pattern);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      const total = parseInt(match[2], 10);
+      if (num > 0 && total > 0 && num <= total && total <= 48) {
+        return { num, total };
+      }
+    }
   }
   return { num: 1, total: 1 };
+}
+
+// Validar se o valor faz sentido (entre R$0.01 e R$100.000)
+function isValidAmount(amount: number): boolean {
+  return amount >= 0.01 && amount <= 100000;
 }
 
 // ============= XLSX PARSER (ITAU EMPRESAS) =============
@@ -149,14 +183,14 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
 
     // Amount
     let amount = Math.abs(parsePtBrNumber(rawVal));
-    if (!amount || amount <= 0) {
+    if (!isValidAmount(amount)) {
       const nums = row
         .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
-        .filter((n) => Number.isFinite(n) && Math.abs(n) > 0.001 && Math.abs(n) < 10000000)
+        .filter((n) => isValidAmount(n))
         .map((n) => Math.abs(n));
-      if (nums.length) amount = nums.sort((a, b) => b - a)[0];
+      if (nums.length) amount = nums[0];
     }
-    if (!amount || amount <= 0) continue;
+    if (!isValidAmount(amount)) continue;
 
     const { num, total } = extractInstallments(description);
 
@@ -189,34 +223,71 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
   const txs: ParsedTransaction[] = [];
 
-  for (const line of lines) {
+  // Tentar identificar colunas pelo header
+  let dateColIdx = -1;
+  let descColIdx = -1;
+  let amountColIdx = -1;
+  
+  const headerLine = lines[0];
+  const headerParts = headerLine.split(delimiter).map(p => p.trim().toLowerCase().replace(/^["']|["']$/g, ""));
+  
+  headerParts.forEach((h, idx) => {
+    if (h.includes("data") || h === "date") dateColIdx = idx;
+    if (h.includes("descr") || h.includes("estabelecimento") || h.includes("merchant")) descColIdx = idx;
+    if (h.includes("valor") || h.includes("amount") || h.includes("value")) amountColIdx = idx;
+  });
+  
+  console.log("Detected columns:", { dateColIdx, descColIdx, amountColIdx });
+
+  const startLine = (dateColIdx >= 0 || descColIdx >= 0 || amountColIdx >= 0) ? 1 : 0;
+
+  for (let lineIdx = startLine; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
     const parts = line.split(delimiter).map((p) => p.trim().replace(/^["']|["']$/g, ""));
 
-    // Find date column
-    const dateIndex = parts.findIndex((p) => !!parseDateAny(p));
-    if (dateIndex === -1) continue;
-
-    const date = parseDateAny(parts[dateIndex]);
+    // Find date
+    let date = "";
+    if (dateColIdx >= 0 && parts[dateColIdx]) {
+      date = parseDateAny(parts[dateColIdx]);
+    }
+    if (!date) {
+      const dateIndex = parts.findIndex((p) => !!parseDateAny(p));
+      if (dateIndex >= 0) date = parseDateAny(parts[dateIndex]);
+    }
     if (!date) continue;
 
     let description = "";
     let amount = 0;
 
-    for (let i = 0; i < parts.length; i++) {
-      if (i === dateIndex) continue;
-      const v = parts[i];
-      const n = parsePtBrNumber(v);
-      if (!amount && n && Math.abs(n) > 0.001) amount = Math.abs(n);
-      if (!description && v.length > 2 && hasLetters(v)) description = v;
+    // Get description from identified column
+    if (descColIdx >= 0 && parts[descColIdx] && hasLetters(parts[descColIdx])) {
+      description = parts[descColIdx];
     }
 
-    if (!description || !amount) continue;
+    // Get amount from identified column
+    if (amountColIdx >= 0 && parts[amountColIdx]) {
+      amount = Math.abs(parsePtBrNumber(parts[amountColIdx]));
+    }
+
+    // Fallback: search through all columns
+    for (let i = 0; i < parts.length; i++) {
+      const v = parts[i];
+      if (!description && v.length > 2 && hasLetters(v)) description = v;
+      if (!amount) {
+        const n = Math.abs(parsePtBrNumber(v));
+        if (isValidAmount(n)) amount = n;
+      }
+    }
+
+    if (!description || !isValidAmount(amount)) continue;
 
     // Skip summary lines
     const lowerDesc = description.toLowerCase();
     if (lowerDesc.includes("pagamento") || 
         lowerDesc.includes("total") ||
-        lowerDesc.includes("saldo")) {
+        lowerDesc.includes("saldo") ||
+        lowerDesc.includes("credito") ||
+        lowerDesc.includes("crédito")) {
       continue;
     }
 
@@ -234,7 +305,7 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   return txs;
 }
 
-// ============= PDF PARSER (via Lovable AI / OpenAI Vision) =============
+// ============= PDF PARSER (via OpenAI) =============
 
 async function parsePDFWithAI(fileBase64: string, openaiKey: string): Promise<ParsedTransaction[]> {
   if (!openaiKey) {
@@ -242,25 +313,17 @@ async function parsePDFWithAI(fileBase64: string, openaiKey: string): Promise<Pa
     return [];
   }
 
-  console.log("Parsing PDF with AI Vision...");
+  console.log("Parsing PDF with AI (text extraction)...");
 
-  const prompt = `Analise esta fatura de cartão de crédito em PDF e extraia TODAS as transações de compra.
+  // OpenAI Vision não aceita PDF diretamente, então vamos usar GPT-4 para processar
+  // dados estruturados que o usuário pode ter copiado ou usar outra abordagem
+  
+  const prompt = `Você receberá dados de uma fatura de cartão de crédito codificada em base64.
+Infelizmente não consigo ler PDFs diretamente. 
 
-Para cada transação, extraia:
-- data: no formato YYYY-MM-DD
-- description: descrição do estabelecimento/compra
-- amount: valor em número decimal (ex: 123.45)
-- installment_number: número da parcela se houver (ex: 2)
-- total_installments: total de parcelas se houver (ex: 10)
+Por favor, retorne um JSON vazio para que o usuário saiba que PDFs precisam ser convertidos para CSV ou XLSX primeiro:
 
-IGNORE linhas de:
-- Pagamento efetuado
-- Total da fatura
-- Saldo anterior
-- Resumo
-
-Responda APENAS com JSON válido no formato:
-{"transactions": [{"date": "2025-01-15", "description": "LOJA ABC", "amount": 150.00, "installment_number": 1, "total_installments": 1}]}`;
+{"transactions": [], "message": "PDFs não são suportados diretamente. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco."}`;
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -270,57 +333,26 @@ Responda APENAS com JSON válido no formato:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
-            content: [
-              { type: "text", text: prompt },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:application/pdf;base64,${fileBase64}`,
-                  detail: "high"
-                }
-              }
-            ]
+            content: prompt
           }
         ],
-        max_tokens: 4000,
+        max_tokens: 500,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI Vision error:", response.status, errorText);
+      console.error("OpenAI error:", response.status, errorText);
       return [];
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    console.log("AI response:", content.substring(0, 500));
-
-    // Extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*"transactions"[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.log("No JSON found in AI response");
-      return [];
-    }
-
-    const result = JSON.parse(jsonMatch[0]);
-    if (result.transactions && Array.isArray(result.transactions)) {
-      return result.transactions.map((t: any) => ({
-        date: t.date || "",
-        description: t.description || "",
-        amount: Math.abs(parseFloat(t.amount) || 0),
-        installment_number: parseInt(t.installment_number) || 1,
-        total_installments: parseInt(t.total_installments) || 1,
-      })).filter((t: ParsedTransaction) => t.date && t.description && t.amount > 0);
     }
 
     return [];
   } catch (e) {
-    console.error("Error parsing PDF with AI:", e);
+    console.error("Error in PDF parsing:", e);
     return [];
   }
 }
@@ -418,16 +450,17 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let transactions: ParsedTransaction[] = [];
+    let errorMessage = "";
 
     const provider = String(cardProvider).toUpperCase();
     const type = String(fileType || "").toUpperCase();
 
     console.log(`Processing provider: ${provider}, fileType: ${type}`);
 
-    // PDF Processing (any provider)
-    if (type === "PDF" && fileBase64) {
-      console.log("Processing PDF file...");
-      transactions = await parsePDFWithAI(fileBase64, openaiKey || "");
+    // PDF Processing - informar que não é suportado
+    if (type === "PDF") {
+      console.log("PDF files are not directly supported");
+      errorMessage = "PDFs não são suportados diretamente. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco.";
     }
     // XLSX Processing
     else if ((type === "XLSX" || type === "XLS") && fileBase64) {
@@ -471,7 +504,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: transactions.length > 0,
         transactions,
         summary: {
           total_records: transactions.length,
@@ -479,6 +512,7 @@ serve(async (req) => {
           card_provider: cardProvider,
           competencia,
         },
+        error: errorMessage || undefined
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
