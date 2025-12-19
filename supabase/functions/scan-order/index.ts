@@ -60,46 +60,52 @@ Analise a imagem do formulário de pedido e extraia TODOS os dados com precisão
 O formulário tem a seguinte estrutura:
 - **Cabeçalho**: Logo ASHBY/TAUBATÉ CHOPP, Nº do pedido, Data, Vendedor
 - **Cliente**: Nome no campo "Cliente:", pode ter empresa, CNPJ/CPF, Endereço, Bairro, Cidade, Estado, Fone
-- **Local de Entrega**: Campo específico para endereço de entrega
 - **Tabela de Produtos**: 
-  - Coluna "Quant." = Quantidade (em litros)
-  - Coluna "Descrição da Mercadoria" = Nome do produto + tamanho dos barris
-  - Os barris são indicados como "4x50" (4 barris de 50L), "2x50", "1x30", "1x10" etc
-  - Coluna "Preço unitário" e "Preço total"
-- **Itens fixos no formulário**:
-  - Chopp Claro (Pilsen)
-  - Chopp Vinho/Vino
-  - Chopp IPA
-  - Chopp Escuro
-  - Chopperia Elétrica (equipamento)
-  - Cilindro CO² 
-  - Frete
-  - Copos descartáveis (Opcionais)
-- **Observação**: Campo livre para anotações
-- **TOTAL R$**: Valor total do pedido
+  - Linha "Chopp Claro" (Pilsen)
+  - Linha "Chopp Vinho/Vino"
+  - Linha "Chopp IPA"
+  - Linha "Chopp Escuro"
+  - Linha "Chopperia Elétrica" (equipamento)
+  - Linha "Cilindro CO²"
+  - Linha "Frete"
+  - Linha "Copos descartáveis" (Opcionais)
 - **Seção ENTREGA**: DATA de entrega, Período (Manhã/Tarde/Integral)
 - **Seção PAGAMENTO**: Checkboxes para Dinheiro, Cartão, PIX, Boleto
 
-## PRODUTOS DISPONÍVEIS NO SISTEMA:
+## REGRA CRÍTICA DE EXTRAÇÃO DE QUANTIDADE:
+
+A coluna "Quant." contém a QUANTIDADE DE BARRIS, não litros!
+O tamanho do barril é anotado separadamente (ex: "1x50" = 1 barril de 50L, "2x30" = 2 barris de 30L).
+
+EXEMPLOS DE LEITURA CORRETA:
+- Se "Quant." = 50 e "1x50" está anotado → quantidade = 1 (1 barril de 50 litros)
+- Se "Quant." = 100 e "2x50" está anotado → quantidade = 2 (2 barris de 50 litros)  
+- Se "Quant." = 60 e "2x30" está anotado → quantidade = 2 (2 barris de 30 litros)
+- Se "Quant." = 50 para Copos → quantidade = 50 (são unidades, não barris)
+
+IMPORTANTE: Para CHOPP, procure a anotação "NxTAMANHO" (1x50, 2x30, 4x10) e extraia:
+- quantidade = N (número de barris)
+- tamanhoBarril = TAMANHO (litros por barril: 10, 20, 30 ou 50)
+
+Para itens que NÃO são chopp (Copos, Chopperia, Cilindro, Frete), a quantidade é em unidades normais.
+
+## PRODUTOS DISPONÍVEIS NO SISTEMA (para matching):
 ${productList}
 
-## INSTRUÇÕES DE EXTRAÇÃO:
+## INSTRUÇÕES:
 
-1. **Cliente**: Extraia o nome exatamente como escrito no campo "Cliente:"
-2. **Produtos**: 
-   - Leia a coluna "Quant." para quantidade em LITROS
-   - Identifique o tipo de chopp (Claro, Vinho, IPA, Escuro)
-   - Se houver indicação de barris (ex: "4x50"), a quantidade já está em litros (4x50=200L)
-   - Inclua itens opcionais como Copos descartáveis, Chopperia, Cilindro CO², Frete
-3. **Preços**: Extraia preço unitário e total se visíveis
-4. **Pagamento**: Verifique qual opção está marcada (X ou ✓) entre Dinheiro, Cartão, PIX, Boleto
-5. **Data de Entrega**: Extraia do campo "DATA" na seção ENTREGA
-6. **Observações**: Inclua texto do campo "Observação" e qualquer anotação relevante
+1. **Cliente**: Nome exatamente como escrito no campo "Cliente:"
+2. **Produtos CHOPP**: 
+   - Procure a notação de barris (ex: "1x50", "2x30") 
+   - quantidade = número de barris (NÃO litros)
+   - tamanhoBarril = 10, 20, 30 ou 50
+3. **Outros itens**: Quantidade normal em unidades
+4. **Pagamento**: Qual opção está marcada (X ou ✓)
+5. **Observações**: Campo "Observação" + anotações
 
-## DICAS PARA LEITURA:
-- Números escritos à mão podem ter formatos variados
-- "M" antes de valores significa "R$" (ex: "M 590,00" = R$ 590,00)
-- Verifique se há carimbo "LANÇADO" indicando pedido já processado`
+## DICAS:
+- "M" antes de valores = "R$" (ex: "M 590,00" = R$ 590,00)
+- Verifique carimbo "LANÇADO" = pedido já processado`
           },
           {
             role: 'user',
@@ -148,8 +154,9 @@ ${productList}
                       type: 'object',
                       properties: {
                         nomeProduto: { type: 'string', description: 'Nome do produto (ex: Chopp Claro, Chopp Vinho, Chopp IPA, Copos descartáveis)' },
-                        quantidade: { type: 'number', description: 'Quantidade em litros ou unidades' },
-                        detalhesBarris: { type: 'string', description: 'Detalhes dos barris se houver (ex: 4x50, 2x30)' },
+                        quantidade: { type: 'number', description: 'NÚMERO DE BARRIS para chopp (1, 2, 3...), ou unidades para outros itens. NÃO é litros!' },
+                        tamanhoBarril: { type: 'number', description: 'Tamanho do barril em litros (10, 20, 30 ou 50). Só para produtos chopp.' },
+                        detalhesBarris: { type: 'string', description: 'Anotação original dos barris (ex: 1x50, 2x30)' },
                         precoUnitario: { type: 'number', description: 'Preço unitário em reais' },
                         precoTotal: { type: 'number', description: 'Preço total do item' }
                       },
@@ -206,6 +213,7 @@ ${productList}
     const matchedItems = [];
     for (const item of extractedData.itens || []) {
       const searchName = item.nomeProduto.toLowerCase();
+      const tamanhoBarril = item.tamanhoBarril; // 10, 20, 30, or 50
       
       // Find best matching product
       let bestMatch = null;
@@ -213,31 +221,74 @@ ${productList}
 
       for (const produto of produtos || []) {
         const prodName = produto.nome.toLowerCase();
+        let score = 0;
         
-        // Simple similarity check
-        if (prodName.includes(searchName) || searchName.includes(prodName)) {
-          const score = 100;
-          if (score > bestScore) {
-            bestScore = score;
-            bestMatch = produto;
+        // For chopp products, match by type AND barrel size
+        const isChopp = searchName.includes('chopp') || searchName.includes('chope');
+        const prodIsChopp = prodName.includes('chopp') || prodName.includes('chope');
+        
+        if (isChopp && prodIsChopp && tamanhoBarril) {
+          // Check if product name contains the barrel size
+          const prodHasSize = prodName.includes(`${tamanhoBarril}lt`) || 
+                             prodName.includes(`${tamanhoBarril} lt`) ||
+                             prodName.includes(`${tamanhoBarril}l`) ||
+                             prodName.includes(`${tamanhoBarril} l`) ||
+                             prodName.includes(`${tamanhoBarril}lts`);
+          
+          // Check chopp type match
+          const types = [
+            { names: ['claro', 'pilsen', 'puro malte'], key: 'claro' },
+            { names: ['vinho', 'vino'], key: 'vinho' },
+            { names: ['ipa', 'nirvana'], key: 'ipa' },
+            { names: ['escuro', 'dark'], key: 'escuro' },
+            { names: ['pale ale'], key: 'pale' },
+            { names: ['weiss'], key: 'weiss' },
+            { names: ['limão', 'ice'], key: 'limao' }
+          ];
+          
+          let typeMatch = false;
+          for (const type of types) {
+            const searchHasType = type.names.some(n => searchName.includes(n));
+            const prodHasType = type.names.some(n => prodName.includes(n));
+            if (searchHasType && prodHasType) {
+              typeMatch = true;
+              break;
+            }
+          }
+          
+          if (prodHasSize && typeMatch) {
+            score = 100; // Perfect match: type + size
+          } else if (typeMatch) {
+            score = 50; // Type matches but not size
+          } else if (prodHasSize) {
+            score = 30; // Size matches but not type
           }
         } else {
-          // Check word overlap
-          const prodWords = prodName.split(/\s+/);
-          const searchWords = searchName.split(/\s+/);
-          const overlap = prodWords.filter((w: string) => searchWords.some((sw: string) => sw.includes(w) || w.includes(sw))).length;
-          const score = (overlap / Math.max(prodWords.length, searchWords.length)) * 100;
-          if (score > bestScore && score >= 30) {
-            bestScore = score;
-            bestMatch = produto;
+          // Non-chopp products: simple text matching
+          if (prodName.includes(searchName) || searchName.includes(prodName)) {
+            score = 100;
+          } else {
+            const prodWords = prodName.split(/\s+/);
+            const searchWords = searchName.split(/\s+/);
+            const overlap = prodWords.filter((w: string) => 
+              searchWords.some((sw: string) => sw.includes(w) || w.includes(sw))
+            ).length;
+            score = (overlap / Math.max(prodWords.length, searchWords.length)) * 100;
+            if (score < 30) score = 0;
           }
+        }
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = produto;
         }
       }
 
       matchedItems.push({
         nomeProdutoOriginal: item.nomeProduto,
         quantidade: item.quantidade,
-        precoUnitario: item.precoUnitario || item.precoTotal / item.quantidade,
+        tamanhoBarril: item.tamanhoBarril,
+        precoUnitario: item.precoUnitario || (item.precoTotal ? item.precoTotal / item.quantidade : null),
         detalhesBarris: item.detalhesBarris,
         produtoEncontrado: bestMatch ? {
           id: bestMatch.id,
