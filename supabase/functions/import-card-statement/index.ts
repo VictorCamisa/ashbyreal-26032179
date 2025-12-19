@@ -183,9 +183,8 @@ function isValidAmount(amount: number): boolean {
 function normalizeAmountByDescription(description: string, amount: number): number {
   const desc = String(description ?? "").toLowerCase();
 
-  // “Créditos” devem reduzir a fatura (valor negativo)
+  // “Créditos/estornos” devem reduzir a fatura (valor negativo)
   const isCreditLike =
-    desc.includes("pagamento") ||
     desc.includes("estorno") ||
     desc.includes("devol") ||
     desc.includes("reembolso") ||
@@ -202,7 +201,20 @@ function normalizeAmountByDescription(description: string, amount: number): numb
   return amount < 0 ? Math.abs(amount) : amount;
 }
 
-// Check if line is a summary line to skip (NOT payments - we want those now)
+// Linhas de “pagamento” do cartão não são compra/estorno (não entram na fatura)
+function isPaymentLine(description: string): boolean {
+  const d = String(description ?? "").toLowerCase().trim();
+  return (
+    /^pagamento\b/.test(d) ||
+    d.includes("pagto") ||
+    d.includes("pgto") ||
+    d.includes("pagamento efetuado") ||
+    d.includes("pagamento fatura") ||
+    d.includes("pagamento da fatura")
+  );
+}
+
+// Check if line is a summary line to skip
 function isSummaryLine(description: string): boolean {
   const lower = description.toLowerCase();
   const skipPatterns = [
@@ -214,7 +226,6 @@ function isSummaryLine(description: string): boolean {
     'limite disponível',
     'resumo da fatura',
     'fatura anterior'
-    // REMOVIDO: 'pagamento efetuado' - agora importamos pagamentos como valores negativos
   ];
   return skipPatterns.some(p => lower.includes(p));
 }
@@ -282,6 +293,9 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     }
     if (!description || !hasLetters(description)) continue;
 
+    // Skip linhas de pagamento (não entram na fatura)
+    if (isPaymentLine(description)) continue;
+
     // Skip summary lines
     if (isSummaryLine(description)) continue;
 
@@ -294,7 +308,7 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
       if (nums.length) amount = nums[nums.length - 1]; // Usually last number is the value
     }
 
-    // Normalizar sinal pelo texto (pagamento/estorno/etc)
+    // Normalizar sinal pelo texto (estorno/etc)
     amount = normalizeAmountByDescription(description, amount);
 
     if (!isValidAmount(amount)) continue;
@@ -410,11 +424,14 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
     if (!description || (amount === 0 && !isValidAmount(amount))) continue;
 
-    // Normalizar sinal pelo texto (pagamento/estorno/etc)
-    amount = normalizeAmountByDescription(description, amount);
+    // Skip linhas de pagamento (não entram na fatura)
+    if (isPaymentLine(description)) continue;
 
     // Skip summary lines
     if (isSummaryLine(description)) continue;
+
+    // Normalizar sinal pelo texto (estorno/etc)
+    amount = normalizeAmountByDescription(description, amount);
 
     const { num, total } = extractInstallments(description);
     const cleanedDescription = cleanDescription(description);
