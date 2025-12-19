@@ -74,36 +74,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   const monthStr = referenceMonth.toISOString().slice(0, 7);
   const monthLabel = format(referenceMonth, 'MMMM yyyy', { locale: ptBR });
 
-  // Fetch transactions for this card
-  const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['card-transactions', cartao?.id, monthStr],
-    queryFn: async () => {
-      if (!cartao?.id) return [];
-      
-      const startOfMonth = `${monthStr}-01`;
-      const year = referenceMonth.getFullYear();
-      const month = referenceMonth.getMonth();
-      const startOfNextMonth = new Date(year, month + 1, 1).toISOString().split('T')[0];
-
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          *,
-          categories(name, group),
-          subcategories(name)
-        `)
-        .eq('credit_card_id', cartao.id)
-        .gte('purchase_date', startOfMonth)
-        .lt('purchase_date', startOfNextMonth)
-        .order('purchase_date', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open && !!cartao?.id,
-  });
-
-  // Fetch invoices for this card
+  // Fetch invoices for this card (moved up to use in transactions query)
   const { data: invoices, isLoading: isLoadingInvoices } = useQuery({
     queryKey: ['card-invoices', cartao?.id],
     queryFn: async () => {
@@ -114,13 +85,47 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
         .select('*')
         .eq('credit_card_id', cartao.id)
         .order('competencia', { ascending: false })
-        .limit(12);
+        .limit(24);
 
       if (error) throw error;
       return data || [];
     },
     enabled: open && !!cartao?.id,
   });
+
+  // Get the current invoice for the selected month
+  const currentInvoice = invoices?.find((inv) =>
+    inv.competencia.startsWith(monthStr)
+  );
+
+  // Fetch transactions for this card by invoice_id (competência) NOT purchase_date
+  const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
+    queryKey: ['card-transactions', cartao?.id, currentInvoice?.id],
+    queryFn: async () => {
+      if (!cartao?.id) return [];
+      
+      // Se temos uma fatura para esse mês, buscar por invoice_id
+      if (currentInvoice?.id) {
+        const { data, error } = await supabase
+          .from('credit_card_transactions')
+          .select(`
+            *,
+            categories(name, group),
+            subcategories(name)
+          `)
+          .eq('invoice_id', currentInvoice.id)
+          .order('purchase_date', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+      }
+      
+      // Fallback: se não há fatura, não há transações para esse mês
+      return [];
+    },
+    enabled: open && !!cartao?.id && invoices !== undefined,
+  });
+
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -178,9 +183,6 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   if (!cartao) return null;
 
   const limitValue = cartao.limit_value || 0;
-  const currentInvoice = invoices?.find((inv) =>
-    inv.competencia.startsWith(monthStr)
-  );
   const currentValue = currentInvoice?.total_value || totals.total;
   const usagePercent = limitValue > 0 ? (currentValue / limitValue) * 100 : 0;
   const availableLimit = Math.max(0, limitValue - currentValue);

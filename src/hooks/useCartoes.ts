@@ -1,6 +1,6 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-
 export function useCartoes() {
   const { data: cartoes, isLoading: isLoadingCartoes } = useQuery({
     queryKey: ['credit-cards'],
@@ -45,42 +45,52 @@ export function useCartoes() {
     }
   });
 
-  // Calcular fatura atual de cada cartão somando as transações
-  const { data: transacoesPorCartao, isLoading: isLoadingTransacoes } = useQuery({
-    queryKey: ['credit-card-transactions-summary'],
-    queryFn: async () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      
-      // Primeiro dia do mês atual
-      const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
-      // Primeiro dia do próximo mês
-      const startOfNextMonth = new Date(year, month + 1, 1).toISOString().split('T')[0];
-      
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select('credit_card_id, amount, purchase_date')
-        .gte('purchase_date', startOfMonth)
-        .lt('purchase_date', startOfNextMonth);
-
-      if (error) throw error;
-      
-      // Agrupar por cartão
-      const byCard = new Map<string, number>();
-      for (const t of data || []) {
-        const current = byCard.get(t.credit_card_id) || 0;
-        byCard.set(t.credit_card_id, current + t.amount);
-      }
-      
-      return byCard;
+  // Calcular fatura atual de cada cartão - usar total_value da fatura da competência atual
+  // A competência atual depende do dia de fechamento de cada cartão
+  const getCurrentCompetencia = (closingDay: number) => {
+    const now = new Date();
+    const day = now.getDate();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    // Se estamos APÓS o fechamento, a fatura atual é do próximo mês
+    if (day > closingDay) {
+      const nextMonth = month === 11 ? 0 : month + 1;
+      const nextYear = month === 11 ? year + 1 : year;
+      return `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}`;
     }
-  });
+    
+    // Se estamos ATÉ o fechamento, a fatura atual é do mês atual
+    return `${year}-${String(month + 1).padStart(2, '0')}`;
+  };
+  
+  // Mapa de valores atuais por cartão baseado em faturas (não transações)
+  const transacoesPorCartao = useMemo(() => {
+    if (!cartoes || !faturas) return new Map<string, number>();
+    
+    const byCard = new Map<string, number>();
+    
+    for (const cartao of cartoes) {
+      const closingDay = cartao.closing_day || 10;
+      const competenciaAtual = getCurrentCompetencia(closingDay);
+      
+      // Buscar fatura dessa competência
+      const faturaAtual = faturas.find(
+        f => f.credit_card_id === cartao.id && f.competencia.startsWith(competenciaAtual)
+      );
+      
+      if (faturaAtual) {
+        byCard.set(cartao.id, faturaAtual.total_value);
+      }
+    }
+    
+    return byCard;
+  }, [cartoes, faturas]);
 
   return { 
     cartoes, 
     faturas, 
     transacoesPorCartao,
-    isLoading: isLoadingCartoes || isLoadingFaturas || isLoadingTransacoes 
+    isLoading: isLoadingCartoes || isLoadingFaturas
   };
 }
