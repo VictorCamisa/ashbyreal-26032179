@@ -72,6 +72,8 @@ interface ExtractedData {
     telefone?: string;
     email?: string;
     empresa?: string;
+    cidade?: string;
+    estado?: string;
   };
   itens: ExtractedItem[];
   metodoPagamento?: string;
@@ -415,6 +417,10 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
                           telefone: scanResult.dadosExtraidos.cliente?.telefone || '',
                           email: scanResult.dadosExtraidos.cliente?.email || '',
                           empresa: scanResult.dadosExtraidos.cliente?.empresa || '',
+                          observacoes: [
+                            scanResult.dadosExtraidos.cliente?.cidade,
+                            scanResult.dadosExtraidos.cliente?.estado,
+                          ].filter(Boolean).join(' - ') || '',
                         }}
                         onSubmit={async (data) => {
                           const created = await createCliente(data);
