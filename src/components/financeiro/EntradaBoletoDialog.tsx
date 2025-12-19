@@ -573,7 +573,7 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1" disabled={isCreating}>
+                <Button type="submit" variant="success" className="flex-1" disabled={isCreating}>
                   {isCreating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (

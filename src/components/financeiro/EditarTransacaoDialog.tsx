@@ -269,7 +269,7 @@ export function EditarTransacaoDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || !formData.entity_id}>
+            <Button type="submit" variant="success" disabled={isLoading || !formData.entity_id}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar
             </Button>

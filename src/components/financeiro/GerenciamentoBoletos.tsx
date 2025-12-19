@@ -151,6 +151,7 @@ export function GerenciamentoBoletos() {
                 <>
                   <Button
                     size="sm"
+                    variant="success"
                     className="gap-1"
                     onClick={() => setConfirmAction({ type: 'aprovar', boleto })}
                   >
@@ -173,8 +174,8 @@ export function GerenciamentoBoletos() {
                 <>
                   <Button
                     size="sm"
-                    variant="default"
-                    className="gap-1 bg-green-600 hover:bg-green-700"
+                    variant="success"
+                    className="gap-1"
                     onClick={() => setConfirmAction({ type: 'pagar', boleto })}
                   >
                     <CheckCircle2 className="h-3 w-3" />
@@ -371,7 +372,15 @@ export function GerenciamentoBoletos() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmAction}>
+            <AlertDialogAction 
+              onClick={handleConfirmAction}
+              className={confirmAction?.type === 'aprovar' || confirmAction?.type === 'pagar' 
+                ? 'bg-success text-success-foreground hover:bg-success/90' 
+                : confirmAction?.type === 'rejeitar' || confirmAction?.type === 'excluir' || confirmAction?.type === 'cancelar'
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                : ''
+              }
+            >
               Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>

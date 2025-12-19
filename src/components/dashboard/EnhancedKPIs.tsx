@@ -21,10 +21,15 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
     return (
       <KPIGrid>
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="glass-card p-5 animate-pulse">
-            <div className="h-4 w-20 bg-muted rounded mb-3" />
-            <div className="h-7 w-24 bg-muted rounded mb-2" />
-            <div className="h-3 w-16 bg-muted rounded" />
+          <div key={i} className="glass-card p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2 flex-1">
+                <div className="h-3 w-16 bg-muted rounded shimmer" />
+                <div className="h-8 w-28 bg-muted rounded shimmer" />
+                <div className="h-3 w-20 bg-muted rounded shimmer" />
+              </div>
+              <div className="h-12 w-12 bg-muted rounded-xl shimmer" />
+            </div>
           </div>
         ))}
       </KPIGrid>
@@ -42,7 +47,7 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
 
   const kpis = [
     {
-      label: 'Vendas',
+      label: 'Vendas do Mês',
       value: formatCurrency(data.vendas.total),
       icon: ShoppingCart,
       trend: data.vendas.crescimento !== 0 ? {
@@ -50,7 +55,14 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
         isPositive: data.vendas.crescimento >= 0,
       } : undefined,
       subtitle: `${data.vendas.quantidade} pedidos`,
-      variant: 'emerald' as const,
+      variant: 'hero' as const,
+    },
+    {
+      label: 'Resultado',
+      value: formatCurrency(data.financeiro.resultado),
+      icon: DollarSign,
+      subtitle: data.financeiro.resultado >= 0 ? 'superávit' : 'déficit',
+      variant: data.financeiro.resultado >= 0 ? 'hero' as const : 'danger' as const,
     },
     {
       label: 'Receitas',
@@ -61,7 +73,7 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
         isPositive: data.financeiro.receitasCrescimento >= 0,
       } : undefined,
       subtitle: 'do mês',
-      variant: 'blue' as const,
+      variant: 'success' as const,
     },
     {
       label: 'Despesas',
@@ -69,17 +81,10 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
       icon: TrendingDown,
       trend: data.financeiro.despesasCrescimento !== 0 ? {
         value: Math.abs(data.financeiro.despesasCrescimento),
-        isPositive: data.financeiro.despesasCrescimento <= 0, // Inverted: less expense is positive
+        isPositive: data.financeiro.despesasCrescimento <= 0,
       } : undefined,
       subtitle: 'do mês',
-      variant: 'rose' as const,
-    },
-    {
-      label: 'Resultado',
-      value: formatCurrency(data.financeiro.resultado),
-      icon: DollarSign,
-      subtitle: data.financeiro.resultado >= 0 ? 'superávit' : 'déficit',
-      variant: data.financeiro.resultado >= 0 ? 'emerald' as const : 'rose' as const,
+      variant: 'danger' as const,
     },
     {
       label: 'Clientes',
@@ -104,21 +109,25 @@ export function EnhancedKPIs({ data, isLoading }: EnhancedKPIsProps) {
       value: formatCurrency(data.estoque.valor),
       icon: Package,
       subtitle: `${data.estoque.total} unidades`,
-      variant: data.estoque.alertas > 0 ? 'amber' as const : 'default' as const,
+      variant: data.estoque.alertas > 0 ? 'warning' as const : 'default' as const,
     },
     {
       label: 'Cartões',
       value: formatCurrency(data.financeiro.valorFaturas),
       icon: CreditCard,
-      subtitle: `${data.financeiro.faturasAbertas} faturas abertas`,
-      variant: 'default' as const,
+      subtitle: `${data.financeiro.faturasAbertas} faturas`,
+      variant: 'blue' as const,
     },
   ];
 
   return (
     <KPIGrid>
-      {kpis.map((kpi) => (
-        <KPICard key={kpi.label} {...kpi} />
+      {kpis.map((kpi, index) => (
+        <KPICard 
+          key={kpi.label} 
+          {...kpi} 
+          animationDelay={index * 50}
+        />
       ))}
     </KPIGrid>
   );

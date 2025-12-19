@@ -497,7 +497,7 @@ export function ComprovanteEntregaDialog({
             <Printer className="h-4 w-4 mr-2" />
             Imprimir
           </Button>
-          <Button onClick={handleConfirm} disabled={!hasSignature}>
+          <Button variant="success" onClick={handleConfirm} disabled={!hasSignature}>
             <Check className="h-4 w-4 mr-2" />
             Confirmar Pagamento
           </Button>
