@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -6,7 +7,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -21,74 +21,87 @@ serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!apiKey) {
-      throw new Error('LOVABLE_API_KEY não configurada');
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiKey) {
+      throw new Error('OPENAI_API_KEY não configurada');
     }
 
-    console.log('Processando boleto', tipoNota);
+    console.log('Processando boleto com OpenAI GPT-4o, tipo:', tipoNota);
 
-    // Build the prompt to extract all fields from boleto
     const prompt = `Você é um especialista em leitura de boletos bancários e notas fiscais brasileiras.
-Analise a imagem com atenção e extraia TODAS as informações disponíveis:
+Analise a imagem com MÁXIMA ATENÇÃO e extraia TODAS as informações disponíveis.
 
-**CAMPOS OBRIGATÓRIOS:**
-1. **Valor** - Valor total do documento/boleto (campo "TOTAL", "Valor do Documento", "Total à Pagar")
-2. **Vencimento** - Data de vencimento (campo "VENCIMENTO")
-3. **Beneficiário/Cedente** - Nome da empresa/pessoa que vai receber o pagamento
-4. **Descrição** - Resumo do que está sendo cobrado
-5. **NÚM.MOV** - MUITO IMPORTANTE: Número do movimento/identificação que aparece geralmente ACIMA da data de vencimento. Pode aparecer como "NÚM.MOV:", "Nº MOV", "NUM MOV", "Número Movimento". Este é um número de identificação único do documento (ex: 122653).
+**REGRAS CRÍTICAS DE EXTRAÇÃO:**
 
-**ITENS DA NOTA (MUITO IMPORTANTE):**
-Extraia TODOS os itens/produtos listados no documento. Para cada item, extraia:
-- Descrição do produto (ex: "CHOPP PILSEN CLARO 30L", "CHOPP WEISS 30L")
+1. **BENEFICIÁRIO/CEDENTE** (MUITO IMPORTANTE):
+   - Este é o nome da EMPRESA QUE VAI RECEBER O PAGAMENTO (quem emitiu o boleto/nota)
+   - Geralmente aparece como "CEDENTE", "BENEFICIÁRIO", "FORNECEDOR", "RAZÃO SOCIAL"
+   - NÃO confunda com o PAGADOR/SACADO (quem vai pagar)
+   - Se for uma cervejaria, o beneficiário será a cervejaria (ex: "CERVEJARIA ARTESANAL LTDA")
+   - O cliente que paga (ex: "Taubaté Chopp") NÃO é o beneficiário
+
+2. **VALOR** (CRÍTICO):
+   - Procure por "VALOR DO DOCUMENTO", "TOTAL A PAGAR", "VALOR TOTAL", "TOTAL"
+   - Extraia o valor EXATO, sem modificar
+   - Use vírgula como separador decimal (padrão brasileiro)
+   - Inclua os centavos
+
+3. **VENCIMENTO**:
+   - Procure por "DATA DE VENCIMENTO", "VENCIMENTO", "VENC."
+   - ${tipoNota === 'SEM_NOTA' ? 'Se NÃO houver data de vencimento visível, calcule como DATA DE EMISSÃO + 15 dias' : 'Extraia a data exata do documento'}
+
+4. **NÚM.MOV / NÚMERO DO DOCUMENTO** (MUITO IMPORTANTE para ${tipoNota === 'SEM_NOTA' ? 'SEM NOTA' : 'COM NOTA'}):
+   - Procure por: "NÚM.MOV", "Nº MOV", "NUM MOV", "NÚMERO MOVIMENTO", "Nº DOCUMENTO", "NÚMERO DO DOCUMENTO"
+   - Este é um identificador ÚNICO do documento
+   - Geralmente está próximo da data ou no cabeçalho
+   - É OBRIGATÓRIO extrair este campo
+
+5. **DATA DE EMISSÃO**:
+   - Procure por "EMISSÃO", "DATA EMISSÃO", "DATA"
+   - Importante especialmente para documentos SEM NOTA
+
+**ITENS DA NOTA:**
+Extraia TODOS os produtos/serviços listados com:
+- Descrição completa
 - Quantidade
 - Valor unitário
-- Valor total do item
+- Valor total
 
-**CAMPOS ADICIONAIS (se disponíveis):**
-- CNPJ do beneficiário
-- Número da nota fiscal
-- Número do pedido
-- Código do cliente
-- Código de barras (números)
-
-${tipoNota === 'COM_NOTA' ? 'Este documento POSSUI nota fiscal - extraia também informações da NF como número, série, itens detalhados.' : 'Este é um documento SEM nota fiscal - PRESTE ATENÇÃO ESPECIAL ao NÚM.MOV que é o identificador principal.'}
-
-Responda APENAS em formato JSON com a seguinte estrutura:
+Responda APENAS em JSON válido:
 {
-  "amount": "valor numérico com vírgula como separador decimal, ex: 2.108,00",
-  "due_date": "data no formato YYYY-MM-DD",
-  "beneficiario": "nome completo do beneficiário/cedente",
-  "description": "descrição resumida",
-  "numero_movimento": "NÚM.MOV - número de identificação do movimento",
-  "cnpj": "CNPJ do beneficiário se disponível",
-  "numero_nf": "número da nota fiscal se disponível",
-  "numero_pedido": "número do pedido se disponível",
+  "amount": "valor com vírgula decimal, ex: 2.108,00",
+  "due_date": "YYYY-MM-DD",
+  "emission_date": "YYYY-MM-DD se disponível",
+  "beneficiario": "nome da empresa que RECEBE o pagamento",
+  "sacado": "nome de quem PAGA (cliente)",
+  "description": "descrição resumida do documento",
+  "numero_movimento": "NÚM.MOV ou Número do Documento",
+  "cnpj_beneficiario": "CNPJ do beneficiário",
+  "numero_nf": "número da nota fiscal",
+  "numero_pedido": "número do pedido",
   "itens": [
     {
       "descricao": "nome do produto",
-      "quantidade": "quantidade",
-      "valor_unitario": "valor unitário",
-      "valor_total": "valor total do item"
+      "quantidade": "qtd",
+      "valor_unitario": "valor",
+      "valor_total": "total"
     }
   ]
 }
 
-IMPORTANTE: 
-- O campo "numero_movimento" (NÚM.MOV) é CRÍTICO e deve ser extraído sempre que visível.
-- EXTRAIA TODOS OS ITENS da nota, mesmo que sejam muitos.
-- Se não conseguir identificar algum campo, deixe como string vazia ou array vazio para itens.
-- Responda APENAS o JSON, sem markdown ou explicações.`;
+IMPORTANTE:
+- Se não encontrar um campo, deixe string vazia ""
+- NUNCA inverta beneficiário com sacado
+- Responda APENAS o JSON, sem markdown`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${openaiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'user',
@@ -106,35 +119,40 @@ IMPORTANTE:
             ],
           },
         ],
-        max_tokens: 1000,
+        max_tokens: 2000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erro na API:', errorText);
-      throw new Error(`Erro na API de IA: ${response.status}`);
+      console.error('Erro na API OpenAI:', response.status, errorText);
+      throw new Error(`Erro na API OpenAI: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Resposta da IA:', JSON.stringify(data, null, 2));
+    console.log('Resposta da OpenAI:', JSON.stringify(data, null, 2));
 
     const content = data.choices?.[0]?.message?.content || '';
     
-    // Try to parse the JSON from the response
     let extracted = {
       amount: '',
       due_date: '',
+      emission_date: '',
       beneficiario: '',
+      sacado: '',
       description: '',
+      numero_movimento: '',
+      cnpj_beneficiario: '',
+      numero_nf: '',
+      numero_pedido: '',
+      itens: []
     };
 
     try {
-      // Remove possible markdown code blocks
       const jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
       extracted = JSON.parse(jsonStr);
       
-      // Format amount if needed (remove R$ and spaces)
+      // Format amount if needed
       if (extracted.amount) {
         extracted.amount = extracted.amount.toString()
           .replace('R$', '')
@@ -142,7 +160,19 @@ IMPORTANTE:
           .trim();
       }
 
-      console.log('Dados extraídos:', extracted);
+      // If SEM_NOTA and no due_date but has emission_date, calculate +15 days
+      if (tipoNota === 'SEM_NOTA' && !extracted.due_date && extracted.emission_date) {
+        try {
+          const emission = new Date(extracted.emission_date);
+          emission.setDate(emission.getDate() + 15);
+          extracted.due_date = emission.toISOString().split('T')[0];
+          console.log('Vencimento calculado (+15 dias):', extracted.due_date);
+        } catch (e) {
+          console.error('Erro ao calcular vencimento:', e);
+        }
+      }
+
+      console.log('Dados extraídos com sucesso:', extracted);
     } catch (parseError) {
       console.error('Erro ao parsear JSON:', parseError, 'Content:', content);
     }
