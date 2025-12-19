@@ -608,8 +608,11 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                       
                       <div className="flex items-center gap-3">
                         <Badge 
-                          variant={isPaid ? 'default' : isOverdue ? 'destructive' : 'secondary'}
-                          className="text-xs"
+                          variant={isOverdue ? 'destructive' : 'secondary'}
+                          className={cn(
+                            "text-xs",
+                            isPaid && "bg-emerald-500 hover:bg-emerald-600 text-white"
+                          )}
                         >
                           {isPaid ? 'Pago' : isOverdue ? 'Atrasado' : 'Pendente'}
                         </Badge>
