@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Send, Plus, HeadphonesIcon, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useTickets } from '@/hooks/useTickets';
-import { PageHeader } from '@/components/layout/PageHeader';
+import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import {
   Dialog,
@@ -67,155 +67,156 @@ export default function Suporte() {
   const resolvidos = tickets.filter(t => t.status === 'resolvido').length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <PageHeader
-        title="Suporte"
-        subtitle="Chamados e solicitações"
-        icon={HeadphonesIcon}
-        actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Chamado
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Novo Chamado</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="assunto" className="text-sm">Assunto</Label>
-                  <Input
-                    id="assunto"
-                    value={formData.assunto}
-                    onChange={(e) => setFormData({...formData, assunto: e.target.value})}
-                    placeholder="Descreva brevemente"
-                    className="mt-1.5"
-                    required
-                  />
-                </div>
+    <PageLayout
+      title="Suporte"
+      subtitle="Chamados e solicitações"
+      icon={HeadphonesIcon}
+      actions={
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shadow-lg shadow-primary/20">
+              <Plus className="h-4 w-4" />
+              Novo Chamado
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Novo Chamado</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="assunto" className="text-sm">Assunto</Label>
+                <Input
+                  id="assunto"
+                  value={formData.assunto}
+                  onChange={(e) => setFormData({...formData, assunto: e.target.value})}
+                  placeholder="Descreva brevemente"
+                  className="mt-1.5 rounded-xl"
+                  required
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="prioridade" className="text-sm">Prioridade</Label>
-                  <Select
-                    value={formData.prioridade}
-                    onValueChange={(value: any) => setFormData({...formData, prioridade: value})}
-                  >
-                    <SelectTrigger className="mt-1.5">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="baixa">Baixa</SelectItem>
-                      <SelectItem value="media">Média</SelectItem>
-                      <SelectItem value="alta">Alta</SelectItem>
-                      <SelectItem value="urgente">Urgente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label htmlFor="prioridade" className="text-sm">Prioridade</Label>
+                <Select
+                  value={formData.prioridade}
+                  onValueChange={(value: any) => setFormData({...formData, prioridade: value})}
+                >
+                  <SelectTrigger className="mt-1.5 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                <div>
-                  <Label htmlFor="descricao" className="text-sm">Descrição</Label>
-                  <Textarea
-                    id="descricao"
-                    value={formData.descricao}
-                    onChange={(e) => setFormData({...formData, descricao: e.target.value})}
-                    rows={5}
-                    placeholder="Descreva o problema detalhadamente"
-                    className="mt-1.5 resize-none"
-                    required
-                  />
-                </div>
+              <div>
+                <Label htmlFor="descricao" className="text-sm">Descrição</Label>
+                <Textarea
+                  id="descricao"
+                  value={formData.descricao}
+                  onChange={(e) => setFormData({...formData, descricao: e.target.value})}
+                  rows={5}
+                  placeholder="Descreva o problema detalhadamente"
+                  className="mt-1.5 resize-none rounded-xl"
+                  required
+                />
+              </div>
 
-                <div className="flex gap-2 justify-end pt-2">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">
-                    <Send className="h-4 w-4 mr-2" />
-                    Enviar
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        }
-      />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="success" className="rounded-xl gap-2">
+                  <Send className="h-4 w-4" />
+                  Enviar
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <div className="space-y-6">
+        {/* KPIs */}
+        <KPIGrid>
+          <KPICard label="Total" value={tickets.length} icon={HeadphonesIcon} />
+          <KPICard label="Abertos" value={abertos} icon={AlertCircle} variant="warning" />
+          <KPICard label="Em Andamento" value={emAndamento} icon={Clock} />
+          <KPICard label="Resolvidos" value={resolvidos} icon={CheckCircle} variant="success" />
+        </KPIGrid>
 
-      {/* KPIs */}
-      <KPIGrid>
-        <KPICard label="Total" value={tickets.length} icon={HeadphonesIcon} />
-        <KPICard label="Abertos" value={abertos} icon={AlertCircle} variant="warning" />
-        <KPICard label="Em Andamento" value={emAndamento} icon={Clock} />
-        <KPICard label="Resolvidos" value={resolvidos} icon={CheckCircle} variant="success" />
-      </KPIGrid>
-
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 bg-muted/50 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <HeadphonesIcon className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Nenhum chamado</p>
-              <p className="text-xs mt-1">Clique em "Novo Chamado" para abrir</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-medium">Assunto</TableHead>
-                  <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="font-medium">Prioridade</TableHead>
-                  <TableHead className="font-medium">Abertura</TableHead>
-                  <TableHead className="font-medium">Atualização</TableHead>
-                  <TableHead className="font-medium">Responsável</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{ticket.assunto}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1 max-w-[300px]">
-                          {ticket.descricao}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={statusColors[ticket.status]}>
-                        {ticket.status.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={prioridadeColors[ticket.prioridade]}>
-                        {ticket.prioridade}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(ticket.data_abertura).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(ticket.ultima_atualizacao).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {ticket.responsavel || '-'}
-                    </TableCell>
-                  </TableRow>
+        {/* Table */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-14 bg-muted/50 rounded-lg animate-pulse" />
                 ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            ) : tickets.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                  <HeadphonesIcon className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm text-muted-foreground">Nenhum chamado</p>
+                <p className="text-xs text-muted-foreground mt-1">Clique em "Novo Chamado" para abrir</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="font-medium">Assunto</TableHead>
+                    <TableHead className="font-medium">Status</TableHead>
+                    <TableHead className="font-medium">Prioridade</TableHead>
+                    <TableHead className="font-medium">Abertura</TableHead>
+                    <TableHead className="font-medium">Atualização</TableHead>
+                    <TableHead className="font-medium">Responsável</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tickets.map((ticket) => (
+                    <TableRow key={ticket.id} className="hover:bg-muted/30">
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{ticket.assunto}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-1 max-w-[300px]">
+                            {ticket.descricao}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusColors[ticket.status]}>
+                          {ticket.status.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={prioridadeColors[ticket.prioridade]}>
+                          {ticket.prioridade}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(ticket.data_abertura).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(ticket.ultima_atualizacao).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {ticket.responsavel || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </PageLayout>
   );
 }
