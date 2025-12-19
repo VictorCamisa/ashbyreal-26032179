@@ -55,7 +55,10 @@ import {
 
 interface ExtractedItem {
   nomeProdutoOriginal: string;
+  tipoChopp?: string;
   quantidade: number;
+  tamanhoBarril?: number;
+  detalhesBarris?: string;
   precoUnitario?: number;
   produtoEncontrado?: {
     id: string;
@@ -67,18 +70,30 @@ interface ExtractedItem {
 }
 
 interface ExtractedData {
+  numeroPedido?: string;
+  dataPedido?: string;
+  vendedor?: string;
   cliente?: {
     nome?: string;
     telefone?: string;
     email?: string;
     empresa?: string;
+    endereco?: string;
+    numero?: string;
+    bairro?: string;
     cidade?: string;
     estado?: string;
+    cep?: string;
   };
+  localEntrega?: string;
   itens: ExtractedItem[];
+  valorTotalFoto?: number;
+  valorCalculado?: number;
   metodoPagamento?: string;
   observacoes?: string;
   dataEntrega?: string;
+  periodoEntrega?: string;
+  jaLancado?: boolean;
   confianca: number;
 }
 
@@ -114,6 +129,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
   const [editedItems, setEditedItems] = useState<ExtractedItem[]>([]);
   const [metodoPagamento, setMetodoPagamento] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
+  const [dataEntrega, setDataEntrega] = useState('');
   const [isCreatingPedido, setIsCreatingPedido] = useState(false);
   const [clientePopoverOpen, setClientePopoverOpen] = useState(false);
 
@@ -141,6 +157,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
     setEditedItems([]);
     setMetodoPagamento('');
     setObservacoes('');
+    setDataEntrega('');
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,6 +192,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
       setEditedItems(data.dadosExtraidos.itens || []);
       setMetodoPagamento(data.dadosExtraidos.metodoPagamento || '');
       setObservacoes(data.dadosExtraidos.observacoes || '');
+      setDataEntrega(data.dadosExtraidos.dataEntrega || '');
       
       if (data.clienteEncontrado) {
         setSelectedClienteId(data.clienteEncontrado.id);
@@ -372,17 +390,63 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
         {/* Step: Preview */}
         {step === 'preview' && scanResult && (
           <div className="space-y-6">
-            {/* Confidence Badge */}
-            <div className="flex items-center justify-between">
-              <Badge variant={scanResult.dadosExtraidos.confianca >= 70 ? 'default' : 'secondary'}>
-                Confiança: {scanResult.dadosExtraidos.confianca}%
-              </Badge>
+            {/* Confidence & Header Info */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant={scanResult.dadosExtraidos.confianca >= 70 ? 'default' : 'secondary'}>
+                  Confiança: {scanResult.dadosExtraidos.confianca}%
+                </Badge>
+                {scanResult.dadosExtraidos.jaLancado && (
+                  <Badge variant="outline" className="text-amber-600 border-amber-600">
+                    JÁ LANÇADO
+                  </Badge>
+                )}
+                {scanResult.dadosExtraidos.numeroPedido && (
+                  <Badge variant="outline">
+                    Pedido #{scanResult.dadosExtraidos.numeroPedido}
+                  </Badge>
+                )}
+              </div>
               {imagePreview && (
                 <Button variant="ghost" size="sm" onClick={() => setStep('capture')}>
                   Escanear outra imagem
                 </Button>
               )}
             </div>
+
+            {/* Order Info Grid */}
+            {(scanResult.dadosExtraidos.dataPedido || scanResult.dadosExtraidos.vendedor || scanResult.dadosExtraidos.dataEntrega) && (
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                {scanResult.dadosExtraidos.dataPedido && (
+                  <div className="p-2 rounded bg-muted/50">
+                    <span className="text-muted-foreground">Data Pedido:</span>
+                    <p className="font-medium">
+                      {new Date(scanResult.dadosExtraidos.dataPedido + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                )}
+                {scanResult.dadosExtraidos.vendedor && (
+                  <div className="p-2 rounded bg-muted/50">
+                    <span className="text-muted-foreground">Vendedor:</span>
+                    <p className="font-medium">{scanResult.dadosExtraidos.vendedor}</p>
+                  </div>
+                )}
+                {scanResult.dadosExtraidos.dataEntrega && (
+                  <div className="p-2 rounded bg-muted/50">
+                    <span className="text-muted-foreground">Entrega:</span>
+                    <p className="font-medium">
+                      {new Date(scanResult.dadosExtraidos.dataEntrega + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      {scanResult.dadosExtraidos.periodoEntrega && (
+                        <span className="text-muted-foreground text-xs ml-1">
+                          ({scanResult.dadosExtraidos.periodoEntrega === 'manha' ? 'Manhã' : 
+                            scanResult.dadosExtraidos.periodoEntrega === 'tarde' ? 'Tarde' : 'Integral'})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Cliente Section */}
             <Card>
