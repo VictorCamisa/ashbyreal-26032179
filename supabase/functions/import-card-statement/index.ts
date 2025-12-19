@@ -36,13 +36,10 @@ function parsePtBrNumber(value: unknown): number {
   const hasAmericanFormat = /\d{1,3}(,\d{3})*\.\d{2}$/.test(cleaned);
   
   if (hasBrazilianFormat) {
-    // Formato brasileiro: 1.234,56 -> 1234.56
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   } else if (hasAmericanFormat) {
-    // Formato americano: 1,234.56 -> 1234.56
     cleaned = cleaned.replace(/,/g, "");
   } else {
-    // Formato simples: pode ser só vírgula como decimal
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   }
   
@@ -56,7 +53,18 @@ function excelSerialToISO(serial: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function parseDateAny(value: unknown): string {
+// Mapeamento de meses em português
+const monthMap: Record<string, string> = {
+  'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04',
+  'mai': '05', 'jun': '06', 'jul': '07', 'ago': '08',
+  'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+  'january': '01', 'february': '02', 'march': '03', 'april': '04',
+  'may': '05', 'june': '06', 'july': '07', 'august': '08',
+  'september': '09', 'october': '10', 'november': '11', 'december': '12',
+  'dec': '12'
+};
+
+function parseDateAny(value: unknown, referenceYear?: number): string {
   if (typeof value === "number" && Number.isFinite(value)) {
     if (value > 20000 && value < 90000) return excelSerialToISO(value);
   }
@@ -64,9 +72,13 @@ function parseDateAny(value: unknown): string {
   if (typeof value !== "string") return "";
   const v = value.trim();
 
-  // "PAGAMENTO EFETUADO 2025-12-08" → extract ISO date
+  // ISO date in text: "PAGAMENTO EFETUADO 2025-12-08"
   const isoInText = v.match(/(\d{4}-\d{2}-\d{2})/);
   if (isoInText) return isoInText[1];
+
+  // YYYY-MM-DD or YYYY/MM/DD (ISO format)
+  const ymd = v.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
 
   // DD/MM/YYYY or DD-MM-YYYY
   const dmy = v.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
@@ -80,9 +92,17 @@ function parseDateAny(value: unknown): string {
     return `${yyyy}-${dmy2[2]}-${dmy2[1]}`;
   }
 
-  // YYYY/MM/DD or YYYY-MM-DD
-  const ymd = v.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
-  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+  // DD/Mon format (Itaú Empresas): "27/Nov", "01/Dec"
+  const ddMon = v.match(/^(\d{1,2})[\/\-]([A-Za-z]{3,})$/i);
+  if (ddMon) {
+    const day = ddMon[1].padStart(2, '0');
+    const monthStr = ddMon[2].toLowerCase().slice(0, 3);
+    const month = monthMap[monthStr];
+    if (month) {
+      const year = referenceYear || new Date().getFullYear();
+      return `${year}-${month}-${day}`;
+    }
+  }
 
   return "";
 }
@@ -94,16 +114,18 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+// Extract installments from description
+// Patterns: "02/05", "PARC 3/12", "Parcela 2 de 10", "3x12"
 function extractInstallments(description: string): { num: number; total: number } {
   const normalized = String(description ?? "").replace(/\s+/g, " ").trim();
 
-  // Match patterns like:
-  // - "PARCELA 3/12", "PARC 3 DE 12"
-  // - "3x12" / "3/12" (normalmente no final)
   const patterns = [
+    // "PARCELA 3/12", "PARC 3 DE 12", "Parcela 2 de 10"
     /(?:PARCELA|PARC\.?|P)\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i,
-    /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$|[)\].,;\-])/,
-    /(\d{2})\s*\/\s*(\d{2})(?=\s*$|[)\].,;\-])/, // ex: 02/12
+    // "02/05" at end of string (after space or non-digit)
+    /\s(\d{2})\/(\d{2})$/,
+    // "3x12" or "3/12" at end
+    /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$)/,
   ];
 
   for (const pattern of patterns) {
@@ -111,6 +133,7 @@ function extractInstallments(description: string): { num: number; total: number 
     if (match) {
       const num = parseInt(match[1], 10);
       const total = parseInt(match[2], 10);
+      // Validate: installment number should be <= total, total between 2 and 48
       if (num > 0 && total >= 2 && num <= total && total <= 48) {
         return { num, total };
       }
@@ -119,40 +142,68 @@ function extractInstallments(description: string): { num: number; total: number 
   return { num: 1, total: 1 };
 }
 
-// Validar se o valor faz sentido (entre R$0.01 e R$100.000)
 function isValidAmount(amount: number): boolean {
   return amount >= 0.01 && amount <= 100000;
 }
 
+// Check if line is a summary/payment line to skip
+function isSummaryLine(description: string): boolean {
+  const lower = description.toLowerCase();
+  const skipPatterns = [
+    'pagamento efetuado',
+    'total da fatura',
+    'saldo da fatura',
+    'total de lançamentos',
+    'total de produtos',
+    'limite total',
+    'limite disponível',
+    'resumo da fatura',
+    'fatura anterior'
+  ];
+  return skipPatterns.some(p => lower.includes(p));
+}
+
 // ============= XLSX PARSER (ITAU EMPRESAS) =============
 
-function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
+function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTransaction[] {
   const txs: ParsedTransaction[] = [];
 
-  // Find header row containing "data", "descr" and "valor"
+  // Try to extract year from filename: ITAUEMPRESAS_JANEIRO26 -> 2026
+  let referenceYear = new Date().getFullYear();
+  if (fileName) {
+    const yearMatch = fileName.match(/(\d{2})(?:-\d+)?\.xlsx?$/i);
+    if (yearMatch) {
+      const yy = parseInt(yearMatch[1], 10);
+      referenceYear = yy > 50 ? 1900 + yy : 2000 + yy;
+    }
+  }
+
+  console.log("Reference year for Itaú:", referenceYear);
+
+  // Find header row containing "data" and "descrição" or "valor"
   let headerRowIndex = -1;
-  let dataCol = 0;
-  let descCol = 1;
-  let valueCol = 2;
+  let dataCol = -1;
+  let descCol = -1;
+  let valueCol = -1;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
     const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
-    const hasData = normalized.some((c) => c === "data" || c.includes("data"));
-    const hasDesc = normalized.some((c) => c.includes("descr") || c.includes("histórico"));
-    const hasValor = normalized.some((c) => c.includes("valor"));
+    
+    const dataIdx = normalized.findIndex((c) => c === "data");
+    const descIdx = normalized.findIndex((c) => c.includes("descr") || c.includes("histórico") || c === "lançamento");
+    const valorIdx = normalized.findIndex((c) => c === "valor" || c.includes("valor"));
 
-    if (hasData && hasDesc && hasValor) {
+    if (dataIdx >= 0 && (descIdx >= 0 || valorIdx >= 0)) {
       headerRowIndex = i;
-      dataCol = normalized.findIndex((c) => c === "data" || c.includes("data"));
-      descCol = normalized.findIndex((c) => c.includes("descr") || c.includes("histórico"));
-      valueCol = normalized.findIndex((c) => c.includes("valor"));
+      dataCol = dataIdx;
+      descCol = descIdx >= 0 ? descIdx : dataIdx + 1;
+      valueCol = valorIdx >= 0 ? valorIdx : row.length - 1;
+      console.log(`Found header at row ${i}: data=${dataCol}, desc=${descCol}, value=${valueCol}`);
       break;
     }
   }
-
-  console.log("Header row index:", headerRowIndex, "cols:", { dataCol, descCol, valueCol });
 
   const start = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
 
@@ -161,13 +212,13 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
     if (!row || row.length === 0) continue;
 
     const rawDate = row[dataCol];
-    const rawDesc = row[descCol];
+    const rawDesc = descCol >= 0 ? row[descCol] : null;
     const rawVal = row[valueCol];
 
-    const date = parseDateAny(rawDate);
+    const date = parseDateAny(rawDate, referenceYear);
     if (!date) continue;
 
-    // Description: use column or find first text with letters
+    // Description
     let description = String(rawDesc ?? "").trim();
     if (!description || !hasLetters(description)) {
       const candidate = row.find((c) => typeof c === "string" && c.trim().length > 2 && hasLetters(c.trim()));
@@ -175,15 +226,8 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
     }
     if (!description || !hasLetters(description)) continue;
 
-    // Skip summary/payment lines
-    const lowerDesc = description.toLowerCase();
-    if (lowerDesc.includes("pagamento efetuado") || 
-        lowerDesc.includes("total da fatura") ||
-        lowerDesc.includes("saldo da fatura") ||
-        lowerDesc.includes("total de lançamentos") ||
-        lowerDesc.includes("total de produtos")) {
-      continue;
-    }
+    // Skip summary lines
+    if (isSummaryLine(description)) continue;
 
     // Amount
     let amount = Math.abs(parsePtBrNumber(rawVal));
@@ -192,7 +236,7 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
         .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
         .filter((n) => isValidAmount(n))
         .map((n) => Math.abs(n));
-      if (nums.length) amount = nums[0];
+      if (nums.length) amount = nums[nums.length - 1]; // Usually last number is the value
     }
     if (!isValidAmount(amount)) continue;
 
@@ -210,7 +254,7 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
   return txs;
 }
 
-// ============= CSV PARSER (LATAM, AZUL, GENERIC) =============
+// ============= CSV PARSER (AZUL, LATAM, GENERIC) =============
 
 function parseGenericCSV(content: string): ParsedTransaction[] {
   const lines = content.split("\n").filter((l) => l.trim());
@@ -227,27 +271,33 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
   const txs: ParsedTransaction[] = [];
 
-  // Tentar identificar colunas pelo header
+  // Parse header to identify columns
   let dateColIdx = -1;
   let descColIdx = -1;
   let amountColIdx = -1;
   
   const headerLine = lines[0];
-  const headerParts = headerLine.split(delimiter).map(p => p.trim().toLowerCase().replace(/^["']|["']$/g, ""));
+  const headerParts = headerLine.split(delimiter).map(p => 
+    p.trim().toLowerCase().replace(/^["'\uFEFF]|["']$/g, "") // Remove BOM, quotes
+  );
   
+  console.log("Header parts:", headerParts);
+
   headerParts.forEach((h, idx) => {
-    if (h.includes("data") || h === "date") dateColIdx = idx;
-    if (h.includes("descr") || h.includes("estabelecimento") || h.includes("merchant")) descColIdx = idx;
-    if (h.includes("valor") || h.includes("amount") || h.includes("value")) amountColIdx = idx;
+    if (h === "data" || h === "date") dateColIdx = idx;
+    if (h === "lançamento" || h === "lancamento" || h.includes("descr") || h.includes("estabelecimento") || h === "merchant") descColIdx = idx;
+    if (h === "valor" || h === "value" || h === "amount") amountColIdx = idx;
   });
   
   console.log("Detected columns:", { dateColIdx, descColIdx, amountColIdx });
 
-  const startLine = (dateColIdx >= 0 || descColIdx >= 0 || amountColIdx >= 0) ? 1 : 0;
+  // If we found header columns, start from line 1
+  const hasHeader = dateColIdx >= 0 || descColIdx >= 0 || amountColIdx >= 0;
+  const startLine = hasHeader ? 1 : 0;
 
   for (let lineIdx = startLine; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
-    const parts = line.split(delimiter).map((p) => p.trim().replace(/^["']|["']$/g, ""));
+    const parts = line.split(delimiter).map((p) => p.trim().replace(/^["'\uFEFF]|["']$/g, ""));
 
     // Find date
     let date = "";
@@ -264,36 +314,47 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
     let amount = 0;
 
     // Get description from identified column
-    if (descColIdx >= 0 && parts[descColIdx] && hasLetters(parts[descColIdx])) {
+    if (descColIdx >= 0 && parts[descColIdx]) {
       description = parts[descColIdx];
     }
 
     // Get amount from identified column
     if (amountColIdx >= 0 && parts[amountColIdx]) {
-      amount = Math.abs(parsePtBrNumber(parts[amountColIdx]));
+      const rawAmount = parsePtBrNumber(parts[amountColIdx]);
+      // Skip negative values (payments, credits)
+      if (rawAmount > 0) {
+        amount = rawAmount;
+      } else {
+        continue; // Skip payment lines
+      }
     }
 
-    // Fallback: search through all columns
-    for (let i = 0; i < parts.length; i++) {
-      const v = parts[i];
-      if (!description && v.length > 2 && hasLetters(v)) description = v;
-      if (!amount) {
-        const n = Math.abs(parsePtBrNumber(v));
-        if (isValidAmount(n)) amount = n;
+    // Fallback: search through columns
+    if (!description) {
+      for (let i = 0; i < parts.length; i++) {
+        if (i === dateColIdx || i === amountColIdx) continue;
+        if (parts[i].length > 2 && hasLetters(parts[i])) {
+          description = parts[i];
+          break;
+        }
+      }
+    }
+
+    if (!amount) {
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (i === dateColIdx || i === descColIdx) continue;
+        const n = parsePtBrNumber(parts[i]);
+        if (n > 0 && isValidAmount(n)) {
+          amount = n;
+          break;
+        }
       }
     }
 
     if (!description || !isValidAmount(amount)) continue;
 
     // Skip summary lines
-    const lowerDesc = description.toLowerCase();
-    if (lowerDesc.includes("pagamento") || 
-        lowerDesc.includes("total") ||
-        lowerDesc.includes("saldo") ||
-        lowerDesc.includes("credito") ||
-        lowerDesc.includes("crédito")) {
-      continue;
-    }
+    if (isSummaryLine(description)) continue;
 
     const { num, total } = extractInstallments(description);
 
@@ -307,111 +368,6 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   }
 
   return txs;
-}
-
-// ============= PDF PARSER (via OpenAI) =============
-
-async function parsePDFWithAI(fileBase64: string, openaiKey: string): Promise<ParsedTransaction[]> {
-  if (!openaiKey) {
-    console.log("No OpenAI key available for PDF parsing");
-    return [];
-  }
-
-  console.log("Parsing PDF with AI (text extraction)...");
-
-  // OpenAI Vision não aceita PDF diretamente, então vamos usar GPT-4 para processar
-  // dados estruturados que o usuário pode ter copiado ou usar outra abordagem
-  
-  const prompt = `Você receberá dados de uma fatura de cartão de crédito codificada em base64.
-Infelizmente não consigo ler PDFs diretamente. 
-
-Por favor, retorne um JSON vazio para que o usuário saiba que PDFs precisam ser convertidos para CSV ou XLSX primeiro:
-
-{"transactions": [], "message": "PDFs não são suportados diretamente. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco."}`;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 500,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI error:", response.status, errorText);
-      return [];
-    }
-
-    return [];
-  } catch (e) {
-    console.error("Error in PDF parsing:", e);
-    return [];
-  }
-}
-
-// ============= CATEGORIZATION WITH AI =============
-
-async function categorizeTransactions(
-  transactions: ParsedTransaction[],
-  categories: any[],
-  openaiKey: string,
-): Promise<ParsedTransaction[]> {
-  if (!openaiKey || transactions.length === 0) return transactions;
-
-  const categoryNames = categories.map((c) => c.name).join(", ");
-
-  const prompt = `Categorize as seguintes transações de cartão de crédito.
-Categorias disponíveis: ${categoryNames}
-
-Transações:
-${transactions.slice(0, 50).map((t, i) => `${i + 1}. ${t.description}`).join("\n")}
-
-Responda em JSON com array de categorias na mesma ordem:
-{"categories": ["categoria1", "categoria2", ...]}`;
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 1000,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || "";
-      const jsonStr = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
-      const result = JSON.parse(jsonStr);
-
-      if (result.categories && Array.isArray(result.categories)) {
-        transactions.forEach((t, i) => {
-          if (result.categories[i]) t.category_suggestion = result.categories[i];
-        });
-      }
-    }
-  } catch (e) {
-    console.error("Error categorizing:", e);
-  }
-
-  return transactions;
 }
 
 // ============= MAIN HANDLER =============
@@ -447,7 +403,6 @@ serve(async (req) => {
       );
     }
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -461,10 +416,10 @@ serve(async (req) => {
 
     console.log(`Processing provider: ${provider}, fileType: ${type}`);
 
-    // PDF Processing - informar que não é suportado
+    // PDF Processing - not supported
     if (type === "PDF") {
       console.log("PDF files are not directly supported");
-      errorMessage = "PDFs não são suportados diretamente. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco.";
+      errorMessage = "PDFs não são suportados. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco (Mercado Pago permite exportar CSV).";
     }
     // XLSX Processing
     else if ((type === "XLSX" || type === "XLS") && fileBase64) {
@@ -479,7 +434,7 @@ serve(async (req) => {
       }) as any[][];
 
       console.log("XLSX rows:", rows.length);
-      transactions = parseItauEmpresasFromRows(rows);
+      transactions = parseItauEmpresasFromRows(rows, fileName);
     }
     // CSV Processing
     else if (content) {
@@ -489,42 +444,48 @@ serve(async (req) => {
 
     console.log(`Parsed ${transactions.length} transactions`);
     if (transactions.length > 0) {
-      console.log("First transaction:", JSON.stringify(transactions[0]));
-      console.log("Last transaction:", JSON.stringify(transactions[transactions.length - 1]));
+      console.log("Sample transactions:");
+      transactions.slice(0, 3).forEach((t, i) => {
+        console.log(`  ${i + 1}. ${t.date} | ${t.description} | ${t.amount} | ${t.installment_number}/${t.total_installments}`);
+      });
     }
 
-    // Get categories for AI categorization
-    const { data: categories } = await supabase
-      .from("categories")
-      .select("id, name")
-      .eq("type", "DESPESA");
+    // Save import record
+    const { data: importRecord, error: importError } = await supabase
+      .from("credit_card_imports")
+      .insert({
+        credit_card_id: creditCardId,
+        file_name: fileName || "import",
+        file_type: type || "CSV",
+        competencia: competencia || null,
+        status: transactions.length > 0 ? "SUCCESS" : "FAILED",
+        records_imported: transactions.length,
+        records_failed: 0,
+        error_log: errorMessage ? [{ message: errorMessage }] : [],
+      })
+      .select()
+      .single();
 
-    // Categorize using AI if available
-    if (openaiKey && categories && transactions.length > 0) {
-      transactions = await categorizeTransactions(transactions, categories, openaiKey);
+    if (importError) {
+      console.error("Error saving import record:", importError);
     }
 
-    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
-
+    // Return parsed transactions for frontend to review/save
     return new Response(
       JSON.stringify({
         success: transactions.length > 0,
         transactions,
-        summary: {
-          total_records: transactions.length,
-          total_amount: totalAmount,
-          card_provider: cardProvider,
-          competencia,
-        },
-        error: errorMessage || undefined
+        importId: importRecord?.id,
+        message: errorMessage || `${transactions.length} transações encontradas`,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
-    console.error("Erro no processamento:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    console.error("Import error:", error);
+    const errMsg = error instanceof Error ? error.message : "Erro ao processar arquivo";
+    return new Response(
+      JSON.stringify({ error: errMsg }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
