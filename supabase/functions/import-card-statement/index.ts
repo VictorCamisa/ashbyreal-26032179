@@ -157,6 +157,25 @@ function extractInstallments(description: string): { num: number; total: number 
   return { num: 1, total: 1 };
 }
 
+// Clean description by removing installment patterns
+function cleanDescription(description: string): string {
+  let cleaned = String(description ?? "").trim();
+  
+  // Remove patterns like "02/06", "03/12" at end of string
+  cleaned = cleaned.replace(/\s+\d{2}\/\d{2}$/, "");
+  
+  // Remove patterns like "PARCELA 3/12", "PARC 3 DE 12"
+  cleaned = cleaned.replace(/\s*(?:PARCELA|PARC\.?|P)\s*\d{1,2}\s*(?:\/|DE)\s*\d{1,2}/gi, "");
+  
+  // Remove patterns like "3x12" at end
+  cleaned = cleaned.replace(/\s+\d{1,2}\s*[xX]\s*\d{1,2}$/, "");
+  
+  // Clean up extra whitespace
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  
+  return cleaned;
+}
+
 function isValidAmount(amount: number): boolean {
   return amount >= 0.01 && amount <= 100000;
 }
@@ -256,10 +275,11 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     if (!isValidAmount(amount)) continue;
 
     const { num, total } = extractInstallments(description);
+    const cleanedDescription = cleanDescription(description);
 
     txs.push({
       date,
-      description,
+      description: cleanedDescription,
       amount,
       installment_number: num,
       total_installments: total,
@@ -372,10 +392,11 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
     if (isSummaryLine(description)) continue;
 
     const { num, total } = extractInstallments(description);
+    const cleanedDescription = cleanDescription(description);
 
     txs.push({
       date,
-      description,
+      description: cleanedDescription,
       amount,
       installment_number: num,
       total_installments: total,
