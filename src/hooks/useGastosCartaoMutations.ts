@@ -9,14 +9,15 @@ export function useGastosCartaoMutations() {
     mutationFn: async (newTransaction: any) => {
       const totalInstallments = newTransaction.total_installments || 1;
       const installmentNumber = newTransaction.installment_number || 1;
+      const expandInstallments = newTransaction.expand_installments ?? true;
       const transactions = [];
 
       // Se for parcela específica, criar apenas uma transação
-      // Se for nova compra parcelada, criar todas as parcelas
-      const createAllInstallments = totalInstallments > 1 && installmentNumber === 1;
+      // Se for nova compra parcelada (manual), criar todas as parcelas
+      const createAllInstallments = expandInstallments && totalInstallments > 1 && installmentNumber === 1;
       const numToCreate = createAllInstallments ? totalInstallments : 1;
-      const amountPerInstallment = createAllInstallments 
-        ? newTransaction.amount / totalInstallments 
+      const amountPerInstallment = createAllInstallments
+        ? newTransaction.amount / totalInstallments
         : newTransaction.amount;
 
       for (let i = 0; i < numToCreate; i++) {
