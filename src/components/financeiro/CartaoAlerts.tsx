@@ -1,10 +1,21 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Clock, Calendar, X } from 'lucide-react';
+import { AlertTriangle, Clock, Calendar, X, Check } from 'lucide-react';
 import { format, differenceInDays, isAfter, isBefore, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useFaturasMutations } from '@/hooks/useFaturasMutations';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface CartaoAlertsProps {
   cartoes: any[];
@@ -14,18 +25,18 @@ interface CartaoAlertsProps {
 
 interface AlertItem {
   id: string;
+  faturaId: string;
   type: 'danger' | 'warning' | 'info';
   icon: React.ReactNode;
   title: string;
   description: string;
   cartaoName: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
 }
 
 export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps) {
+  const { payInvoice, isPaying } = useFaturasMutations();
+  const [confirmPayId, setConfirmPayId] = useState<string | null>(null);
+
   const alerts = useMemo(() => {
     const now = new Date();
     const alertsList: AlertItem[] = [];
@@ -43,6 +54,7 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
         const daysOverdue = differenceInDays(now, dueDate);
         alertsList.push({
           id: `overdue-${fatura.id}`,
+          faturaId: fatura.id,
           type: 'danger',
           icon: <AlertTriangle className="h-4 w-4" />,
           title: 'Fatura Vencida',
@@ -55,6 +67,7 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
         const daysUntilDue = differenceInDays(dueDate, now);
         alertsList.push({
           id: `due-soon-${fatura.id}`,
+          faturaId: fatura.id,
           type: 'warning',
           icon: <Clock className="h-4 w-4" />,
           title: 'Vencimento Próximo',
@@ -68,6 +81,7 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
         const daysUntilClose = differenceInDays(closingDate, now);
         alertsList.push({
           id: `closing-${fatura.id}`,
+          faturaId: fatura.id,
           type: 'info',
           icon: <Calendar className="h-4 w-4" />,
           title: 'Fatura Fechando',
@@ -84,6 +98,11 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
     });
   }, [cartoes, faturas]);
 
+  const handlePagar = (invoiceId: string) => {
+    payInvoice({ invoiceId });
+    setConfirmPayId(null);
+  };
+
   if (alerts.length === 0) return null;
 
   const typeStyles = {
@@ -99,44 +118,76 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
   };
 
   return (
-    <div className="space-y-2">
-      {alerts.slice(0, 3).map((alert) => (
-        <Alert
-          key={alert.id}
-          className={cn(
-            'relative pr-10 transition-all',
-            typeStyles[alert.type]
-          )}
-        >
-          <div className="flex items-start gap-3">
-            <div className={cn('p-1.5 rounded-lg shrink-0', iconStyles[alert.type])}>
-              {alert.icon}
-            </div>
-            <AlertDescription className="flex-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="font-semibold text-sm">{alert.title}</span>
-                <span className="text-xs opacity-70">• {alert.cartaoName}</span>
+    <>
+      <div className="space-y-2">
+        {alerts.slice(0, 3).map((alert) => (
+          <Alert
+            key={alert.id}
+            className={cn(
+              'relative pr-10 transition-all',
+              typeStyles[alert.type]
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div className={cn('p-1.5 rounded-lg shrink-0', iconStyles[alert.type])}>
+                {alert.icon}
               </div>
-              <p className="text-xs opacity-90">{alert.description}</p>
-            </AlertDescription>
-          </div>
-          {onDismiss && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 h-6 w-6 opacity-60 hover:opacity-100"
-              onClick={() => onDismiss(alert.id)}
+              <AlertDescription className="flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-semibold text-sm">{alert.title}</span>
+                  <span className="text-xs opacity-70">• {alert.cartaoName}</span>
+                </div>
+                <p className="text-xs opacity-90">{alert.description}</p>
+              </AlertDescription>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1 text-xs h-7 bg-background/50 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/30"
+                onClick={() => setConfirmPayId(alert.faturaId)}
+              >
+                <Check className="h-3 w-3" />
+                Pagar
+              </Button>
+            </div>
+            {onDismiss && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-2 h-6 w-6 opacity-60 hover:opacity-100"
+                onClick={() => onDismiss(alert.id)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </Alert>
+        ))}
+        {alerts.length > 3 && (
+          <p className="text-xs text-muted-foreground text-center">
+            + {alerts.length - 3} outros alertas
+          </p>
+        )}
+      </div>
+
+      <AlertDialog open={!!confirmPayId} onOpenChange={() => setConfirmPayId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Pagamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja marcar esta fatura como paga? Esta ação irá atualizar o status da fatura.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmPayId && handlePagar(confirmPayId)}
+              disabled={isPaying}
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </Alert>
-      ))}
-      {alerts.length > 3 && (
-        <p className="text-xs text-muted-foreground text-center">
-          + {alerts.length - 3} outros alertas
-        </p>
-      )}
-    </div>
+              {isPaying ? 'Processando...' : 'Confirmar Pagamento'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
