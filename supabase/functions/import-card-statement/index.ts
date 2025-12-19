@@ -95,19 +95,23 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 function extractInstallments(description: string): { num: number; total: number } {
-  // Match patterns like: 03/12, PARCELA 3/12, PARC 3 DE 12, 3x12
+  const normalized = String(description ?? "").replace(/\s+/g, " ").trim();
+
+  // Match patterns like:
+  // - "PARCELA 3/12", "PARC 3 DE 12"
+  // - "3x12" / "3/12" (normalmente no final)
   const patterns = [
-    /(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i,
-    /(\d+)\s*[\/xX]\s*(\d+)$/,
-    /(\d{2})\/(\d{2})$/
+    /(?:PARCELA|PARC\.?|P)\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i,
+    /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$|[)\].,;\-])/,
+    /(\d{2})\s*\/\s*(\d{2})(?=\s*$|[)\].,;\-])/, // ex: 02/12
   ];
-  
+
   for (const pattern of patterns) {
-    const match = description.match(pattern);
+    const match = normalized.match(pattern);
     if (match) {
       const num = parseInt(match[1], 10);
       const total = parseInt(match[2], 10);
-      if (num > 0 && total > 0 && num <= total && total <= 48) {
+      if (num > 0 && total >= 2 && num <= total && total <= 48) {
         return { num, total };
       }
     }
