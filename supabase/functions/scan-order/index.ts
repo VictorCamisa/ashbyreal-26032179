@@ -52,28 +52,61 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um assistente especializado em extrair dados de pedidos de venda a partir de imagens.
-Analise a imagem fornecida e extraia todas as informações relevantes sobre o pedido.
+            content: `Você é um assistente especializado em extrair dados de pedidos de venda da TAUBATÉ CHOPP.
+Analise a imagem do formulário de pedido e extraia TODOS os dados com precisão.
 
-PRODUTOS DISPONÍVEIS NO SISTEMA:
+## FORMATO DO FORMULÁRIO TAUBATÉ CHOPP
+
+O formulário tem a seguinte estrutura:
+- **Cabeçalho**: Logo ASHBY/TAUBATÉ CHOPP, Nº do pedido, Data, Vendedor
+- **Cliente**: Nome no campo "Cliente:", pode ter empresa, CNPJ/CPF, Endereço, Bairro, Cidade, Estado, Fone
+- **Local de Entrega**: Campo específico para endereço de entrega
+- **Tabela de Produtos**: 
+  - Coluna "Quant." = Quantidade (em litros)
+  - Coluna "Descrição da Mercadoria" = Nome do produto + tamanho dos barris
+  - Os barris são indicados como "4x50" (4 barris de 50L), "2x50", "1x30", "1x10" etc
+  - Coluna "Preço unitário" e "Preço total"
+- **Itens fixos no formulário**:
+  - Chopp Claro (Pilsen)
+  - Chopp Vinho/Vino
+  - Chopp IPA
+  - Chopp Escuro
+  - Chopperia Elétrica (equipamento)
+  - Cilindro CO² 
+  - Frete
+  - Copos descartáveis (Opcionais)
+- **Observação**: Campo livre para anotações
+- **TOTAL R$**: Valor total do pedido
+- **Seção ENTREGA**: DATA de entrega, Período (Manhã/Tarde/Integral)
+- **Seção PAGAMENTO**: Checkboxes para Dinheiro, Cartão, PIX, Boleto
+
+## PRODUTOS DISPONÍVEIS NO SISTEMA:
 ${productList}
 
-INSTRUÇÕES:
-1. Identifique o cliente (nome, telefone, email, empresa se visível)
-2. Identifique os produtos e quantidades do pedido
-3. Tente fazer match dos produtos da imagem com os produtos disponíveis no sistema
-4. Identifique método de pagamento se visível (pix, cartao, dinheiro, boleto)
-5. Identifique observações relevantes
-6. Se não conseguir identificar algum dado, deixe como null
+## INSTRUÇÕES DE EXTRAÇÃO:
 
-IMPORTANTE: Para cada produto, tente encontrar o match mais próximo na lista de produtos disponíveis.`
+1. **Cliente**: Extraia o nome exatamente como escrito no campo "Cliente:"
+2. **Produtos**: 
+   - Leia a coluna "Quant." para quantidade em LITROS
+   - Identifique o tipo de chopp (Claro, Vinho, IPA, Escuro)
+   - Se houver indicação de barris (ex: "4x50"), a quantidade já está em litros (4x50=200L)
+   - Inclua itens opcionais como Copos descartáveis, Chopperia, Cilindro CO², Frete
+3. **Preços**: Extraia preço unitário e total se visíveis
+4. **Pagamento**: Verifique qual opção está marcada (X ou ✓) entre Dinheiro, Cartão, PIX, Boleto
+5. **Data de Entrega**: Extraia do campo "DATA" na seção ENTREGA
+6. **Observações**: Inclua texto do campo "Observação" e qualquer anotação relevante
+
+## DICAS PARA LEITURA:
+- Números escritos à mão podem ter formatos variados
+- "M" antes de valores significa "R$" (ex: "M 590,00" = R$ 590,00)
+- Verifique se há carimbo "LANÇADO" indicando pedido já processado`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Analise esta imagem de pedido e extraia todos os dados estruturados.'
+                text: 'Analise esta imagem de pedido da Taubaté Chopp e extraia todos os dados estruturados. Preste atenção especial aos produtos, quantidades em litros, e forma de pagamento marcada.'
               },
               {
                 type: 'image_url',
@@ -89,50 +122,66 @@ IMPORTANTE: Para cada produto, tente encontrar o match mais próximo na lista de
             type: 'function',
             function: {
               name: 'extract_order_data',
-              description: 'Extrai dados estruturados de um pedido de venda',
+              description: 'Extrai dados estruturados de um pedido de venda da Taubaté Chopp',
               parameters: {
                 type: 'object',
                 properties: {
+                  numeroPedido: { type: 'string', description: 'Número do pedido (Nº no canto superior direito)' },
+                  dataPedido: { type: 'string', description: 'Data do pedido no formato YYYY-MM-DD' },
+                  vendedor: { type: 'string', description: 'Nome do vendedor' },
                   cliente: {
                     type: 'object',
                     properties: {
-                      nome: { type: 'string', description: 'Nome do cliente' },
+                      nome: { type: 'string', description: 'Nome do cliente ou empresa' },
                       telefone: { type: 'string', description: 'Telefone do cliente' },
-                      email: { type: 'string', description: 'Email do cliente' },
-                      empresa: { type: 'string', description: 'Nome da empresa' }
+                      endereco: { type: 'string', description: 'Endereço completo' },
+                      bairro: { type: 'string', description: 'Bairro' },
+                      cidade: { type: 'string', description: 'Cidade' },
+                      estado: { type: 'string', description: 'Estado (UF)' },
+                      cnpjCpf: { type: 'string', description: 'CNPJ ou CPF' }
                     }
                   },
+                  localEntrega: { type: 'string', description: 'Local de entrega se diferente do endereço' },
                   itens: {
                     type: 'array',
                     items: {
                       type: 'object',
                       properties: {
-                        nomeProduto: { type: 'string', description: 'Nome do produto identificado na imagem' },
-                        quantidade: { type: 'number', description: 'Quantidade do produto' },
-                        precoUnitario: { type: 'number', description: 'Preço unitário se visível' }
+                        nomeProduto: { type: 'string', description: 'Nome do produto (ex: Chopp Claro, Chopp Vinho, Chopp IPA, Copos descartáveis)' },
+                        quantidade: { type: 'number', description: 'Quantidade em litros ou unidades' },
+                        detalhesBarris: { type: 'string', description: 'Detalhes dos barris se houver (ex: 4x50, 2x30)' },
+                        precoUnitario: { type: 'number', description: 'Preço unitário em reais' },
+                        precoTotal: { type: 'number', description: 'Preço total do item' }
                       },
                       required: ['nomeProduto', 'quantidade']
                     }
                   },
+                  valorTotal: { type: 'number', description: 'Valor total do pedido em reais' },
                   metodoPagamento: { 
                     type: 'string', 
                     enum: ['pix', 'cartao', 'dinheiro', 'boleto'],
-                    description: 'Método de pagamento identificado'
+                    description: 'Forma de pagamento marcada no formulário'
                   },
-                  observacoes: { type: 'string', description: 'Observações adicionais do pedido' },
-                  dataEntrega: { type: 'string', description: 'Data de entrega se especificada (formato YYYY-MM-DD)' },
+                  dataEntrega: { type: 'string', description: 'Data de entrega no formato YYYY-MM-DD' },
+                  periodoEntrega: { 
+                    type: 'string',
+                    enum: ['manha', 'tarde', 'integral'],
+                    description: 'Período de entrega marcado'
+                  },
+                  observacoes: { type: 'string', description: 'Observações do pedido' },
+                  jaLancado: { type: 'boolean', description: 'Se tem carimbo LANÇADO' },
                   confianca: {
                     type: 'number',
                     description: 'Nível de confiança na extração (0-100)'
                   }
                 },
-                required: ['itens']
+                required: ['itens', 'cliente']
               }
             }
           }
         ],
         tool_choice: { type: 'function', function: { name: 'extract_order_data' } },
-        max_tokens: 2000
+        max_tokens: 3000
       }),
     });
 
@@ -188,7 +237,8 @@ IMPORTANTE: Para cada produto, tente encontrar o match mais próximo na lista de
       matchedItems.push({
         nomeProdutoOriginal: item.nomeProduto,
         quantidade: item.quantidade,
-        precoUnitario: item.precoUnitario,
+        precoUnitario: item.precoUnitario || item.precoTotal / item.quantidade,
+        detalhesBarris: item.detalhesBarris,
         produtoEncontrado: bestMatch ? {
           id: bestMatch.id,
           nome: bestMatch.nome,
@@ -251,11 +301,18 @@ IMPORTANTE: Para cada produto, tente encontrar o match mais próximo na lista de
     const result = {
       success: true,
       dadosExtraidos: {
+        numeroPedido: extractedData.numeroPedido,
+        dataPedido: extractedData.dataPedido,
+        vendedor: extractedData.vendedor,
         cliente: clienteInfo,
+        localEntrega: extractedData.localEntrega,
         itens: matchedItems,
+        valorTotal: extractedData.valorTotal,
         metodoPagamento: extractedData.metodoPagamento,
-        observacoes: extractedData.observacoes,
         dataEntrega: extractedData.dataEntrega,
+        periodoEntrega: extractedData.periodoEntrega,
+        observacoes: extractedData.observacoes,
+        jaLancado: extractedData.jaLancado,
         confianca: extractedData.confianca || 70
       },
       clienteEncontrado: clienteEncontrado ? {
