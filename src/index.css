@@ -4,110 +4,121 @@
 
 @layer base {
   :root {
-    /* Core palette - Red primary for branding */
-    --background: 210 20% 98%;
-    --foreground: 220 15% 15%;
+    /* Light Theme - Clean & Warm */
+    --background: 40 25% 97%;
+    --foreground: 220 20% 18%;
     
     --card: 0 0% 100%;
-    --card-foreground: 220 15% 15%;
+    --card-foreground: 220 20% 18%;
     
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 25%;
+    --popover-foreground: 220 20% 25%;
     
-    /* Primary stays red for branding */
-    --primary: 0 72% 50%;
+    /* Primary - Warm Red for branding */
+    --primary: 8 75% 52%;
     --primary-foreground: 0 0% 100%;
     
-    /* Success - Green for positive actions */
-    --success: 142 76% 36%;
+    /* Success - Rich Emerald */
+    --success: 158 64% 42%;
     --success-foreground: 0 0% 100%;
     
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 220 15% 20%;
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 220 15% 25%;
     
-    --muted: 210 15% 94%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 40 15% 92%;
+    --muted-foreground: 220 10% 50%;
     
-    --accent: 210 20% 96%;
-    --accent-foreground: 220 15% 20%;
+    --accent: 40 30% 95%;
+    --accent-foreground: 220 15% 22%;
     
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     
-    --border: 210 15% 90%;
-    --input: 210 15% 94%;
-    --ring: 142 76% 36%;
+    --border: 40 15% 88%;
+    --input: 40 15% 92%;
+    --ring: 158 64% 42%;
     
-    /* Charts */
-    --chart-1: 142 76% 36%;
-    --chart-2: 250 60% 60%;
-    --chart-3: 330 70% 55%;
-    --chart-4: 45 90% 55%;
-    --chart-5: 200 70% 50%;
+    /* Charts - Vibrant palette */
+    --chart-1: 158 64% 42%;
+    --chart-2: 262 52% 55%;
+    --chart-3: 340 65% 55%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 198 70% 48%;
     
-    /* Radius & shadows */
+    /* Radius */
     --radius: 0.75rem;
     
-    /* Glassmorphism */
-    --glass-bg: 0 0% 100% / 0.8;
-    --glass-border: 0 0% 100% / 0.4;
+    /* Glassmorphism Light */
+    --glass-bg: 0 0% 100% / 0.75;
+    --glass-border: 220 20% 92% / 0.8;
     --glass-blur: 20px;
     
     /* Glow colors */
-    --glow-success: 142 76% 36%;
-    --glow-primary: 0 72% 50%;
-    --glow-info: 200 70% 50%;
-    --glow-warning: 45 90% 55%;
+    --glow-success: 158 64% 42%;
+    --glow-primary: 8 75% 52%;
+    --glow-info: 198 70% 48%;
+    --glow-warning: 38 92% 50%;
+    
+    /* Gradient colors for light theme */
+    --gradient-start: 158 64% 42%;
+    --gradient-end: 198 70% 48%;
   }
 
   .dark {
-    --background: 220 20% 8%;
-    --foreground: 210 15% 90%;
+    /* Dark Theme - Deep & Rich */
+    --background: 225 25% 8%;
+    --foreground: 210 20% 92%;
     
-    --card: 220 20% 12%;
-    --card-foreground: 210 15% 90%;
+    --card: 225 22% 11%;
+    --card-foreground: 210 20% 92%;
     
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 15% 75%;
+    --popover: 225 25% 10%;
+    --popover-foreground: 210 20% 80%;
     
-    --primary: 0 72% 55%;
+    /* Primary - Vibrant Red */
+    --primary: 8 80% 58%;
     --primary-foreground: 0 0% 100%;
     
-    --success: 142 72% 45%;
+    /* Success - Bright Emerald */
+    --success: 158 72% 48%;
     --success-foreground: 0 0% 100%;
     
-    --secondary: 220 15% 16%;
-    --secondary-foreground: 210 15% 85%;
+    --secondary: 225 20% 15%;
+    --secondary-foreground: 210 18% 88%;
     
-    --muted: 220 15% 18%;
-    --muted-foreground: 210 10% 55%;
+    --muted: 225 18% 16%;
+    --muted-foreground: 210 12% 58%;
     
-    --accent: 220 15% 20%;
-    --accent-foreground: 210 15% 85%;
+    --accent: 225 18% 18%;
+    --accent-foreground: 210 18% 88%;
     
-    --destructive: 0 65% 45%;
+    --destructive: 0 70% 48%;
     --destructive-foreground: 0 0% 100%;
     
-    --border: 220 15% 18%;
-    --input: 220 15% 16%;
-    --ring: 142 72% 45%;
+    --border: 225 18% 16%;
+    --input: 225 18% 14%;
+    --ring: 158 72% 48%;
     
-    /* Charts dark */
-    --chart-1: 142 72% 45%;
-    --chart-2: 250 65% 65%;
-    --chart-3: 330 75% 60%;
-    --chart-4: 45 95% 60%;
-    --chart-5: 200 75% 55%;
+    /* Charts dark - Brighter variants */
+    --chart-1: 158 72% 48%;
+    --chart-2: 262 60% 62%;
+    --chart-3: 340 72% 60%;
+    --chart-4: 38 95% 58%;
+    --chart-5: 198 75% 55%;
     
     /* Glassmorphism dark */
-    --glass-bg: 220 20% 12% / 0.85;
-    --glass-border: 0 0% 100% / 0.1;
+    --glass-bg: 225 22% 11% / 0.88;
+    --glass-border: 0 0% 100% / 0.08;
     
     /* Glow colors dark */
-    --glow-success: 142 72% 45%;
-    --glow-primary: 0 72% 55%;
-    --glow-info: 200 75% 55%;
-    --glow-warning: 45 95% 60%;
+    --glow-success: 158 72% 48%;
+    --glow-primary: 8 80% 58%;
+    --glow-info: 198 75% 55%;
+    --glow-warning: 38 95% 58%;
+    
+    /* Gradient colors for dark theme */
+    --gradient-start: 158 72% 48%;
+    --gradient-end: 198 75% 55%;
   }
 }
 
@@ -121,20 +132,20 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     background-color: hsl(var(--background));
     background-image: 
-      radial-gradient(at 0% 0%, hsl(var(--success) / 0.04) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsl(var(--glow-info) / 0.04) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, hsl(250 60% 60% / 0.03) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsl(var(--glow-warning) / 0.03) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsl(var(--glow-success) / 0.06) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(var(--glow-info) / 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsl(262 52% 55% / 0.04) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsl(var(--glow-warning) / 0.04) 0px, transparent 50%);
     background-attachment: fixed;
     min-height: 100vh;
   }
   
   .dark body {
     background-image: 
-      radial-gradient(at 0% 0%, hsl(var(--success) / 0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsl(var(--glow-info) / 0.06) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, hsl(250 60% 60% / 0.05) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsl(var(--glow-warning) / 0.04) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsl(var(--glow-success) / 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(var(--glow-info) / 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsl(262 60% 62% / 0.06) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsl(var(--glow-warning) / 0.05) 0px, transparent 50%);
   }
   
   h1, h2, h3, h4, h5, h6 {
