@@ -195,7 +195,7 @@ export function EditarProdutoDialog({ produto, onSave }: EditarProdutoDialogProp
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" variant="success" disabled={isLoading}>
               {isLoading ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
           </DialogFooter>

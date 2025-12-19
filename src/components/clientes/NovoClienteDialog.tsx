@@ -229,7 +229,7 @@ export function NovoClienteDialog({ onSubmit, isCreating }: NovoClienteDialogPro
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isCreating}>
+              <Button type="submit" variant="success" disabled={isCreating}>
                 {isCreating ? 'Salvando...' : 'Salvar Cliente'}
               </Button>
             </div>
