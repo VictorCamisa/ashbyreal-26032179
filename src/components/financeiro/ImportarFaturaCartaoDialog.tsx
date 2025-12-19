@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ export function ImportarFaturaCartaoDialog({
   
   const [step, setStep] = useState<'select' | 'upload' | 'preview' | 'importing' | 'done'>('select');
   const [selectedCartao, setSelectedCartao] = useState<string>('');
+  const [competenciaAlvo, setCompetenciaAlvo] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
   const [importProgress, setImportProgress] = useState(0);
@@ -63,6 +65,7 @@ export function ImportarFaturaCartaoDialog({
   const resetDialog = () => {
     setStep('select');
     setSelectedCartao('');
+    setCompetenciaAlvo(new Date().toISOString().slice(0, 7));
     setSelectedFile(null);
     setParsedTransactions([]);
     setImportProgress(0);
@@ -196,7 +199,9 @@ export function ImportarFaturaCartaoDialog({
           purchase_date: t.date,
           installment_number: t.installment_number || 1,
           total_installments: t.total_installments || 1,
-          // NUNCA criar parcelas futuras automaticamente na importação — só o que veio no CSV
+          // Força TODAS as linhas importadas a entrarem na fatura (competência) escolhida
+          force_competencia: competenciaAlvo,
+          // NUNCA criar parcelas futuras automaticamente na importação — só o que veio no arquivo
           create_remaining_installments: false,
         });
         success++;
@@ -261,6 +266,19 @@ export function ImportarFaturaCartaoDialog({
 
             {selectedCartao && (
               <>
+                <div className="grid gap-2">
+                  <Label>Competência da fatura</Label>
+                  <Input
+                    type="month"
+                    value={competenciaAlvo}
+                    onChange={(e) => setCompetenciaAlvo(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Se o CSV traz a data original da compra (parcelados), escolha aqui o mês da fatura do banco
+                    para que tudo entre na mesma fatura.
+                  </p>
+                </div>
+
                 <div className="bg-primary/10 rounded-lg p-4">
                   <p className="text-sm">
                     <strong>Formato detectado:</strong> {providerInfo.label}
