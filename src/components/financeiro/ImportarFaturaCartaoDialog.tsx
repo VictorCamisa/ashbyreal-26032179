@@ -196,8 +196,8 @@ export function ImportarFaturaCartaoDialog({
           purchase_date: t.date,
           installment_number: t.installment_number || 1,
           total_installments: t.total_installments || 1,
-          // Se tem parcelas (ex: 02/06), criar as parcelas futuras (03/06 até 06/06)
-          create_remaining_installments: (t.total_installments || 1) > 1,
+          // NUNCA criar parcelas futuras automaticamente na importação — só o que veio no CSV
+          create_remaining_installments: false,
         });
         success++;
       } catch (err) {
