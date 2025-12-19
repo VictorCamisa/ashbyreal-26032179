@@ -5,22 +5,30 @@ import {
   ArrowLeftRight,
   BarChart3,
   Wallet,
-  Receipt
+  Receipt,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import { DashboardFinanceiro } from '@/components/financeiro/DashboardFinanceiro';
 import { TransacoesUnificadas } from '@/components/financeiro/TransacoesUnificadas';
 import { ControleCartoes } from '@/components/financeiro/ControleCartoes';
 import { Relatorios } from '@/components/financeiro/Relatorios';
 import { GerenciamentoBoletos } from '@/components/financeiro/GerenciamentoBoletos';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { NovoGastoCartaoDialog } from '@/components/financeiro/NovoGastoCartaoDialog';
 import { EntradaBoletoDialog } from '@/components/financeiro/EntradaBoletoDialog';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
+import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const tabs = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { id: 'boletos', label: 'Boletos', icon: Receipt },
   { id: 'transacoes', label: 'Transações', icon: ArrowLeftRight },
   { id: 'cartoes', label: 'Cartões', icon: CreditCard },
@@ -49,63 +57,111 @@ const Financeiro = () => {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    // Reset filter when manually changing tabs
     if (tab !== 'transacoes') {
       setTransactionFilter('all');
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header with Tabs */}
-      <PageHeader
-        title="Financeiro"
-        subtitle="Controle suas finanças"
-        icon={Wallet}
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        actions={
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="gap-2"
-              onClick={() => setShowBoletoDialog(true)}
-            >
-              <Receipt className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Entrada Boleto</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="gap-2"
-              onClick={() => setShowQuickGasto(true)}
-            >
-              <CreditCard className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Gasto Cartão</span>
-            </Button>
+    <div className="min-h-screen">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-emerald-500/5 border-b border-border/50">
+        <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
+        <div className="relative px-4 sm:px-6 py-6 sm:py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Title Section */}
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
+                  <Wallet className="h-6 w-6 sm:h-7 sm:w-7 text-primary-foreground" />
+                </div>
+                <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center animate-pulse">
+                  <Sparkles className="h-2.5 w-2.5 text-white" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                  Financeiro
+                </h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Controle total das suas finanças
+                </p>
+              </div>
+            </div>
+            
+            {/* Quick Actions */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gap-2 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300">
+                  <Plus className="h-4 w-4" />
+                  <span>Nova Entrada</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setShowBoletoDialog(true)} className="gap-2 cursor-pointer">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <span>Entrada Boleto</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowQuickGasto(true)} className="gap-2 cursor-pointer">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <span>Gasto Cartão</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        }
-      />
+
+          {/* Navigation Tabs */}
+          <div className="mt-6 -mb-[1px]">
+            <nav className="flex gap-1 overflow-x-auto scrollbar-hide pb-px">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={cn(
+                      "relative flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all duration-200 whitespace-nowrap",
+                      isActive 
+                        ? "bg-background text-foreground border border-border/50 border-b-transparent shadow-sm" 
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                    )}
+                  >
+                    <tab.icon className={cn(
+                      "h-4 w-4 transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground"
+                    )} />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
+                    {isActive && (
+                      <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      </div>
 
       {/* Content Area */}
-      <div className="animate-fade-in">
-        {activeTab === 'dashboard' && (
-          <DashboardFinanceiro 
-            onNavigateToTransactions={handleNavigateToTransactions}
-            onNavigateToCartoes={handleNavigateToCartoes}
-          />
-        )}
-        {activeTab === 'boletos' && <GerenciamentoBoletos />}
-        {activeTab === 'transacoes' && (
-          <TransacoesUnificadas 
-            initialFilter={transactionFilter}
-            onFilterChange={setTransactionFilter}
-          />
-        )}
-        {activeTab === 'cartoes' && <ControleCartoes />}
-        {activeTab === 'relatorios' && <Relatorios />}
+      <div className="p-4 sm:p-6">
+        <div className="animate-fade-in">
+          {activeTab === 'dashboard' && (
+            <DashboardFinanceiro 
+              onNavigateToTransactions={handleNavigateToTransactions}
+              onNavigateToCartoes={handleNavigateToCartoes}
+            />
+          )}
+          {activeTab === 'boletos' && <GerenciamentoBoletos />}
+          {activeTab === 'transacoes' && (
+            <TransacoesUnificadas 
+              initialFilter={transactionFilter}
+              onFilterChange={setTransactionFilter}
+            />
+          )}
+          {activeTab === 'cartoes' && <ControleCartoes />}
+          {activeTab === 'relatorios' && <Relatorios />}
+        </div>
       </div>
 
       {/* Quick Action Dialogs */}
