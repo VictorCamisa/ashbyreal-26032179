@@ -27,6 +27,7 @@ export function useGastosCartaoMutations() {
       const totalInstallments = newTransaction.total_installments || 1;
       const installmentNumber = newTransaction.installment_number || 1;
       const createRemainingInstallments = newTransaction.create_remaining_installments ?? false;
+      const amountRounded = Math.round(Number(newTransaction.amount) * 100) / 100;
       const transactionsToCreate = [];
 
       // Buscar informações do cartão para usar o closing_day
@@ -57,10 +58,8 @@ export function useGastosCartaoMutations() {
         const competencia = calculateCompetencia(purchaseDate, closingDay);
         
         // Verificar se já existe esta transação (evitar duplicatas na reimportação)
-        const competenciaDate = new Date(competencia);
-        const nextMonthDate = new Date(competenciaDate);
-        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
-        
+        // Importante: NÃO usar range por competência aqui, porque a competência pode ser "mês seguinte" (pós-fechamento)
+        // enquanto o purchase_date continua no mês da compra.
         const { data: existing } = await supabase
           .from('credit_card_transactions')
           .select('id')
@@ -68,8 +67,8 @@ export function useGastosCartaoMutations() {
           .eq('description', newTransaction.description)
           .eq('installment_number', currentInstallment)
           .eq('total_installments', totalInstallments)
-          .gte('purchase_date', competencia)
-          .lt('purchase_date', nextMonthDate.toISOString().split('T')[0])
+          .eq('purchase_date', purchaseDateStr)
+          .eq('amount', amountRounded)
           .maybeSingle();
         
         if (existing) {
@@ -80,7 +79,7 @@ export function useGastosCartaoMutations() {
         const transaction = {
           credit_card_id: newTransaction.credit_card_id,
           description: newTransaction.description,
-          amount: newTransaction.amount,
+          amount: amountRounded,
           purchase_date: purchaseDateStr,
           installment_number: currentInstallment,
           total_installments: totalInstallments,
