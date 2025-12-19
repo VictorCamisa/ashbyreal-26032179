@@ -342,6 +342,59 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_card_imports: {
+        Row: {
+          competencia: string | null
+          created_at: string
+          credit_card_id: string | null
+          error_log: Json | null
+          file_name: string
+          file_type: string
+          id: string
+          import_date: string
+          raw_data: Json | null
+          records_failed: number | null
+          records_imported: number | null
+          status: string
+        }
+        Insert: {
+          competencia?: string | null
+          created_at?: string
+          credit_card_id?: string | null
+          error_log?: Json | null
+          file_name: string
+          file_type: string
+          id?: string
+          import_date?: string
+          raw_data?: Json | null
+          records_failed?: number | null
+          records_imported?: number | null
+          status?: string
+        }
+        Update: {
+          competencia?: string | null
+          created_at?: string
+          credit_card_id?: string | null
+          error_log?: Json | null
+          file_name?: string
+          file_type?: string
+          id?: string
+          import_date?: string
+          raw_data?: Json | null
+          records_failed?: number | null
+          records_imported?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_imports_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_invoices: {
         Row: {
           closing_date: string | null
@@ -477,6 +530,7 @@ export type Database = {
       credit_cards: {
         Row: {
           account_liquidacao_id: string | null
+          card_provider: string | null
           closing_day: number | null
           created_at: string
           due_day: number | null
@@ -488,6 +542,7 @@ export type Database = {
         }
         Insert: {
           account_liquidacao_id?: string | null
+          card_provider?: string | null
           closing_day?: number | null
           created_at?: string
           due_day?: number | null
@@ -499,6 +554,7 @@ export type Database = {
         }
         Update: {
           account_liquidacao_id?: string | null
+          card_provider?: string | null
           closing_day?: number | null
           created_at?: string
           due_day?: number | null

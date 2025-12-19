@@ -15,6 +15,19 @@ interface NovoCartaoDialogProps {
   isLoading?: boolean;
 }
 
+const CARD_PROVIDERS = [
+  { value: 'LATAM', label: 'LATAM Pass' },
+  { value: 'LATAM_BLACK', label: 'LATAM Black' },
+  { value: 'AZUL', label: 'Azul Itaucard' },
+  { value: 'ITAU_EMPRESAS', label: 'Itaú Empresas' },
+  { value: 'MERCADO_LIVRE', label: 'Mercado Livre' },
+  { value: 'SANTANDER_SMILES', label: 'Santander Smiles' },
+  { value: 'NUBANK', label: 'Nubank' },
+  { value: 'INTER', label: 'Banco Inter' },
+  { value: 'C6', label: 'C6 Bank' },
+  { value: 'OUTRO', label: 'Outro' },
+];
+
 export function NovoCartaoDialog({ open, onOpenChange, onSave, isLoading }: NovoCartaoDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
@@ -23,6 +36,7 @@ export function NovoCartaoDialog({ open, onOpenChange, onSave, isLoading }: Novo
     closing_day: '',
     due_day: '',
     limit_value: '',
+    card_provider: '',
     is_active: true
   });
 
@@ -38,6 +52,7 @@ export function NovoCartaoDialog({ open, onOpenChange, onSave, isLoading }: Novo
         closing_day: '',
         due_day: '',
         limit_value: '',
+        card_provider: '',
         is_active: true
       });
     }
@@ -53,6 +68,7 @@ export function NovoCartaoDialog({ open, onOpenChange, onSave, isLoading }: Novo
       closing_day: formData.closing_day ? parseInt(formData.closing_day) : null,
       due_day: formData.due_day ? parseInt(formData.due_day) : null,
       limit_value: formData.limit_value ? parseFloat(formData.limit_value) : null,
+      card_provider: formData.card_provider || null,
       is_active: formData.is_active
     };
 
@@ -76,6 +92,25 @@ export function NovoCartaoDialog({ open, onOpenChange, onSave, isLoading }: Novo
               placeholder="Ex: Nubank Corporativo"
               required
             />
+          </div>
+
+          <div>
+            <Label htmlFor="card_provider">Tipo/Bandeira</Label>
+            <Select value={formData.card_provider} onValueChange={(v) => setFormData({ ...formData, card_provider: v })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {CARD_PROVIDERS.map((provider) => (
+                  <SelectItem key={provider.value} value={provider.value}>
+                    {provider.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Selecione para habilitar importação automática de fatura
+            </p>
           </div>
 
           <div>
