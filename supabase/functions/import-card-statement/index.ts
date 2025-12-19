@@ -1,10 +1,12 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 interface ParsedTransaction {
@@ -16,440 +18,356 @@ interface ParsedTransaction {
   category_suggestion?: string;
 }
 
-// Generic CSV parser that tries multiple formats
-function parseGenericCSV(content: string): ParsedTransaction[] {
-  const lines = content.split('\n').filter(line => line.trim());
-  const transactions: ParsedTransaction[] = [];
-  
-  console.log(`Parsing ${lines.length} lines`);
-  console.log(`First 5 lines:`, lines.slice(0, 5));
-  
-  // Try to detect delimiter
-  const firstDataLine = lines.find(line => /\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/.test(line)) || lines[1];
-  const semicolonCount = (firstDataLine.match(/;/g) || []).length;
-  const commaCount = (firstDataLine.match(/,/g) || []).length;
-  const tabCount = (firstDataLine.match(/\t/g) || []).length;
-  
-  let delimiter = ';';
-  if (commaCount > semicolonCount && commaCount > tabCount) delimiter = ',';
-  if (tabCount > semicolonCount && tabCount > commaCount) delimiter = '\t';
-  
-  console.log(`Detected delimiter: "${delimiter}" (semicolons: ${semicolonCount}, commas: ${commaCount}, tabs: ${tabCount})`);
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const parts = line.split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
-    
-    console.log(`Line ${i}: ${parts.length} parts: ${JSON.stringify(parts.slice(0, 5))}`);
-    
-    // Try to find date in any column
-    let dateCol = -1;
-    let dateStr = '';
-    
-    for (let j = 0; j < parts.length; j++) {
-      const val = parts[j];
-      // Match DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY, YYYY-MM-DD
-      if (/^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}$/.test(val) || /^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(val)) {
-        dateCol = j;
-        dateStr = val;
-        break;
-      }
+const hasLetters = (s: string) => /[A-Za-zÀ-ÿ]/.test(s);
+
+function parsePtBrNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+  const cleaned = value
+    .replace(/[R$\s]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function excelSerialToISO(serial: number): string {
+  // Excel serial date (days since 1899-12-30)
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  return d.toISOString().slice(0, 10);
+}
+
+function parseDateAny(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Typical invoice exports use excel serials (e.g., 45988)
+    if (value > 20000 && value < 90000) return excelSerialToISO(value);
+  }
+
+  if (typeof value !== "string") return "";
+  const v = value.trim();
+
+  // "PAGAMENTO EFETUADO 2025-12-08" → extract ISO date
+  const isoInText = v.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoInText) return isoInText[1];
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmy = v.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+
+  // DD/MM/YY
+  const dmy2 = v.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if (dmy2) {
+    const yy = parseInt(dmy2[3], 10);
+    const yyyy = yy > 50 ? `19${dmy2[3]}` : `20${dmy2[3]}`;
+    return `${yyyy}-${dmy2[2]}-${dmy2[1]}`;
+  }
+
+  // YYYY/MM/DD or YYYY-MM-DD
+  const ymd = v.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+
+  return "";
+}
+
+function decodeBase64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
+  const txs: ParsedTransaction[] = [];
+
+  // Find header row containing "data", "descr" and "valor"
+  let headerRowIndex = -1;
+  let dataCol = 0;
+  let descCol = 1;
+  let valueCol = 2;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
+    const hasData = normalized.some((c) => c === "data" || c.includes("data"));
+    const hasDesc = normalized.some((c) => c.includes("descr"));
+    const hasValor = normalized.some((c) => c.includes("valor"));
+
+    if (hasData && hasDesc && hasValor) {
+      headerRowIndex = i;
+      dataCol = normalized.findIndex((c) => c === "data" || c.includes("data"));
+      descCol = normalized.findIndex((c) => c.includes("descr"));
+      valueCol = normalized.findIndex((c) => c.includes("valor"));
+      break;
     }
-    
-    if (dateCol === -1) continue;
-    
-    // Parse date
-    let date = '';
-    if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(dateStr)) {
-      // DD/MM/YYYY or DD-MM-YYYY
-      const sep = dateStr.includes('/') ? '/' : '-';
-      const [day, month, year] = dateStr.split(sep);
-      date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    } else if (/^\d{2}[\/\-]\d{2}[\/\-]\d{2}$/.test(dateStr)) {
-      // DD/MM/YY
-      const sep = dateStr.includes('/') ? '/' : '-';
-      const [day, month, year] = dateStr.split(sep);
-      const fullYear = parseInt(year) > 50 ? `19${year}` : `20${year}`;
-      date = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    } else if (/^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(dateStr)) {
-      // YYYY-MM-DD
-      date = dateStr.replace(/\//g, '-');
-    }
-    
+  }
+
+  console.log("Header row index:", headerRowIndex);
+  console.log("Detected columns:", { dataCol, descCol, valueCol });
+
+  const start = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+
+  for (let i = start; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const rawDate = row[dataCol];
+    const rawDesc = row[descCol];
+    const rawVal = row[valueCol];
+
+    const date = parseDateAny(rawDate);
     if (!date) continue;
-    
-    // Description is usually the column after date or a specific column
-    let description = '';
-    let amount = 0;
-    
-    // Try to find description and amount
-    for (let j = 0; j < parts.length; j++) {
-      if (j === dateCol) continue;
-      
-      const val = parts[j];
-      
-      // Check if it's a monetary value
-      const cleanedVal = val.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
-      const numVal = parseFloat(cleanedVal);
-      
-      if (!isNaN(numVal) && Math.abs(numVal) > 0.01 && Math.abs(numVal) < 1000000) {
-        if (amount === 0) {
-          amount = Math.abs(numVal);
-        }
-      } else if (val.length > 3 && !description) {
-        // Probably description
-        description = val;
-      }
+
+    // Description fallback: if chosen column is not text, pick first text cell with letters
+    let description = String(rawDesc ?? "").trim();
+    if (!description || !hasLetters(description)) {
+      const candidate = row.find((c) => typeof c === "string" && c.trim().length > 2 && hasLetters(c.trim()));
+      if (candidate) description = String(candidate).trim();
     }
-    
-    if (!description || amount === 0) continue;
-    
-    // Check for installments
+
+    if (!description || !hasLetters(description)) continue;
+
+    // Amount fallback: try the value column, else scan row for plausible monetary numbers
+    let amount = Math.abs(parsePtBrNumber(rawVal));
+
+    if (!amount || amount <= 0) {
+      const nums = row
+        .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
+        .filter((n) => Number.isFinite(n) && Math.abs(n) > 0.001 && Math.abs(n) < 10000000)
+        .map((n) => Math.abs(n));
+      if (nums.length) amount = nums.sort((a, b) => b - a)[0];
+    }
+
+    // We only import purchase-like lines (positive amounts)
+    if (!amount || amount <= 0) continue;
+
+    // Try installments pattern
     const installmentMatch = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
-    
-    transactions.push({
+
+    txs.push({
       date,
       description,
       amount,
-      installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-      total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
+      installment_number: installmentMatch ? parseInt(installmentMatch[1], 10) : 1,
+      total_installments: installmentMatch ? parseInt(installmentMatch[2], 10) : 1,
     });
   }
-  
-  return transactions;
+
+  return txs;
 }
 
-// Parser for LATAM CSV format - Itaucard
-function parseLatamCSV(content: string): ParsedTransaction[] {
-  console.log('=== LATAM CSV Parser ===');
-  console.log('Content length:', content.length);
-  console.log('First 500 chars:', content.substring(0, 500));
-  
-  // Try generic parser first
-  const transactions = parseGenericCSV(content);
-  
-  if (transactions.length > 0) {
-    return transactions;
-  }
-  
-  // Fallback to line-by-line parsing
-  const lines = content.split('\n').filter(line => line.trim());
-  const result: ParsedTransaction[] = [];
-  
+function parseGenericCSV(content: string): ParsedTransaction[] {
+  const lines = content.split("\n").filter((l) => l.trim());
+  if (!lines.length) return [];
+
+  // detect delimiter using first non-empty line
+  const sample = lines.find((l) => l.trim()) ?? "";
+  const semi = (sample.match(/;/g) || []).length;
+  const comma = (sample.match(/,/g) || []).length;
+  const tab = (sample.match(/\t/g) || []).length;
+  const delimiter = comma > semi && comma > tab ? "," : tab > semi && tab > comma ? "\t" : ";";
+
+  const txs: ParsedTransaction[] = [];
+
   for (const line of lines) {
-    // Try semicolon first, then comma, then tab
-    let parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
-    if (parts.length < 3) {
-      parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
-    }
-    if (parts.length < 3) {
-      parts = line.split('\t').map(p => p.trim().replace(/"/g, ''));
-    }
-    
-    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
-      const [day, month, year] = parts[0].split('/');
-      const date = `${year}-${month}-${day}`;
-      const description = parts[1] || '';
-      const valueStr = parts[2] || parts[3] || '0';
-      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
-      
-      result.push({
-        date,
-        description,
-        amount: Math.abs(amount),
-        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
-      });
-    }
-  }
-  
-  return result;
-}
+    const parts = line
+      .split(delimiter)
+      .map((p) => p.trim().replace(/^["']|["']$/g, ""));
 
-// Parser for AZUL CSV format - Itaucard
-function parseAzulCSV(content: string): ParsedTransaction[] {
-  console.log('=== AZUL CSV Parser ===');
-  console.log('Content length:', content.length);
-  console.log('First 500 chars:', content.substring(0, 500));
-  
-  // Try generic parser first
-  const transactions = parseGenericCSV(content);
-  
-  if (transactions.length > 0) {
-    return transactions;
-  }
-  
-  // Specific AZUL format parsing
-  const lines = content.split('\n').filter(line => line.trim());
-  const result: ParsedTransaction[] = [];
-  
-  for (const line of lines) {
-    let parts = line.split(';').map(p => p.trim().replace(/"/g, ''));
-    if (parts.length < 3) {
-      parts = line.split(',').map(p => p.trim().replace(/"/g, ''));
-    }
-    
-    if (parts[0] && /^\d{2}\/\d{2}\/\d{4}$/.test(parts[0])) {
-      const [day, month, year] = parts[0].split('/');
-      const date = `${year}-${month}-${day}`;
-      const description = parts[1] || '';
-      const valueStr = parts[2] || '0';
-      const amount = parseFloat(valueStr.replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const installmentMatch = description.match(/(?:PARCELA|PARC\.?)\s*(\d+)\s*[\/DE]\s*(\d+)/i);
-      
-      result.push({
-        date,
-        description,
-        amount: Math.abs(amount),
-        installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-        total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
-      });
-    }
-  }
-  
-  return result;
-}
+    // find date column
+    const dateIndex = parts.findIndex((p) => !!parseDateAny(p));
+    if (dateIndex === -1) continue;
 
-// Parser for Itaú Empresas XLSX (expects JSON array from client-side parsing)
-function parseItauEmpresasXLSX(data: any[]): ParsedTransaction[] {
-  console.log('=== ITAU EMPRESAS XLSX Parser ===');
-  console.log('Data rows:', data.length);
-  console.log('First 3 rows:', JSON.stringify(data.slice(0, 3), null, 2));
-  
-  const transactions: ParsedTransaction[] = [];
-  
-  for (const row of data) {
-    // Try different column names
-    const dateVal = row['Data'] || row['DATA'] || row['data'] || row['Lançamento'] || row['LANCAMENTO'] || 
-                    row['Data da compra'] || row['DATA DA COMPRA'] || Object.values(row)[0];
-    const description = row['Descrição'] || row['DESCRICAO'] || row['Histórico'] || row['HISTORICO'] || 
-                       row['Estabelecimento'] || row['ESTABELECIMENTO'] || Object.values(row)[1];
-    const valueVal = row['Valor'] || row['VALOR'] || row['valor'] || row['Valor (R$)'] || 
-                    row['VALOR (R$)'] || Object.values(row)[2];
-    
-    console.log(`Row: date=${dateVal}, desc=${description}, val=${valueVal}`);
-    
-    if (!dateVal || !description) continue;
-    
-    let date = '';
-    if (typeof dateVal === 'string') {
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
-        const [day, month, year] = dateVal.split('/');
-        date = `${year}-${month}-${day}`;
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
-        date = dateVal;
-      } else if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateVal)) {
-        const [day, month, year] = dateVal.split('/');
-        date = `20${year}-${month}-${day}`;
-      }
-    } else if (typeof dateVal === 'number') {
-      // Excel date serial number
-      const excelDate = new Date((dateVal - 25569) * 86400 * 1000);
-      date = excelDate.toISOString().split('T')[0];
-    }
-    
+    const date = parseDateAny(parts[dateIndex]);
     if (!date) continue;
-    
-    let amount = 0;
-    if (typeof valueVal === 'number') {
-      amount = Math.abs(valueVal);
-    } else if (typeof valueVal === 'string') {
-      amount = Math.abs(parseFloat(valueVal.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')) || 0);
-    }
-    
-    if (amount === 0) continue;
-    
-    const installmentMatch = String(description).match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
-    
-    transactions.push({
-      date,
-      description: String(description),
-      amount,
-      installment_number: installmentMatch ? parseInt(installmentMatch[1]) : 1,
-      total_installments: installmentMatch ? parseInt(installmentMatch[2]) : 1,
-    });
-  }
-  
-  return transactions;
-}
 
-// Parser for Mercado Livre
-function parseMercadoLivrePDF(data: any[]): ParsedTransaction[] {
-  console.log('=== MERCADO LIVRE Parser ===');
-  console.log('Data:', JSON.stringify(data.slice(0, 5), null, 2));
-  
-  const transactions: ParsedTransaction[] = [];
-  
-  for (const item of data) {
-    const date = item.date || '';
-    const description = item.description || item.movimento || '';
-    const amount = parseFloat(item.amount || item.valor || '0') || 0;
-    
-    if (!date || !description) continue;
-    
-    transactions.push({
+    let description = "";
+    let amount = 0;
+
+    for (let i = 0; i < parts.length; i++) {
+      if (i === dateIndex) continue;
+      const v = parts[i];
+      const n = parsePtBrNumber(v);
+      if (!amount && n && Math.abs(n) > 0.001) amount = Math.abs(n);
+      if (!description && v.length > 2 && hasLetters(v)) description = v;
+    }
+
+    if (!description || !amount) continue;
+
+    const installmentMatch = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
+
+    txs.push({
       date,
       description,
-      amount: Math.abs(amount),
-      installment_number: 1,
-      total_installments: 1,
+      amount,
+      installment_number: installmentMatch ? parseInt(installmentMatch[1], 10) : 1,
+      total_installments: installmentMatch ? parseInt(installmentMatch[2], 10) : 1,
     });
   }
-  
-  return transactions;
+
+  return txs;
 }
 
 // Use OpenAI to categorize transactions
 async function categorizeTransactions(
   transactions: ParsedTransaction[],
   categories: any[],
-  openaiKey: string
+  openaiKey: string,
 ): Promise<ParsedTransaction[]> {
   if (!openaiKey || transactions.length === 0) return transactions;
-  
-  const categoryNames = categories.map(c => c.name).join(', ');
-  
+
+  const categoryNames = categories.map((c) => c.name).join(", ");
+
   const prompt = `Categorize as seguintes transações de cartão de crédito.
 Categorias disponíveis: ${categoryNames}
 
 Transações:
-${transactions.slice(0, 50).map((t, i) => `${i + 1}. ${t.description}`).join('\n')}
+${transactions.slice(0, 50).map((t, i) => `${i + 1}. ${t.description}`).join("\n")}
 
 Responda em JSON com array de categorias na mesma ordem:
 {"categories": ["categoria1", "categoria2", ...]}`;
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
         max_tokens: 1000,
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
-      const jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      const content = data.choices?.[0]?.message?.content || "";
+      const jsonStr = content
+        .replace(/```json?\n?/g, "")
+        .replace(/```/g, "")
+        .trim();
       const result = JSON.parse(jsonStr);
-      
+
       if (result.categories && Array.isArray(result.categories)) {
         transactions.forEach((t, i) => {
-          if (result.categories[i]) {
-            t.category_suggestion = result.categories[i];
-          }
+          if (result.categories[i]) t.category_suggestion = result.categories[i];
         });
       }
     }
   } catch (e) {
-    console.error('Error categorizing:', e);
+    console.error("Error categorizing:", e);
   }
-  
+
   return transactions;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { 
-      creditCardId, 
-      cardProvider, 
-      fileType, 
-      content, 
-      data, 
-      competencia 
+    const {
+      creditCardId,
+      cardProvider,
+      fileType,
+      content,
+      fileBase64,
+      fileName,
+      competencia,
     } = await req.json();
 
-    console.log('=== IMPORT REQUEST ===');
-    console.log('creditCardId:', creditCardId);
-    console.log('cardProvider:', cardProvider);
-    console.log('fileType:', fileType);
-    console.log('content length:', content?.length || 0);
-    console.log('data rows:', data?.length || 0);
+    console.log("=== IMPORT REQUEST ===");
+    console.log("creditCardId:", creditCardId);
+    console.log("cardProvider:", cardProvider);
+    console.log("fileType:", fileType);
+    console.log("fileName:", fileName);
+    console.log("content length:", content?.length || 0);
+    console.log("fileBase64 length:", fileBase64?.length || 0);
 
     if (!creditCardId || !cardProvider) {
       return new Response(
-        JSON.stringify({ error: 'creditCardId e cardProvider são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "creditCardId e cardProvider são obrigatórios" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     let transactions: ParsedTransaction[] = [];
 
-    const provider = cardProvider.toUpperCase();
-    console.log(`Processing provider: ${provider}, fileType: ${fileType}`);
+    const provider = String(cardProvider).toUpperCase();
+    const type = String(fileType || "").toUpperCase();
+
+    console.log(`Processing provider: ${provider}, fileType: ${type}`);
 
     switch (provider) {
-      case 'LATAM':
-      case 'LATAM_BLACK':
-        transactions = parseLatamCSV(content || '');
+      case "LATAM":
+      case "LATAM_BLACK":
+      case "AZUL":
+      case "SANTANDER_SMILES":
+      case "SANTANDER":
+        transactions = parseGenericCSV(content || "");
         break;
-      case 'AZUL':
-        transactions = parseAzulCSV(content || '');
-        break;
-      case 'ITAU_EMPRESAS':
-      case 'ITAU':
-        if (data && data.length > 0) {
-          transactions = parseItauEmpresasXLSX(data);
+
+      case "ITAU_EMPRESAS":
+      case "ITAU": {
+        if ((type === "XLSX" || type === "XLS") && fileBase64) {
+          const bytes = decodeBase64ToUint8Array(fileBase64);
+          const workbook = XLSX.read(bytes, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            raw: true,
+            defval: null,
+          }) as any[][];
+
+          console.log("XLSX rows:", rows.length);
+          console.log("First 5 rows (raw arrays):", JSON.stringify(rows.slice(0, 5)));
+
+          transactions = parseItauEmpresasFromRows(rows);
         } else if (content) {
           transactions = parseGenericCSV(content);
         }
         break;
-      case 'MERCADO_LIVRE':
-      case 'MERCADOLIVRE':
-        transactions = parseMercadoLivrePDF(data || []);
+      }
+
+      case "MERCADO_LIVRE":
+      case "MERCADOLIVRE":
+        // TODO: Implement PDF extraction when provided
+        transactions = [];
         break;
-      case 'SANTANDER_SMILES':
-      case 'SANTANDER':
-        if (content) {
-          transactions = parseGenericCSV(content);
-        } else if (data) {
-          transactions = parseItauEmpresasXLSX(data);
-        }
-        break;
+
       default:
-        // Generic parser
-        if (content) {
-          transactions = parseGenericCSV(content);
-        } else if (data && data.length > 0) {
-          transactions = parseItauEmpresasXLSX(data);
-        }
+        if (content) transactions = parseGenericCSV(content);
+        break;
     }
 
     console.log(`Parsed ${transactions.length} transactions`);
-    if (transactions.length > 0) {
-      console.log('First transaction:', JSON.stringify(transactions[0]));
+    if (transactions.length) {
+      console.log("First transaction:", JSON.stringify(transactions[0]));
     }
 
-    // Get categories for AI categorization
     const { data: categories } = await supabase
-      .from('categories')
-      .select('id, name')
-      .eq('type', 'DESPESA');
+      .from("categories")
+      .select("id, name")
+      .eq("type", "DESPESA");
 
-    // Categorize using AI if API key available
-    if (openaiKey && categories && transactions.length > 0) {
+    if (openaiKey && categories && transactions.length) {
       transactions = await categorizeTransactions(transactions, categories, openaiKey);
     }
 
-    // Calculate totals
     const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
 
     return new Response(
@@ -460,17 +378,16 @@ serve(async (req) => {
           total_records: transactions.length,
           total_amount: totalAmount,
           card_provider: cardProvider,
-          competencia: competencia,
-        }
+          competencia,
+        },
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-
   } catch (error: any) {
-    console.error('Erro no processamento:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error("Erro no processamento:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
