@@ -30,14 +30,15 @@ interface ParsedTransaction {
   selected?: boolean;
 }
 
-const CARD_PROVIDERS = [
-  { value: 'LATAM', label: 'LATAM Pass', formats: ['CSV'] },
-  { value: 'LATAM_BLACK', label: 'LATAM Black', formats: ['CSV'] },
-  { value: 'AZUL', label: 'Azul Itaucard', formats: ['CSV'] },
-  { value: 'ITAU_EMPRESAS', label: 'Itaú Empresas', formats: ['XLSX', 'XLS'] },
-  { value: 'MERCADO_LIVRE', label: 'Mercado Livre', formats: ['PDF'] },
-  { value: 'SANTANDER_SMILES', label: 'Santander Smiles', formats: ['PDF', 'CSV'] },
-];
+const CARD_PROVIDERS: Record<string, { label: string; formats: string[] }> = {
+  'LATAM': { label: 'LATAM Pass', formats: ['CSV'] },
+  'LATAM_BLACK': { label: 'LATAM Black', formats: ['CSV'] },
+  'AZUL': { label: 'Azul Itaucard', formats: ['CSV'] },
+  'ITAU_EMPRESAS': { label: 'Itaú Empresas', formats: ['XLSX', 'XLS'] },
+  'MERCADO_LIVRE': { label: 'Mercado Livre', formats: ['PDF'] },
+  'SANTANDER_SMILES': { label: 'Santander Smiles', formats: ['PDF', 'CSV'] },
+  'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX'] },
+};
 
 export function ImportarFaturaCartaoDialog({ 
   open, 
@@ -49,16 +50,19 @@ export function ImportarFaturaCartaoDialog({
   
   const [step, setStep] = useState<'select' | 'upload' | 'preview' | 'importing' | 'done'>('select');
   const [selectedCartao, setSelectedCartao] = useState<string>('');
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0 });
 
+  // Obter o cartão selecionado e seu provider
+  const selectedCartaoData = cartoes?.find(c => c.id === selectedCartao);
+  const cardProvider = selectedCartaoData?.card_provider || 'GENERICO';
+  const providerInfo = CARD_PROVIDERS[cardProvider] || CARD_PROVIDERS['GENERICO'];
+
   const resetDialog = () => {
     setStep('select');
     setSelectedCartao('');
-    setSelectedProvider('');
     setSelectedFile(null);
     setParsedTransactions([]);
     setImportProgress(0);
@@ -119,11 +123,11 @@ export function ImportarFaturaCartaoDialog({
         return;
       }
 
-      // Call edge function to parse
+      // Call edge function to parse usando o provider do cartão
       const { data: result, error } = await supabase.functions.invoke('import-card-statement', {
         body: {
           creditCardId: selectedCartao,
-          cardProvider: selectedProvider,
+          cardProvider: cardProvider,
           fileType: fileExt?.toUpperCase(),
           content,
           data,
@@ -144,7 +148,7 @@ export function ImportarFaturaCartaoDialog({
       toast.error('Erro ao processar arquivo: ' + (err.message || 'Erro desconhecido'));
       setStep('select');
     }
-  }, [selectedCartao, selectedProvider]);
+  }, [selectedCartao, cardProvider]);
 
   const toggleTransaction = (index: number) => {
     setParsedTransactions(prev => 
@@ -225,49 +229,48 @@ export function ImportarFaturaCartaoDialog({
                 <SelectContent>
                   {cartoes?.map((cartao) => (
                     <SelectItem key={cartao.id} value={cartao.id}>
-                      {cartao.name}
+                      <div className="flex items-center justify-between w-full gap-4">
+                        <span>{cartao.name}</span>
+                        {cartao.card_provider && (
+                          <Badge variant="outline" className="text-xs">
+                            {CARD_PROVIDERS[cartao.card_provider]?.label || cartao.card_provider}
+                          </Badge>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Tipo de Fatura</Label>
-              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Escolha o formato da fatura..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {CARD_PROVIDERS.map((provider) => (
-                    <SelectItem key={provider.value} value={provider.value}>
-                      {provider.label}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        ({provider.formats.join(', ')})
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedCartao && selectedProvider && (
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-lg font-medium">Arraste o arquivo ou clique para selecionar</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Formatos aceitos: {CARD_PROVIDERS.find(p => p.value === selectedProvider)?.formats.join(', ')}
+            {selectedCartao && (
+              <>
+                <div className="bg-primary/10 rounded-lg p-4">
+                  <p className="text-sm">
+                    <strong>Formato detectado:</strong> {providerInfo.label}
                   </p>
-                </label>
-              </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Arquivos aceitos: {providerInfo.formats.join(', ')}
+                  </p>
+                </div>
+
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium">Arraste o arquivo ou clique para selecionar</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Formatos aceitos: {providerInfo.formats.join(', ')}
+                    </p>
+                  </label>
+                </div>
+              </>
             )}
 
             <div className="bg-muted/50 rounded-lg p-4">
@@ -276,9 +279,8 @@ export function ImportarFaturaCartaoDialog({
                 Instruções
               </h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Exporte a fatura do site do seu banco</li>
-                <li>• Para Itaú Empresas, use o formato XLSX</li>
-                <li>• Para LATAM e Azul, use o formato CSV</li>
+                <li>• Cada cartão deve ter um <strong>Provedor</strong> configurado (LATAM, Azul, Itaú Empresas, etc.)</li>
+                <li>• Exporte a fatura do site do seu banco no formato correto</li>
                 <li>• O sistema detectará automaticamente as transações</li>
               </ul>
             </div>
