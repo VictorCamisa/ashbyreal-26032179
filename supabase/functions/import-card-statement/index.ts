@@ -137,8 +137,8 @@ function extractInstallments(description: string): { num: number; total: number 
   const patterns = [
     // "PARCELA 3/12", "PARC 3 DE 12", "Parcela 2 de 10"
     /(?:PARCELA|PARC\.?|P)\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i,
-    // "02/05" at end of string (after space or non-digit)
-    /\s(\d{2})\/(\d{2})$/,
+    // "01/12" or "1/12" at end of string (after space)
+    /\s(\d{1,2})\/(\d{1,2})$/,
     // "3x12" or "3/12" at end
     /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$)/,
   ];
@@ -161,9 +161,8 @@ function extractInstallments(description: string): { num: number; total: number 
 function cleanDescription(description: string): string {
   let cleaned = String(description ?? "").trim();
   
-  // Remove patterns like "02/06", "03/12" at end of string
-  cleaned = cleaned.replace(/\s+\d{2}\/\d{2}$/, "");
-  
+  // Remove patterns like "02/06", "3/12" at end of string
+  cleaned = cleaned.replace(/\s+\d{1,2}\/\d{1,2}$/, "");
   // Remove patterns like "PARCELA 3/12", "PARC 3 DE 12"
   cleaned = cleaned.replace(/\s*(?:PARCELA|PARC\.?|P)\s*\d{1,2}\s*(?:\/|DE)\s*\d{1,2}/gi, "");
   
@@ -179,6 +178,28 @@ function cleanDescription(description: string): string {
 function isValidAmount(amount: number): boolean {
   // Aceitar valores negativos (estornos, pagamentos) e positivos
   return Math.abs(amount) >= 0.01 && Math.abs(amount) <= 100000;
+}
+
+function normalizeAmountByDescription(description: string, amount: number): number {
+  const desc = String(description ?? "").toLowerCase();
+
+  // “Créditos” devem reduzir a fatura (valor negativo)
+  const isCreditLike =
+    desc.includes("pagamento") ||
+    desc.includes("estorno") ||
+    desc.includes("devol") ||
+    desc.includes("reembolso") ||
+    desc.includes("cancel") ||
+    desc.includes("chargeback") ||
+    desc.includes("credito") ||
+    desc.includes("crédito") ||
+    desc.includes("ajuste") ||
+    desc.includes("cashback") ||
+    desc.includes("bonus") ||
+    desc.includes("bônus");
+
+  if (isCreditLike) return amount > 0 ? -amount : amount;
+  return amount < 0 ? Math.abs(amount) : amount;
 }
 
 // Check if line is a summary line to skip (NOT payments - we want those now)
@@ -264,15 +285,18 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     // Skip summary lines
     if (isSummaryLine(description)) continue;
 
-    // Amount
-    let amount = Math.abs(parsePtBrNumber(rawVal));
+    // Amount (preservar sinal: + gasto, - crédito/estorno)
+    let amount = parsePtBrNumber(rawVal);
     if (!isValidAmount(amount)) {
       const nums = row
         .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
-        .filter((n) => isValidAmount(n))
-        .map((n) => Math.abs(n));
+        .filter((n) => isValidAmount(n));
       if (nums.length) amount = nums[nums.length - 1]; // Usually last number is the value
     }
+
+    // Normalizar sinal pelo texto (pagamento/estorno/etc)
+    amount = normalizeAmountByDescription(description, amount);
+
     if (!isValidAmount(amount)) continue;
 
     const { num, total } = extractInstallments(description);
@@ -385,6 +409,9 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
     }
 
     if (!description || (amount === 0 && !isValidAmount(amount))) continue;
+
+    // Normalizar sinal pelo texto (pagamento/estorno/etc)
+    amount = normalizeAmountByDescription(description, amount);
 
     // Skip summary lines
     if (isSummaryLine(description)) continue;
