@@ -11,6 +11,8 @@ import type { TransactionFilter } from '@/pages/Financeiro';
 import { 
   ChevronLeft, 
   ChevronRight, 
+  TrendingUp,
+  TrendingDown,
   Wallet,
   CreditCard,
   ArrowUpRight,
@@ -18,6 +20,9 @@ import {
   AlertTriangle,
   CalendarClock,
   ChevronRight as ChevronRightIcon,
+  Sparkles,
+  BarChart3,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -50,7 +55,6 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   const { faturas } = useCartoes();
   const { evolutionData, alertStats, isLoading: isLoadingStats } = useFinanceiroStats(referenceMonth);
 
-  // Navigate months
   const handlePrevMonth = () => {
     setReferenceMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
@@ -59,7 +63,6 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     setReferenceMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  // Filter by month
   const filterByMonth = (items: any[]) => {
     return items?.filter(t => t.due_date?.slice(0, 7) === monthStr) || [];
   };
@@ -67,17 +70,14 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   const filteredDespesas = filterByMonth(despesas);
   const filteredReceitas = filterByMonth(receitas);
 
-  // Calculate totals (use Math.abs because despesas are stored as negative values)
   const totalDespesas = filteredDespesas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
   const totalReceitas = filteredReceitas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
   const resultado = totalReceitas - totalDespesas;
   const isPositive = resultado >= 0;
 
-  // Pending invoices
   const faturasPendentes = faturas?.filter(f => f.status !== 'PAGA').slice(0, 3) || [];
   const totalFaturas = faturasPendentes.reduce((acc, f) => acc + f.total_value, 0);
 
-  // Group by category (use absolute values)
   const despesasPorCategoria = filteredDespesas.reduce((acc: any[], t) => {
     const catName = (t.categories as any)?.name || 'Outros';
     const existing = acc.find(c => c.name === catName);
@@ -89,7 +89,6 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     return acc;
   }, []).sort((a, b) => b.value - a.value);
 
-  // Recent transactions (combined)
   const recentTransactions = [...filteredDespesas.slice(0, 5), ...filteredReceitas.slice(0, 5)]
     .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
     .slice(0, 6);
@@ -101,27 +100,26 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   if (isLoadingDespesas || isLoadingReceitas) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Compact Alerts - Only show if there are alerts */}
+    <div className="space-y-6">
+      {/* Alerts Strip */}
       {hasAlerts && (
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-muted/30 border border-border/50">
           {alertStats.overdueCount > 0 && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1 sm:gap-2 border-destructive/30 bg-destructive/5 hover:bg-destructive/10 text-destructive text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
+              className="gap-2 bg-destructive/10 hover:bg-destructive/20 text-destructive border-0 h-9"
               onClick={() => onNavigateToTransactions?.('overdue')}
             >
-              <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">{alertStats.overdueCount} atrasada(s)</span>
-              <span className="sm:hidden">{alertStats.overdueCount}</span>
-              <span className="font-semibold hidden xs:inline">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="font-medium">{alertStats.overdueCount} atrasada(s)</span>
+              <span className="text-xs opacity-75">
                 {alertStats.overdueAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -130,15 +128,14 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
           
           {alertStats.pendingCount > 0 && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1 sm:gap-2 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-600 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
+              className="gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-0 h-9"
               onClick={() => onNavigateToTransactions?.('pending')}
             >
-              <CalendarClock className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">{alertStats.pendingCount} vencendo</span>
-              <span className="sm:hidden">{alertStats.pendingCount}</span>
-              <span className="font-semibold hidden xs:inline">
+              <CalendarClock className="h-4 w-4" />
+              <span className="font-medium">{alertStats.pendingCount} vencendo</span>
+              <span className="text-xs opacity-75">
                 {alertStats.pendingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -147,15 +144,14 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
           
           {alertStats.invoicesCount > 0 && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="gap-1 sm:gap-2 border-primary/30 bg-primary/5 hover:bg-primary/10 text-xs sm:text-sm h-7 sm:h-8 px-2 sm:px-3"
+              className="gap-2 bg-primary/10 hover:bg-primary/20 text-primary border-0 h-9"
               onClick={onNavigateToCartoes}
             >
-              <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">{alertStats.invoicesCount} fatura(s)</span>
-              <span className="sm:hidden">{alertStats.invoicesCount}</span>
-              <span className="font-semibold hidden xs:inline">
+              <CreditCard className="h-4 w-4" />
+              <span className="font-medium">{alertStats.invoicesCount} fatura(s)</span>
+              <span className="text-xs opacity-75">
                 {alertStats.invoicesAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <ChevronRightIcon className="h-3 w-3" />
@@ -164,105 +160,135 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
         </div>
       )}
 
-      {/* Month Navigation */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={handlePrevMonth}>
-          <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-        </Button>
-        <span className="text-sm sm:text-lg font-medium capitalize min-w-[120px] sm:min-w-[160px] text-center">
-          {monthLabel}
-        </span>
-        <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={handleNextMonth}>
-          <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-        </Button>
+      {/* Month Navigator */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handlePrevMonth}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium capitalize px-3 min-w-[140px] text-center">
+            {monthLabel}
+          </span>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleNextMonth}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Receitas</p>
-                <p className="text-base sm:text-xl font-bold text-emerald-600 truncate">
+      {/* Hero KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Receitas */}
+        <Card className="relative overflow-hidden group hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-transparent" />
+          <CardContent className="relative p-5">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receitas</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">
                   {totalReceitas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <TrendingUp className="h-3 w-3 text-emerald-500" />
+                  <span>Entradas do mês</span>
+                </div>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
-                <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
+              <div className="h-12 w-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ArrowUpRight className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Despesas</p>
-                <p className="text-base sm:text-xl font-bold text-destructive truncate">
+        {/* Despesas */}
+        <Card className="relative overflow-hidden group hover:shadow-lg hover:shadow-destructive/5 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-destructive/10 via-transparent to-transparent" />
+          <CardContent className="relative p-5">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesas</p>
+                <p className="text-2xl font-bold text-destructive tracking-tight">
                   {totalDespesas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <TrendingDown className="h-3 w-3 text-destructive" />
+                  <span>Saídas do mês</span>
+                </div>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-                <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
+              <div className="h-12 w-12 rounded-2xl bg-destructive/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ArrowDownRight className="h-6 w-6 text-destructive" />
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Resultado */}
         <Card className={cn(
-          isPositive ? "ring-1 ring-emerald-200 dark:ring-emerald-800" : "ring-1 ring-red-200 dark:ring-red-800"
+          "relative overflow-hidden group transition-all duration-300",
+          isPositive 
+            ? "hover:shadow-lg hover:shadow-emerald-500/10 ring-1 ring-emerald-500/20" 
+            : "hover:shadow-lg hover:shadow-destructive/10 ring-1 ring-destructive/20"
         )}>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Resultado</p>
+          <div className={cn(
+            "absolute inset-0 bg-gradient-to-br via-transparent to-transparent",
+            isPositive ? "from-emerald-500/10" : "from-destructive/10"
+          )} />
+          <CardContent className="relative p-5">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Resultado</p>
+                  {isPositive && <Sparkles className="h-3 w-3 text-emerald-500" />}
+                </div>
                 <p className={cn(
-                  "text-base sm:text-xl font-bold truncate",
-                  isPositive ? "text-emerald-600" : "text-destructive"
+                  "text-2xl font-bold tracking-tight",
+                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                 )}>
                   {resultado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{isPositive ? 'Saldo positivo' : 'Saldo negativo'}</span>
+                </div>
               </div>
               <div className={cn(
-                "h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center flex-shrink-0",
-                isPositive ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"
+                "h-12 w-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300",
+                isPositive ? "bg-emerald-500/20" : "bg-destructive/20"
               )}>
                 <Wallet className={cn(
-                  "h-4 w-4 sm:h-5 sm:w-5",
-                  isPositive ? "text-emerald-600" : "text-destructive"
+                  "h-6 w-6",
+                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                 )} />
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Cartões */}
         <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          className="relative overflow-hidden group hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
           onClick={onNavigateToCartoes}
         >
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide">Cartões</p>
-                <p className="text-base sm:text-xl font-bold truncate">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
+          <CardContent className="relative p-5">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cartões</p>
+                <p className="text-2xl font-bold tracking-tight">
                   {totalFaturas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                  {faturasPendentes.length} faturas
-                </p>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{faturasPendentes.length} faturas pendentes</span>
+                </div>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              <div className="h-12 w-12 rounded-2xl bg-primary/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <CreditCard className="h-6 w-6 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Evolution Chart + Health Gauge Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <EvolutionChart data={evolutionData} />
         <HealthGauge
           receitas={totalReceitas}
@@ -272,57 +298,63 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
         />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Bar Chart - Receitas vs Despesas */}
-        <Card>
-          <CardHeader className="p-3 sm:p-6 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Resultado do Mês</CardTitle>
+      {/* Secondary Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Bar Chart */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">Comparativo do Mês</CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="p-3 sm:p-6 pt-0">
-            <ResponsiveContainer width="100%" height={160} className="sm:!h-[200px]">
+          <CardContent className="pt-0">
+            <ResponsiveContainer width="100%" height={200}>
               <BarChart 
                 data={[
-                  { name: 'Receitas', value: totalReceitas, fill: '#10b981' },
-                  { name: 'Despesas', value: totalDespesas, fill: '#ef4444' }
+                  { name: 'Receitas', value: totalReceitas, fill: 'hsl(var(--success))' },
+                  { name: 'Despesas', value: totalDespesas, fill: 'hsl(var(--destructive))' }
                 ]} 
-                margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
                 <YAxis hide />
                 <Tooltip 
                   formatter={(value: number) => [value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), '']}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
                     border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '11px'
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                 />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={80} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Pie Chart - Despesas por Categoria */}
-        <Card>
-          <CardHeader className="p-3 sm:p-6 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Despesas por Categoria</CardTitle>
+        {/* Pie Chart */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">Despesas por Categoria</CardTitle>
+            </div>
           </CardHeader>
-          <CardContent className="p-3 sm:p-6 pt-0">
+          <CardContent className="pt-0">
             {despesasPorCategoria.length > 0 ? (
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
-                <ResponsiveContainer width={120} height={120} className="sm:!w-[160px] sm:!h-[160px] flex-shrink-0">
+              <div className="flex items-center gap-6">
+                <ResponsiveContainer width={140} height={140}>
                   <PieChart>
                     <Pie
                       data={despesasPorCategoria.slice(0, 6)}
                       cx="50%"
                       cy="50%"
-                      innerRadius={30}
-                      outerRadius={55}
-                      paddingAngle={2}
+                      innerRadius={40}
+                      outerRadius={65}
+                      paddingAngle={3}
                       dataKey="value"
                     >
                       {despesasPorCategoria.slice(0, 6).map((_, index) => (
@@ -334,23 +366,22 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                       contentStyle={{ 
                         backgroundColor: 'hsl(var(--card))', 
                         border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        fontSize: '11px'
+                        borderRadius: '12px'
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="flex-1 space-y-1.5 sm:space-y-2 w-full sm:pt-2">
-                  {despesasPorCategoria.slice(0, 4).map((cat, index) => (
-                    <div key={cat.name} className="flex items-center justify-between text-xs sm:text-sm">
-                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <div className="flex-1 space-y-2.5">
+                  {despesasPorCategoria.slice(0, 5).map((cat, index) => (
+                    <div key={cat.name} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div 
-                          className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full flex-shrink-0" 
+                          className="h-3 w-3 rounded-full flex-shrink-0" 
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         />
-                        <span className="text-muted-foreground truncate">{cat.name}</span>
+                        <span className="text-muted-foreground truncate text-xs">{cat.name}</span>
                       </div>
-                      <span className="font-medium tabular-nums flex-shrink-0 ml-2">
+                      <span className="font-medium tabular-nums text-xs">
                         {cat.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
@@ -358,7 +389,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                 </div>
               </div>
             ) : (
-              <div className="h-[120px] sm:h-[160px] flex items-center justify-center text-xs sm:text-sm text-muted-foreground">
+              <div className="h-[140px] flex items-center justify-center text-sm text-muted-foreground">
                 Nenhuma despesa no período
               </div>
             )}
@@ -367,55 +398,58 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
       </div>
 
       {/* Recent Transactions */}
-      <Card>
-        <CardHeader className="p-3 sm:p-6 pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-xs sm:text-sm font-medium">Transações Recentes</CardTitle>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium">Transações Recentes</CardTitle>
           <Button 
             variant="ghost" 
             size="sm" 
-            className="text-[10px] sm:text-xs text-muted-foreground h-6 sm:h-8 px-2"
+            className="text-xs text-muted-foreground h-8"
             onClick={() => onNavigateToTransactions?.('all')}
           >
             Ver todas
+            <ChevronRightIcon className="h-3 w-3 ml-1" />
           </Button>
         </CardHeader>
         <CardContent className="p-0">
           {recentTransactions.length > 0 ? (
-            <div className="divide-y">
+            <div className="divide-y divide-border/50">
               {recentTransactions.map((t) => {
                 const isPagar = t.tipo === 'PAGAR';
                 return (
-                  <div key={t.id} className="flex items-center justify-between px-3 sm:px-6 py-2 sm:py-3 hover:bg-muted/30 transition-colors gap-2">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <div key={t.id} className="flex items-center justify-between px-6 py-3.5 hover:bg-muted/30 transition-colors gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={cn(
-                        "h-6 w-6 sm:h-8 sm:w-8 rounded-full flex items-center justify-center shrink-0",
-                        isPagar ? "bg-red-100 dark:bg-red-900/30" : "bg-emerald-100 dark:bg-emerald-900/30"
+                        "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+                        isPagar 
+                          ? "bg-destructive/10" 
+                          : "bg-emerald-500/10"
                       )}>
                         {isPagar 
-                          ? <ArrowDownRight className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
-                          : <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600" />
+                          ? <ArrowDownRight className="h-5 w-5 text-destructive" />
+                          : <ArrowUpRight className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                         }
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs sm:text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
-                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
+                        <p className="text-xs text-muted-foreground truncate">
                           {new Date(t.due_date).toLocaleDateString('pt-BR')} • {(t.categories as any)?.name || 'Sem categoria'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-3 flex-shrink-0">
                       <Badge 
                         variant={t.status === 'PAGO' ? 'default' : 'secondary'}
-                        className="text-[10px] sm:text-xs h-5 sm:h-6 hidden xs:flex"
+                        className="text-xs"
                       >
-                        {t.status === 'PAGO' ? 'Pago' : 'Pend'}
+                        {t.status === 'PAGO' ? 'Pago' : 'Pendente'}
                       </Badge>
                       <span className={cn(
-                        "text-xs sm:text-sm font-semibold tabular-nums",
-                        isPagar ? "text-destructive" : "text-emerald-600"
+                        "text-sm font-bold tabular-nums",
+                        isPagar ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
                       )}>
                         {isPagar ? '-' : '+'}
-                        {Number(t.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {Math.abs(Number(t.amount)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
                   </div>
@@ -423,8 +457,11 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
               })}
             </div>
           ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma transação no período
+            <div className="py-12 text-center">
+              <div className="h-12 w-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                <ArrowLeftRight className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">Nenhuma transação no período</p>
             </div>
           )}
         </CardContent>
@@ -432,3 +469,6 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     </div>
   );
 }
+
+// Import at top for empty state
+import { ArrowLeftRight } from 'lucide-react';
