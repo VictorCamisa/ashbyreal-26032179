@@ -39,6 +39,8 @@ export function useGastosCartaoMutations() {
       
       const closingDay = card?.closing_day || 10;
 
+      const todayStr = new Date().toISOString().split('T')[0];
+
       // Quantas parcelas criar:
       // - Se create_remaining_installments=true e total > 1, criar da parcela atual até a última
       // - Caso contrário, criar apenas a transação atual
@@ -53,6 +55,12 @@ export function useGastosCartaoMutations() {
         }
         const purchaseDateStr = purchaseDate.toISOString().split('T')[0];
         const currentInstallment = installmentNumber + i;
+        
+        // Regra: nunca criar lançamentos "a mais" no passado.
+        // Importa a parcela do CSV (i=0), mas só gera parcelas futuras (i>0) a partir de hoje.
+        if (i > 0 && purchaseDateStr < todayStr) {
+          continue;
+        }
         
         // Calcular competência correta baseada no dia de fechamento
         const competencia = calculateCompetencia(purchaseDate, closingDay);

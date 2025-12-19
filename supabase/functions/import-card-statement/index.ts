@@ -183,7 +183,8 @@ function isValidAmount(amount: number): boolean {
 function normalizeAmountByDescription(description: string, amount: number): number {
   const desc = String(description ?? "").toLowerCase();
 
-  // “Créditos/estornos” devem reduzir a fatura (valor negativo)
+  // Alguns bancos exportam créditos/estornos como valor positivo; nesses casos, inverter o sinal.
+  // Se o CSV já veio negativo, mantém negativo (não "corrige" para positivo).
   const isCreditLike =
     desc.includes("estorno") ||
     desc.includes("devol") ||
@@ -198,7 +199,7 @@ function normalizeAmountByDescription(description: string, amount: number): numb
     desc.includes("bônus");
 
   if (isCreditLike) return amount > 0 ? -amount : amount;
-  return amount < 0 ? Math.abs(amount) : amount;
+  return amount;
 }
 
 // Linhas de “pagamento” do cartão não são compra/estorno (não entram na fatura)
