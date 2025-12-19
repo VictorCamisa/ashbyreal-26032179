@@ -9,29 +9,28 @@ export function useGastosCartaoMutations() {
     mutationFn: async (newTransaction: any) => {
       const totalInstallments = newTransaction.total_installments || 1;
       const installmentNumber = newTransaction.installment_number || 1;
-      const expandInstallments = newTransaction.expand_installments ?? true;
+      const createRemainingInstallments = newTransaction.create_remaining_installments ?? false;
       const transactions = [];
 
-      // Se for parcela específica, criar apenas uma transação
-      // Se for nova compra parcelada (manual), criar todas as parcelas
-      const createAllInstallments = expandInstallments && totalInstallments > 1 && installmentNumber === 1;
-      const numToCreate = createAllInstallments ? totalInstallments : 1;
-      const amountPerInstallment = createAllInstallments
-        ? newTransaction.amount / totalInstallments
-        : newTransaction.amount;
+      // Quantas parcelas criar:
+      // - Se create_remaining_installments=true e total > 1, criar da parcela atual até a última
+      // - Caso contrário, criar apenas a transação atual
+      const remainingCount = createRemainingInstallments && totalInstallments > 1
+        ? (totalInstallments - installmentNumber + 1)
+        : 1;
 
-      for (let i = 0; i < numToCreate; i++) {
+      for (let i = 0; i < remainingCount; i++) {
         const purchaseDate = new Date(newTransaction.purchase_date);
-        if (createAllInstallments) {
+        if (remainingCount > 1) {
           purchaseDate.setMonth(purchaseDate.getMonth() + i);
         }
         
         const transaction = {
           credit_card_id: newTransaction.credit_card_id,
           description: newTransaction.description,
-          amount: amountPerInstallment,
+          amount: newTransaction.amount, // valor já é o da parcela
           purchase_date: purchaseDate.toISOString().split('T')[0],
-          installment_number: createAllInstallments ? i + 1 : installmentNumber,
+          installment_number: installmentNumber + i,
           total_installments: totalInstallments,
           category_id: newTransaction.category_id || null,
           subcategory_id: newTransaction.subcategory_id || null,
@@ -57,8 +56,10 @@ export function useGastosCartaoMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-card-transactions-summary'] });
       queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
       toast.success('Gasto(s) criado(s) com sucesso!');
     },
     onError: (error: any) => {

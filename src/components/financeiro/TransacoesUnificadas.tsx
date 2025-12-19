@@ -18,7 +18,8 @@ import {
   Calendar,
   List,
   Tag,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -61,12 +62,34 @@ interface TransacoesUnificadasProps {
   onFilterChange?: (filter: TransactionFilter) => void;
 }
 
+// Tipo unificado para transações
+interface UnifiedTransaction {
+  id: string;
+  description: string | null;
+  amount: number;
+  due_date: string;
+  payment_date: string | null;
+  status: string;
+  tipo: 'PAGAR' | 'RECEBER';
+  origin: string;
+  categories?: { name: string; group: string | null } | null;
+  subcategories?: { name: string } | null;
+  accounts?: { name: string } | null;
+  entities?: { name: string; type: string } | null;
+  credit_cards?: { name: string } | null;
+  tags?: string[] | null;
+  installment_number?: number;
+  total_installments?: number;
+  isCardTransaction?: boolean;
+}
+
 export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: TransacoesUnificadasProps) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [entityFilter, setEntityFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [originFilter, setOriginFilter] = useState<string>('todos');
   const [tagFilter, setTagFilter] = useState<string>('');
   const [showImport, setShowImport] = useState(false);
   const [showNovaTransacao, setShowNovaTransacao] = useState(false);
@@ -118,8 +141,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   });
 
   // Fetch all transactions with related data
-  const { data: transactions, isLoading } = useQuery({
-    queryKey: ['transacoes-unificadas', monthStr],
+  const { data: bankTransactions, isLoading: isLoadingBank } = useQuery({
+    queryKey: ['transacoes-banco', monthStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('transactions')
@@ -138,6 +161,90 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       return data;
     }
   });
+
+  // Fetch credit card transactions
+  const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
+    queryKey: ['transacoes-cartao', monthStr],
+    queryFn: async () => {
+      const year = referenceMonth.getFullYear();
+      const month = referenceMonth.getMonth();
+      const startOfMonth = `${monthStr}-01`;
+      const startOfNextMonth = new Date(year, month + 1, 1).toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('credit_card_transactions')
+        .select(`
+          *,
+          categories(name, group),
+          subcategories(name),
+          credit_cards(name, entity_id, entities:entity_id(name, type))
+        `)
+        .gte('purchase_date', startOfMonth)
+        .lt('purchase_date', startOfNextMonth)
+        .order('purchase_date', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const isLoading = isLoadingBank || isLoadingCards;
+
+  // Merge transactions
+  const transactions: UnifiedTransaction[] = useMemo(() => {
+    const merged: UnifiedTransaction[] = [];
+
+    // Add bank transactions
+    if (bankTransactions) {
+      for (const t of bankTransactions) {
+        merged.push({
+          id: t.id,
+          description: t.description,
+          amount: Math.abs(Number(t.amount)),
+          due_date: t.due_date,
+          payment_date: t.payment_date,
+          status: t.status,
+          tipo: t.tipo as 'PAGAR' | 'RECEBER',
+          origin: t.origin || 'MANUAL',
+          categories: t.categories,
+          subcategories: t.subcategories,
+          accounts: t.accounts,
+          entities: t.entities,
+          tags: t.tags as string[] | null,
+          isCardTransaction: false,
+        });
+      }
+    }
+
+    // Add card transactions
+    if (cardTransactions) {
+      for (const t of cardTransactions) {
+        merged.push({
+          id: t.id,
+          description: t.description,
+          amount: t.amount,
+          due_date: t.purchase_date,
+          payment_date: null,
+          status: 'PREVISTO',
+          tipo: 'PAGAR',
+          origin: 'CARTAO',
+          categories: t.categories,
+          subcategories: t.subcategories,
+          credit_cards: t.credit_cards,
+          entities: (t.credit_cards as any)?.entities || null,
+          tags: null,
+          installment_number: t.installment_number,
+          total_installments: t.total_installments,
+          isCardTransaction: true,
+        });
+      }
+    }
+
+    // Sort by due_date descending
+    merged.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
+
+    return merged;
+  }, [bankTransactions, cardTransactions]);
 
   // Category color mapping based on group
   const getCategoryColor = (group: string | null) => {
@@ -281,19 +388,22 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       const matchesSearch = searchTerm === '' || 
         t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.categories?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.accounts?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        t.accounts?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.credit_cards?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesTipo = tipoFilter === 'todos' || t.tipo === tipoFilter;
       const matchesEntity = entityFilter === 'todos' || t.entities?.type === entityFilter;
       const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
+      const matchesOrigin = originFilter === 'todos' || 
+        (originFilter === 'CARTAO' ? t.isCardTransaction : !t.isCardTransaction);
       
       // Tag filter
       const tags = t.tags as string[] | null;
       const matchesTag = tagFilter === '' || (tags && tags.includes(tagFilter));
       
-      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesTag;
+      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesOrigin && matchesTag;
     });
-  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, tagFilter]);
+  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, originFilter, tagFilter]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -337,7 +447,17 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     updateTagsMutation.mutate({ id: transactionId, tags: tags.filter(t => t !== tagToRemove) });
   };
 
-
+          {/* Origin filter */}
+          <Select value={originFilter} onValueChange={setOriginFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Origem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas</SelectItem>
+              <SelectItem value="BANCO">Banco</SelectItem>
+              <SelectItem value="CARTAO">Cartão</SelectItem>
+            </SelectContent>
+          </Select>
   return (
     <div className="space-y-4">
       {/* Header with filters and actions */}
@@ -565,18 +685,33 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                             <span className="text-xs text-muted-foreground">
                               {format(new Date(t.due_date), 'dd/MM/yyyy')}
                             </span>
+                            {/* Installment badge */}
+                            {t.total_installments && t.total_installments > 1 && (
+                              <Badge variant="outline" className="text-xs py-0 h-5 bg-amber-500/10 text-amber-700 border-amber-500/30">
+                                {t.installment_number}/{t.total_installments}
+                              </Badge>
+                            )}
+                            {/* Card name badge */}
+                            {t.isCardTransaction && t.credit_cards?.name && (
+                              <Badge variant="secondary" className="text-xs py-0 h-5 gap-1">
+                                <CreditCard className="h-3 w-3" />
+                                {t.credit_cards.name}
+                              </Badge>
+                            )}
                             {t.categories?.name && (
                               <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
                                 {t.categories.name}
                               </Badge>
                             )}
-                            <Badge variant="secondary" className="text-xs py-0 h-5 gap-1">
-                              {t.entities?.type === 'LOJA' ? (
-                                <><Building2 className="h-3 w-3" /> Loja</>
-                              ) : (
-                                <><User className="h-3 w-3" /> Part.</>
-                              )}
-                            </Badge>
+                            {!t.isCardTransaction && (
+                              <Badge variant="secondary" className="text-xs py-0 h-5 gap-1">
+                                {t.entities?.type === 'LOJA' ? (
+                                  <><Building2 className="h-3 w-3" /> Loja</>
+                                ) : (
+                                  <><User className="h-3 w-3" /> Part.</>
+                                )}
+                              </Badge>
+                            )}
                             {/* Tags */}
                             {tags && tags.map(tag => (
                               <Badge 
@@ -623,8 +758,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                           {isReceita ? '+' : '-'}{formatCurrency(Math.abs(Number(t.amount)))}
                         </span>
                         <div className="flex items-center gap-1">
-                          {/* Mark as paid button */}
-                          {!isPaid && (
+                          {/* Mark as paid button - only for bank transactions */}
+                          {!isPaid && !t.isCardTransaction && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -644,22 +779,27 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setEditingTransaction(t)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => setDeletingId(t.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* Edit/Delete - only for bank transactions */}
+                          {!t.isCardTransaction && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => setEditingTransaction(t)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingId(t.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
