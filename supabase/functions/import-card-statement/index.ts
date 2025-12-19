@@ -177,14 +177,14 @@ function cleanDescription(description: string): string {
 }
 
 function isValidAmount(amount: number): boolean {
-  return amount >= 0.01 && amount <= 100000;
+  // Aceitar valores negativos (estornos, pagamentos) e positivos
+  return Math.abs(amount) >= 0.01 && Math.abs(amount) <= 100000;
 }
 
-// Check if line is a summary/payment line to skip
+// Check if line is a summary line to skip (NOT payments - we want those now)
 function isSummaryLine(description: string): boolean {
   const lower = description.toLowerCase();
   const skipPatterns = [
-    'pagamento efetuado',
     'total da fatura',
     'saldo da fatura',
     'total de lançamentos',
@@ -193,6 +193,7 @@ function isSummaryLine(description: string): boolean {
     'limite disponível',
     'resumo da fatura',
     'fatura anterior'
+    // REMOVIDO: 'pagamento efetuado' - agora importamos pagamentos como valores negativos
   ];
   return skipPatterns.some(p => lower.includes(p));
 }
@@ -353,14 +354,11 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
       description = parts[descColIdx];
     }
 
-    // Get amount from identified column
+    // Get amount from identified column - agora aceita valores negativos também
     if (amountColIdx >= 0 && parts[amountColIdx]) {
       const rawAmount = parsePtBrNumber(parts[amountColIdx]);
-      // Skip negative values (payments, credits)
-      if (rawAmount > 0) {
+      if (isValidAmount(rawAmount)) {
         amount = rawAmount;
-      } else {
-        continue; // Skip payment lines
       }
     }
 
@@ -375,18 +373,18 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
       }
     }
 
-    if (!amount) {
+    if (amount === 0) {
       for (let i = parts.length - 1; i >= 0; i--) {
         if (i === dateColIdx || i === descColIdx) continue;
         const n = parsePtBrNumber(parts[i]);
-        if (n > 0 && isValidAmount(n)) {
+        if (isValidAmount(n)) {
           amount = n;
           break;
         }
       }
     }
 
-    if (!description || !isValidAmount(amount)) continue;
+    if (!description || (amount === 0 && !isValidAmount(amount))) continue;
 
     // Skip summary lines
     if (isSummaryLine(description)) continue;
