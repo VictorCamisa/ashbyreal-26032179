@@ -59,9 +59,17 @@
     --glow-info: 198 70% 48%;
     --glow-warning: 38 92% 50%;
     
-    /* Gradient colors for light theme */
+    /* Gradient colors for light theme - Warm & Elegant */
     --gradient-start: 158 64% 42%;
     --gradient-end: 198 70% 48%;
+    --gradient-card-from: 40 20% 98%;
+    --gradient-card-to: 40 15% 95%;
+    --gradient-btn-from: 158 64% 45%;
+    --gradient-btn-to: 168 60% 38%;
+    --gradient-hero-from: 8 75% 52%;
+    --gradient-hero-to: 340 65% 55%;
+    --gradient-accent-from: 38 92% 50%;
+    --gradient-accent-to: 28 88% 48%;
   }
 
   .dark {
@@ -116,9 +124,17 @@
     --glow-info: 198 75% 55%;
     --glow-warning: 38 95% 58%;
     
-    /* Gradient colors for dark theme */
+    /* Gradient colors for dark theme - Deep & Vibrant */
     --gradient-start: 158 72% 48%;
     --gradient-end: 198 75% 55%;
+    --gradient-card-from: 225 22% 13%;
+    --gradient-card-to: 225 25% 10%;
+    --gradient-btn-from: 158 72% 50%;
+    --gradient-btn-to: 168 68% 42%;
+    --gradient-hero-from: 8 80% 58%;
+    --gradient-hero-to: 340 72% 60%;
+    --gradient-accent-from: 38 95% 58%;
+    --gradient-accent-to: 28 90% 52%;
   }
 }
 
@@ -163,7 +179,11 @@
   }
   
   .glass-card {
-    background: hsl(var(--glass-bg));
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--gradient-card-to)) 100%
+    );
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid hsl(var(--glass-border));
@@ -182,6 +202,11 @@
   }
   
   .dark .glass-card {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--gradient-card-to)) 100%
+    );
     box-shadow: 
       0 4px 24px -4px hsl(0 0% 0% / 0.4),
       0 0 0 1px hsl(var(--glass-border)),
@@ -193,6 +218,80 @@
       0 12px 40px -8px hsl(0 0% 0% / 0.5),
       0 0 0 1px hsl(var(--glass-border)),
       inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  }
+  
+  /* Gradient button variants */
+  .btn-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--gradient-btn-from)) 0%, hsl(var(--gradient-btn-to)) 100%);
+    color: hsl(0 0% 100%);
+    box-shadow: 0 4px 14px -2px hsl(var(--gradient-btn-from) / 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-gradient-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px -2px hsl(var(--gradient-btn-from) / 0.5);
+  }
+  
+  .btn-gradient-hero {
+    background: linear-gradient(135deg, hsl(var(--gradient-hero-from)) 0%, hsl(var(--gradient-hero-to)) 100%);
+    color: hsl(0 0% 100%);
+    box-shadow: 0 4px 14px -2px hsl(var(--gradient-hero-from) / 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-gradient-hero:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px -2px hsl(var(--gradient-hero-from) / 0.5);
+  }
+  
+  .btn-gradient-accent {
+    background: linear-gradient(135deg, hsl(var(--gradient-accent-from)) 0%, hsl(var(--gradient-accent-to)) 100%);
+    color: hsl(0 0% 100%);
+    box-shadow: 0 4px 14px -2px hsl(var(--gradient-accent-from) / 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .btn-gradient-accent:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px -2px hsl(var(--gradient-accent-from) / 0.5);
+  }
+  
+  /* Gradient card variants */
+  .card-gradient-success {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--success) / 0.08) 100%
+    );
+    border: 1px solid hsl(var(--success) / 0.2);
+  }
+  
+  .card-gradient-primary {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--primary) / 0.08) 100%
+    );
+    border: 1px solid hsl(var(--primary) / 0.2);
+  }
+  
+  .card-gradient-info {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--glow-info) / 0.08) 100%
+    );
+    border: 1px solid hsl(var(--glow-info) / 0.2);
+  }
+  
+  .card-gradient-warning {
+    background: linear-gradient(
+      145deg,
+      hsl(var(--gradient-card-from)) 0%,
+      hsl(var(--glow-warning) / 0.08) 100%
+    );
+    border: 1px solid hsl(var(--glow-warning) / 0.2);
   }
   
   /* Premium KPI Card with glow */

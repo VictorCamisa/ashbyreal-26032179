@@ -19,6 +19,10 @@ const buttonVariants = cva(
         success: "bg-success text-success-foreground shadow-sm hover:bg-success/90 hover:shadow-md hover:shadow-success/25",
         // Premium success with glow effect
         "success-glow": "bg-success text-success-foreground shadow-lg shadow-success/30 hover:bg-success/90 hover:shadow-xl hover:shadow-success/40",
+        // Gradient variants - theme-aware
+        "gradient-primary": "btn-gradient-primary",
+        "gradient-hero": "btn-gradient-hero",
+        "gradient-accent": "btn-gradient-accent",
       },
       size: {
         default: "h-10 px-4 py-2",
