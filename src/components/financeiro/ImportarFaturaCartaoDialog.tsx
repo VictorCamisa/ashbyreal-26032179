@@ -142,12 +142,19 @@ export function ImportarFaturaCartaoDialog({
 
       if (error) throw error;
 
+      // Verificar se há erro retornado (ex: PDF não suportado)
+      if (result.error) {
+        toast.error(result.error);
+        setStep('select');
+        return;
+      }
+
       if (result.transactions && result.transactions.length > 0) {
         setParsedTransactions(result.transactions.map((t: ParsedTransaction) => ({ ...t, selected: true })));
         setStep('preview');
         toast.success(`${result.transactions.length} transações encontradas`);
       } else {
-        toast.warning('Nenhuma transação encontrada no arquivo');
+        toast.warning('Nenhuma transação encontrada no arquivo. Verifique se o formato está correto.');
         setStep('select');
       }
     } catch (err: any) {
