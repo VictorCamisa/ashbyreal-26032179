@@ -83,16 +83,23 @@ export function ImportarFaturaCartaoDialog({
     });
   };
 
-  const parseXLSXFile = async (file: File): Promise<any[]> => {
+  const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  const readFileAsBase64 = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-          resolve(jsonData);
+          const buffer = e.target?.result as ArrayBuffer;
+          resolve(arrayBufferToBase64(buffer));
         } catch (err) {
           reject(err);
         }
@@ -112,14 +119,16 @@ export function ImportarFaturaCartaoDialog({
     try {
       const fileExt = file.name.split('.').pop()?.toLowerCase();
       let content = '';
-      let data: any[] = [];
+      let fileBase64 = '';
 
       if (fileExt === 'csv') {
         content = await parseCSVFile(file);
       } else if (fileExt === 'xlsx' || fileExt === 'xls') {
-        data = await parseXLSXFile(file);
+        // Enviar o arquivo íntegro (base64) para a Edge Function processar
+        fileBase64 = await readFileAsBase64(file);
       } else if (fileExt === 'pdf') {
         toast.error('PDF requer processamento manual. Use CSV ou XLSX quando possível.');
+        setStep('select');
         return;
       }
 
@@ -129,8 +138,9 @@ export function ImportarFaturaCartaoDialog({
           creditCardId: selectedCartao,
           cardProvider: cardProvider,
           fileType: fileExt?.toUpperCase(),
+          fileName: file.name,
           content,
-          data,
+          fileBase64,
         }
       });
 
@@ -142,6 +152,7 @@ export function ImportarFaturaCartaoDialog({
         toast.success(`${result.transactions.length} transações encontradas`);
       } else {
         toast.warning('Nenhuma transação encontrada no arquivo');
+        setStep('select');
       }
     } catch (err: any) {
       console.error('Erro ao processar arquivo:', err);
