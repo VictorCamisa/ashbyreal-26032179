@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -42,29 +42,55 @@ const clienteSchema = z.object({
 
 type ClienteFormData = z.infer<typeof clienteSchema>;
 
+type ClienteSubmitHandler = (data: any) => void | Promise<any>;
+
 interface NovoClienteDialogProps {
-  onSubmit: (data: any) => void;
+  onSubmit: ClienteSubmitHandler;
   isCreating: boolean;
+  defaultValues?: Partial<ClienteFormData>;
+  trigger?: React.ReactNode;
 }
 
-export function NovoClienteDialog({ onSubmit, isCreating }: NovoClienteDialogProps) {
+export function NovoClienteDialog({
+  onSubmit,
+  isCreating,
+  defaultValues,
+  trigger,
+}: NovoClienteDialogProps) {
   const [open, setOpen] = useState(false);
 
-  const form = useForm<ClienteFormData>({
-    resolver: zodResolver(clienteSchema),
-    defaultValues: {
+  const baseDefaults = useMemo(
+    () => ({
       nome: '',
       email: '',
       telefone: '',
       empresa: '',
-      status: 'lead',
-      origem: 'WhatsApp',
+      status: 'lead' as const,
+      origem: 'WhatsApp' as const,
       observacoes: '',
+    }),
+    []
+  );
+
+  const form = useForm<ClienteFormData>({
+    resolver: zodResolver(clienteSchema),
+    defaultValues: {
+      ...baseDefaults,
+      ...(defaultValues || {}),
     },
   });
 
-  const handleSubmit = (data: ClienteFormData) => {
-    onSubmit({
+  useEffect(() => {
+    if (!open) return;
+    if (!defaultValues) return;
+    form.reset({
+      ...baseDefaults,
+      ...(defaultValues || {}),
+    });
+  }, [open, defaultValues, baseDefaults, form]);
+
+  const handleSubmit = async (data: ClienteFormData) => {
+    await onSubmit({
       nome: data.nome,
       email: data.email,
       telefone: data.telefone,
@@ -74,17 +100,19 @@ export function NovoClienteDialog({ onSubmit, isCreating }: NovoClienteDialogPro
       observacoes: data.observacoes,
       ticket_medio: 0,
     });
-    form.reset();
+    form.reset(baseDefaults);
     setOpen(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Cliente
-        </Button>
+        {trigger || (
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Cliente
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>

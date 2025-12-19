@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
@@ -96,13 +97,18 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
   const [editedItems, setEditedItems] = useState<ExtractedItem[]>([]);
   const [metodoPagamento, setMetodoPagamento] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingPedido, setIsCreatingPedido] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { createPedido } = usePedidosMutations();
-  const { clientes } = useClientes();
+  const {
+    clientes,
+    isLoading: isLoadingClientes,
+    createCliente,
+    isCreating: isCreatingCliente,
+  } = useClientes();
 
   const resetDialog = () => {
     setStep('capture');
@@ -209,7 +215,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
   const handleConfirm = async () => {
     if (!selectedClienteId || !canConfirm()) return;
 
-    setIsCreating(true);
+    setIsCreatingPedido(true);
 
     try {
       const cartItems = editedItems.map(item => ({
@@ -221,7 +227,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
       }));
 
       // Create the order
-      const pedido = await createPedido({
+      await createPedido({
         clienteId: selectedClienteId,
         items: cartItems,
         metodoPagamento: metodoPagamento || undefined,
@@ -253,7 +259,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
         variant: 'destructive',
       });
     } finally {
-      setIsCreating(false);
+      setIsCreatingPedido(false);
     }
   };
 
@@ -362,29 +368,73 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
                   <User className="h-4 w-4" />
                   Cliente
                 </div>
-                
+
                 {scanResult.clienteEncontrado ? (
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500" />
                     <span>Cliente encontrado: {scanResult.clienteEncontrado.nome}</span>
                   </div>
-                ) : scanResult.dadosExtraidos.cliente?.nome && (
-                  <div className="flex items-center gap-2 text-amber-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>Cliente não encontrado: {scanResult.dadosExtraidos.cliente.nome}</span>
-                  </div>
-                )}
+                ) : scanResult.dadosExtraidos.cliente?.nome ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Cliente não encontrado: {scanResult.dadosExtraidos.cliente.nome}</span>
+                    </div>
 
-                <Select value={selectedClienteId || ''} onValueChange={setSelectedClienteId}>
+                    <div className="flex flex-wrap gap-2">
+                      <NovoClienteDialog
+                        trigger={
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <User className="h-4 w-4" />
+                            Cadastrar cliente
+                          </Button>
+                        }
+                        defaultValues={{
+                          nome: scanResult.dadosExtraidos.cliente?.nome || '',
+                          telefone: scanResult.dadosExtraidos.cliente?.telefone || '',
+                          email: scanResult.dadosExtraidos.cliente?.email || '',
+                          empresa: scanResult.dadosExtraidos.cliente?.empresa || '',
+                        }}
+                        onSubmit={async (data) => {
+                          const created = await createCliente(data);
+                          setSelectedClienteId(created.id);
+                        }}
+                        isCreating={isCreatingCliente}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <Select
+                  value={selectedClienteId || ''}
+                  onValueChange={setSelectedClienteId}
+                  disabled={isLoadingClientes || clientes.length === 0}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecionar cliente..." />
+                    <SelectValue
+                      placeholder={
+                        isLoadingClientes
+                          ? 'Carregando clientes...'
+                          : clientes.length === 0
+                            ? 'Nenhum cliente cadastrado'
+                            : 'Selecionar cliente...'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientes?.map(cliente => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.nome} - {cliente.telefone}
-                      </SelectItem>
-                    ))}
+                    {isLoadingClientes ? (
+                      <div className="px-2 py-2 text-sm text-muted-foreground">Carregando...</div>
+                    ) : clientes.length === 0 ? (
+                      <div className="px-2 py-2 text-sm text-muted-foreground">
+                        Nenhum cliente cadastrado ainda.
+                      </div>
+                    ) : (
+                      clientes.map(cliente => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome} - {cliente.telefone}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </CardContent>
@@ -509,9 +559,9 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
               <Button
                 className="flex-1 gap-2"
                 onClick={handleConfirm}
-                disabled={!canConfirm() || isCreating}
+                disabled={!canConfirm() || isCreatingPedido}
               >
-                {isCreating ? (
+                {isCreatingPedido ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <ShoppingCart className="h-4 w-4" />
