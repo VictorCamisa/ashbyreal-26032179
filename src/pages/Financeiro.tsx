@@ -63,24 +63,28 @@ const Financeiro = () => {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* Hero Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-emerald-500/5 border-b border-border/50">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[hsl(var(--gradient-card-from))] via-background to-[hsl(var(--gradient-card-to))] border-b border-border/50">
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
-        <div className="relative px-4 sm:px-6 py-6 sm:py-8">
+        {/* Ambient glow effects */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[hsl(var(--gradient-start)/0.08)] rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[hsl(var(--gradient-end)/0.06)] rounded-full blur-3xl" />
+        
+        <div className="relative px-6 lg:px-8 py-6 sm:py-8 max-w-[1920px] mx-auto w-full">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             {/* Title Section */}
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
+                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-br from-[hsl(var(--gradient-hero-from))] to-[hsl(var(--gradient-hero-to))] flex items-center justify-center shadow-lg shadow-[hsl(var(--gradient-hero-from)/0.25)]">
                   <Wallet className="h-6 w-6 sm:h-7 sm:w-7 text-primary-foreground" />
                 </div>
-                <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center animate-pulse">
+                <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-gradient-to-br from-success to-success/80 flex items-center justify-center animate-pulse">
                   <Sparkles className="h-2.5 w-2.5 text-white" />
                 </div>
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground to-foreground/60 bg-clip-text">
                   Financeiro
                 </h1>
                 <p className="text-sm text-muted-foreground mt-0.5">
@@ -92,7 +96,7 @@ const Financeiro = () => {
             {/* Quick Actions */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="gap-2 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300">
+                <Button variant="gradient-primary" className="gap-2">
                   <Plus className="h-4 w-4" />
                   <span>Nova Entrada</span>
                 </Button>
@@ -133,7 +137,7 @@ const Financeiro = () => {
                     <span className="hidden sm:inline">{tab.label}</span>
                     <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                     {isActive && (
-                      <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-primary rounded-full" />
+                      <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] rounded-full" />
                     )}
                   </button>
                 );
@@ -143,8 +147,8 @@ const Financeiro = () => {
         </div>
       </div>
 
-      {/* Content Area */}
-      <div className="p-4 sm:p-6">
+      {/* Content Area - Full width */}
+      <div className="flex-1 px-6 lg:px-8 py-6 max-w-[1920px] mx-auto w-full">
         <div className="animate-fade-in">
           {activeTab === 'dashboard' && (
             <DashboardFinanceiro 
