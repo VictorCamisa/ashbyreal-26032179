@@ -199,10 +199,10 @@ export function ImportarFaturaCartaoDialog({
           purchase_date: t.date,
           installment_number: t.installment_number || 1,
           total_installments: t.total_installments || 1,
-          // Força TODAS as linhas importadas a entrarem na fatura (competência) escolhida
+          // Força a parcela atual a entrar na fatura (competência) escolhida
           force_competencia: competenciaAlvo,
-          // NUNCA criar parcelas futuras automaticamente na importação — só o que veio no arquivo
-          create_remaining_installments: false,
+          // Criar parcelas FUTURAS (janeiro, fevereiro, etc.) automaticamente
+          create_remaining_installments: true,
         });
         success++;
       } catch (err) {

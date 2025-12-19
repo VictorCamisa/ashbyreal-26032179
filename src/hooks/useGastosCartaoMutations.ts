@@ -39,8 +39,6 @@ export function useGastosCartaoMutations() {
       
       const closingDay = card?.closing_day || 10;
 
-      const todayStr = new Date().toISOString().split('T')[0];
-
       // Quantas parcelas criar:
       // - Se create_remaining_installments=true e total > 1, criar da parcela atual até a última
       // - Caso contrário, criar apenas a transação atual
@@ -48,22 +46,32 @@ export function useGastosCartaoMutations() {
         ? (totalInstallments - installmentNumber + 1)
         : 1;
 
+      // Competência base: se force_competencia foi passada, usa como referência para calcular os meses futuros
+      const forceCompRaw = newTransaction.force_competencia as string | undefined;
+      const baseCompetenciaDate = forceCompRaw 
+        ? new Date(`${forceCompRaw.slice(0, 7)}-15`) // meio do mês para evitar problemas de timezone
+        : new Date(newTransaction.purchase_date);
+
       for (let i = 0; i < remainingCount; i++) {
+        // Para a primeira parcela (i=0), usa a data original
+        // Para parcelas futuras, avança mês a mês a partir da competência base
         const purchaseDate = new Date(newTransaction.purchase_date);
-        if (remainingCount > 1) {
+        const competenciaDate = new Date(baseCompetenciaDate);
+        
+        if (i > 0) {
+          // Avança os meses para as parcelas futuras
+          competenciaDate.setMonth(competenciaDate.getMonth() + i);
           purchaseDate.setMonth(purchaseDate.getMonth() + i);
         }
+        
         const purchaseDateStr = purchaseDate.toISOString().split('T')[0];
         const currentInstallment = installmentNumber + i;
         
-        // Regra: nunca criar lançamentos "a mais" no passado.
-        // Importa a parcela do CSV (i=0), mas só gera parcelas futuras (i>0) a partir de hoje.
-        if (i > 0 && purchaseDateStr < todayStr) {
-          continue;
-        }
-        
-        // Calcular competência correta baseada no dia de fechamento
-        const competencia = calculateCompetencia(purchaseDate, closingDay);
+        // Para parcelas futuras (i > 0), a competência é derivada da competência base + meses
+        // Para a primeira parcela, usa a competência forçada ou calcula pelo closingDay
+        const competencia = i === 0 && forceCompRaw
+          ? `${forceCompRaw.slice(0, 7)}-01`
+          : `${competenciaDate.getFullYear()}-${String(competenciaDate.getMonth() + 1).padStart(2, '0')}-01`;
         
         // Verificar se já existe esta transação (evitar duplicatas na reimportação)
         // Importante: NÃO usar range por competência aqui, porque a competência pode ser "mês seguinte" (pós-fechamento)
@@ -94,6 +102,8 @@ export function useGastosCartaoMutations() {
           category_id: newTransaction.category_id || null,
           subcategory_id: newTransaction.subcategory_id || null,
           entity_id: newTransaction.entity_id || null,
+          // Armazenar a competência calculada para usar ao criar faturas
+          _competencia: competencia,
         };
         
         transactionsToCreate.push(transaction);
@@ -104,6 +114,13 @@ export function useGastosCartaoMutations() {
         return [];
       }
 
+      // Guardar o mapeamento de competências (não vai para o banco, é só para criar faturas)
+      const competenciaMap: Record<number, string> = {};
+      transactionsToCreate.forEach((t, idx) => {
+        competenciaMap[idx] = (t as any)._competencia;
+        delete (t as any)._competencia;
+      });
+
       const { data, error } = await supabase
         .from('credit_card_transactions')
         .insert(transactionsToCreate)
@@ -111,22 +128,14 @@ export function useGastosCartaoMutations() {
       
       if (error) throw error;
       
-      // Se force_competencia estiver presente, forçamos TODAS as transações criadas nessa chamada
-      // a entrarem na mesma fatura (útil quando o CSV traz a "data original" da compra/parcela).
-      const forcedCompetencia = (() => {
-        const raw = newTransaction.force_competencia as string | undefined;
-        if (!raw) return undefined;
-
-        // Aceita YYYY-MM, YYYY-MM-01, ou YYYY-MM-DD (normaliza para YYYY-MM-01)
-        if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
-        if (/^\d{4}-\d{2}-01$/.test(raw)) return raw;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
-        return undefined;
-      })();
-
-      // Atualizar as faturas correspondentes
+      // Atualizar as faturas correspondentes, passando o mapeamento de competências
       if (data && data.length > 0) {
-        await updateInvoicesForTransactions(data, closingDay, forcedCompetencia);
+        // Associar cada transação retornada à sua competência
+        const transactionsWithCompetencia = data.map((t, idx) => ({
+          ...t,
+          _competencia: competenciaMap[idx]
+        }));
+        await updateInvoicesForTransactions(transactionsWithCompetencia, closingDay);
       }
       
       return data;
@@ -153,16 +162,14 @@ export function useGastosCartaoMutations() {
 // Função auxiliar para atualizar valores das faturas
 async function updateInvoicesForTransactions(
   transactions: any[],
-  closingDay: number,
-  forcedCompetencia?: string
+  closingDay: number
 ) {
   // Agrupar transações por cartão e competência
   const groupedTransactions: Record<string, { cardId: string; competencia: string; total: number; transactionIds: string[] }> = {};
 
   for (const transaction of transactions) {
-    const purchaseDate = new Date(transaction.purchase_date);
-    // Se foi fornecida competência forçada, use-a; caso contrário, calcule pelo closingDay
-    const competencia = forcedCompetencia || calculateCompetencia(purchaseDate, closingDay);
+    // Usa a competência pré-calculada se existir, senão calcula pelo closingDay
+    const competencia = transaction._competencia || calculateCompetencia(new Date(transaction.purchase_date), closingDay);
     const key = `${transaction.credit_card_id}_${competencia}`;
 
     if (!groupedTransactions[key]) {
