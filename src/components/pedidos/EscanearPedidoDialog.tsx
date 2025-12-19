@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
@@ -25,8 +38,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
 import { useClientes } from '@/hooks/useClientes';
+import { cn } from '@/lib/utils';
 import {
   Camera,
+  ChevronsUpDown,
   ImagePlus,
   Loader2,
   ScanLine,
@@ -98,6 +113,7 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
   const [metodoPagamento, setMetodoPagamento] = useState<string>('');
   const [observacoes, setObservacoes] = useState('');
   const [isCreatingPedido, setIsCreatingPedido] = useState(false);
+  const [clientePopoverOpen, setClientePopoverOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +125,11 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
     createCliente,
     isCreating: isCreatingCliente,
   } = useClientes();
+
+  const selectedCliente = useMemo(
+    () => clientes.find(c => c.id === selectedClienteId),
+    [clientes, selectedClienteId]
+  );
 
   const resetDialog = () => {
     setStep('capture');
@@ -405,38 +426,56 @@ export function EscanearPedidoDialog({ onSuccess }: EscanearPedidoDialogProps) {
                   </div>
                 ) : null}
 
-                <Select
-                  value={selectedClienteId || ''}
-                  onValueChange={setSelectedClienteId}
-                  disabled={isLoadingClientes || clientes.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        isLoadingClientes
-                          ? 'Carregando clientes...'
+                <Popover open={clientePopoverOpen} onOpenChange={setClientePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={clientePopoverOpen}
+                      className="w-full justify-between"
+                      disabled={isLoadingClientes}
+                    >
+                      {isLoadingClientes
+                        ? 'Carregando clientes...'
+                        : selectedCliente
+                          ? `${selectedCliente.nome} - ${selectedCliente.telefone}`
                           : clientes.length === 0
                             ? 'Nenhum cliente cadastrado'
-                            : 'Selecionar cliente...'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {isLoadingClientes ? (
-                      <div className="px-2 py-2 text-sm text-muted-foreground">Carregando...</div>
-                    ) : clientes.length === 0 ? (
-                      <div className="px-2 py-2 text-sm text-muted-foreground">
-                        Nenhum cliente cadastrado ainda.
-                      </div>
-                    ) : (
-                      clientes.map(cliente => (
-                        <SelectItem key={cliente.id} value={cliente.id}>
-                          {cliente.nome} - {cliente.telefone}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                            : 'Buscar cliente...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar por nome ou telefone..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {clientes.map(cliente => (
+                            <CommandItem
+                              key={cliente.id}
+                              value={`${cliente.nome} ${cliente.telefone}`}
+                              onSelect={() => {
+                                setSelectedClienteId(cliente.id);
+                                setClientePopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  selectedClienteId === cliente.id ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                              <span className="truncate">
+                                {cliente.nome} - {cliente.telefone}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </CardContent>
             </Card>
 
