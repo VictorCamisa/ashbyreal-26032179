@@ -50,13 +50,19 @@ export function useCartoes() {
     queryKey: ['credit-card-transactions-summary'],
     queryFn: async () => {
       const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      
+      // Primeiro dia do mês atual
+      const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+      // Primeiro dia do próximo mês
+      const startOfNextMonth = new Date(year, month + 1, 1).toISOString().split('T')[0];
       
       const { data, error } = await supabase
         .from('credit_card_transactions')
         .select('credit_card_id, amount, purchase_date')
-        .gte('purchase_date', `${currentMonth}-01`)
-        .lt('purchase_date', `${currentMonth}-32`);
+        .gte('purchase_date', startOfMonth)
+        .lt('purchase_date', startOfNextMonth);
 
       if (error) throw error;
       
