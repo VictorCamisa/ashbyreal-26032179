@@ -5,19 +5,20 @@ import { toast } from 'sonner';
 interface LimparImportacaoParams {
   creditCardId: string;
   competencia?: string; // formato YYYY-MM, se não informar limpa tudo do cartão
+  incluirFuturas?: boolean; // se true, também apaga transações de competências futuras geradas por esse import
 }
 
 export function useLimparImportacao() {
   const queryClient = useQueryClient();
 
   const limparImportacao = useMutation({
-    mutationFn: async ({ creditCardId, competencia }: LimparImportacaoParams) => {
+    mutationFn: async ({ creditCardId, competencia, incluirFuturas = true }: LimparImportacaoParams) => {
       let deletedTransactions = 0;
       let deletedInvoices = 0;
 
       if (competencia) {
         // Limpar por competência específica
-        // Primeiro buscar o invoice_id da competência
+        // Primeiro buscar o invoice da competência
         const { data: invoice } = await supabase
           .from('credit_card_invoices')
           .select('id')
@@ -46,7 +47,6 @@ export function useLimparImportacao() {
         }
 
         // Também deletar transações órfãs (sem invoice_id) dessa competência
-        // Calcular a competência como data do primeiro dia do mês
         const competenciaStart = `${competencia}-01`;
         const [year, month] = competencia.split('-').map(Number);
         const nextMonth = month === 12 ? 1 : month + 1;
@@ -63,6 +63,48 @@ export function useLimparImportacao() {
           .select('id');
 
         deletedTransactions += orphanTx?.length || 0;
+
+        // Se incluirFuturas, também apagar faturas e transações de competências POSTERIORES
+        if (incluirFuturas) {
+          // Buscar faturas posteriores
+          const { data: futureInvoices } = await supabase
+            .from('credit_card_invoices')
+            .select('id')
+            .eq('credit_card_id', creditCardId)
+            .gt('competencia', `${competencia}-32`);
+          
+          if (futureInvoices && futureInvoices.length > 0) {
+            const futureInvoiceIds = futureInvoices.map(inv => inv.id);
+            
+            // Deletar transações dessas faturas
+            const { data: futureTx } = await supabase
+              .from('credit_card_transactions')
+              .delete()
+              .in('invoice_id', futureInvoiceIds)
+              .select('id');
+            
+            deletedTransactions += futureTx?.length || 0;
+            
+            // Deletar as faturas
+            await supabase
+              .from('credit_card_invoices')
+              .delete()
+              .in('id', futureInvoiceIds);
+            
+            deletedInvoices += futureInvoices.length;
+          }
+
+          // Também transações órfãs futuras
+          const { data: futureOrphan } = await supabase
+            .from('credit_card_transactions')
+            .delete()
+            .eq('credit_card_id', creditCardId)
+            .is('invoice_id', null)
+            .gte('purchase_date', competenciaEnd)
+            .select('id');
+          
+          deletedTransactions += futureOrphan?.length || 0;
+        }
 
       } else {
         // Limpar TUDO do cartão
@@ -100,7 +142,7 @@ export function useLimparImportacao() {
       queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
       
       const msg = variables.competencia 
-        ? `Fatura ${variables.competencia} limpa: ${result.deletedTransactions} transações removidas`
+        ? `Fatura ${variables.competencia}${variables.incluirFuturas !== false ? ' e futuras' : ''} limpa: ${result.deletedTransactions} tx, ${result.deletedInvoices} faturas`
         : `Cartão zerado: ${result.deletedTransactions} transações e ${result.deletedInvoices} faturas removidas`;
       
       toast.success(msg);

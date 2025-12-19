@@ -455,6 +455,7 @@ export type Database = {
           description: string | null
           entity_id: string | null
           id: string
+          import_id: string | null
           installment_number: number
           invoice_id: string | null
           purchase_date: string
@@ -469,6 +470,7 @@ export type Database = {
           description?: string | null
           entity_id?: string | null
           id?: string
+          import_id?: string | null
           installment_number?: number
           invoice_id?: string | null
           purchase_date: string
@@ -483,6 +485,7 @@ export type Database = {
           description?: string | null
           entity_id?: string | null
           id?: string
+          import_id?: string | null
           installment_number?: number
           invoice_id?: string | null
           purchase_date?: string
@@ -509,6 +512,13 @@ export type Database = {
             columns: ["entity_id"]
             isOneToOne: false
             referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "credit_card_imports"
             referencedColumns: ["id"]
           },
           {
