@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle, Loader2, CreditCard, AlertTriangle } from 'lucide-react';
+import { Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle, Loader2, CreditCard, AlertTriangle, Calendar, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface ImportarFaturaCartaoDialogProps {
   open: boolean;
@@ -229,6 +230,53 @@ export function ImportarFaturaCartaoDialog({
     .filter(t => t.selected)
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // Calcular resumo de parcelas futuras por mês
+  const futureInstallmentsSummary = useMemo(() => {
+    const selected = parsedTransactions.filter(t => t.selected);
+    const summary: Record<string, { count: number; total: number; items: { description: string; amount: number; installment: string }[] }> = {};
+    
+    // Competência base
+    const baseDate = new Date(`${competenciaAlvo}-15`);
+    
+    for (const t of selected) {
+      const totalInst = t.total_installments || 1;
+      const currentInst = t.installment_number || 1;
+      const remainingCount = totalInst - currentInst; // parcelas FUTURAS (não inclui a atual)
+      
+      if (remainingCount > 0) {
+        for (let i = 1; i <= remainingCount; i++) {
+          const futureDate = new Date(baseDate);
+          futureDate.setMonth(futureDate.getMonth() + i);
+          const monthKey = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
+          const monthLabel = futureDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+          
+          if (!summary[monthKey]) {
+            summary[monthKey] = { count: 0, total: 0, items: [] };
+          }
+          summary[monthKey].count++;
+          summary[monthKey].total += t.amount;
+          summary[monthKey].items.push({
+            description: t.description,
+            amount: t.amount,
+            installment: `${currentInst + i}/${totalInst}`
+          });
+        }
+      }
+    }
+    
+    // Ordenar por mês
+    return Object.entries(summary)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month,
+        monthLabel: new Date(`${month}-15`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        ...data
+      }));
+  }, [parsedTransactions, competenciaAlvo]);
+
+  const totalFutureInstallments = futureInstallmentsSummary.reduce((sum, m) => sum + m.count, 0);
+  const totalFutureValue = futureInstallmentsSummary.reduce((sum, m) => sum + m.total, 0);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -390,12 +438,65 @@ export function ImportarFaturaCartaoDialog({
               </Table>
             </ScrollArea>
 
+            {/* Resumo de Parcelas Futuras */}
+            {totalFutureInstallments > 0 && (
+              <div className="mt-4 border rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100">
+                    Parcelas Futuras que serão criadas
+                  </h4>
+                  <Badge variant="secondary" className="ml-auto">
+                    {totalFutureInstallments} parcelas • {formatCurrency(totalFutureValue)}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {futureInstallmentsSummary.map((monthData) => (
+                    <Collapsible key={monthData.month}>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-left">
+                        <div className="flex items-center gap-2">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform data-[state=open]:rotate-90" />
+                          <span className="font-medium capitalize">{monthData.monthLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="text-xs">
+                            {monthData.count} {monthData.count === 1 ? 'parcela' : 'parcelas'}
+                          </Badge>
+                          <span className="font-semibold text-sm">{formatCurrency(monthData.total)}</span>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="ml-6 mt-1 space-y-1 text-sm text-muted-foreground">
+                          {monthData.items.slice(0, 5).map((item, idx) => (
+                            <div key={idx} className="flex justify-between py-1 border-b border-border/50 last:border-0">
+                              <span className="truncate max-w-[300px]">{item.description}</span>
+                              <div className="flex gap-3 shrink-0">
+                                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{item.installment}</span>
+                                <span>{formatCurrency(item.amount)}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {monthData.items.length > 5 && (
+                            <p className="text-xs text-muted-foreground italic">
+                              + {monthData.items.length - 5} mais...
+                            </p>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
               <Button variant="outline" onClick={() => setStep('select')}>
                 Voltar
               </Button>
               <Button onClick={handleImport} disabled={parsedTransactions.filter(t => t.selected).length === 0}>
                 Importar {parsedTransactions.filter(t => t.selected).length} Transações
+                {totalFutureInstallments > 0 && ` + ${totalFutureInstallments} futuras`}
               </Button>
             </div>
           </div>
