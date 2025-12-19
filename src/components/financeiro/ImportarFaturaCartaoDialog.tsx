@@ -196,8 +196,8 @@ export function ImportarFaturaCartaoDialog({
           purchase_date: t.date,
           installment_number: t.installment_number || 1,
           total_installments: t.total_installments || 1,
-          // Importação já vem com a parcela certa; não criar parcelas futuras automaticamente
-          expand_installments: false,
+          // Ao importar parcela 02/10, criar 03/10 até 10/10 automaticamente
+          create_remaining_installments: (t.total_installments || 1) > 1,
         });
         success++;
       } catch (err) {

@@ -24,6 +24,7 @@ import { NovoCartaoDialog } from './NovoCartaoDialog';
 import { NovaFaturaDialog } from './NovaFaturaDialog';
 import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
 import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
+import { DetalhesCartaoSheet } from './DetalhesCartaoSheet';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -36,7 +37,7 @@ export function ControleCartoes() {
   const [showNovaFatura, setShowNovaFatura] = useState(false);
   const [showNovoGasto, setShowNovoGasto] = useState(false);
   const [showImportarFatura, setShowImportarFatura] = useState(false);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [selectedCard, setSelectedCard] = useState<any>(null);
 
   if (isLoading) {
     return (
@@ -178,10 +179,9 @@ export function ControleCartoes() {
                   key={cartao.id} 
                   className={cn(
                     "glass-card cursor-pointer transition-all hover:shadow-lg group",
-                    selectedCardId === cartao.id && "ring-2 ring-primary",
                     !cartao.is_active && "opacity-60"
                   )}
-                  onClick={() => setSelectedCardId(selectedCardId === cartao.id ? null : cartao.id)}
+                  onClick={() => setSelectedCard(cartao)}
                 >
                   <CardContent className="p-4">
                     {/* Card Header */}
@@ -414,6 +414,12 @@ export function ControleCartoes() {
         onSuccess={() => {
           // Refresh data
         }}
+      />
+
+      <DetalhesCartaoSheet
+        open={!!selectedCard}
+        onOpenChange={(open) => !open && setSelectedCard(null)}
+        cartao={selectedCard}
       />
     </div>
   );

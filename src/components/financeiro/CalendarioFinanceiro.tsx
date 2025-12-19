@@ -30,7 +30,7 @@ import {
 interface Transaction {
   id: string;
   description: string | null;
-  amount: string;
+  amount: string | number;
   due_date: string;
   tipo: 'PAGAR' | 'RECEBER';
   status: string;
