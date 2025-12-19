@@ -47,15 +47,18 @@ import {
   Banknote,
   ArrowUpRight,
   MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
+import { useLimparImportacao } from '@/hooks/useLimparImportacao';
 
 interface DetalhesCartaoSheetProps {
   open: boolean;
@@ -68,8 +71,11 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   const [parcelasFilter, setParcelasFilter] = useState<string>('todas');
   const [invoiceToPay, setInvoiceToPay] = useState<any>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
 
   const { payInvoice, isPaying, updateInvoiceStatus } = useFaturasMutations();
+  const { limparImportacao, isLimpando } = useLimparImportacao();
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
   const monthLabel = format(referenceMonth, 'MMMM yyyy', { locale: ptBR });
@@ -180,6 +186,21 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     }
   };
 
+  const handleDeleteInvoice = async () => {
+    if (invoiceToDelete && cartao) {
+      const competencia = invoiceToDelete.competencia.slice(0, 7); // YYYY-MM
+      await limparImportacao({ creditCardId: cartao.id, competencia });
+      setInvoiceToDelete(null);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (cartao) {
+      await limparImportacao({ creditCardId: cartao.id });
+      setDeleteAllConfirm(false);
+    }
+  };
+
   if (!cartao) return null;
 
   const limitValue = cartao.limit_value || 0;
@@ -235,7 +256,22 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                   <SheetTitle className="text-primary-foreground/90 text-sm font-normal">
                     {cartao.card_provider || 'Cartão de Crédito'}
                   </SheetTitle>
-                  <CreditCard className="h-8 w-8 opacity-80" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10">
+                        <MoreVertical className="h-5 w-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover">
+                      <DropdownMenuItem 
+                        onClick={() => setDeleteAllConfirm(true)}
+                        className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Limpar Todo Cartão
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </SheetHeader>
 
@@ -480,21 +516,22 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                                 {formatCurrency(inv.total_value)}
                               </p>
                               
-                              {canPay && (
-                                <DropdownMenu>
+                              <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
                                       <MoreVertical className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="bg-popover">
-                                    <DropdownMenuItem 
-                                      onClick={() => setInvoiceToPay(inv)}
-                                      className="gap-2 cursor-pointer"
-                                    >
-                                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                      Marcar como Paga
-                                    </DropdownMenuItem>
+                                    {canPay && (
+                                      <DropdownMenuItem 
+                                        onClick={() => setInvoiceToPay(inv)}
+                                        className="gap-2 cursor-pointer"
+                                      >
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                        Marcar como Paga
+                                      </DropdownMenuItem>
+                                    )}
                                     {inv.status === 'ABERTA' && (
                                       <DropdownMenuItem 
                                         onClick={() => updateInvoiceStatus({ invoiceId: inv.id, status: 'FECHADA' })}
@@ -504,9 +541,16 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                                         Fechar Fatura
                                       </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => setInvoiceToDelete(inv)}
+                                      className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Limpar Fatura
+                                    </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
-                              )}
                             </div>
                           </div>
 
@@ -555,6 +599,65 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {isPaying ? 'Processando...' : 'Confirmar Pagamento'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete Invoice Dialog */}
+      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => setInvoiceToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Limpar Fatura
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso irá <strong>excluir todas as transações</strong> da fatura de{' '}
+              <strong>
+                {invoiceToDelete && format(new Date(invoiceToDelete.competencia), 'MMMM yyyy', { locale: ptBR })}
+              </strong>{' '}
+              do cartão <strong>{cartao?.name}</strong>.
+              <br /><br />
+              Esta ação não pode ser desfeita. Você precisará reimportar os dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteInvoice}
+              disabled={isLimpando}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isLimpando ? 'Limpando...' : 'Confirmar Exclusão'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm Delete All Dialog */}
+      <AlertDialog open={deleteAllConfirm} onOpenChange={setDeleteAllConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Limpar TUDO do Cartão
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso irá <strong>excluir TODAS as transações e faturas</strong> do cartão{' '}
+              <strong>{cartao?.name}</strong>.
+              <br /><br />
+              Esta ação não pode ser desfeita. Você precisará reimportar todos os dados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteAll}
+              disabled={isLimpando}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isLimpando ? 'Limpando...' : 'Confirmar Exclusão Total'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
