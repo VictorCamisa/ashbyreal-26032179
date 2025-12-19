@@ -31,13 +31,13 @@ interface ParsedTransaction {
 }
 
 const CARD_PROVIDERS: Record<string, { label: string; formats: string[] }> = {
-  'LATAM': { label: 'LATAM Pass', formats: ['CSV'] },
-  'LATAM_BLACK': { label: 'LATAM Black', formats: ['CSV'] },
-  'AZUL': { label: 'Azul Itaucard', formats: ['CSV'] },
-  'ITAU_EMPRESAS': { label: 'Itaú Empresas', formats: ['XLSX', 'XLS'] },
-  'MERCADO_LIVRE': { label: 'Mercado Livre', formats: ['PDF'] },
+  'LATAM': { label: 'LATAM Pass', formats: ['CSV', 'PDF'] },
+  'LATAM_BLACK': { label: 'LATAM Black', formats: ['CSV', 'PDF'] },
+  'AZUL': { label: 'Azul Itaucard', formats: ['CSV', 'PDF'] },
+  'ITAU_EMPRESAS': { label: 'Itaú Empresas', formats: ['XLSX', 'XLS', 'PDF'] },
+  'MERCADO_LIVRE': { label: 'Mercado Livre', formats: ['PDF', 'CSV'] },
   'SANTANDER_SMILES': { label: 'Santander Smiles', formats: ['PDF', 'CSV'] },
-  'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX'] },
+  'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX', 'PDF'] },
 };
 
 export function ImportarFaturaCartaoDialog({ 
@@ -123,13 +123,9 @@ export function ImportarFaturaCartaoDialog({
 
       if (fileExt === 'csv') {
         content = await parseCSVFile(file);
-      } else if (fileExt === 'xlsx' || fileExt === 'xls') {
+      } else if (fileExt === 'xlsx' || fileExt === 'xls' || fileExt === 'pdf') {
         // Enviar o arquivo íntegro (base64) para a Edge Function processar
         fileBase64 = await readFileAsBase64(file);
-      } else if (fileExt === 'pdf') {
-        toast.error('PDF requer processamento manual. Use CSV ou XLSX quando possível.');
-        setStep('select');
-        return;
       }
 
       // Call edge function to parse usando o provider do cartão
@@ -268,7 +264,7 @@ export function ImportarFaturaCartaoDialog({
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                   <input
                     type="file"
-                    accept=".csv,.xlsx,.xls"
+                    accept=".csv,.xlsx,.xls,.pdf"
                     onChange={handleFileSelect}
                     className="hidden"
                     id="file-upload"

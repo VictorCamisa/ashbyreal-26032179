@@ -18,6 +18,8 @@ interface ParsedTransaction {
   category_suggestion?: string;
 }
 
+// ============= UTILITY FUNCTIONS =============
+
 const hasLetters = (s: string) => /[A-Za-zÀ-ÿ]/.test(s);
 
 function parsePtBrNumber(value: unknown): number {
@@ -33,7 +35,6 @@ function parsePtBrNumber(value: unknown): number {
 }
 
 function excelSerialToISO(serial: number): string {
-  // Excel serial date (days since 1899-12-30)
   const ms = Math.round((serial - 25569) * 86400 * 1000);
   const d = new Date(ms);
   return d.toISOString().slice(0, 10);
@@ -41,7 +42,6 @@ function excelSerialToISO(serial: number): string {
 
 function parseDateAny(value: unknown): string {
   if (typeof value === "number" && Number.isFinite(value)) {
-    // Typical invoice exports use excel serials (e.g., 45988)
     if (value > 20000 && value < 90000) return excelSerialToISO(value);
   }
 
@@ -78,6 +78,16 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+function extractInstallments(description: string): { num: number; total: number } {
+  const match = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
+  if (match) {
+    return { num: parseInt(match[1], 10), total: parseInt(match[2], 10) };
+  }
+  return { num: 1, total: 1 };
+}
+
+// ============= XLSX PARSER (ITAU EMPRESAS) =============
+
 function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
   const txs: ParsedTransaction[] = [];
 
@@ -92,20 +102,19 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
     if (!row) continue;
     const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
     const hasData = normalized.some((c) => c === "data" || c.includes("data"));
-    const hasDesc = normalized.some((c) => c.includes("descr"));
+    const hasDesc = normalized.some((c) => c.includes("descr") || c.includes("histórico"));
     const hasValor = normalized.some((c) => c.includes("valor"));
 
     if (hasData && hasDesc && hasValor) {
       headerRowIndex = i;
       dataCol = normalized.findIndex((c) => c === "data" || c.includes("data"));
-      descCol = normalized.findIndex((c) => c.includes("descr"));
+      descCol = normalized.findIndex((c) => c.includes("descr") || c.includes("histórico"));
       valueCol = normalized.findIndex((c) => c.includes("valor"));
       break;
     }
   }
 
-  console.log("Header row index:", headerRowIndex);
-  console.log("Detected columns:", { dataCol, descCol, valueCol });
+  console.log("Header row index:", headerRowIndex, "cols:", { dataCol, descCol, valueCol });
 
   const start = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
 
@@ -120,18 +129,26 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
     const date = parseDateAny(rawDate);
     if (!date) continue;
 
-    // Description fallback: if chosen column is not text, pick first text cell with letters
+    // Description: use column or find first text with letters
     let description = String(rawDesc ?? "").trim();
     if (!description || !hasLetters(description)) {
       const candidate = row.find((c) => typeof c === "string" && c.trim().length > 2 && hasLetters(c.trim()));
       if (candidate) description = String(candidate).trim();
     }
-
     if (!description || !hasLetters(description)) continue;
 
-    // Amount fallback: try the value column, else scan row for plausible monetary numbers
-    let amount = Math.abs(parsePtBrNumber(rawVal));
+    // Skip summary/payment lines
+    const lowerDesc = description.toLowerCase();
+    if (lowerDesc.includes("pagamento efetuado") || 
+        lowerDesc.includes("total da fatura") ||
+        lowerDesc.includes("saldo da fatura") ||
+        lowerDesc.includes("total de lançamentos") ||
+        lowerDesc.includes("total de produtos")) {
+      continue;
+    }
 
+    // Amount
+    let amount = Math.abs(parsePtBrNumber(rawVal));
     if (!amount || amount <= 0) {
       const nums = row
         .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
@@ -139,44 +156,43 @@ function parseItauEmpresasFromRows(rows: any[][]): ParsedTransaction[] {
         .map((n) => Math.abs(n));
       if (nums.length) amount = nums.sort((a, b) => b - a)[0];
     }
-
-    // We only import purchase-like lines (positive amounts)
     if (!amount || amount <= 0) continue;
 
-    // Try installments pattern
-    const installmentMatch = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
+    const { num, total } = extractInstallments(description);
 
     txs.push({
       date,
       description,
       amount,
-      installment_number: installmentMatch ? parseInt(installmentMatch[1], 10) : 1,
-      total_installments: installmentMatch ? parseInt(installmentMatch[2], 10) : 1,
+      installment_number: num,
+      total_installments: total,
     });
   }
 
   return txs;
 }
 
+// ============= CSV PARSER (LATAM, AZUL, GENERIC) =============
+
 function parseGenericCSV(content: string): ParsedTransaction[] {
   const lines = content.split("\n").filter((l) => l.trim());
   if (!lines.length) return [];
 
-  // detect delimiter using first non-empty line
+  // Detect delimiter
   const sample = lines.find((l) => l.trim()) ?? "";
   const semi = (sample.match(/;/g) || []).length;
   const comma = (sample.match(/,/g) || []).length;
   const tab = (sample.match(/\t/g) || []).length;
-  const delimiter = comma > semi && comma > tab ? "," : tab > semi && tab > comma ? "\t" : ";";
+  const delimiter = semi >= comma && semi >= tab ? ";" : comma > tab ? "," : "\t";
+
+  console.log("CSV delimiter:", delimiter, "lines:", lines.length);
 
   const txs: ParsedTransaction[] = [];
 
   for (const line of lines) {
-    const parts = line
-      .split(delimiter)
-      .map((p) => p.trim().replace(/^["']|["']$/g, ""));
+    const parts = line.split(delimiter).map((p) => p.trim().replace(/^["']|["']$/g, ""));
 
-    // find date column
+    // Find date column
     const dateIndex = parts.findIndex((p) => !!parseDateAny(p));
     if (dateIndex === -1) continue;
 
@@ -196,21 +212,121 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
     if (!description || !amount) continue;
 
-    const installmentMatch = description.match(/(?:PARCELA|PARC\.?|P)\s*(\d+)\s*[\/DE]+\s*(\d+)/i);
+    // Skip summary lines
+    const lowerDesc = description.toLowerCase();
+    if (lowerDesc.includes("pagamento") || 
+        lowerDesc.includes("total") ||
+        lowerDesc.includes("saldo")) {
+      continue;
+    }
+
+    const { num, total } = extractInstallments(description);
 
     txs.push({
       date,
       description,
       amount,
-      installment_number: installmentMatch ? parseInt(installmentMatch[1], 10) : 1,
-      total_installments: installmentMatch ? parseInt(installmentMatch[2], 10) : 1,
+      installment_number: num,
+      total_installments: total,
     });
   }
 
   return txs;
 }
 
-// Use OpenAI to categorize transactions
+// ============= PDF PARSER (via Lovable AI / OpenAI Vision) =============
+
+async function parsePDFWithAI(fileBase64: string, openaiKey: string): Promise<ParsedTransaction[]> {
+  if (!openaiKey) {
+    console.log("No OpenAI key available for PDF parsing");
+    return [];
+  }
+
+  console.log("Parsing PDF with AI Vision...");
+
+  const prompt = `Analise esta fatura de cartão de crédito em PDF e extraia TODAS as transações de compra.
+
+Para cada transação, extraia:
+- data: no formato YYYY-MM-DD
+- description: descrição do estabelecimento/compra
+- amount: valor em número decimal (ex: 123.45)
+- installment_number: número da parcela se houver (ex: 2)
+- total_installments: total de parcelas se houver (ex: 10)
+
+IGNORE linhas de:
+- Pagamento efetuado
+- Total da fatura
+- Saldo anterior
+- Resumo
+
+Responda APENAS com JSON válido no formato:
+{"transactions": [{"date": "2025-01-15", "description": "LOJA ABC", "amount": 150.00, "installment_number": 1, "total_installments": 1}]}`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${fileBase64}`,
+                  detail: "high"
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI Vision error:", response.status, errorText);
+      return [];
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    console.log("AI response:", content.substring(0, 500));
+
+    // Extract JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*"transactions"[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.log("No JSON found in AI response");
+      return [];
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+    if (result.transactions && Array.isArray(result.transactions)) {
+      return result.transactions.map((t: any) => ({
+        date: t.date || "",
+        description: t.description || "",
+        amount: Math.abs(parseFloat(t.amount) || 0),
+        installment_number: parseInt(t.installment_number) || 1,
+        total_installments: parseInt(t.total_installments) || 1,
+      })).filter((t: ParsedTransaction) => t.date && t.description && t.amount > 0);
+    }
+
+    return [];
+  } catch (e) {
+    console.error("Error parsing PDF with AI:", e);
+    return [];
+  }
+}
+
+// ============= CATEGORIZATION WITH AI =============
+
 async function categorizeTransactions(
   transactions: ParsedTransaction[],
   categories: any[],
@@ -246,10 +362,7 @@ Responda em JSON com array de categorias na mesma ordem:
     if (response.ok) {
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content || "";
-      const jsonStr = content
-        .replace(/```json?\n?/g, "")
-        .replace(/```/g, "")
-        .trim();
+      const jsonStr = content.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
       const result = JSON.parse(jsonStr);
 
       if (result.categories && Array.isArray(result.categories)) {
@@ -264,6 +377,8 @@ Responda em JSON com array de categorias na mesma ordem:
 
   return transactions;
 }
+
+// ============= MAIN HANDLER =============
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -292,10 +407,7 @@ serve(async (req) => {
     if (!creditCardId || !cardProvider) {
       return new Response(
         JSON.stringify({ error: "creditCardId e cardProvider são obrigatórios" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -312,59 +424,46 @@ serve(async (req) => {
 
     console.log(`Processing provider: ${provider}, fileType: ${type}`);
 
-    switch (provider) {
-      case "LATAM":
-      case "LATAM_BLACK":
-      case "AZUL":
-      case "SANTANDER_SMILES":
-      case "SANTANDER":
-        transactions = parseGenericCSV(content || "");
-        break;
+    // PDF Processing (any provider)
+    if (type === "PDF" && fileBase64) {
+      console.log("Processing PDF file...");
+      transactions = await parsePDFWithAI(fileBase64, openaiKey || "");
+    }
+    // XLSX Processing
+    else if ((type === "XLSX" || type === "XLS") && fileBase64) {
+      console.log("Processing XLSX file...");
+      const bytes = decodeBase64ToUint8Array(fileBase64);
+      const workbook = XLSX.read(bytes, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: true,
+        defval: null,
+      }) as any[][];
 
-      case "ITAU_EMPRESAS":
-      case "ITAU": {
-        if ((type === "XLSX" || type === "XLS") && fileBase64) {
-          const bytes = decodeBase64ToUint8Array(fileBase64);
-          const workbook = XLSX.read(bytes, { type: "array" });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            raw: true,
-            defval: null,
-          }) as any[][];
-
-          console.log("XLSX rows:", rows.length);
-          console.log("First 5 rows (raw arrays):", JSON.stringify(rows.slice(0, 5)));
-
-          transactions = parseItauEmpresasFromRows(rows);
-        } else if (content) {
-          transactions = parseGenericCSV(content);
-        }
-        break;
-      }
-
-      case "MERCADO_LIVRE":
-      case "MERCADOLIVRE":
-        // TODO: Implement PDF extraction when provided
-        transactions = [];
-        break;
-
-      default:
-        if (content) transactions = parseGenericCSV(content);
-        break;
+      console.log("XLSX rows:", rows.length);
+      transactions = parseItauEmpresasFromRows(rows);
+    }
+    // CSV Processing
+    else if (content) {
+      console.log("Processing CSV file...");
+      transactions = parseGenericCSV(content);
     }
 
     console.log(`Parsed ${transactions.length} transactions`);
-    if (transactions.length) {
+    if (transactions.length > 0) {
       console.log("First transaction:", JSON.stringify(transactions[0]));
+      console.log("Last transaction:", JSON.stringify(transactions[transactions.length - 1]));
     }
 
+    // Get categories for AI categorization
     const { data: categories } = await supabase
       .from("categories")
       .select("id, name")
       .eq("type", "DESPESA");
 
-    if (openaiKey && categories && transactions.length) {
+    // Categorize using AI if available
+    if (openaiKey && categories && transactions.length > 0) {
       transactions = await categorizeTransactions(transactions, categories, openaiKey);
     }
 
