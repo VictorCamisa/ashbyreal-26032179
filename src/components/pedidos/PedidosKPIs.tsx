@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
-import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface Pedido {
   id: string;
@@ -59,25 +58,28 @@ export function PedidosKPIs({ pedidos }: PedidosKPIsProps) {
       <KPICard
         label="Vendas do Mês"
         value={`R$ ${stats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-        trend={
-          stats.growthPercent !== 0
-            ? { value: Math.abs(stats.growthPercent), isPositive: stats.growthPercent > 0 }
-            : undefined
-        }
+        trend={stats.growthPercent !== 0 ? { 
+          value: Math.abs(stats.growthPercent), 
+          isPositive: stats.growthPercent > 0 
+        } : undefined}
+        animationDelay={0}
       />
       <KPICard
         label="Ticket Médio"
         value={`R$ ${stats.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+        animationDelay={50}
       />
       <KPICard
         label="Pedidos"
         value={stats.pedidosMes}
         subtitle="este mês"
+        animationDelay={100}
       />
       <KPICard
         label="Pendentes"
         value={stats.pendentes}
         subtitle={`${stats.entregues} entregues`}
+        animationDelay={150}
       />
     </KPIGrid>
   );
