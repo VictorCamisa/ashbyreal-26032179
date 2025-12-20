@@ -277,116 +277,113 @@ export function ControleCartoes() {
         )}
       </div>
 
-      {/* Faturas Timeline */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Faturas Abertas */}
-        <Card className="glass-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Faturas Pendentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {faturasAbertas.length > 0 ? (
-              faturasAbertas.slice(0, 5).map((fatura) => {
-                const cartao = cartoes?.find(c => c.id === fatura.credit_card_id);
-                const isOverdue = fatura.due_date && new Date(fatura.due_date) < now && fatura.status !== 'PAGA';
-                
-                return (
-                  <div 
-                    key={fatura.id} 
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors",
-                      isOverdue ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/50 hover:bg-muted/50"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "h-8 w-8 rounded-lg flex items-center justify-center",
-                        isOverdue ? "bg-destructive/10" : "bg-primary/10"
-                      )}>
-                        <CreditCard className={cn(
-                          "h-4 w-4",
-                          isOverdue ? "text-destructive" : "text-primary"
-                        )} />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{cartao?.name || 'Cartão'}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(fatura.competencia).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">
-                        R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                      <Badge 
-                        variant={isOverdue ? 'destructive' : fatura.status === 'FECHADA' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {isOverdue ? 'Vencida' : fatura.status}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-6">
-                <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhuma fatura pendente</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Próximas Faturas */}
-        <Card className="glass-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              Próximas Faturas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {faturasFuturas.length > 0 ? (
-              <div className="space-y-2">
-                {faturasFuturas.map((fatura, index) => {
-                  const cartao = cartoes?.find(c => c.id === fatura.credit_card_id);
+      {/* Faturas por Cartão */}
+      <Card className="glass-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            Faturas por Cartão
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {cartoes && cartoes.length > 0 ? (
+            <div className="space-y-6">
+              {cartoes
+                .filter(cartao => {
+                  const cardFaturas = faturas?.filter(f => f.credit_card_id === cartao.id && (f.status === 'ABERTA' || f.status === 'FECHADA')) || [];
+                  return cardFaturas.length > 0;
+                })
+                .map((cartao) => {
+                  const cardFaturas = faturas
+                    ?.filter(f => f.credit_card_id === cartao.id && (f.status === 'ABERTA' || f.status === 'FECHADA'))
+                    .sort((a, b) => new Date(a.due_date || a.competencia).getTime() - new Date(b.due_date || b.competencia).getTime()) || [];
+                  
+                  const totalCartao = cardFaturas.reduce((acc, f) => acc + f.total_value, 0);
                   
                   return (
-                    <div 
-                      key={fatura.id} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-sm font-medium text-muted-foreground">
-                          {index + 1}
+                    <div key={cartao.id} className="space-y-3">
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                            <CreditCard className="h-5 w-5 text-primary-foreground" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold">{cartao.name}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Venc. dia {cartao.due_day} • {cardFaturas.length} {cardFaturas.length === 1 ? 'fatura' : 'faturas'}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{cartao?.name || 'Cartão'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(fatura.competencia).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                        <div className="text-right">
+                          <p className="text-lg font-bold">
+                            R$ {totalCartao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </p>
+                          <p className="text-xs text-muted-foreground">Total pendente</p>
                         </div>
                       </div>
-                      <p className="font-semibold">
-                        R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
+                      
+                      {/* Card Faturas */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pl-2">
+                        {cardFaturas.map((fatura, index) => {
+                          const isOverdue = fatura.due_date && new Date(fatura.due_date) < now && fatura.status !== 'PAGA';
+                          const competenciaDate = new Date(fatura.competencia);
+                          const dueDateFormatted = fatura.due_date 
+                            ? new Date(fatura.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                            : null;
+                          
+                          return (
+                            <div 
+                              key={fatura.id} 
+                              className={cn(
+                                "flex items-center justify-between p-3 rounded-lg border transition-colors",
+                                isOverdue ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/50 hover:bg-muted/50"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "h-6 w-6 rounded flex items-center justify-center text-xs font-medium",
+                                  isOverdue ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+                                )}>
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium capitalize">
+                                    {competenciaDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })}
+                                  </p>
+                                  {dueDateFormatted && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Venc: {dueDateFormatted}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-sm">
+                                  R$ {fatura.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                {isOverdue && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Vencida
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Calendar className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                <p className="text-sm text-muted-foreground">Nenhum gasto futuro previsto</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
+              <p className="text-sm text-muted-foreground">Nenhuma fatura pendente</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Dialogs */}
       <NovoCartaoDialog
