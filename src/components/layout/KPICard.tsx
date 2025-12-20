@@ -11,88 +11,89 @@ export interface KPICardProps {
     isPositive?: boolean;
   };
   subtitle?: string;
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'emerald' | 'blue' | 'rose' | 'violet' | 'cyan' | 'amber' | 'hero';
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'primary' | 'muted' | 'hero' | 'blue' | 'emerald' | 'rose' | 'violet' | 'cyan' | 'amber';
   className?: string;
   animationDelay?: number;
 }
 
 const variantStyles = {
   default: { 
-    iconBg: 'bg-muted', 
+    iconBg: 'bg-muted/50', 
     iconColor: 'text-foreground', 
-    valueColor: '',
-    cardClass: 'glass-card',
-    glowColor: '',
+    valueColor: 'text-foreground',
+    borderAccent: '',
   },
   success: { 
     iconBg: 'bg-success/10', 
     iconColor: 'text-success', 
     valueColor: 'text-success',
-    cardClass: 'glass-card hover:shadow-success/10',
-    glowColor: 'group-hover:shadow-success/20',
+    borderAccent: 'border-l-4 border-l-success',
   },
   warning: { 
-    iconBg: 'bg-amber-100 dark:bg-amber-900/30', 
-    iconColor: 'text-amber-600', 
-    valueColor: 'text-amber-600',
-    cardClass: 'glass-card',
-    glowColor: '',
+    iconBg: 'bg-amber-500/10', 
+    iconColor: 'text-amber-500', 
+    valueColor: 'text-amber-500',
+    borderAccent: 'border-l-4 border-l-amber-500',
   },
   danger: { 
     iconBg: 'bg-destructive/10', 
     iconColor: 'text-destructive', 
     valueColor: 'text-destructive',
-    cardClass: 'glass-card',
-    glowColor: '',
+    borderAccent: 'border-l-4 border-l-destructive',
   },
-  emerald: { 
-    iconBg: 'bg-emerald-100 dark:bg-emerald-900/30', 
-    iconColor: 'text-emerald-600', 
-    valueColor: 'text-emerald-600',
-    cardClass: 'glass-card',
-    glowColor: '',
+  primary: { 
+    iconBg: 'bg-primary/10', 
+    iconColor: 'text-primary', 
+    valueColor: 'text-primary',
+    borderAccent: 'border-l-4 border-l-primary',
   },
-  blue: { 
-    iconBg: 'bg-blue-100 dark:bg-blue-900/30', 
-    iconColor: 'text-blue-600', 
-    valueColor: 'text-blue-600',
-    cardClass: 'glass-card',
-    glowColor: '',
-  },
-  rose: { 
-    iconBg: 'bg-rose-100 dark:bg-rose-900/30', 
-    iconColor: 'text-rose-600', 
-    valueColor: 'text-rose-600',
-    cardClass: 'glass-card',
-    glowColor: '',
-  },
-  violet: { 
-    iconBg: 'bg-violet-100 dark:bg-violet-900/30', 
-    iconColor: 'text-violet-600', 
-    valueColor: 'text-violet-600',
-    cardClass: 'glass-card',
-    glowColor: '',
-  },
-  cyan: { 
-    iconBg: 'bg-cyan-100 dark:bg-cyan-900/30', 
-    iconColor: 'text-cyan-600', 
-    valueColor: 'text-cyan-600',
-    cardClass: 'glass-card',
-    glowColor: '',
-  },
-  amber: { 
-    iconBg: 'bg-amber-100 dark:bg-amber-900/30', 
-    iconColor: 'text-amber-600', 
-    valueColor: 'text-amber-600',
-    cardClass: 'glass-card',
-    glowColor: '',
+  muted: { 
+    iconBg: 'bg-muted/30', 
+    iconColor: 'text-muted-foreground', 
+    valueColor: 'text-muted-foreground',
+    borderAccent: '',
   },
   hero: { 
-    iconBg: 'bg-gradient-to-br from-success/20 to-success/5', 
+    iconBg: 'bg-gradient-to-br from-success/20 to-success/10', 
     iconColor: 'text-success', 
     valueColor: 'text-success',
-    cardClass: 'kpi-card-hero',
-    glowColor: 'group-hover:shadow-lg group-hover:shadow-success/10',
+    borderAccent: 'border-l-4 border-l-success',
+  },
+  blue: { 
+    iconBg: 'bg-blue-500/10', 
+    iconColor: 'text-blue-500', 
+    valueColor: 'text-blue-500',
+    borderAccent: 'border-l-4 border-l-blue-500',
+  },
+  emerald: { 
+    iconBg: 'bg-emerald-500/10', 
+    iconColor: 'text-emerald-500', 
+    valueColor: 'text-emerald-500',
+    borderAccent: 'border-l-4 border-l-emerald-500',
+  },
+  rose: { 
+    iconBg: 'bg-rose-500/10', 
+    iconColor: 'text-rose-500', 
+    valueColor: 'text-rose-500',
+    borderAccent: 'border-l-4 border-l-rose-500',
+  },
+  violet: { 
+    iconBg: 'bg-violet-500/10', 
+    iconColor: 'text-violet-500', 
+    valueColor: 'text-violet-500',
+    borderAccent: 'border-l-4 border-l-violet-500',
+  },
+  cyan: { 
+    iconBg: 'bg-cyan-500/10', 
+    iconColor: 'text-cyan-500', 
+    valueColor: 'text-cyan-500',
+    borderAccent: 'border-l-4 border-l-cyan-500',
+  },
+  amber: { 
+    iconBg: 'bg-amber-500/10', 
+    iconColor: 'text-amber-500', 
+    valueColor: 'text-amber-500',
+    borderAccent: 'border-l-4 border-l-amber-500',
   },
 };
 
@@ -112,50 +113,60 @@ export function KPICard({
   return (
     <div 
       className={cn(
-        "group p-4 sm:p-5 transition-all duration-300",
-        styles.cardClass,
-        styles.glowColor,
+        "group relative rounded-2xl border border-border/40 bg-card p-6",
+        "shadow-sm hover:shadow-md transition-all duration-200",
+        styles.borderAccent,
         "animate-fade-in opacity-0",
         className
       )}
       style={{ animationDelay: `${animationDelay}ms`, animationFillMode: 'forwards' }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5 min-w-0 flex-1">
-          <p className="text-[11px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium">
+      <div className="flex items-start justify-between gap-4">
+        {/* Content - hierarquia clara */}
+        <div className="space-y-2 min-w-0 flex-1">
+          {/* Label pequeno e discreto */}
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
             {label}
           </p>
+          
+          {/* Valor grande e forte */}
           <p className={cn(
-            "text-xl sm:text-2xl lg:text-3xl font-bold tabular-nums tracking-tight",
+            "text-3xl sm:text-4xl font-bold tabular-nums tracking-tight leading-none",
             styles.valueColor
           )}>
             {value}
           </p>
-          <div className="flex items-center gap-2 flex-wrap pt-0.5">
-            {trend && (
-              <span className={cn(
-                "inline-flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded-full",
-                trend.isPositive 
-                  ? "text-success bg-success/10" 
-                  : "text-destructive bg-destructive/10"
-              )}>
-                <TrendIcon className="h-3 w-3" />
-                {trend.value.toFixed(1)}%
-              </span>
-            )}
-            {subtitle && (
-              <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                {subtitle}
-              </span>
-            )}
-          </div>
+          
+          {/* Meta info ainda menor */}
+          {(trend || subtitle) && (
+            <div className="flex items-center gap-3 pt-1">
+              {trend && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 text-xs font-medium",
+                  trend.isPositive 
+                    ? "text-success" 
+                    : "text-destructive"
+                )}>
+                  <TrendIcon className="h-3.5 w-3.5" />
+                  {trend.value.toFixed(1)}%
+                </span>
+              )}
+              {subtitle && (
+                <span className="text-xs text-muted-foreground/70">
+                  {subtitle}
+                </span>
+              )}
+            </div>
+          )}
         </div>
+        
+        {/* Ícone */}
         <div className={cn(
-          "h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center flex-shrink-0",
-          "transition-all duration-300 group-hover:scale-110",
+          "h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0",
+          "transition-transform duration-200 group-hover:scale-105",
           styles.iconBg
         )}>
-          <Icon className={cn("h-5 w-5 sm:h-6 sm:w-6 transition-colors", styles.iconColor)} />
+          <Icon className={cn("h-6 w-6", styles.iconColor)} />
         </div>
       </div>
     </div>
@@ -164,7 +175,7 @@ export function KPICard({
 
 interface KPIGridProps {
   children: ReactNode;
-  columns?: 2 | 3 | 4 | 6;
+  columns?: 2 | 3 | 4;
 }
 
 export function KPIGrid({ children, columns = 4 }: KPIGridProps) {
@@ -172,11 +183,10 @@ export function KPIGrid({ children, columns = 4 }: KPIGridProps) {
     2: 'grid-cols-1 sm:grid-cols-2',
     3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
     4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
-    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
   };
 
   return (
-    <div className={cn("grid gap-3 sm:gap-4", gridCols[columns])}>
+    <div className={cn("grid gap-4 sm:gap-6", gridCols[columns])}>
       {children}
     </div>
   );
