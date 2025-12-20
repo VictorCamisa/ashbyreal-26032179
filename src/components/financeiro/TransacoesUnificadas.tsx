@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -19,12 +19,16 @@ import {
   List,
   Tag,
   X,
-  CreditCard
+  CreditCard,
+  CheckSquare,
+  Square,
+  MoreHorizontal
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -32,6 +36,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ImportarTransacoesDialog } from './ImportarTransacoesDialog';
 import { NovaTransacaoDialog } from './NovaTransacaoDialog';
 import { EditarTransacaoDialog } from './EditarTransacaoDialog';
@@ -55,7 +66,6 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { TransactionFilter } from '@/pages/Financeiro';
-import { useEffect } from 'react';
 
 interface TransacoesUnificadasProps {
   initialFilter?: TransactionFilter;
@@ -72,6 +82,7 @@ interface UnifiedTransaction {
   status: string;
   tipo: 'PAGAR' | 'RECEBER';
   origin: string;
+  entity_id: string;
   categories?: { name: string; group: string | null } | null;
   subcategories?: { name: string } | null;
   accounts?: { name: string } | null;
@@ -98,6 +109,10 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   // Apply initial filter when component mounts or filter changes
   useEffect(() => {
@@ -162,8 +177,39 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
-  // NOTE: Credit card transactions are NOT included here - they have their own tab (Cartões)
-  // This prevents double counting expenses
+  // Auto-correct status: mark overdue transactions as ATRASADO
+  const autoCorrectStatusMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'ATRASADO' })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+    }
+  });
+
+  // Auto-correct overdue transactions when data loads
+  useEffect(() => {
+    if (bankTransactions && bankTransactions.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const overdueIds = bankTransactions
+        .filter(t => {
+          const dueDate = new Date(t.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return t.status === 'PREVISTO' && dueDate < today;
+        })
+        .map(t => t.id);
+
+      if (overdueIds.length > 0) {
+        autoCorrectStatusMutation.mutate(overdueIds);
+      }
+    }
+  }, [bankTransactions]);
 
   const isLoading = isLoadingBank;
 
@@ -180,6 +226,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       status: t.status,
       tipo: t.tipo as 'PAGAR' | 'RECEBER',
       origin: t.origin || 'MANUAL',
+      entity_id: t.entity_id,
       categories: t.categories,
       subcategories: t.subcategories,
       accounts: t.accounts,
@@ -201,6 +248,28 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       case 'GERAL': return 'bg-gray-500/10 text-gray-700 border-gray-500/30';
       default: return 'bg-muted text-muted-foreground';
     }
+  };
+
+  // Status color mapping
+  const getStatusStyle = (status: string, isOverdue: boolean) => {
+    if (status === 'PAGO') {
+      return 'bg-emerald-500 hover:bg-emerald-600 text-white';
+    }
+    if (status === 'ATRASADO' || isOverdue) {
+      return 'bg-destructive hover:bg-destructive/90 text-white';
+    }
+    if (status === 'CANCELADO') {
+      return 'bg-muted text-muted-foreground';
+    }
+    // PREVISTO
+    return 'bg-amber-500 hover:bg-amber-600 text-white';
+  };
+
+  const getStatusLabel = (status: string, isOverdue: boolean) => {
+    if (status === 'PAGO') return 'Pago';
+    if (status === 'ATRASADO' || isOverdue) return 'Atrasado';
+    if (status === 'CANCELADO') return 'Cancelado';
+    return 'Pendente';
   };
 
   // Get all unique tags from transactions
@@ -230,13 +299,99 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['financeiro-alerts'] });
       toast.success('Transação marcada como paga!');
     },
     onError: (error: any) => {
       toast.error('Erro ao marcar como pago: ' + error.message);
+    }
+  });
+
+  // Batch mark as paid mutation
+  const batchMarkAsPaidMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'PAGO', payment_date: today })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro-alerts'] });
+      toast.success(`${selectedIds.size} transações marcadas como pagas!`);
+      setSelectedIds(new Set());
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao marcar como pago: ' + error.message);
+    }
+  });
+
+  // Batch change entity mutation
+  const batchChangeEntityMutation = useMutation({
+    mutationFn: async ({ ids, entityId }: { ids: string[]; entityId: string }) => {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ entity_id: entityId })
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      toast.success(`${selectedIds.size} transações atualizadas!`);
+      setSelectedIds(new Set());
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar entidade: ' + error.message);
+    }
+  });
+
+  // Batch delete mutation
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      toast.success(`${selectedIds.size} transações excluídas!`);
+      setSelectedIds(new Set());
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    }
+  });
+
+  // Batch change status mutation
+  const batchChangeStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const updates: any = { status };
+      if (status === 'PAGO') {
+        updates.payment_date = format(new Date(), 'yyyy-MM-dd');
+      }
+      const { error } = await supabase
+        .from('transactions')
+        .update(updates)
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['financeiro-alerts'] });
+      toast.success(`${selectedIds.size} transações atualizadas!`);
+      setSelectedIds(new Set());
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar status: ' + error.message);
     }
   });
 
@@ -250,7 +405,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
     }
   });
 
@@ -264,7 +419,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       toast.success('Transação excluída com sucesso!');
     },
@@ -282,7 +437,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
       toast.success('Transação criada com sucesso!');
@@ -303,7 +458,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
       toast.success('Transação atualizada com sucesso!');
@@ -386,6 +541,51 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     const tags = currentTags || [];
     updateTagsMutation.mutate({ id: transactionId, tags: tags.filter(t => t !== tagToRemove) });
   };
+
+  // Selection handlers
+  const toggleSelection = (id: string) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredTransactions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTransactions.map(t => t.id)));
+    }
+  };
+
+  const handleBatchMarkAsPaid = () => {
+    if (selectedIds.size > 0) {
+      batchMarkAsPaidMutation.mutate(Array.from(selectedIds));
+    }
+  };
+
+  const handleBatchChangeEntity = (entityId: string) => {
+    if (selectedIds.size > 0) {
+      batchChangeEntityMutation.mutate({ ids: Array.from(selectedIds), entityId });
+    }
+  };
+
+  const handleBatchChangeStatus = (status: string) => {
+    if (selectedIds.size > 0) {
+      batchChangeStatusMutation.mutate({ ids: Array.from(selectedIds), status });
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size > 0) {
+      batchDeleteMutation.mutate(Array.from(selectedIds));
+      setShowBatchDeleteConfirm(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with filters and actions */}
@@ -504,6 +704,74 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         </div>
       </div>
 
+      {/* Batch Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">
+                  {selectedIds.size} selecionada{selectedIds.size > 1 ? 's' : ''}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Limpar seleção
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleBatchMarkAsPaid}
+                  disabled={batchMarkAsPaidMutation.isPending}
+                >
+                  <Check className="h-4 w-4 text-emerald-600" />
+                  Marcar como Pago
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <MoreHorizontal className="h-4 w-4" />
+                      Mais Ações
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleBatchChangeStatus('PREVISTO')}>
+                      Marcar como Pendente
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleBatchChangeStatus('ATRASADO')}>
+                      Marcar como Atrasado
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {entities?.map(entity => (
+                      <DropdownMenuItem 
+                        key={entity.id}
+                        onClick={() => handleBatchChangeEntity(entity.id)}
+                      >
+                        Mover para {entity.name}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="text-destructive"
+                      onClick={() => setShowBatchDeleteConfirm(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir Selecionadas
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
@@ -582,22 +850,39 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
               </div>
             ) : (
               <div className="divide-y">
+                {/* Header row with select all */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b">
+                  <Checkbox
+                    checked={selectedIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Selecionar todas ({filteredTransactions.length})
+                  </span>
+                </div>
+
                 {filteredTransactions.map((t) => {
                   const isReceita = t.tipo === 'RECEBER';
                   const isOverdue = t.status === 'ATRASADO' || 
                     (t.status === 'PREVISTO' && new Date(t.due_date) < new Date());
                   const isPaid = t.status === 'PAGO';
                   const tags = t.tags as string[] | null;
+                  const isSelected = selectedIds.has(t.id);
                   
                   return (
                     <div 
                       key={t.id}
                       className={cn(
                         "flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors",
-                        isOverdue && !isPaid && "bg-destructive/5"
+                        isOverdue && !isPaid && "bg-destructive/5",
+                        isSelected && "bg-primary/5"
                       )}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelection(t.id)}
+                        />
                         <div className={cn(
                           "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
                           isReceita ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"
@@ -670,14 +955,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        <Badge 
-                          variant={isOverdue ? 'destructive' : 'secondary'}
-                          className={cn(
-                            "text-xs",
-                            isPaid && "bg-emerald-500 hover:bg-emerald-600 text-white"
-                          )}
-                        >
-                          {isPaid ? 'Pago' : isOverdue ? 'Atrasado' : 'Pendente'}
+                        <Badge className={cn("text-xs", getStatusStyle(t.status, isOverdue))}>
+                          {getStatusLabel(t.status, isOverdue)}
                         </Badge>
                         <span className={cn(
                           "text-sm font-semibold tabular-nums min-w-[100px] text-right",
@@ -783,6 +1062,28 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Batch delete confirmation */}
+      <AlertDialog open={showBatchDeleteConfirm} onOpenChange={setShowBatchDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão em lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir {selectedIds.size} transações? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              disabled={batchDeleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir {selectedIds.size} transações
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
