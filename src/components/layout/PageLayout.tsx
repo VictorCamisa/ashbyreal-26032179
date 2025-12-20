@@ -35,14 +35,12 @@ export function PageLayout({
 }: PageLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[hsl(var(--gradient-card-from))] via-background to-[hsl(var(--gradient-card-to))] border-b border-border/50">
-        <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
-        {/* Ambient glow effects */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[hsl(var(--gradient-start)/0.08)] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-[hsl(var(--gradient-end)/0.06)] rounded-full blur-3xl" />
+      {/* Hero Header - Mais limpo e hierárquico */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-card/80 to-background border-b border-border/30">
+        {/* Ambient glow sutil */}
+        <div className="absolute top-0 left-1/3 w-[500px] h-[300px] bg-[hsl(var(--gradient-start)/0.04)] rounded-full blur-[100px]" />
         
-        <div className="relative px-6 lg:px-8 py-6 sm:py-8 max-w-[1920px] mx-auto w-full">
+        <div className="relative px-6 sm:px-8 lg:px-12 xl:px-16 py-8 sm:py-10 max-w-6xl mx-auto w-full">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             {/* Title Section */}
             <div className="flex items-center gap-4">
@@ -62,11 +60,12 @@ export function PageLayout({
                 )}
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground to-foreground/60 bg-clip-text">
+                {/* Headline forte e hierárquico */}
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
                   {title}
                 </h1>
                 {subtitle && (
-                  <p className="text-sm text-muted-foreground mt-0.5">
+                  <p className="text-sm text-muted-foreground/80 mt-1.5 font-normal">
                     {subtitle}
                   </p>
                 )}
@@ -118,9 +117,9 @@ export function PageLayout({
         </div>
       </div>
 
-      {/* Content Area - Full width with elegant padding */}
-      <div className="flex-1 px-6 lg:px-8 py-6 max-w-[1920px] mx-auto w-full">
-        <div className="animate-fade-in">
+      {/* Content Area - Container central com respiro */}
+      <div className="flex-1 px-6 sm:px-8 lg:px-12 xl:px-16 py-8 max-w-6xl mx-auto w-full">
+        <div className="animate-fade-in space-y-8">
           {children}
         </div>
       </div>
