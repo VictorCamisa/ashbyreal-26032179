@@ -29,13 +29,12 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className="space-y-6 mb-8">
-      {/* Title */}
+    <div className="space-y-4 mb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </div>
         
@@ -46,17 +45,16 @@ export function PageHeader({
         )}
       </div>
 
-      {/* Tabs */}
       {tabs && tabs.length > 0 && (
-        <div className="flex gap-1 border-b border-border">
+        <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg w-fit">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onTabChange?.(tab.id)}
               className={cn(
-                "px-4 py-2 text-sm font-medium transition-colors -mb-px",
+                "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
                 activeTab === tab.id 
-                  ? "text-foreground border-b-2 border-foreground" 
+                  ? "bg-background text-foreground shadow-sm" 
                   : "text-muted-foreground hover:text-foreground"
               )}
             >

@@ -15,11 +15,9 @@ import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  LayoutDashboard,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -52,27 +50,24 @@ export default function Dashboard() {
     <PageLayout
       title="Dashboard"
       subtitle="Visão geral completa do seu negócio"
-      icon={LayoutDashboard}
-      showSparkle
       actions={
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
           {/* Month Navigation */}
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handlePrevMonth}>
+          <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium capitalize px-2 min-w-[100px] text-center">
               {monthLabel}
             </span>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={handleNextMonth}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Entity Filter */}
           <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
-            <SelectTrigger className="w-[120px] h-9 rounded-xl">
-              <Filter className="h-3 w-3 mr-1" />
+            <SelectTrigger className="w-[100px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -83,7 +78,7 @@ export default function Dashboard() {
           </Select>
 
           {/* Refresh */}
-          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => refetch()}>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
 
@@ -98,7 +93,7 @@ export default function Dashboard() {
 
         {/* Alerts + WhatsApp Row */}
         {dashboardData && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2">
               <AlertsPanel
                 atrasadas={dashboardData.financeiro.atrasadas}
@@ -120,7 +115,7 @@ export default function Dashboard() {
         )}
 
         {/* Financial Health + Evolution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {dashboardData && (
             <HealthGauge
               receitas={dashboardData.financeiro.receitas}
@@ -133,7 +128,7 @@ export default function Dashboard() {
         </div>
 
         {/* Cash Flow + Lead Funnel */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <CashFlowChart data={cashFlowForecast} />
           {dashboardData && (
             <LeadFunnelChart
@@ -145,7 +140,7 @@ export default function Dashboard() {
         </div>
 
         {/* Rankings + Pedidos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {dashboardData && (
             <>
               <RankingsPanel

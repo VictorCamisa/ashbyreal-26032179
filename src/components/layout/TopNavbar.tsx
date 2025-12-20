@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   LogOut,
-  User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -27,6 +26,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
 const navItems = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -44,16 +44,21 @@ export function TopNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-b border-border">
-      <div className="mx-auto max-w-5xl px-6">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <NavLink to="/" className="font-semibold text-base">
-            Taubaté Chopp
+          <NavLink to="/" className="flex items-center gap-3">
+            <img 
+              src={logoTaubateChopp} 
+              alt="Taubaté Chopp" 
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+            <span className="font-semibold hidden sm:block">Taubaté Chopp</span>
           </NavLink>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-6">
+          <nav className="hidden lg:flex items-center bg-secondary/50 rounded-full px-1 py-1">
             {navItems.map((item) => (
               <NavLink
                 key={item.href}
@@ -61,14 +66,15 @@ export function TopNavbar() {
                 end={item.href === '/'}
                 className={({ isActive }) =>
                   cn(
-                    "text-sm transition-colors",
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
                     isActive
-                      ? "text-foreground font-medium"
+                      ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
                   )
                 }
               >
-                {item.label}
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
               </NavLink>
             ))}
           </nav>
@@ -77,12 +83,11 @@ export function TopNavbar() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
             
-            {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Avatar className="h-7 w-7">
-                    <AvatarFallback className="text-xs bg-muted">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                       {user?.email?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
@@ -110,7 +115,6 @@ export function TopNavbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Mobile menu button */}
             <Button 
               variant="ghost" 
               size="icon" 
@@ -125,9 +129,9 @@ export function TopNavbar() {
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-background">
-          <div className="mx-auto max-w-5xl px-6 py-4">
-            <nav className="flex flex-col gap-1">
+        <div className="lg:hidden border-t border-border bg-background animate-fade-in">
+          <div className="mx-auto max-w-7xl px-4 py-3">
+            <nav className="grid grid-cols-2 gap-1">
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
@@ -136,10 +140,10 @@ export function TopNavbar() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      "flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors",
                       isActive
-                        ? "bg-muted text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                        ? "bg-secondary text-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                     )
                   }
                 >
