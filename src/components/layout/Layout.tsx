@@ -3,11 +3,10 @@ import { TopNavbar } from './TopNavbar';
 
 export function Layout() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <TopNavbar />
-      <main className="pt-20 md:pt-24 pb-12 md:pb-16">
-        {/* Container central com max-width reduzido e respiro lateral generoso */}
-        <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-12 xl:px-16 animate-fade-in">
+      <main className="pt-16">
+        <div className="mx-auto max-w-5xl px-6 py-8">
           <Outlet />
         </div>
       </main>
