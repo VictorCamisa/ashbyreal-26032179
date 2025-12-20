@@ -6,6 +6,9 @@ import { MessageBubble } from '@/components/whatsapp/MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   MessageSquare, 
   QrCode, 
@@ -16,12 +19,26 @@ import {
   User,
   Users,
   ArrowLeft,
-  Check,
   LogOut,
-  Trash2
+  Trash2,
+  Phone,
+  Mail,
+  ShoppingBag,
+  Link2,
+  Unlink,
+  ContactRound
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { toast } from 'sonner';
 
 const DEFAULT_CLIENT_SLUG = 'ashby';
 
@@ -30,6 +47,7 @@ export default function WhatsApp() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [novaMensagem, setNovaMensagem] = useState('');
+  const [showClienteSheet, setShowClienteSheet] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
@@ -49,6 +67,7 @@ export default function WhatsApp() {
     loadingChats,
     syncChats,
     syncMessages,
+    syncContacts,
     sendMessage,
     deleteChat,
     getMessages,
@@ -57,12 +76,58 @@ export default function WhatsApp() {
     isDeleting,
   } = useEvolution(instanceName, handleDisconnect);
 
-  // Cada chat é independente - sem vinculação
-
   const { data: mensagens = [], isLoading: loadingMensagens } = getMessages(
     conversaSelecionada?.remote_jid || null,
-    [] // Sem chats vinculados - cada JID é independente
+    []
   );
+
+  // Buscar clientes para vincular
+  const { data: clientes = [] } = useQuery({
+    queryKey: ['clientes-vincular'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, email, status')
+        .order('nome');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Buscar pedidos do cliente vinculado
+  const { data: pedidosCliente = [] } = useQuery({
+    queryKey: ['pedidos-cliente', conversaSelecionada?.remote_jid],
+    queryFn: async () => {
+      if (!conversaSelecionada) return [];
+      
+      // Extrair telefone do JID
+      const telefone = conversaSelecionada.remote_jid
+        .replace('@s.whatsapp.net', '')
+        .replace('@c.us', '')
+        .replace(/\D/g, '');
+      
+      // Buscar cliente por telefone
+      const { data: cliente } = await supabase
+        .from('clientes')
+        .select('id')
+        .or(`telefone.ilike.%${telefone.slice(-8)}%`)
+        .maybeSingle();
+      
+      if (!cliente) return [];
+      
+      // Buscar pedidos do cliente
+      const { data, error } = await supabase
+        .from('pedidos')
+        .select('id, numero_pedido, data_pedido, valor_total, status')
+        .eq('cliente_id', cliente.id)
+        .order('data_pedido', { ascending: false })
+        .limit(5);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!conversaSelecionada,
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -134,7 +199,6 @@ export default function WhatsApp() {
 
   const handleSelecionarConversa = (chat: EvolutionChat) => {
     setConversaSelecionada(chat);
-    // Sincronizar mensagens do chat selecionado
     syncMessages(chat.remote_jid);
   };
 
@@ -173,7 +237,6 @@ export default function WhatsApp() {
         },
       });
       
-      // Limpar estado local
       setIsConnected(false);
       localStorage.removeItem('whatsapp_instance_name');
       setInstanceName(null);
@@ -183,32 +246,26 @@ export default function WhatsApp() {
     }
   };
 
-  // Filtrar chats - mostrar todos sem lógica de vinculação
+  const handleSyncContacts = async () => {
+    syncContacts();
+    toast.success('Sincronizando nomes dos contatos...');
+  };
+
   const filteredChats = chats.filter(chat => {
-    // Aplicar filtro de busca
     const matchesSearch = (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       chat.remote_jid.includes(searchTerm);
-    
     return matchesSearch;
   });
 
-  // Verifica se é um Linked ID (ID interno do WhatsApp Business)
-  const isLinkedId = (jid: string) => jid.includes('@lid');
-  
-  // Verifica se é um grupo
   const isGroupJid = (jid: string) => jid.includes('@g.us');
+  const isLinkedId = (jid: string) => jid.includes('@lid');
 
-  // Formata número para exibição
   const formatPhoneNumber = (jid: string) => {
-    // Grupos não têm número
     if (isGroupJid(jid)) return '';
     
-    // Para Linked IDs, extrair os dígitos e formatar de forma legível
     if (isLinkedId(jid)) {
       const digits = jid.replace('@lid', '').replace(/\D/g, '');
-      // Mostrar apenas se parecer um número de telefone (10+ dígitos começando com código de país)
       if (digits.length >= 10 && digits.length <= 15) {
-        // Tentar formatar como brasileiro
         if (digits.startsWith('55') && digits.length >= 12) {
           const ddd = digits.slice(2, 4);
           const rest = digits.slice(4);
@@ -217,7 +274,7 @@ export default function WhatsApp() {
         }
         return `+${digits.slice(0, 2)} ${digits.slice(2)}`;
       }
-      return ''; // IDs internos longos não são números
+      return '';
     }
     
     let number = jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
@@ -226,7 +283,6 @@ export default function WhatsApp() {
     number = number.replace(/\D/g, '');
     if (!number || number.length < 10) return '';
     
-    // Formato brasileiro: (DD) XXXXX-XXXX
     if (number.startsWith('55') && number.length >= 12) {
       const ddd = number.slice(2, 4);
       const rest = number.slice(4);
@@ -238,20 +294,13 @@ export default function WhatsApp() {
   };
 
   const getDisplayName = (chat: EvolutionChat) => {
-    // 1. Sempre priorizar o nome salvo no WhatsApp
     if (chat.push_name?.trim()) return chat.push_name;
-    
-    // 2. Para números reais, mostrar formatado
     const formatted = formatPhoneNumber(chat.remote_jid);
     if (formatted) return formatted;
-    
-    // 3. Para grupos sem nome
     if (chat.is_group) return 'Grupo';
     
-    // 4. Último recurso: mostrar o ID de forma mais amigável
     const rawId = chat.remote_jid.split('@')[0];
     if (rawId.length <= 15 && /^\d+$/.test(rawId)) {
-      // Parece um número, tentar formatar
       if (rawId.startsWith('55') && rawId.length >= 12) {
         const ddd = rawId.slice(2, 4);
         const rest = rawId.slice(4);
@@ -265,24 +314,30 @@ export default function WhatsApp() {
 
   const getSubtitle = (chat: EvolutionChat) => {
     if (chat.is_group) return 'Grupo';
-    
-    // Se tem nome, mostrar o número como subtítulo
     if (chat.push_name?.trim()) {
       const formatted = formatPhoneNumber(chat.remote_jid);
       if (formatted) return formatted;
       return 'WhatsApp';
     }
-    
     return 'WhatsApp';
   };
 
-  // Avatar colors
   const getAvatarColor = (index: number) => {
     const colors = [
       'bg-emerald-600', 'bg-blue-600', 'bg-purple-600', 
-      'bg-orange-500', 'bg-pink-600', 'bg-cyan-600', 'bg-yellow-600'
+      'bg-orange-500', 'bg-pink-600', 'bg-cyan-600', 'bg-amber-600'
     ];
     return colors[index % colors.length];
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pendente': return 'bg-yellow-500/20 text-yellow-500';
+      case 'confirmado': return 'bg-blue-500/20 text-blue-500';
+      case 'entregue': return 'bg-green-500/20 text-green-500';
+      case 'cancelado': return 'bg-red-500/20 text-destructive';
+      default: return 'bg-muted text-muted-foreground';
+    }
   };
 
   return (
@@ -290,13 +345,13 @@ export default function WhatsApp() {
       {/* Sidebar */}
       <aside className={`
         w-full md:w-[380px] lg:w-[420px] flex-shrink-0 
-        flex flex-col border-r border-border/50 bg-card
+        flex flex-col border-r border-border bg-card
         transition-transform duration-300 ease-out
         ${conversaSelecionada ? '-translate-x-full md:translate-x-0' : 'translate-x-0'}
         ${conversaSelecionada ? 'absolute md:relative z-10' : 'relative'}
       `}>
         {/* Header */}
-        <div className="h-14 px-4 flex items-center justify-between border-b border-border/50 bg-card">
+        <div className="h-14 px-4 flex items-center justify-between border-b border-border bg-card">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Avatar className="h-10 w-10">
@@ -316,27 +371,30 @@ export default function WhatsApp() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-9 w-9" 
-              onClick={fetchWhatsappStatus} 
-              disabled={isLoadingStatus}
-              title="Verificar status"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
-            </Button>
-{isConnected && (
+            {isConnected ? (
               <>
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="h-9 w-9" 
-                  onClick={() => syncChats()} 
+                  onClick={() => {
+                    syncChats();
+                    toast.success('Sincronizando conversas...');
+                  }} 
                   disabled={isSyncing}
                   title="Sincronizar conversas"
                 >
                   <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={handleSyncContacts}
+                  disabled={isSyncing}
+                  title="Atualizar nomes dos contatos"
+                >
+                  <ContactRound className="h-4 w-4" />
                 </Button>
                 <Button 
                   variant="ghost" 
@@ -348,17 +406,29 @@ export default function WhatsApp() {
                   <LogOut className="h-4 w-4" />
                 </Button>
               </>
+            ) : (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={fetchWhatsappStatus} 
+                  disabled={isLoadingStatus}
+                  title="Verificar status"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoadingStatus ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9" 
+                  onClick={() => setQrDialogOpen(true)}
+                  title="Gerar QR Code"
+                >
+                  <QrCode className="h-4 w-4" />
+                </Button>
+              </>
             )}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-9 w-9" 
-              onClick={() => setQrDialogOpen(true)}
-              disabled={isConnected || isLoadingStatus}
-              title="Gerar QR Code"
-            >
-              <QrCode className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
@@ -380,11 +450,11 @@ export default function WhatsApp() {
         ) : (
           <>
             {/* Search */}
-            <div className="px-3 py-2 border-b border-border/30">
+            <div className="px-3 py-2 border-b border-border/50">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Pesquisar ou começar uma nova conversa"
+                  placeholder="Pesquisar conversas..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-9 bg-muted/50 border-0 rounded-lg text-sm"
@@ -393,158 +463,224 @@ export default function WhatsApp() {
             </div>
 
             {/* Chat List */}
-            <div className="flex-1 overflow-y-auto">
+            <ScrollArea className="flex-1">
               {loadingChats ? (
-            <div className="p-4 space-y-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="flex items-center gap-3 animate-pulse">
-                  <div className="h-12 w-12 rounded-full bg-muted" />
-                  <div className="flex-1">
-                    <div className="h-4 w-28 bg-muted rounded mb-2" />
-                    <div className="h-3 w-40 bg-muted rounded" />
-                  </div>
+                <div className="p-4 space-y-4">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="h-12 w-12 rounded-full bg-muted" />
+                      <div className="flex-1">
+                        <div className="h-4 w-28 bg-muted rounded mb-2" />
+                        <div className="h-3 w-40 bg-muted rounded" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : filteredChats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-              <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
-                <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {isConnected ? 'Clique em sincronizar para carregar conversas' : 'Conecte o WhatsApp para começar'}
-              </p>
-            </div>
-          ) : (
-            filteredChats.map((chat, index) => (
-              <button
-                key={chat.id}
-                onClick={() => handleSelecionarConversa(chat)}
-                className={`
-                  w-full px-3 py-3 flex items-center gap-3 
-                  transition-colors duration-150 hover:bg-muted/50
-                  ${conversaSelecionada?.id === chat.id ? 'bg-muted/70' : ''}
-                `}
-              >
-                <Avatar className="h-12 w-12 flex-shrink-0">
-                  <AvatarImage src={chat.profile_pic_url || undefined} />
-                  <AvatarFallback className={`${getAvatarColor(index)} text-white font-medium`}>
-                    {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || <User className="h-5 w-5" />)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <p className="font-medium text-[15px] truncate">{getDisplayName(chat)}</p>
-                    {chat.last_message_at && (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(chat.last_message_at), 'HH:mm', { locale: ptBR })}
-                      </span>
-                    )}
+              ) : filteredChats.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full px-6 text-center py-20">
+                  <div className="h-16 w-16 rounded-full bg-muted/30 flex items-center justify-center mb-4">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground truncate">
-                      {chat.last_message || getSubtitle(chat)}
-                    </p>
-                    {chat.unread_count > 0 && (
-                      <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-xs font-medium flex items-center justify-center">
-                        {chat.unread_count}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {chats.length === 0 ? 'Clique em sincronizar para carregar conversas' : 'Nenhuma conversa encontrada'}
+                  </p>
                 </div>
-              </button>
-            ))
-            )}
-          </div>
+              ) : (
+                filteredChats.map((chat, index) => (
+                  <button
+                    key={chat.id}
+                    onClick={() => handleSelecionarConversa(chat)}
+                    className={`
+                      w-full px-3 py-3 flex items-center gap-3 
+                      transition-colors duration-150 hover:bg-muted/50
+                      ${conversaSelecionada?.id === chat.id ? 'bg-muted' : ''}
+                    `}
+                  >
+                    <Avatar className="h-12 w-12 flex-shrink-0">
+                      <AvatarImage src={chat.profile_pic_url || undefined} />
+                      <AvatarFallback className={`${getAvatarColor(index)} text-white font-medium`}>
+                        {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || <User className="h-5 w-5" />)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <p className="font-medium text-[15px] truncate">{getDisplayName(chat)}</p>
+                        {chat.last_message_at && (
+                          <span className="text-xs text-muted-foreground flex-shrink-0">
+                            {format(new Date(chat.last_message_at), 'HH:mm', { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-muted-foreground truncate">
+                          {chat.last_message || getSubtitle(chat)}
+                        </p>
+                        {chat.unread_count > 0 && (
+                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-xs font-medium flex items-center justify-center">
+                            {chat.unread_count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </ScrollArea>
           </>
         )}
       </aside>
 
       {/* Chat Area */}
       <main className={`
-        flex-1 flex flex-col min-w-0 bg-[#0b141a]
+        flex-1 flex flex-col min-w-0 bg-muted/30
         transition-transform duration-300 ease-out
         ${conversaSelecionada ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
         ${!conversaSelecionada ? 'absolute md:relative inset-0 top-0' : 'relative'}
       `}>
         {!conversaSelecionada ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-[#222e35]">
-            <div className="h-[280px] w-[280px] mb-8 rounded-full bg-[#364147] flex items-center justify-center">
-              <MessageSquare className="h-32 w-32 text-[#8696a0]" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 bg-muted/20">
+            <div className="h-[200px] w-[200px] mb-8 rounded-full bg-muted/50 flex items-center justify-center">
+              <MessageSquare className="h-24 w-24 text-muted-foreground/50" />
             </div>
-            <h1 className="text-[32px] font-light text-[#d1d7db] mb-4">WhatsApp Web</h1>
-            <p className="text-sm text-[#8696a0] max-w-md leading-relaxed">
-              Envie e receba mensagens sem manter seu celular conectado.<br />
-              Use o WhatsApp em até 4 aparelhos conectados ao mesmo tempo.
+            <h1 className="text-2xl font-light text-foreground mb-4">WhatsApp Web</h1>
+            <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
+              Envie e receba mensagens diretamente do sistema.<br />
+              Selecione uma conversa para começar.
             </p>
           </div>
         ) : (
           <>
             {/* Chat Header */}
-            <header className="h-[60px] px-4 flex items-center gap-3 bg-[#202c33] border-b border-[#2a3942]">
+            <header className="h-[60px] px-4 flex items-center gap-3 bg-card border-b border-border">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setConversaSelecionada(null)}
-                className="h-9 w-9 md:hidden text-[#aebac1] hover:bg-[#2a3942]"
+                className="h-9 w-9 md:hidden"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <Avatar className="h-10 w-10">
                 <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
-                <AvatarFallback className="bg-[#6b7c85] text-white">
+                <AvatarFallback className="bg-primary/20 text-primary">
                   {conversaSelecionada.is_group ? <Users className="h-5 w-5" /> : getDisplayName(conversaSelecionada)?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-[#e9edef] truncate">{getDisplayName(conversaSelecionada)}</p>
-                <p className="text-xs text-[#8696a0]">
+                <p className="font-medium truncate">{getDisplayName(conversaSelecionada)}</p>
+                <p className="text-xs text-muted-foreground">
                   {getSubtitle(conversaSelecionada)}
                 </p>
               </div>
               
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 text-[#aebac1] hover:bg-[#2a3942]"
-                onClick={() => syncMessages(conversaSelecionada.remote_jid)}
-                title="Atualizar mensagens"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 text-destructive hover:bg-[#2a3942] hover:text-destructive"
-                onClick={() => {
-                  if (confirm('Tem certeza que deseja apagar esta conversa? Esta ação não pode ser desfeita.')) {
-                    deleteChat(conversaSelecionada.remote_jid);
-                    setConversaSelecionada(null);
-                  }
-                }}
-                disabled={isDeleting}
-                title="Apagar conversa"
-              >
-                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-1">
+                {/* Botão Ver Pedidos */}
+                <Sheet open={showClienteSheet} onOpenChange={setShowClienteSheet}>
+                  <SheetTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-9 w-9"
+                      title="Ver informações do cliente"
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>Informações do Cliente</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-6 space-y-6">
+                      {/* Info do contato */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-muted-foreground">Contato</h4>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
+                            <AvatarFallback className="bg-primary/20 text-primary">
+                              {getDisplayName(conversaSelecionada)?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{getDisplayName(conversaSelecionada)}</p>
+                            <p className="text-sm text-muted-foreground">{formatPhoneNumber(conversaSelecionada.remote_jid) || 'WhatsApp'}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pedidos recentes */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-muted-foreground">Pedidos Recentes</h4>
+                        {pedidosCliente.length === 0 ? (
+                          <p className="text-sm text-muted-foreground italic">Nenhum pedido encontrado para este contato.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {pedidosCliente.map((pedido: any) => (
+                              <Card key={pedido.id} className="p-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-sm">{pedido.numero_pedido}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {format(new Date(pedido.data_pedido), 'dd/MM/yyyy')}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium text-sm">
+                                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pedido.valor_total)}
+                                    </p>
+                                    <Badge variant="outline" className={getStatusColor(pedido.status)}>
+                                      {pedido.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9"
+                  onClick={() => syncMessages(conversaSelecionada.remote_jid)}
+                  title="Atualizar mensagens"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (confirm('Tem certeza que deseja apagar esta conversa?')) {
+                      deleteChat(conversaSelecionada.remote_jid);
+                      setConversaSelecionada(null);
+                    }
+                  }}
+                  disabled={isDeleting}
+                  title="Apagar conversa"
+                >
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                </Button>
+              </div>
             </header>
 
             {/* Messages */}
-            <div 
-              className="flex-1 overflow-y-auto px-[5%] md:px-[10%] lg:px-[15%] py-4"
-              style={{ 
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.6'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                backgroundColor: '#0b141a'
-              }}
+            <ScrollArea 
+              className="flex-1 px-[5%] md:px-[10%] lg:px-[15%] py-4"
             >
               <div className="max-w-[900px] mx-auto space-y-1">
                 {loadingMensagens ? (
                   <div className="flex justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-[#8696a0]" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : mensagens.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <p className="text-sm text-[#8696a0]">Nenhuma mensagem</p>
+                    <p className="text-sm text-muted-foreground">Nenhuma mensagem</p>
                   </div>
                 ) : (
                   mensagens.map((msg) => (
@@ -553,23 +689,23 @@ export default function WhatsApp() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-            </div>
+            </ScrollArea>
 
             {/* Input */}
-            <footer className="px-4 py-2 bg-[#202c33] flex items-center gap-3">
+            <footer className="px-4 py-3 bg-card border-t border-border flex items-center gap-3">
               <Input
                 value={novaMensagem}
                 onChange={(e) => setNovaMensagem(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Digite uma mensagem"
-                className="flex-1 h-11 bg-[#2a3942] border-0 rounded-lg text-[#d1d7db] placeholder:text-[#8696a0] text-[15px] focus-visible:ring-0"
+                placeholder="Digite uma mensagem..."
+                className="flex-1 h-11"
                 disabled={isSending}
               />
               <Button
                 onClick={handleEnviarMensagem}
                 disabled={!novaMensagem.trim() || isSending}
                 size="icon"
-                className="h-11 w-11 rounded-full bg-[#00a884] hover:bg-[#06cf9c] text-white"
+                className="h-11 w-11 rounded-full"
               >
                 {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
@@ -583,7 +719,6 @@ export default function WhatsApp() {
         onOpenChange={setQrDialogOpen}
         onConnected={handleConnected}
       />
-      
     </div>
   );
 }
