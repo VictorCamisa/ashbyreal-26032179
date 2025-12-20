@@ -89,7 +89,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [entityFilter, setEntityFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
-  const [originFilter, setOriginFilter] = useState<string>('todos');
+  
   const [tagFilter, setTagFilter] = useState<string>('');
   const [showImport, setShowImport] = useState(false);
   const [showNovaTransacao, setShowNovaTransacao] = useState(false);
@@ -162,89 +162,32 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
-  // Fetch credit card transactions
-  const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
-    queryKey: ['transacoes-cartao', monthStr],
-    queryFn: async () => {
-      const year = referenceMonth.getFullYear();
-      const month = referenceMonth.getMonth();
-      const startOfMonth = `${monthStr}-01`;
-      const startOfNextMonth = new Date(year, month + 1, 1).toISOString().split('T')[0];
+  // NOTE: Credit card transactions are NOT included here - they have their own tab (Cartões)
+  // This prevents double counting expenses
 
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          *,
-          categories(name, group),
-          subcategories(name),
-          credit_cards(name, entity_id, entities:entity_id(name, type))
-        `)
-        .gte('purchase_date', startOfMonth)
-        .lt('purchase_date', startOfNextMonth)
-        .order('purchase_date', { ascending: false });
+  const isLoading = isLoadingBank;
 
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const isLoading = isLoadingBank || isLoadingCards;
-
-  // Merge transactions
+  // Map bank transactions to unified format
   const transactions: UnifiedTransaction[] = useMemo(() => {
-    const merged: UnifiedTransaction[] = [];
+    if (!bankTransactions) return [];
 
-    // Add bank transactions
-    if (bankTransactions) {
-      for (const t of bankTransactions) {
-        merged.push({
-          id: t.id,
-          description: t.description,
-          amount: Math.abs(Number(t.amount)),
-          due_date: t.due_date,
-          payment_date: t.payment_date,
-          status: t.status,
-          tipo: t.tipo as 'PAGAR' | 'RECEBER',
-          origin: t.origin || 'MANUAL',
-          categories: t.categories,
-          subcategories: t.subcategories,
-          accounts: t.accounts,
-          entities: t.entities,
-          tags: t.tags as string[] | null,
-          isCardTransaction: false,
-        });
-      }
-    }
-
-    // Add card transactions
-    if (cardTransactions) {
-      for (const t of cardTransactions) {
-        merged.push({
-          id: t.id,
-          description: t.description,
-          amount: t.amount,
-          due_date: t.purchase_date,
-          payment_date: null,
-          status: 'PREVISTO',
-          tipo: 'PAGAR',
-          origin: 'CARTAO',
-          categories: t.categories,
-          subcategories: t.subcategories,
-          credit_cards: t.credit_cards,
-          entities: (t.credit_cards as any)?.entities || null,
-          tags: null,
-          installment_number: t.installment_number,
-          total_installments: t.total_installments,
-          isCardTransaction: true,
-        });
-      }
-    }
-
-    // Sort by due_date descending
-    merged.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
-
-    return merged;
-  }, [bankTransactions, cardTransactions]);
+    return bankTransactions.map((t) => ({
+      id: t.id,
+      description: t.description,
+      amount: Math.abs(Number(t.amount)),
+      due_date: t.due_date,
+      payment_date: t.payment_date,
+      status: t.status,
+      tipo: t.tipo as 'PAGAR' | 'RECEBER',
+      origin: t.origin || 'MANUAL',
+      categories: t.categories,
+      subcategories: t.subcategories,
+      accounts: t.accounts,
+      entities: t.entities,
+      tags: t.tags as string[] | null,
+      isCardTransaction: false,
+    })).sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
+  }, [bankTransactions]);
 
   // Category color mapping based on group
   const getCategoryColor = (group: string | null) => {
@@ -380,7 +323,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     setReferenceMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  // Filter transactions
+  // Filter transactions (only bank transactions, no credit card)
   const filteredTransactions = useMemo(() => {
     if (!transactions) return [];
     
@@ -388,22 +331,19 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       const matchesSearch = searchTerm === '' || 
         t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.categories?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.accounts?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.credit_cards?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        t.accounts?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesTipo = tipoFilter === 'todos' || t.tipo === tipoFilter;
       const matchesEntity = entityFilter === 'todos' || t.entities?.type === entityFilter;
       const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
-      const matchesOrigin = originFilter === 'todos' || 
-        (originFilter === 'CARTAO' ? t.isCardTransaction : !t.isCardTransaction);
       
       // Tag filter
       const tags = t.tags as string[] | null;
       const matchesTag = tagFilter === '' || (tags && tags.includes(tagFilter));
       
-      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesOrigin && matchesTag;
+      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesTag;
     });
-  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, originFilter, tagFilter]);
+  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, tagFilter]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -446,18 +386,6 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     const tags = currentTags || [];
     updateTagsMutation.mutate({ id: transactionId, tags: tags.filter(t => t !== tagToRemove) });
   };
-
-          {/* Origin filter */}
-          <Select value={originFilter} onValueChange={setOriginFilter}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Origem" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas</SelectItem>
-              <SelectItem value="BANCO">Banco</SelectItem>
-              <SelectItem value="CARTAO">Cartão</SelectItem>
-            </SelectContent>
-          </Select>
   return (
     <div className="space-y-4">
       {/* Header with filters and actions */}
