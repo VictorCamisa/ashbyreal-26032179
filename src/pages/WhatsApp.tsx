@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useEvolution, EvolutionChat } from '@/hooks/useEvolution';
 import { supabase } from '@/integrations/supabase/client';
 import { GerarQRCodeDialog } from '@/components/whatsapp/GerarQRCodeDialog';
 import { MessageBubble } from '@/components/whatsapp/MessageBubble';
+import { LeadsContactsSheet } from '@/components/whatsapp/LeadsContactsSheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,12 +22,9 @@ import {
   ArrowLeft,
   LogOut,
   Trash2,
-  Phone,
-  Mail,
   ShoppingBag,
-  Link2,
-  Unlink,
-  ContactRound
+  ContactRound,
+  UserCheck
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -39,6 +37,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from 'sonner';
+import { useLeads } from '@/hooks/useLeads';
+import type { Lead } from '@/types/lead';
 
 const DEFAULT_CLIENT_SLUG = 'ashby';
 
@@ -48,7 +48,11 @@ export default function WhatsApp() {
   const [searchTerm, setSearchTerm] = useState('');
   const [novaMensagem, setNovaMensagem] = useState('');
   const [showClienteSheet, setShowClienteSheet] = useState(false);
+  const [isStartingConversation, setIsStartingConversation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Hook de leads
+  const { leads, isLoading: loadingLeads } = useLeads();
   
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(() => {
@@ -251,6 +255,91 @@ export default function WhatsApp() {
     toast.success('Sincronizando nomes dos contatos...');
   };
 
+  // Iniciar conversa com lead
+  const handleStartConversation = async (lead: Lead) => {
+    if (!instanceName) {
+      toast.error('WhatsApp não conectado');
+      return;
+    }
+
+    setIsStartingConversation(true);
+    
+    try {
+      // Formatar telefone para JID
+      let phone = lead.telefone.replace(/\D/g, '');
+      if (!phone.startsWith('55') && phone.length <= 11) {
+        phone = '55' + phone;
+      }
+      const remoteJid = `${phone}@s.whatsapp.net`;
+
+      // Verificar se já existe um chat
+      const existingChat = chats.find(chat => {
+        const chatPhone = chat.remote_jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+        return chatPhone.slice(-8) === phone.slice(-8);
+      });
+
+      if (existingChat) {
+        // Se já existe, apenas selecionar
+        handleSelecionarConversa(existingChat);
+        toast.success(`Conversa com ${lead.nome} aberta`);
+      } else {
+        // Criar novo chat na base e selecionar
+        const { data: newChat, error } = await supabase
+          .from('evolution_chats')
+          .insert({
+            instance_name: instanceName,
+            remote_jid: remoteJid,
+            push_name: lead.nome,
+            is_group: false,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Selecionar o novo chat
+        handleSelecionarConversa(newChat as EvolutionChat);
+        toast.success(`Nova conversa com ${lead.nome} criada`);
+        
+        // Atualizar lista de chats
+        syncChats();
+      }
+    } catch (err: any) {
+      console.error('Erro ao iniciar conversa:', err);
+      toast.error('Erro ao iniciar conversa');
+    } finally {
+      setIsStartingConversation(false);
+    }
+  };
+
+  // Normalizar telefone para comparação
+  const normalizePhone = (phone: string) => {
+    return phone.replace(/\D/g, '').slice(-8);
+  };
+
+  // Mapear leads por telefone para vinculação automática
+  const leadsByPhone = useMemo(() => {
+    const map = new Map<string, Lead>();
+    leads.forEach(lead => {
+      const normalized = normalizePhone(lead.telefone);
+      if (normalized.length >= 8) {
+        map.set(normalized, lead);
+      }
+    });
+    return map;
+  }, [leads]);
+
+  // Encontrar lead vinculado ao chat selecionado
+  const linkedLead = useMemo(() => {
+    if (!conversaSelecionada) return null;
+    const telefone = conversaSelecionada.remote_jid
+      .replace('@s.whatsapp.net', '')
+      .replace('@c.us', '')
+      .replace(/\D/g, '');
+    const normalized = telefone.slice(-8);
+    return leadsByPhone.get(normalized) || null;
+  }, [conversaSelecionada, leadsByPhone]);
+
   const filteredChats = chats.filter(chat => {
     const matchesSearch = (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       chat.remote_jid.includes(searchTerm);
@@ -396,7 +485,13 @@ export default function WhatsApp() {
                 >
                   <ContactRound className="h-4 w-4" />
                 </Button>
-                <Button 
+                <LeadsContactsSheet
+                  leads={leads}
+                  isLoading={loadingLeads}
+                  onStartConversation={handleStartConversation}
+                  isStarting={isStartingConversation}
+                />
+                <Button
                   variant="ghost" 
                   size="icon" 
                   className="h-9 w-9 text-destructive hover:text-destructive" 
@@ -486,44 +581,68 @@ export default function WhatsApp() {
                   </p>
                 </div>
               ) : (
-                filteredChats.map((chat, index) => (
-                  <button
-                    key={chat.id}
-                    onClick={() => handleSelecionarConversa(chat)}
-                    className={`
-                      w-full px-3 py-3 flex items-center gap-3 
-                      transition-colors duration-150 hover:bg-muted/50
-                      ${conversaSelecionada?.id === chat.id ? 'bg-muted' : ''}
-                    `}
-                  >
-                    <Avatar className="h-12 w-12 flex-shrink-0">
-                      <AvatarImage src={chat.profile_pic_url || undefined} />
-                      <AvatarFallback className={`${getAvatarColor(index)} text-white font-medium`}>
-                        {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || <User className="h-5 w-5" />)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <p className="font-medium text-[15px] truncate">{getDisplayName(chat)}</p>
-                        {chat.last_message_at && (
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {format(new Date(chat.last_message_at), 'HH:mm', { locale: ptBR })}
+                filteredChats.map((chat, index) => {
+                  // Verificar se chat está vinculado a um lead
+                  const chatPhone = chat.remote_jid
+                    .replace('@s.whatsapp.net', '')
+                    .replace('@c.us', '')
+                    .replace(/\D/g, '')
+                    .slice(-8);
+                  const chatLead = leadsByPhone.get(chatPhone);
+                  
+                  return (
+                    <button
+                      key={chat.id}
+                      onClick={() => handleSelecionarConversa(chat)}
+                      className={`
+                        w-full px-3 py-3 flex items-center gap-3 
+                        transition-colors duration-150 hover:bg-muted/50
+                        ${conversaSelecionada?.id === chat.id ? 'bg-muted' : ''}
+                      `}
+                    >
+                      <div className="relative">
+                        <Avatar className="h-12 w-12 flex-shrink-0">
+                          <AvatarImage src={chat.profile_pic_url || undefined} />
+                          <AvatarFallback className={`${getAvatarColor(index)} text-white font-medium`}>
+                            {chat.is_group ? <Users className="h-5 w-5" /> : (getDisplayName(chat)?.[0]?.toUpperCase() || <User className="h-5 w-5" />)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {chatLead && (
+                          <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                            <UserCheck className="h-2.5 w-2.5 text-primary-foreground" />
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-muted-foreground truncate">
-                          {chat.last_message || getSubtitle(chat)}
-                        </p>
-                        {chat.unread_count > 0 && (
-                          <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-xs font-medium flex items-center justify-center">
-                            {chat.unread_count}
-                          </span>
-                        )}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="font-medium text-[15px] truncate">{getDisplayName(chat)}</p>
+                            {chatLead && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-primary/10 text-primary border-primary/30">
+                                Lead
+                              </Badge>
+                            )}
+                          </div>
+                          {chat.last_message_at && (
+                            <span className="text-xs text-muted-foreground flex-shrink-0">
+                              {format(new Date(chat.last_message_at), 'HH:mm', { locale: ptBR })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-muted-foreground truncate">
+                            {chat.last_message || getSubtitle(chat)}
+                          </p>
+                          {chat.unread_count > 0 && (
+                            <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-green-500 text-white text-xs font-medium flex items-center justify-center">
+                              {chat.unread_count}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  );
+                })
               )}
             </ScrollArea>
           </>
@@ -567,9 +686,17 @@ export default function WhatsApp() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{getDisplayName(conversaSelecionada)}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium truncate">{getDisplayName(conversaSelecionada)}</p>
+                  {linkedLead && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30">
+                      <UserCheck className="h-2.5 w-2.5 mr-0.5" />
+                      Lead
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {getSubtitle(conversaSelecionada)}
+                  {linkedLead ? linkedLead.nome : getSubtitle(conversaSelecionada)}
                 </p>
               </div>
               
@@ -591,9 +718,11 @@ export default function WhatsApp() {
                       <SheetTitle>Informações do Cliente</SheetTitle>
                     </SheetHeader>
                     <div className="mt-6 space-y-6">
-                      {/* Info do contato */}
+                      {/* Info do contato / lead */}
                       <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Contato</h4>
+                        <h4 className="text-sm font-medium text-muted-foreground">
+                          {linkedLead ? 'Lead Vinculado' : 'Contato'}
+                        </h4>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-12 w-12">
                             <AvatarImage src={conversaSelecionada.profile_pic_url || undefined} />
@@ -601,11 +730,48 @@ export default function WhatsApp() {
                               {getDisplayName(conversaSelecionada)?.[0]?.toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
-                            <p className="font-medium">{getDisplayName(conversaSelecionada)}</p>
+                          <div className="flex-1">
+                            <p className="font-medium">{linkedLead?.nome || getDisplayName(conversaSelecionada)}</p>
                             <p className="text-sm text-muted-foreground">{formatPhoneNumber(conversaSelecionada.remote_jid) || 'WhatsApp'}</p>
+                            {linkedLead?.email && (
+                              <p className="text-sm text-muted-foreground">{linkedLead.email}</p>
+                            )}
                           </div>
                         </div>
+                        {linkedLead && (
+                          <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-muted-foreground">Status do Lead</span>
+                              <Badge variant="outline" className={`text-xs ${
+                                linkedLead.status === 'novo_lead' ? 'bg-blue-500/20 text-blue-500' :
+                                linkedLead.status === 'qualificado' ? 'bg-purple-500/20 text-purple-500' :
+                                linkedLead.status === 'negociacao' ? 'bg-amber-500/20 text-amber-500' :
+                                linkedLead.status === 'fechado' ? 'bg-green-500/20 text-green-500' :
+                                'bg-red-500/20 text-destructive'
+                              }`}>
+                                {linkedLead.status === 'novo_lead' ? 'Novo Lead' :
+                                 linkedLead.status === 'qualificado' ? 'Qualificado' :
+                                 linkedLead.status === 'negociacao' ? 'Negociação' :
+                                 linkedLead.status === 'fechado' ? 'Fechado' :
+                                 linkedLead.status === 'perdido' ? 'Perdido' : linkedLead.status}
+                              </Badge>
+                            </div>
+                            {linkedLead.valorEstimado > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Valor Estimado</span>
+                                <span className="text-sm font-medium">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(linkedLead.valorEstimado)}
+                                </span>
+                              </div>
+                            )}
+                            {linkedLead.origem && (
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs text-muted-foreground">Origem</span>
+                                <span className="text-sm">{linkedLead.origem}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Pedidos recentes */}
