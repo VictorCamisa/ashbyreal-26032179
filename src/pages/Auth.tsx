@@ -14,22 +14,26 @@ import {
 } from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
 
-const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
+const authSchema = z.object({
+  username: z.string()
+    .min(3, 'Usuário deve ter pelo menos 3 caracteres')
+    .max(20, 'Usuário deve ter no máximo 20 caracteres')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Usuário pode conter apenas letras, números e _'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type AuthFormData = z.infer<typeof authSchema>;
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { signIn, user, isLoading } = useAuth();
+  const { signIn, signUp, user, isLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
 
-  const loginForm = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<AuthFormData>({
+    resolver: zodResolver(authSchema),
     defaultValues: {
-      email: '',
+      username: '',
       password: '',
     },
   });
@@ -40,10 +44,17 @@ export default function Auth() {
     }
   }, [user, isLoading, navigate]);
 
-  const handleLogin = async (data: LoginFormData) => {
+  const handleSubmit = async (data: AuthFormData) => {
     try {
       setIsSubmitting(true);
-      await signIn(data.email, data.password);
+      if (isSignUp) {
+        await signUp(data.username, data.password);
+        // After signup, switch to login mode
+        setIsSignUp(false);
+        form.reset();
+      } else {
+        await signIn(data.username, data.password);
+      }
     } catch (error) {
       // Error already handled in useAuth
     } finally {
@@ -72,18 +83,19 @@ export default function Auth() {
           </h1>
         </div>
 
-        {/* Login Form */}
-        <Form {...loginForm}>
-          <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
+        {/* Auth Form */}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
-              control={loginForm.control}
-              name="email"
+              control={form.control}
+              name="username"
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
                     <Input 
-                      type="email" 
-                      placeholder="Email" 
+                      type="text" 
+                      placeholder="Usuário" 
+                      autoComplete="username"
                       className="h-12 bg-muted/30 backdrop-blur-sm border-border/30 text-center placeholder:text-muted-foreground/50 focus:border-border focus:ring-0 rounded-xl"
                       {...field} 
                     />
@@ -93,7 +105,7 @@ export default function Auth() {
               )}
             />
             <FormField
-              control={loginForm.control}
+              control={form.control}
               name="password"
               render={({ field }) => (
                 <FormItem>
@@ -101,6 +113,7 @@ export default function Auth() {
                     <Input 
                       type="password" 
                       placeholder="Senha" 
+                      autoComplete={isSignUp ? "new-password" : "current-password"}
                       className="h-12 bg-muted/30 backdrop-blur-sm border-border/30 text-center placeholder:text-muted-foreground/50 focus:border-border focus:ring-0 rounded-xl"
                       {...field} 
                     />
@@ -115,10 +128,30 @@ export default function Auth() {
               className="w-full h-12 font-medium mt-6 bg-muted/40 hover:bg-muted/60 text-foreground border border-border/30 rounded-xl transition-all duration-300" 
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Entrando...' : 'Entrar'}
+              {isSubmitting 
+                ? (isSignUp ? 'Cadastrando...' : 'Entrando...') 
+                : (isSignUp ? 'Cadastrar' : 'Entrar')
+              }
             </Button>
           </form>
         </Form>
+
+        {/* Toggle between login and signup */}
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              form.reset();
+            }}
+            className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+          >
+            {isSignUp 
+              ? 'Já tem conta? Entrar' 
+              : 'Não tem conta? Cadastrar'
+            }
+          </button>
+        </div>
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground/40">
