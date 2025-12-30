@@ -15,7 +15,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Helper to convert username to internal email format
-const usernameToEmail = (username: string) => `${username.toLowerCase().trim()}@ashby.local`;
+// Using a valid TLD (.app) since Supabase validates email format
+const usernameToEmail = (username: string) => `${username.toLowerCase().trim()}@ashby.app`;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
