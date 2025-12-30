@@ -1188,6 +1188,7 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           estoque: number | null
+          estoque_minimo: number | null
           id: string
           imagem_url: string | null
           nome: string
@@ -1201,6 +1202,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           estoque?: number | null
+          estoque_minimo?: number | null
           id?: string
           imagem_url?: string | null
           nome: string
@@ -1214,6 +1216,7 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           estoque?: number | null
+          estoque_minimo?: number | null
           id?: string
           imagem_url?: string | null
           nome?: string
@@ -1686,6 +1689,7 @@ export type Database = {
           created_at: string | null
           id: string
           instance_name: string
+          is_connected: boolean | null
           last_connected_at: string | null
           phone_number: string | null
           qr_code: string | null
@@ -1696,6 +1700,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           instance_name: string
+          is_connected?: boolean | null
           last_connected_at?: string | null
           phone_number?: string | null
           qr_code?: string | null
@@ -1706,6 +1711,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           instance_name?: string
+          is_connected?: boolean | null
           last_connected_at?: string | null
           phone_number?: string | null
           qr_code?: string | null
