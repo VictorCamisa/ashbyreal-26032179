@@ -73,15 +73,20 @@ export type Database = {
           created_at: string | null
           delivery_date: string | null
           description: string | null
+          freight: number | null
           id: string
+          liters: number | null
           notes: string | null
           order_date: string | null
           order_number: string | null
           payment_date: string | null
           quarter: number
           status: Database["public"]["Enums"]["ashby_status"] | null
+          total: number | null
           transaction_id: string | null
           updated_at: string | null
+          value_com_nf: number | null
+          value_sem_nf: number | null
           year: number
         }
         Insert: {
@@ -89,15 +94,20 @@ export type Database = {
           created_at?: string | null
           delivery_date?: string | null
           description?: string | null
+          freight?: number | null
           id?: string
+          liters?: number | null
           notes?: string | null
           order_date?: string | null
           order_number?: string | null
           payment_date?: string | null
           quarter: number
           status?: Database["public"]["Enums"]["ashby_status"] | null
+          total?: number | null
           transaction_id?: string | null
           updated_at?: string | null
+          value_com_nf?: number | null
+          value_sem_nf?: number | null
           year: number
         }
         Update: {
@@ -105,15 +115,20 @@ export type Database = {
           created_at?: string | null
           delivery_date?: string | null
           description?: string | null
+          freight?: number | null
           id?: string
+          liters?: number | null
           notes?: string | null
           order_date?: string | null
           order_number?: string | null
           payment_date?: string | null
           quarter?: number
           status?: Database["public"]["Enums"]["ashby_status"] | null
+          total?: number | null
           transaction_id?: string | null
           updated_at?: string | null
+          value_com_nf?: number | null
+          value_sem_nf?: number | null
           year?: number
         }
         Relationships: [
@@ -252,6 +267,7 @@ export type Database = {
           color: string | null
           created_at: string | null
           description: string | null
+          group: string | null
           icon: string | null
           id: string
           is_active: boolean | null
@@ -265,6 +281,7 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           description?: string | null
+          group?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
@@ -278,6 +295,7 @@ export type Database = {
           color?: string | null
           created_at?: string | null
           description?: string | null
+          group?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
@@ -460,10 +478,12 @@ export type Database = {
           credit_card_id: string
           description: string
           id: string
+          installment_info: string | null
           installment_number: number | null
           invoice_id: string | null
           is_recurring: boolean | null
           notes: string | null
+          original_amount: number | null
           purchase_date: string
           subcategory_id: string | null
           total_installments: number | null
@@ -477,10 +497,12 @@ export type Database = {
           credit_card_id: string
           description: string
           id?: string
+          installment_info?: string | null
           installment_number?: number | null
           invoice_id?: string | null
           is_recurring?: boolean | null
           notes?: string | null
+          original_amount?: number | null
           purchase_date: string
           subcategory_id?: string | null
           total_installments?: number | null
@@ -494,10 +516,12 @@ export type Database = {
           credit_card_id?: string
           description?: string
           id?: string
+          installment_info?: string | null
           installment_number?: number | null
           invoice_id?: string | null
           is_recurring?: boolean | null
           notes?: string | null
+          original_amount?: number | null
           purchase_date?: string
           subcategory_id?: string | null
           total_installments?: number | null
@@ -537,6 +561,7 @@ export type Database = {
       credit_cards: {
         Row: {
           brand: string | null
+          card_provider: string | null
           closing_day: number | null
           created_at: string | null
           credit_limit: number | null
@@ -545,11 +570,13 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_digits: string | null
+          limit_value: number | null
           name: string
           updated_at: string | null
         }
         Insert: {
           brand?: string | null
+          card_provider?: string | null
           closing_day?: number | null
           created_at?: string | null
           credit_limit?: number | null
@@ -558,11 +585,13 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_digits?: string | null
+          limit_value?: number | null
           name: string
           updated_at?: string | null
         }
         Update: {
           brand?: string | null
+          card_provider?: string | null
           closing_day?: number | null
           created_at?: string | null
           credit_limit?: number | null
@@ -571,6 +600,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_digits?: string | null
+          limit_value?: number | null
           name?: string
           updated_at?: string | null
         }
@@ -769,35 +799,50 @@ export type Database = {
         Row: {
           created_at: string | null
           employee_id: string
+          horas_extras: number | null
+          horas_faltas: number | null
           id: string
           paid_at: string | null
           reference_month: string
+          saldo_banco_horas: number | null
           status: string | null
           total_overtime_hours: number | null
           total_overtime_value: number | null
+          transaction_pagamento_id: string | null
           updated_at: string | null
+          valor_extras: number | null
         }
         Insert: {
           created_at?: string | null
           employee_id: string
+          horas_extras?: number | null
+          horas_faltas?: number | null
           id?: string
           paid_at?: string | null
           reference_month: string
+          saldo_banco_horas?: number | null
           status?: string | null
           total_overtime_hours?: number | null
           total_overtime_value?: number | null
+          transaction_pagamento_id?: string | null
           updated_at?: string | null
+          valor_extras?: number | null
         }
         Update: {
           created_at?: string | null
           employee_id?: string
+          horas_extras?: number | null
+          horas_faltas?: number | null
           id?: string
           paid_at?: string | null
           reference_month?: string
+          saldo_banco_horas?: number | null
           status?: string | null
           total_overtime_hours?: number | null
           total_overtime_value?: number | null
+          transaction_pagamento_id?: string | null
           updated_at?: string | null
+          valor_extras?: number | null
         }
         Relationships: [
           {
@@ -805,6 +850,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "extra_hours_summary_transaction_pagamento_id_fkey"
+            columns: ["transaction_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
@@ -1071,6 +1123,7 @@ export type Database = {
           numero_pedido: number
           observacoes: string | null
           status: string | null
+          status_history: Json | null
           transaction_id: string | null
           updated_at: string | null
           valor_total: number | null
@@ -1088,6 +1141,7 @@ export type Database = {
           numero_pedido?: number
           observacoes?: string | null
           status?: string | null
+          status_history?: Json | null
           transaction_id?: string | null
           updated_at?: string | null
           valor_total?: number | null
@@ -1105,6 +1159,7 @@ export type Database = {
           numero_pedido?: number
           observacoes?: string | null
           status?: string | null
+          status_history?: Json | null
           transaction_id?: string | null
           updated_at?: string | null
           valor_total?: number | null
@@ -1424,6 +1479,7 @@ export type Database = {
           origin_reference_id: string | null
           payment_date: string | null
           recurrence_id: string | null
+          reference_month: string | null
           status: Database["public"]["Enums"]["transaction_status"] | null
           subcategory_id: string | null
           tags: string[] | null
@@ -1444,6 +1500,7 @@ export type Database = {
           origin_reference_id?: string | null
           payment_date?: string | null
           recurrence_id?: string | null
+          reference_month?: string | null
           status?: Database["public"]["Enums"]["transaction_status"] | null
           subcategory_id?: string | null
           tags?: string[] | null
@@ -1464,6 +1521,7 @@ export type Database = {
           origin_reference_id?: string | null
           payment_date?: string | null
           recurrence_id?: string | null
+          reference_month?: string | null
           status?: Database["public"]["Enums"]["transaction_status"] | null
           subcategory_id?: string | null
           tags?: string[] | null
