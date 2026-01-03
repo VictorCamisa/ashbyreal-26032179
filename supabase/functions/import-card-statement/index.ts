@@ -312,8 +312,9 @@ function parseItaucardCSV(content: string): ParsedTransaction[] {
 }
 
 // ============= PARSER: ITAÚ EMPRESAS XLSX =============
-// Format: Tabela com data | descrição | valor
+// Format: Tabela com data | descrição | valor em colunas esparsas
 // Date format: DD/Mon (27/Nov, 01/Dec)
+// The spreadsheet has many empty columns between data, description, and value
 
 function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransaction[] {
   const txs: ParsedTransaction[] = [];
@@ -330,67 +331,104 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
 
   console.log("Parsing Itaú Empresas XLSX, reference year:", referenceYear);
 
-  // Find the "Lançamentos nacionais" section with data | descrição | valor
+  // Find "Lançamentos nacionais" section and parse rows after header
   let inLancamentosSection = false;
-  let dataCol = -1;
-  let descCol = -1;
-  let valueCol = -1;
+  let foundHeader = false;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
     
+    // Convert row to string for section detection
     const rowStr = row.map(c => String(c ?? "").toLowerCase()).join(" ");
     
     // Detect "Lançamentos nacionais" section header
     if (rowStr.includes("lançamentos nacionais") || rowStr.includes("lancamentos nacionais")) {
       inLancamentosSection = true;
+      console.log(`Found 'Lançamentos nacionais' at row ${i}`);
       continue;
     }
     
-    // Detect column headers in this section
-    if (inLancamentosSection && dataCol < 0) {
-      const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
-      const dataIdx = normalized.findIndex((c) => c === "data");
-      const descIdx = normalized.findIndex((c) => c.includes("descr") || c.includes("descrição"));
-      const valorIdx = normalized.findIndex((c) => c === "valor");
-
-      if (dataIdx >= 0 && valorIdx >= 0) {
-        dataCol = dataIdx;
-        descCol = descIdx >= 0 ? descIdx : dataIdx + 1;
-        valueCol = valorIdx;
-        console.log(`Found headers at row ${i}: data=${dataCol}, desc=${descCol}, value=${valueCol}`);
+    // Detect column headers row (data | descrição | valor)
+    if (inLancamentosSection && !foundHeader) {
+      const hasData = rowStr.includes("data");
+      const hasValor = rowStr.includes("valor");
+      if (hasData && hasValor) {
+        foundHeader = true;
+        console.log(`Found header row at ${i}`);
         continue;
       }
     }
     
     // Stop at "Total de lançamentos"
     if (rowStr.includes("total de lançamentos") || rowStr.includes("total de produtos")) {
+      console.log(`Stopping at 'Total' row ${i}`);
       break;
     }
     
-    // Parse data rows
-    if (inLancamentosSection && dataCol >= 0) {
-      const rawDate = row[dataCol];
-      const rawDesc = row[descCol];
-      const rawVal = row[valueCol];
-
-      const date = parseDateAny(rawDate, referenceYear);
+    // Parse data rows (after header found)
+    if (inLancamentosSection && foundHeader) {
+      // Find date, description, and value from non-empty cells
+      // The file has many empty columns, so we need to find values by scanning
+      
+      const nonEmptyCells: { value: any; idx: number }[] = [];
+      for (let j = 0; j < row.length; j++) {
+        const cell = row[j];
+        if (cell !== null && cell !== undefined && String(cell).trim() !== '') {
+          nonEmptyCells.push({ value: cell, idx: j });
+        }
+      }
+      
+      // We need at least date and value (description might be in between)
+      if (nonEmptyCells.length < 2) continue;
+      
+      // First cell should be date (DD/Mon format)
+      const firstCell = String(nonEmptyCells[0].value).trim();
+      const date = parseDateAny(firstCell, referenceYear);
       if (!date) continue;
-
-      let description = String(rawDesc ?? "").trim();
-      if (!description || !hasLetters(description)) continue;
-
+      
+      // Last cell should be the value (number)
+      let amount = 0;
+      let valueIdx = -1;
+      for (let j = nonEmptyCells.length - 1; j >= 1; j--) {
+        const val = parsePtBrNumber(nonEmptyCells[j].value);
+        if (isValidAmount(val)) {
+          amount = val;
+          valueIdx = j;
+          break;
+        }
+      }
+      if (amount === 0) continue;
+      
+      // Description is everything between date and value
+      let description = '';
+      for (let j = 1; j < valueIdx; j++) {
+        const cellStr = String(nonEmptyCells[j].value).trim();
+        if (cellStr && hasLetters(cellStr)) {
+          description = cellStr;
+          break;
+        }
+      }
+      
+      // If no description found between, try the cell right after date
+      if (!description && nonEmptyCells.length >= 2) {
+        const middleIdx = Math.min(1, nonEmptyCells.length - 1);
+        const middleCell = String(nonEmptyCells[middleIdx].value).trim();
+        if (hasLetters(middleCell)) {
+          description = middleCell;
+        }
+      }
+      
+      if (!description) continue;
       if (isPaymentLine(description)) continue;
       if (isSummaryLine(description)) continue;
-
-      let amount = parsePtBrNumber(rawVal);
-      if (!isValidAmount(amount)) continue;
 
       amount = normalizeAmountByDescription(description, amount);
 
       const { num, total } = extractInstallments(description);
       const cleanedDescription = cleanDescription(description);
+
+      console.log(`  Row ${i}: ${date} | ${cleanedDescription} | ${amount}`);
 
       txs.push({
         date,
