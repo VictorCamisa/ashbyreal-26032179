@@ -13,9 +13,20 @@ interface ParsedTransaction {
   date: string;
   description: string;
   amount: number;
-  installment_number?: number;
-  total_installments?: number;
+  installment_number: number;
+  total_installments: number;
   category_suggestion?: string;
+  // Campos de idempotência
+  dedupe_key?: string;
+  purchase_fingerprint?: string;
+  status?: 'NEW' | 'DUPLICATE' | 'FUTURE_INSTALLMENT';
+}
+
+interface ImportSummary {
+  new_items: number;
+  duplicates: number;
+  future_installments: number;
+  total_value: number;
 }
 
 // ============= UTILITY FUNCTIONS =============
@@ -27,34 +38,23 @@ function parsePtBrNumber(value: unknown): number {
   if (typeof value !== "string") return 0;
   
   let cleaned = value.trim();
-  
-  // Remove R$ e espaços
   cleaned = cleaned.replace(/[R$\s]/g, "");
   
-  // Se não tem nem ponto nem vírgula, é um inteiro
   if (!cleaned.includes('.') && !cleaned.includes(',')) {
     return parseFloat(cleaned) || 0;
   }
   
-  // Detectar formato brasileiro (1.234,56 ou 123,45) - vírgula como decimal
   const hasBrazilianDecimal = /,\d{1,2}$/.test(cleaned);
-  
-  // Detectar formato americano com milhares (1,234.56)
   const hasAmericanWithThousands = /,\d{3}/.test(cleaned) && /\.\d{1,2}$/.test(cleaned);
-  
-  // Formato americano simples (123.45 ou 1234.5) - ponto como decimal, sem vírgula
   const hasSimpleAmericanDecimal = /\.\d{1,2}$/.test(cleaned) && !cleaned.includes(',');
   
   if (hasBrazilianDecimal) {
-    // Brasileiro: remove pontos de milhares, troca vírgula por ponto
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   } else if (hasAmericanWithThousands) {
-    // Americano com milhares: remove vírgulas
     cleaned = cleaned.replace(/,/g, "");
   } else if (hasSimpleAmericanDecimal) {
-    // Americano simples: já está ok, não faz nada
+    // já está ok
   } else {
-    // Fallback: assume brasileiro
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   }
   
@@ -68,7 +68,6 @@ function excelSerialToISO(serial: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Mapeamento de meses em português
 const monthMap: Record<string, string> = {
   'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04',
   'mai': '05', 'jun': '06', 'jul': '07', 'ago': '08',
@@ -87,19 +86,15 @@ function parseDateAny(value: unknown, referenceYear?: number): string {
   if (typeof value !== "string") return "";
   const v = value.trim();
 
-  // ISO date in text: "PAGAMENTO EFETUADO 2025-12-08"
   const isoInText = v.match(/(\d{4}-\d{2}-\d{2})/);
   if (isoInText) return isoInText[1];
 
-  // YYYY-MM-DD or YYYY/MM/DD (ISO format)
   const ymd = v.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
   if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
 
-  // DD/MM/YYYY or DD-MM-YYYY
   const dmy = v.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
   if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
 
-  // DD/MM/YY
   const dmy2 = v.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{2})$/);
   if (dmy2) {
     const yy = parseInt(dmy2[3], 10);
@@ -107,7 +102,6 @@ function parseDateAny(value: unknown, referenceYear?: number): string {
     return `${yyyy}-${dmy2[2]}-${dmy2[1]}`;
   }
 
-  // DD/Mon format (Itaú Empresas): "27/Nov", "01/Dec"
   const ddMon = v.match(/^(\d{1,2})[\/\-]([A-Za-z]{3,})$/i);
   if (ddMon) {
     const day = ddMon[1].padStart(2, '0');
@@ -129,17 +123,12 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-// Extract installments from description
-// Patterns: "02/05", "PARC 3/12", "Parcela 2 de 10", "3x12"
 function extractInstallments(description: string): { num: number; total: number } {
   const normalized = String(description ?? "").replace(/\s+/g, " ").trim();
 
   const patterns = [
-    // "PARCELA 3/12", "PARC 3 DE 12", "Parcela 2 de 10"
     /(?:PARCELA|PARC\.?|P)\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i,
-    // "01/12" or "1/12" at end of string (after space)
     /\s(\d{1,2})\/(\d{1,2})$/,
-    // "3x12" or "3/12" at end
     /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$)/,
   ];
 
@@ -148,7 +137,6 @@ function extractInstallments(description: string): { num: number; total: number 
     if (match) {
       const num = parseInt(match[1], 10);
       const total = parseInt(match[2], 10);
-      // Validate: installment number should be <= total, total between 2 and 48
       if (num > 0 && total >= 2 && num <= total && total <= 48) {
         return { num, total };
       }
@@ -157,34 +145,21 @@ function extractInstallments(description: string): { num: number; total: number 
   return { num: 1, total: 1 };
 }
 
-// Clean description by removing installment patterns
 function cleanDescription(description: string): string {
   let cleaned = String(description ?? "").trim();
-  
-  // Remove patterns like "02/06", "3/12" at end of string
   cleaned = cleaned.replace(/\s+\d{1,2}\/\d{1,2}$/, "");
-  // Remove patterns like "PARCELA 3/12", "PARC 3 DE 12"
   cleaned = cleaned.replace(/\s*(?:PARCELA|PARC\.?|P)\s*\d{1,2}\s*(?:\/|DE)\s*\d{1,2}/gi, "");
-  
-  // Remove patterns like "3x12" at end
   cleaned = cleaned.replace(/\s+\d{1,2}\s*[xX]\s*\d{1,2}$/, "");
-  
-  // Clean up extra whitespace
   cleaned = cleaned.replace(/\s+/g, " ").trim();
-  
   return cleaned;
 }
 
 function isValidAmount(amount: number): boolean {
-  // Aceitar valores negativos (estornos, pagamentos) e positivos
   return Math.abs(amount) >= 0.01 && Math.abs(amount) <= 100000;
 }
 
 function normalizeAmountByDescription(description: string, amount: number): number {
   const desc = String(description ?? "").toLowerCase();
-
-  // Alguns bancos exportam créditos/estornos como valor positivo; nesses casos, inverter o sinal.
-  // Se o CSV já veio negativo, mantém negativo (não "corrige" para positivo).
   const isCreditLike =
     desc.includes("estorno") ||
     desc.includes("devol") ||
@@ -202,7 +177,6 @@ function normalizeAmountByDescription(description: string, amount: number): numb
   return amount;
 }
 
-// Linhas de “pagamento” do cartão não são compra/estorno (não entram na fatura)
 function isPaymentLine(description: string): boolean {
   const d = String(description ?? "").toLowerCase().trim();
   return (
@@ -215,20 +189,68 @@ function isPaymentLine(description: string): boolean {
   );
 }
 
-// Check if line is a summary line to skip
 function isSummaryLine(description: string): boolean {
   const lower = description.toLowerCase();
   const skipPatterns = [
-    'total da fatura',
-    'saldo da fatura',
-    'total de lançamentos',
-    'total de produtos',
-    'limite total',
-    'limite disponível',
-    'resumo da fatura',
-    'fatura anterior'
+    'total da fatura', 'saldo da fatura', 'total de lançamentos',
+    'total de produtos', 'limite total', 'limite disponível',
+    'resumo da fatura', 'fatura anterior'
   ];
   return skipPatterns.some(p => lower.includes(p));
+}
+
+// Normalizar merchant para fingerprint
+function normalizeMerchant(description: string): string {
+  return String(description ?? "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^A-Z0-9]/g, "") // Apenas alfanumérico
+    .slice(0, 50);
+}
+
+// Gerar dedupe_key para uma transação
+function generateDedupeKey(
+  cardId: string,
+  competencia: string,
+  date: string,
+  amount: number,
+  description: string,
+  installmentNum: number,
+  installmentTotal: number
+): string {
+  const normalized = normalizeMerchant(description);
+  const amountStr = Math.round(amount * 100).toString();
+  const key = `${cardId}_${competencia}_${date}_${amountStr}_${normalized}_${installmentNum}_${installmentTotal}`;
+  return key;
+}
+
+// Gerar purchase_fingerprint para uma compra (todas as parcelas compartilham isso)
+function generatePurchaseFingerprint(
+  cardId: string,
+  purchaseDate: string,
+  totalAmount: number,
+  description: string,
+  installmentTotal: number
+): string {
+  const normalized = normalizeMerchant(description);
+  const amountStr = Math.round(totalAmount * 100).toString();
+  return `${cardId}_${purchaseDate}_${amountStr}_${normalized}_${installmentTotal}`;
+}
+
+// Calcular hash SHA-256 do conteúdo para idempotência de arquivo
+async function calculateFileHash(content: string | Uint8Array): Promise<string> {
+  let data: ArrayBuffer;
+  if (typeof content === 'string') {
+    data = new TextEncoder().encode(content).buffer as ArrayBuffer;
+  } else {
+    // Copiar para um novo ArrayBuffer para evitar problemas de tipo
+    const copy = new Uint8Array(content);
+    data = copy.buffer as ArrayBuffer;
+  }
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
 }
 
 // ============= XLSX PARSER (ITAU EMPRESAS) =============
@@ -236,7 +258,6 @@ function isSummaryLine(description: string): boolean {
 function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTransaction[] {
   const txs: ParsedTransaction[] = [];
 
-  // Try to extract year from filename: ITAUEMPRESAS_JANEIRO26 -> 2026
   let referenceYear = new Date().getFullYear();
   if (fileName) {
     const yearMatch = fileName.match(/(\d{2})(?:-\d+)?\.xlsx?$/i);
@@ -248,7 +269,6 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
 
   console.log("Reference year for Itaú:", referenceYear);
 
-  // Find header row containing "data" and "descrição" or "valor"
   let headerRowIndex = -1;
   let dataCol = -1;
   let descCol = -1;
@@ -286,7 +306,6 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     const date = parseDateAny(rawDate, referenceYear);
     if (!date) continue;
 
-    // Description
     let description = String(rawDesc ?? "").trim();
     if (!description || !hasLetters(description)) {
       const candidate = row.find((c) => typeof c === "string" && c.trim().length > 2 && hasLetters(c.trim()));
@@ -294,24 +313,18 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     }
     if (!description || !hasLetters(description)) continue;
 
-    // Skip linhas de pagamento (não entram na fatura)
     if (isPaymentLine(description)) continue;
-
-    // Skip summary lines
     if (isSummaryLine(description)) continue;
 
-    // Amount (preservar sinal: + gasto, - crédito/estorno)
     let amount = parsePtBrNumber(rawVal);
     if (!isValidAmount(amount)) {
       const nums = row
         .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
         .filter((n) => isValidAmount(n));
-      if (nums.length) amount = nums[nums.length - 1]; // Usually last number is the value
+      if (nums.length) amount = nums[nums.length - 1];
     }
 
-    // Normalizar sinal pelo texto (estorno/etc)
     amount = normalizeAmountByDescription(description, amount);
-
     if (!isValidAmount(amount)) continue;
 
     const { num, total } = extractInstallments(description);
@@ -335,7 +348,6 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   const lines = content.split("\n").filter((l) => l.trim());
   if (!lines.length) return [];
 
-  // Detect delimiter
   const sample = lines.find((l) => l.trim()) ?? "";
   const semi = (sample.match(/;/g) || []).length;
   const comma = (sample.match(/,/g) || []).length;
@@ -346,14 +358,13 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
   const txs: ParsedTransaction[] = [];
 
-  // Parse header to identify columns
   let dateColIdx = -1;
   let descColIdx = -1;
   let amountColIdx = -1;
   
   const headerLine = lines[0];
   const headerParts = headerLine.split(delimiter).map(p => 
-    p.trim().toLowerCase().replace(/^["'\uFEFF]|["']$/g, "") // Remove BOM, quotes
+    p.trim().toLowerCase().replace(/^["'\uFEFF]|["']$/g, "")
   );
   
   console.log("Header parts:", headerParts);
@@ -366,7 +377,6 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   
   console.log("Detected columns:", { dateColIdx, descColIdx, amountColIdx });
 
-  // If we found header columns, start from line 1
   const hasHeader = dateColIdx >= 0 || descColIdx >= 0 || amountColIdx >= 0;
   const startLine = hasHeader ? 1 : 0;
 
@@ -374,7 +384,6 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
     const line = lines[lineIdx];
     const parts = line.split(delimiter).map((p) => p.trim().replace(/^["'\uFEFF]|["']$/g, ""));
 
-    // Find date
     let date = "";
     if (dateColIdx >= 0 && parts[dateColIdx]) {
       date = parseDateAny(parts[dateColIdx]);
@@ -388,12 +397,10 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
     let description = "";
     let amount = 0;
 
-    // Get description from identified column
     if (descColIdx >= 0 && parts[descColIdx]) {
       description = parts[descColIdx];
     }
 
-    // Get amount from identified column - agora aceita valores negativos também
     if (amountColIdx >= 0 && parts[amountColIdx]) {
       const rawAmount = parsePtBrNumber(parts[amountColIdx]);
       if (isValidAmount(rawAmount)) {
@@ -401,7 +408,6 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
       }
     }
 
-    // Fallback: search through columns
     if (!description) {
       for (let i = 0; i < parts.length; i++) {
         if (i === dateColIdx || i === amountColIdx) continue;
@@ -425,13 +431,9 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
 
     if (!description || (amount === 0 && !isValidAmount(amount))) continue;
 
-    // Skip linhas de pagamento (não entram na fatura)
     if (isPaymentLine(description)) continue;
-
-    // Skip summary lines
     if (isSummaryLine(description)) continue;
 
-    // Normalizar sinal pelo texto (estorno/etc)
     amount = normalizeAmountByDescription(description, amount);
 
     const { num, total } = extractInstallments(description);
@@ -464,14 +466,15 @@ serve(async (req) => {
       content,
       fileBase64,
       fileName,
-      competencia,
+      competenciaAlvo,
     } = await req.json();
 
-    console.log("=== IMPORT REQUEST ===");
+    console.log("=== IMPORT REQUEST (V2 - Idempotent) ===");
     console.log("creditCardId:", creditCardId);
     console.log("cardProvider:", cardProvider);
     console.log("fileType:", fileType);
     console.log("fileName:", fileName);
+    console.log("competenciaAlvo:", competenciaAlvo);
     console.log("content length:", content?.length || 0);
     console.log("fileBase64 length:", fileBase64?.length || 0);
 
@@ -482,10 +485,45 @@ serve(async (req) => {
       );
     }
 
+    if (!competenciaAlvo) {
+      return new Response(
+        JSON.stringify({ error: "competenciaAlvo é obrigatória (formato YYYY-MM)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Calcular hash do arquivo para idempotência
+    const fileContent = fileBase64 
+      ? decodeBase64ToUint8Array(fileBase64) 
+      : new TextEncoder().encode(content || '');
+    const fileHash = await calculateFileHash(fileContent);
+    
+    console.log("File hash:", fileHash);
+
+    // Verificar se arquivo já foi importado
+    const { data: existingImport } = await supabase
+      .from('credit_card_imports')
+      .select('id, created_at, records_imported')
+      .eq('credit_card_id', creditCardId)
+      .eq('file_hash', fileHash)
+      .maybeSingle();
+
+    if (existingImport) {
+      console.log("Arquivo já importado anteriormente:", existingImport.id);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Este arquivo já foi importado em ${new Date(existingImport.created_at).toLocaleDateString('pt-BR')} (${existingImport.records_imported} transações)`,
+          already_imported: true,
+          import_id: existingImport.id,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     let transactions: ParsedTransaction[] = [];
     let errorMessage = "";
@@ -498,7 +536,7 @@ serve(async (req) => {
     // PDF Processing - not supported
     if (type === "PDF") {
       console.log("PDF files are not directly supported");
-      errorMessage = "PDFs não são suportados. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco (Mercado Pago permite exportar CSV).";
+      errorMessage = "PDFs não são suportados. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco.";
     }
     // XLSX Processing
     else if ((type === "XLSX" || type === "XLS") && fileBase64) {
@@ -522,25 +560,102 @@ serve(async (req) => {
     }
 
     console.log(`Parsed ${transactions.length} transactions`);
-    if (transactions.length > 0) {
-      console.log("Sample transactions:");
-      transactions.slice(0, 3).forEach((t, i) => {
-        console.log(`  ${i + 1}. ${t.date} | ${t.description} | ${t.amount} | ${t.installment_number}/${t.total_installments}`);
+
+    // Competência base formatada
+    const competenciaBase = `${competenciaAlvo.slice(0, 7)}-01`;
+
+    // Buscar transações existentes para verificar duplicatas
+    const { data: existingTransactions } = await supabase
+      .from('credit_card_transactions')
+      .select('dedupe_key')
+      .eq('credit_card_id', creditCardId)
+      .not('dedupe_key', 'is', null);
+
+    const existingDedupeKeys = new Set(existingTransactions?.map(t => t.dedupe_key) || []);
+    console.log(`Found ${existingDedupeKeys.size} existing dedupe keys`);
+
+    // Processar transações e adicionar campos de idempotência
+    const summary: ImportSummary = {
+      new_items: 0,
+      duplicates: 0,
+      future_installments: 0,
+      total_value: 0,
+    };
+
+    const processedTransactions: ParsedTransaction[] = [];
+
+    for (const tx of transactions) {
+      // Gerar dedupe_key
+      const dedupeKey = generateDedupeKey(
+        creditCardId,
+        competenciaBase,
+        tx.date,
+        tx.amount,
+        tx.description,
+        tx.installment_number,
+        tx.total_installments
+      );
+
+      // Gerar purchase_fingerprint (para parcelas futuras)
+      const originalAmount = tx.amount * tx.total_installments;
+      const purchaseFingerprint = generatePurchaseFingerprint(
+        creditCardId,
+        tx.date,
+        originalAmount,
+        tx.description,
+        tx.total_installments
+      );
+
+      // Verificar se é duplicata
+      const isDuplicate = existingDedupeKeys.has(dedupeKey);
+
+      const processedTx: ParsedTransaction = {
+        ...tx,
+        dedupe_key: dedupeKey,
+        purchase_fingerprint: purchaseFingerprint,
+        status: isDuplicate ? 'DUPLICATE' : 'NEW',
+      };
+
+      if (isDuplicate) {
+        summary.duplicates++;
+      } else {
+        summary.new_items++;
+        summary.total_value += tx.amount;
+
+        // Calcular parcelas futuras que serão criadas
+        if (tx.total_installments > 1 && tx.installment_number < tx.total_installments) {
+          summary.future_installments += (tx.total_installments - tx.installment_number);
+        }
+      }
+
+      processedTransactions.push(processedTx);
+    }
+
+    console.log("Import summary:", summary);
+    if (processedTransactions.length > 0) {
+      console.log("Sample processed transactions:");
+      processedTransactions.slice(0, 3).forEach((t, i) => {
+        console.log(`  ${i + 1}. ${t.date} | ${t.description} | ${t.amount} | ${t.installment_number}/${t.total_installments} | ${t.status}`);
       });
     }
 
-    // Save import record
+    // Salvar registro de import (preview - ainda não importado de fato)
     const { data: importRecord, error: importError } = await supabase
       .from("credit_card_imports")
       .insert({
         credit_card_id: creditCardId,
         file_name: fileName || "import",
-        file_type: type || "CSV",
-        competencia: competencia || null,
-        status: transactions.length > 0 ? "SUCCESS" : "FAILED",
-        records_imported: transactions.length,
-        records_failed: 0,
-        error_log: errorMessage ? [{ message: errorMessage }] : [],
+        file_hash: fileHash,
+        competencia: competenciaBase,
+        status: processedTransactions.length > 0 ? "PREVIEW" : "FAILED",
+        records_imported: 0, // Será atualizado após confirmação
+        notes: errorMessage || null,
+        raw_data: {
+          summary,
+          parsed_count: transactions.length,
+          provider,
+          file_type: type,
+        },
       })
       .select()
       .single();
@@ -549,13 +664,17 @@ serve(async (req) => {
       console.error("Error saving import record:", importError);
     }
 
-    // Return parsed transactions for frontend to review/save
+    // Retornar transações processadas para frontend revisar
     return new Response(
       JSON.stringify({
-        success: transactions.length > 0,
-        transactions,
-        importId: importRecord?.id,
-        message: errorMessage || `${transactions.length} transações encontradas`,
+        success: processedTransactions.length > 0 && !errorMessage,
+        transactions: processedTransactions,
+        summary,
+        import_id: importRecord?.id,
+        file_hash: fileHash,
+        competencia_alvo: competenciaBase,
+        can_import: summary.new_items > 0,
+        message: errorMessage || `${summary.new_items} novas transações, ${summary.duplicates} duplicatas ignoradas`,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

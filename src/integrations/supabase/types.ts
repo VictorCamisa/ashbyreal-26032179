@@ -341,6 +341,66 @@ export type Database = {
           },
         ]
       }
+      card_purchases: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          credit_card_id: string
+          first_installment_date: string | null
+          id: string
+          installments_total: number | null
+          merchant_normalized: string | null
+          original_description: string | null
+          purchase_fingerprint: string | null
+          status: string | null
+          total_amount: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          credit_card_id: string
+          first_installment_date?: string | null
+          id?: string
+          installments_total?: number | null
+          merchant_normalized?: string | null
+          original_description?: string | null
+          purchase_fingerprint?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          credit_card_id?: string
+          first_installment_date?: string | null
+          id?: string
+          installments_total?: number | null
+          merchant_normalized?: string | null
+          original_description?: string | null
+          purchase_fingerprint?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_purchases_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_purchases_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           category_group: Database["public"]["Enums"]["category_group"] | null
@@ -453,32 +513,41 @@ export type Database = {
       }
       credit_card_imports: {
         Row: {
+          competencia: string | null
           created_at: string | null
           credit_card_id: string
+          file_hash: string | null
           file_name: string | null
           id: string
           import_date: string | null
           notes: string | null
+          raw_data: Json | null
           records_imported: number | null
           status: string | null
         }
         Insert: {
+          competencia?: string | null
           created_at?: string | null
           credit_card_id: string
+          file_hash?: string | null
           file_name?: string | null
           id?: string
           import_date?: string | null
           notes?: string | null
+          raw_data?: Json | null
           records_imported?: number | null
           status?: string | null
         }
         Update: {
+          competencia?: string | null
           created_at?: string | null
           credit_card_id?: string
+          file_hash?: string | null
           file_name?: string | null
           id?: string
           import_date?: string | null
           notes?: string | null
+          raw_data?: Json | null
           records_imported?: number | null
           status?: string | null
         }
@@ -496,40 +565,55 @@ export type Database = {
         Row: {
           closing_date: string | null
           competencia: string
+          confirmed_at: string | null
           created_at: string | null
           credit_card_id: string
           due_date: string | null
           id: string
+          imported_at: string | null
+          lock_status: boolean | null
           payment_date: string | null
+          posted_at: string | null
           status: Database["public"]["Enums"]["invoice_status"] | null
           total_value: number | null
           transaction_id: string | null
+          transaction_posted_id: string | null
           updated_at: string | null
         }
         Insert: {
           closing_date?: string | null
           competencia: string
+          confirmed_at?: string | null
           created_at?: string | null
           credit_card_id: string
           due_date?: string | null
           id?: string
+          imported_at?: string | null
+          lock_status?: boolean | null
           payment_date?: string | null
+          posted_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"] | null
           total_value?: number | null
           transaction_id?: string | null
+          transaction_posted_id?: string | null
           updated_at?: string | null
         }
         Update: {
           closing_date?: string | null
           competencia?: string
+          confirmed_at?: string | null
           created_at?: string | null
           credit_card_id?: string
           due_date?: string | null
           id?: string
+          imported_at?: string | null
+          lock_status?: boolean | null
           payment_date?: string | null
+          posted_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"] | null
           total_value?: number | null
           transaction_id?: string | null
+          transaction_posted_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -547,6 +631,13 @@ export type Database = {
             referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "credit_card_invoices_transaction_posted_id_fkey"
+            columns: ["transaction_posted_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       credit_card_transactions: {
@@ -556,15 +647,19 @@ export type Database = {
           competencia: string
           created_at: string | null
           credit_card_id: string
+          dedupe_key: string | null
           description: string
           id: string
           installment_info: string | null
           installment_number: number | null
           invoice_id: string | null
           is_recurring: boolean | null
+          item_status: string | null
           notes: string | null
           original_amount: number | null
+          parent_purchase_id: string | null
           purchase_date: string
+          source_import_id: string | null
           subcategory_id: string | null
           total_installments: number | null
           updated_at: string | null
@@ -575,15 +670,19 @@ export type Database = {
           competencia: string
           created_at?: string | null
           credit_card_id: string
+          dedupe_key?: string | null
           description: string
           id?: string
           installment_info?: string | null
           installment_number?: number | null
           invoice_id?: string | null
           is_recurring?: boolean | null
+          item_status?: string | null
           notes?: string | null
           original_amount?: number | null
+          parent_purchase_id?: string | null
           purchase_date: string
+          source_import_id?: string | null
           subcategory_id?: string | null
           total_installments?: number | null
           updated_at?: string | null
@@ -594,15 +693,19 @@ export type Database = {
           competencia?: string
           created_at?: string | null
           credit_card_id?: string
+          dedupe_key?: string | null
           description?: string
           id?: string
           installment_info?: string | null
           installment_number?: number | null
           invoice_id?: string | null
           is_recurring?: boolean | null
+          item_status?: string | null
           notes?: string | null
           original_amount?: number | null
+          parent_purchase_id?: string | null
           purchase_date?: string
+          source_import_id?: string | null
           subcategory_id?: string | null
           total_installments?: number | null
           updated_at?: string | null
@@ -630,16 +733,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "credit_card_transactions_source_import_id_fkey"
+            columns: ["source_import_id"]
+            isOneToOne: false
+            referencedRelation: "credit_card_imports"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "credit_card_transactions_subcategory_id_fkey"
             columns: ["subcategory_id"]
             isOneToOne: false
             referencedRelation: "subcategories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_parent_purchase"
+            columns: ["parent_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "card_purchases"
+            referencedColumns: ["id"]
+          },
         ]
       }
       credit_cards: {
         Row: {
+          account_liquidacao_id: string | null
           brand: string | null
           card_provider: string | null
           closing_day: number | null
@@ -655,6 +773,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_liquidacao_id?: string | null
           brand?: string | null
           card_provider?: string | null
           closing_day?: number | null
@@ -670,6 +789,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_liquidacao_id?: string | null
           brand?: string | null
           card_provider?: string | null
           closing_day?: number | null
@@ -685,6 +805,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "credit_cards_account_liquidacao_id_fkey"
+            columns: ["account_liquidacao_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "credit_cards_entity_id_fkey"
             columns: ["entity_id"]
@@ -1705,6 +1832,11 @@ export type Database = {
         | "REJEITADO"
         | "CANCELADO"
       boleto_tipo_nota: "COM_NOTA" | "SEM_NOTA"
+      card_transaction_status:
+        | "IMPORTADO"
+        | "CLASSIFICADO"
+        | "CONFIRMADO"
+        | "POSTADO"
       category_group: "FIXO" | "VARIAVEL" | "INVESTIMENTO"
       category_type: "DESPESA" | "RECEITA"
       entity_type: "LOJA" | "PARTICULAR"
@@ -1851,6 +1983,12 @@ export const Constants = {
       ashby_status: ["PENDENTE", "ENTREGUE", "PAGO", "CANCELADO"],
       boleto_status: ["PENDENTE", "APROVADO", "PAGO", "REJEITADO", "CANCELADO"],
       boleto_tipo_nota: ["COM_NOTA", "SEM_NOTA"],
+      card_transaction_status: [
+        "IMPORTADO",
+        "CLASSIFICADO",
+        "CONFIRMADO",
+        "POSTADO",
+      ],
       category_group: ["FIXO", "VARIAVEL", "INVESTIMENTO"],
       category_type: ["DESPESA", "RECEITA"],
       entity_type: ["LOJA", "PARTICULAR"],
