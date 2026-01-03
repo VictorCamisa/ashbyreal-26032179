@@ -36,10 +36,12 @@ import {
   Link2,
   ExternalLink,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
+import { RegistrarDevolucaoDialog } from './RegistrarDevolucaoDialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -74,6 +76,8 @@ interface PedidoItem {
   quantidade: number;
   preco_unitario: number;
   subtotal: number;
+  quantidade_devolvida: number;
+  valor_devolvido: number;
   produtos: {
     nome: string;
     categoria: string | null;
@@ -120,8 +124,13 @@ export function DetalhesPedidoDrawer({
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [transaction, setTransaction] = useState<TransactionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDevolucao, setShowDevolucao] = useState(false);
   const { toast } = useToast();
   const { deletePedido, isLoading: isDeleting } = usePedidosMutations();
+
+  // Calculate total returns
+  const totalDevolvido = items.reduce((acc, item) => acc + (item.valor_devolvido || 0), 0);
+  const hasDevoluções = items.some(item => (item.quantidade_devolvida || 0) > 0);
 
   useEffect(() => {
     if (open && pedidoId) {
@@ -181,7 +190,11 @@ export function DetalhesPedidoDrawer({
         `)
         .eq('pedido_id', pedidoId);
 
-      setItems(itemsData || []);
+      setItems((itemsData || []).map(item => ({
+        ...item,
+        quantidade_devolvida: item.quantidade_devolvida || 0,
+        valor_devolvido: item.valor_devolvido || 0
+      })));
 
       // Fetch cliente
       if (pedidoData.cliente_id) {
@@ -311,29 +324,44 @@ export function DetalhesPedidoDrawer({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                            <Package className="h-4 w-4 text-primary" />
+                    {items.map((item) => {
+                      const devolvido = item.quantidade_devolvida || 0;
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                              <Package className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm">
+                                  {item.produtos?.nome || 'Produto'}
+                                </p>
+                                {devolvido > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                    {devolvido} devolvido
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {item.quantidade}x R$ {item.preco_unitario.toFixed(2)}
+                                {devolvido > 0 && (
+                                  <span className="text-amber-600 ml-2">
+                                    (Estorno: R$ {item.valor_devolvido.toFixed(2)})
+                                  </span>
+                                )}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-sm">
-                              {item.produtos?.nome || 'Produto'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.quantidade}x R$ {item.preco_unitario.toFixed(2)}
-                            </p>
-                          </div>
+                          <span className="font-semibold text-primary">
+                            R$ {item.subtotal.toFixed(2)}
+                          </span>
                         </div>
-                        <span className="font-semibold text-primary">
-                          R$ {item.subtotal.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -345,34 +373,34 @@ export function DetalhesPedidoDrawer({
                 </h3>
                 <div className="p-4 bg-muted/30 rounded-lg space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="text-muted-foreground">Valor Original</span>
                     <span>R$ {pedido?.valor_total.toFixed(2)}</span>
                   </div>
                   {pedido && pedido.valor_sinal > 0 && (
-                    <>
-                      <div className="flex justify-between text-amber-600 dark:text-amber-400">
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          Sinal pago
-                        </span>
-                        <span>- R$ {pedido.valor_sinal.toFixed(2)}</span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between text-lg font-bold">
-                        <span>Restante</span>
-                        <span className="text-primary">R$ {(pedido.valor_total - pedido.valor_sinal).toFixed(2)}</span>
-                      </div>
-                    </>
+                    <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                      <span className="flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" />
+                        Sinal pago
+                      </span>
+                      <span>- R$ {pedido.valor_sinal.toFixed(2)}</span>
+                    </div>
                   )}
-                  {(!pedido || pedido.valor_sinal === 0) && (
-                    <>
-                      <Separator />
-                      <div className="flex justify-between text-lg font-bold">
-                        <span>Total</span>
-                        <span className="text-primary">R$ {pedido?.valor_total.toFixed(2)}</span>
-                      </div>
-                    </>
+                  {totalDevolvido > 0 && (
+                    <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                      <span className="flex items-center gap-1">
+                        <Undo2 className="h-3 w-3" />
+                        Estornos (devoluções)
+                      </span>
+                      <span>- R$ {totalDevolvido.toFixed(2)}</span>
+                    </div>
                   )}
+                  <Separator />
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total Líquido</span>
+                    <span className="text-primary">
+                      R$ {((pedido?.valor_total || 0) - (pedido?.valor_sinal || 0) - totalDevolvido).toFixed(2)}
+                    </span>
+                  </div>
                   {pedido?.metodo_pagamento && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Método</span>
@@ -531,14 +559,27 @@ export function DetalhesPedidoDrawer({
               <Printer className="h-4 w-4" />
               <span className="text-xs">Imprimir</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-col h-auto py-3 gap-1"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span className="text-xs">Duplicar</span>
-            </Button>
+            {pedido?.status === 'entregue' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDevolucao(true)}
+                className="flex-col h-auto py-3 gap-1 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+              >
+                <Undo2 className="h-4 w-4" />
+                <span className="text-xs">Devolução</span>
+              </Button>
+            )}
+            {pedido?.status !== 'entregue' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-col h-auto py-3 gap-1"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span className="text-xs">Duplicar</span>
+              </Button>
+            )}
           </div>
           
           <AlertDialog>
@@ -577,6 +618,19 @@ export function DetalhesPedidoDrawer({
             </AlertDialogContent>
           </AlertDialog>
         </div>
+
+        {/* Devolução Dialog */}
+        {pedidoId && (
+          <RegistrarDevolucaoDialog
+            open={showDevolucao}
+            onOpenChange={setShowDevolucao}
+            pedidoId={pedidoId}
+            onSuccess={() => {
+              fetchPedidoDetails();
+              onStatusChange?.();
+            }}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
