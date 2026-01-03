@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Search, Users, TrendingUp, UserPlus, Activity } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
+import { ImportarClientesDialog } from '@/components/clientes/ImportarClientesDialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 
@@ -26,7 +27,7 @@ const statusColors: Record<string, string> = {
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
-  const { clientes, isLoading, createCliente, isCreating } = useClientes();
+  const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
 
   const filteredClientes = clientes.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -49,7 +50,10 @@ export default function Clientes() {
       subtitle="Gerencie sua base de clientes"
       icon={Users}
       actions={
-        <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
+        <div className="flex items-center gap-2">
+          <ImportarClientesDialog onImport={bulkImportClientes} isImporting={isImporting} />
+          <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
+        </div>
       }
     >
       <div className="space-y-6">

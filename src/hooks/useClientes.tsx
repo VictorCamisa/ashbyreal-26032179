@@ -110,6 +110,39 @@ export function useClientes() {
     },
   });
 
+  // Bulk import clientes mutation
+  const bulkImportMutation = useMutation({
+    mutationFn: async (clientes: Array<{ nome: string; telefone: string; email: string; origem: string; empresa?: string }>) => {
+      const clientesData = clientes.map(c => ({
+        nome: c.nome,
+        email: c.email,
+        telefone: c.telefone,
+        empresa: c.empresa || null,
+        status: 'lead' as const,
+        origem: c.origem,
+      }));
+
+      const { data, error } = await supabase
+        .from('clientes')
+        .insert(clientesData)
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao importar clientes',
+        description: error.message,
+      });
+    },
+  });
+
   // Update cliente mutation
   const updateClienteMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<ClienteInsert> }) => {
@@ -166,7 +199,9 @@ export function useClientes() {
     clientes,
     isLoading,
     isCreating: createClienteMutation.isPending,
+    isImporting: bulkImportMutation.isPending,
     createCliente: createClienteMutation.mutateAsync,
+    bulkImportClientes: bulkImportMutation.mutateAsync,
     updateCliente: (id: string, updates: Partial<ClienteInsert>) => 
       updateClienteMutation.mutateAsync({ id, updates }),
     deleteCliente: deleteClienteMutation.mutateAsync,
