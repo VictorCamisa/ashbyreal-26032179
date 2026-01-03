@@ -20,6 +20,9 @@ import Configuracoes from "./pages/Configuracoes";
 import Financeiro from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
+// Institucional pages
+import InstitucionalHome from "./pages/institucional/Home";
+import InstitucionalProdutos from "./pages/institucional/Produtos";
 
 const queryClient = new QueryClient();
 
@@ -32,13 +35,17 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
+              {/* Public Institutional Pages */}
+              <Route path="/" element={<InstitucionalHome />} />
+              <Route path="/produtos" element={<InstitucionalProdutos />} />
+              
               <Route path="/auth" element={<Auth />} />
               {/* Public route for client signature */}
               <Route path="/assinar" element={<AssinarComprovante />} />
               {/* WhatsApp has its own fullscreen layout */}
               <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/crm" element={<CRM />} />
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/cliente/:id" element={<ClienteDetalhes />} />
