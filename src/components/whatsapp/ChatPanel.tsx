@@ -215,16 +215,25 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         );
       case 'audio':
         return (
-          <div className="flex items-center gap-2 min-w-[150px]">
-            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <Mic className="h-4 w-4" />
-            </div>
-            <div className="flex-1">
-              <div className="h-1 bg-primary/30 rounded-full">
-                <div className="h-1 bg-primary rounded-full w-0" />
+          <div className="min-w-[200px]">
+            {msg.media_url ? (
+              <audio 
+                controls 
+                className="w-full h-10"
+                preload="metadata"
+              >
+                <source src={msg.media_url} type="audio/ogg" />
+                <source src={msg.media_url} type="audio/mpeg" />
+                Seu navegador não suporta áudio.
+              </audio>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Mic className="h-4 w-4" />
+                </div>
+                <span className="text-sm">{msg.content || 'Áudio'}</span>
               </div>
-            </div>
-            <span className="text-xs text-muted-foreground">0:00</span>
+            )}
           </div>
         );
       case 'document':
@@ -239,9 +248,22 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         );
       case 'video':
         return (
-          <div className="flex items-center gap-2">
-            <Image className="h-4 w-4" />
-            <span className="text-sm">{msg.content || 'Vídeo'}</span>
+          <div className="space-y-1">
+            {msg.media_url ? (
+              <video 
+                controls 
+                className="max-w-[250px] rounded-lg"
+                preload="metadata"
+              >
+                <source src={msg.media_url} type="video/mp4" />
+                Seu navegador não suporta vídeo.
+              </video>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Image className="h-4 w-4" />
+                <span className="text-sm">{msg.content || 'Vídeo'}</span>
+              </div>
+            )}
           </div>
         );
       case 'sticker':
