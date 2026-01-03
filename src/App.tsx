@@ -35,6 +35,8 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               {/* Public route for client signature */}
               <Route path="/assinar" element={<AssinarComprovante />} />
+              {/* WhatsApp has its own fullscreen layout */}
+              <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/crm" element={<CRM />} />
@@ -42,7 +44,6 @@ const App = () => (
                 <Route path="/cliente/:id" element={<ClienteDetalhes />} />
                 <Route path="/pedidos" element={<Pedidos />} />
                 <Route path="/estoque" element={<Estoque />} />
-                <Route path="/whatsapp" element={<WhatsApp />} />
                 <Route path="/suporte" element={<Suporte />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
