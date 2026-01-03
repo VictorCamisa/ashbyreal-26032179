@@ -32,6 +32,24 @@ interface ImportSummary {
 
 const hasLetters = (s: string) => /[A-Za-zÀ-ÿ]/.test(s);
 
+function cellToText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+
+  // XLSX can return Date
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  // XLSX can return rich objects { v, w }
+  if (typeof value === "object") {
+    const cell: any = value;
+    if (typeof cell.w === "string") return cell.w;
+    if (cell.v !== undefined) return cellToText(cell.v);
+  }
+
+  return String(value);
+}
+
 function parsePtBrNumber(value: unknown): number {
   // XLSX libraries sometimes return rich cell objects like { v, w }
   if (value && typeof value === "object") {
@@ -358,15 +376,15 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
     if (!row) continue;
     
     // Convert row to string for section detection
-    const rowStr = row.map(c => String(c ?? "").toLowerCase()).join(" ");
-    
+    const rowStr = row.map((c) => cellToText(c).toLowerCase()).join(" ");
+
     // Detect "Lançamentos nacionais" section header
     if (rowStr.includes("lançamentos nacionais") || rowStr.includes("lancamentos nacionais")) {
       inLancamentosSection = true;
       console.log(`Found 'Lançamentos nacionais' at row ${i}`);
       continue;
     }
-    
+
     // Detect column headers row (data | descrição | valor)
     if (inLancamentosSection && !foundHeader) {
       const hasData = rowStr.includes("data");
@@ -377,7 +395,7 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
         continue;
       }
     }
-    
+
     // Stop at totals AFTER we are inside the real table (header found)
     // (In this XLSX, there is a "Resumo da fatura" section that also contains these words)
     if (
@@ -388,17 +406,18 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
       console.log(`Stopping at total row ${i}`);
       break;
     }
-    
+
     // Parse data rows (after header found)
     if (inLancamentosSection && foundHeader) {
       // Find date, description, and value from non-empty cells
       // The file can have leading non-empty columns, so we detect by content (not position)
 
-      const nonEmptyCells: { value: any; idx: number }[] = [];
+      const nonEmptyCells: { value: any; idx: number; text: string }[] = [];
       for (let j = 0; j < row.length; j++) {
         const cell = row[j];
-        if (cell !== null && cell !== undefined && String(cell).trim() !== "") {
-          nonEmptyCells.push({ value: cell, idx: j });
+        const cellText = cellToText(cell);
+        if (cellText.trim() !== "") {
+          nonEmptyCells.push({ value: cell, idx: j, text: cellText });
         }
       }
 
@@ -408,7 +427,7 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
       let date = "";
       let datePos = -1;
       for (let j = 0; j < nonEmptyCells.length; j++) {
-        const candidate = parseDateAny(String(nonEmptyCells[j].value).trim(), referenceYear);
+        const candidate = parseDateAny(nonEmptyCells[j].value, referenceYear);
         if (candidate) {
           date = candidate;
           datePos = j;
@@ -434,7 +453,7 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
       // Description is typically between date and value
       let description = "";
       for (let j = datePos + 1; j < valuePos; j++) {
-        const cellStr = String(nonEmptyCells[j].value).trim();
+        const cellStr = nonEmptyCells[j].text.trim();
         if (cellStr && hasLetters(cellStr)) {
           description = cellStr;
           break;
@@ -445,7 +464,7 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
       if (!description) {
         for (let j = 0; j < nonEmptyCells.length; j++) {
           if (j === datePos || j === valuePos) continue;
-          const cellStr = String(nonEmptyCells[j].value).trim();
+          const cellStr = nonEmptyCells[j].text.trim();
           if (cellStr && hasLetters(cellStr)) {
             description = cellStr;
             break;
