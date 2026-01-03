@@ -213,6 +213,11 @@ Deno.serve(async (req) => {
 
       console.log(`[Evolution API] Found ${chats.length} chats from Evolution`);
 
+      // Log first 3 chats to understand structure (helps mapping @lid -> @s.whatsapp.net)
+      for (let i = 0; i < Math.min(3, chats.length); i++) {
+        console.log(`[Evolution API] Sample chat ${i}: ${JSON.stringify(chats[i]).substring(0, 500)}`);
+      }
+
       // Fetch contacts to enrich push_name
       const contactMap = await fetchContactsMap();
 
@@ -220,7 +225,16 @@ Deno.serve(async (req) => {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
 
-        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
+        const altJid =
+          chat.remoteJidAlt ||
+          chat.pnJid ||
+          chat.pnJidAlt ||
+          chat.participantAlt ||
+          chat.phoneNumber ||
+          (typeof chat.id === "string" && chat.id !== remoteJid ? chat.id : null) ||
+          null;
+
+        const normalized = normalizeToCanonical(remoteJid, altJid);
         const canonicalJid = normalized.canonicalJid || remoteJid;
         
         // Try to get name from multiple sources
@@ -377,11 +391,25 @@ Deno.serve(async (req) => {
 
       console.log(`[Evolution API] Rebuilding with ${chats.length} chats, ${contactMap.size} contacts`);
 
+      // Log first 3 chats to understand structure (helps mapping @lid -> @s.whatsapp.net)
+      for (let i = 0; i < Math.min(3, chats.length); i++) {
+        console.log(`[Evolution API] Sample rebuild chat ${i}: ${JSON.stringify(chats[i]).substring(0, 500)}`);
+      }
+
       for (const chat of chats) {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
-        
-        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
+
+        const altJid =
+          chat.remoteJidAlt ||
+          chat.pnJid ||
+          chat.pnJidAlt ||
+          chat.participantAlt ||
+          chat.phoneNumber ||
+          (typeof chat.id === "string" && chat.id !== remoteJid ? chat.id : null) ||
+          null;
+
+        const normalized = normalizeToCanonical(remoteJid, altJid);
         const canonicalJid = normalized.canonicalJid || remoteJid;
 
         // Get name from chat or contacts
