@@ -213,18 +213,78 @@ export type Database = {
           },
         ]
       }
+      campanha_envios: {
+        Row: {
+          campanha_id: string | null
+          cliente_id: string | null
+          cliente_nome: string | null
+          cliente_telefone: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          remote_jid: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          campanha_id?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          remote_jid?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          campanha_id?: string | null
+          cliente_id?: string | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          remote_jid?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campanha_envios_campanha_id_fkey"
+            columns: ["campanha_id"]
+            isOneToOne: false
+            referencedRelation: "campanhas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campanha_envios_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campanhas: {
         Row: {
           conversoes: number | null
           created_at: string | null
           data: string | null
+          filters: Json | null
           id: string
+          instance_id: string | null
+          media_type: string | null
+          media_url: string | null
           mensagens_entregues: number | null
           mensagens_enviadas: number | null
           mensagens_lidas: number | null
+          message_template: string | null
           nome: string
           publico_alvo: number | null
           respostas: number | null
+          scheduled_at: string | null
           status: string | null
           taxa_conversao: number | null
           taxa_resposta: number | null
@@ -233,13 +293,19 @@ export type Database = {
           conversoes?: number | null
           created_at?: string | null
           data?: string | null
+          filters?: Json | null
           id?: string
+          instance_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
           mensagens_entregues?: number | null
           mensagens_enviadas?: number | null
           mensagens_lidas?: number | null
+          message_template?: string | null
           nome: string
           publico_alvo?: number | null
           respostas?: number | null
+          scheduled_at?: string | null
           status?: string | null
           taxa_conversao?: number | null
           taxa_resposta?: number | null
@@ -248,18 +314,32 @@ export type Database = {
           conversoes?: number | null
           created_at?: string | null
           data?: string | null
+          filters?: Json | null
           id?: string
+          instance_id?: string | null
+          media_type?: string | null
+          media_url?: string | null
           mensagens_entregues?: number | null
           mensagens_enviadas?: number | null
           mensagens_lidas?: number | null
+          message_template?: string | null
           nome?: string
           publico_alvo?: number | null
           respostas?: number | null
+          scheduled_at?: string | null
           status?: string | null
           taxa_conversao?: number | null
           taxa_resposta?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campanhas_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
