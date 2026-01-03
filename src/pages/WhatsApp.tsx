@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { PageLayout } from '@/components/layout/PageLayout';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageSquare, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { InstanceSettings } from '@/components/whatsapp/InstanceSettings';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
 import { ChatPanel } from '@/components/whatsapp/ChatPanel';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 export default function WhatsApp() {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
   const [selectedJid, setSelectedJid] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('conversas');
 
   const { instances } = useWhatsAppInstances();
   const { conversations, loadingConversations, getMessages, sendMessage } = useWhatsAppMessages(
@@ -34,60 +39,58 @@ export default function WhatsApp() {
         mediaUrl,
       });
     } catch {
-      // Error toast is handled inside the mutation; avoid breaking the UI with an unhandled rejection.
+      // Error toast is handled inside the mutation
     }
   };
 
   return (
-    <PageLayout
-      title="WhatsApp"
-      subtitle="Gerencie suas conversas e instâncias"
-    >
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="h-[calc(100vh-180px)]">
-        <TabsList className="mb-4">
-          <TabsTrigger value="conversas" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Conversas
-          </TabsTrigger>
-          <TabsTrigger value="configuracoes" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Configurações
-          </TabsTrigger>
-        </TabsList>
+    <div className="fixed inset-0 flex bg-[#111B21]">
+      {/* Left Panel - Conversations */}
+      <div className="w-[420px] min-w-[320px] max-w-[520px] border-r border-[#222D34] flex flex-col bg-[#111B21]">
+        <ConversationList
+          conversations={conversations}
+          isLoading={loadingConversations}
+          selectedJid={selectedJid}
+          onSelect={setSelectedJid}
+        />
+        
+        {/* Settings button at bottom */}
+        <div className="p-2 border-t border-[#222D34]">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start gap-3 text-[#8696A0] hover:bg-[#202C33]"
+              >
+                <Settings className="h-5 w-5" />
+                Configurações
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[400px] sm:w-[540px] bg-[#111B21] border-[#222D34]">
+              <SheetHeader>
+                <SheetTitle className="text-[#E9EDEF]">Configurações do WhatsApp</SheetTitle>
+              </SheetHeader>
+              <div className="mt-6">
+                <InstanceSettings
+                  onInstanceSelect={setSelectedInstance}
+                  selectedInstance={selectedInstance}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
 
-        <TabsContent value="conversas" className="h-full mt-0">
-          {/* WhatsApp Web Layout */}
-          <div className="h-[calc(100vh-250px)] min-h-[500px] flex rounded-lg overflow-hidden shadow-xl border border-[#222D34]">
-            {/* Left Panel - Conversations */}
-            <div className="w-[30%] min-w-[300px] max-w-[400px] border-r border-[#222D34] flex flex-col">
-              <ConversationList
-                conversations={conversations}
-                isLoading={loadingConversations}
-                selectedJid={selectedJid}
-                onSelect={setSelectedJid}
-              />
-            </div>
-
-            {/* Right Panel - Chat */}
-            <div className="flex-1 flex flex-col">
-              <ChatPanel
-                conversation={selectedConversation}
-                messages={messages}
-                isLoading={loadingMessages}
-                onSendMessage={handleSendMessage}
-                isSending={sendMessage.isPending}
-              />
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="configuracoes" className="mt-0">
-          <InstanceSettings
-            onInstanceSelect={setSelectedInstance}
-            selectedInstance={selectedInstance}
-          />
-        </TabsContent>
-      </Tabs>
-    </PageLayout>
+      {/* Right Panel - Chat */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <ChatPanel
+          conversation={selectedConversation}
+          messages={messages}
+          isLoading={loadingMessages}
+          onSendMessage={handleSendMessage}
+          isSending={sendMessage.isPending}
+        />
+      </div>
+    </div>
   );
 }
