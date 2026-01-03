@@ -82,11 +82,30 @@ serve(async (req) => {
       }
 
       case "MESSAGES_UPSERT": {
-        const messages = payload.data?.messages || payload.messages || [];
-        
+        // Evolution can send this event in two formats:
+        // 1) payload.data.messages = [] (history/batch)
+        // 2) payload.data = single message object
+        const data = payload.data;
+        let messages: any[] = [];
+
+        if (Array.isArray(data?.messages)) {
+          messages = data.messages;
+        } else if (Array.isArray(payload.messages)) {
+          messages = payload.messages;
+        } else if (data && (data.key || data.message)) {
+          messages = [data];
+        } else if (payload && (payload.key || payload.message)) {
+          messages = [payload];
+        }
+
+        console.log(`[webhook-evolution] MESSAGES_UPSERT parsed messages: ${messages.length}`);
+
         for (const msg of messages) {
+          const remoteJidRaw = msg.key?.remoteJid || "";
+          const remoteJidAlt = msg.key?.remoteJidAlt || msg.remoteJidAlt || null;
+          const remoteJid = remoteJidRaw.includes("@lid") && remoteJidAlt ? remoteJidAlt : remoteJidRaw;
+
           // Ignore group messages
-          const remoteJid = msg.key?.remoteJid || "";
           if (remoteJid.includes("@g.us")) {
             console.log(`[webhook-evolution] Ignoring group message: ${remoteJid}`);
             continue;
@@ -132,7 +151,7 @@ serve(async (req) => {
 
           // Extract contact info - THIS IS THE KEY PART!
           // pushName comes from the contact who sent the message
-          const pushName = msg.pushName || msg.verifiedBizName || null;
+          const pushName = msg.pushName || msg.verifiedBizName || data?.pushName || null;
           const phoneNumber = remoteJid.split("@")[0];
 
           // Build metadata with sender info
@@ -140,6 +159,8 @@ serve(async (req) => {
             sender_name: pushName,
             push_name: pushName,
             phone_number: phoneNumber,
+            remote_jid_raw: remoteJidRaw,
+            remote_jid_alt: remoteJidAlt,
           };
 
           // If there's a profile picture, include it
