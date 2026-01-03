@@ -33,20 +33,27 @@ interface ImportSummary {
 const hasLetters = (s: string) => /[A-Za-zÀ-ÿ]/.test(s);
 
 function parsePtBrNumber(value: unknown): number {
+  // XLSX libraries sometimes return rich cell objects like { v, w }
+  if (value && typeof value === "object") {
+    const cell: any = value;
+    if (cell.v !== undefined) return parsePtBrNumber(cell.v);
+    if (typeof cell.w === "string") return parsePtBrNumber(cell.w);
+  }
+
   if (typeof value === "number") return value;
   if (typeof value !== "string") return 0;
-  
+
   let cleaned = value.trim();
   cleaned = cleaned.replace(/[R$\s]/g, "");
-  
-  if (!cleaned.includes('.') && !cleaned.includes(',')) {
+
+  if (!cleaned.includes(".") && !cleaned.includes(",")) {
     return parseFloat(cleaned) || 0;
   }
-  
+
   const hasBrazilianDecimal = /,\d{1,2}$/.test(cleaned);
   const hasAmericanWithThousands = /,\d{3}/.test(cleaned) && /\.\d{1,2}$/.test(cleaned);
-  const hasSimpleAmericanDecimal = /\.\d{1,2}$/.test(cleaned) && !cleaned.includes(',');
-  
+  const hasSimpleAmericanDecimal = /\.\d{1,2}$/.test(cleaned) && !cleaned.includes(",");
+
   if (hasBrazilianDecimal) {
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   } else if (hasAmericanWithThousands) {
@@ -56,7 +63,7 @@ function parsePtBrNumber(value: unknown): number {
   } else {
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   }
-  
+
   const n = parseFloat(cleaned);
   return Number.isFinite(n) ? n : 0;
 }
@@ -78,6 +85,17 @@ const monthMap: Record<string, string> = {
 };
 
 function parseDateAny(value: unknown, referenceYear?: number): string {
+  // XLSX can return Date or rich cell objects
+  if (value && typeof value === "object") {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString().slice(0, 10);
+    }
+
+    const cell: any = value;
+    if (cell.v !== undefined) return parseDateAny(cell.v, referenceYear);
+    if (typeof cell.w === "string") return parseDateAny(cell.w, referenceYear);
+  }
+
   if (typeof value === "number" && Number.isFinite(value)) {
     if (value > 20000 && value < 90000) return excelSerialToISO(value);
   }
@@ -104,7 +122,7 @@ function parseDateAny(value: unknown, referenceYear?: number): string {
   // DD/Mon format (Itaú Empresas): "27/Nov", "01/Dec"
   const ddMon = v.match(/^(\d{1,2})[\/\-]([A-Za-z]{3,})$/i);
   if (ddMon) {
-    const day = ddMon[1].padStart(2, '0');
+    const day = ddMon[1].padStart(2, "0");
     const monthStr = ddMon[2].toLowerCase().slice(0, 3);
     const month = monthMap[monthStr];
     if (month) {
