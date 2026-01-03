@@ -232,52 +232,40 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
       </header>
 
       {/* Tabs */}
-      <div className="shrink-0 px-4 pt-3">
-        <TabsList className="w-full bg-[#202C33] border border-[#2A3942] h-11">
-          <TabsTrigger 
-            value="novo" 
-            onClick={() => setActiveTab('novo')}
-            className={cn(
-              "flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white",
-              activeTab === 'novo' && "bg-[#00A884] text-white"
-            )}
-          >
-            <Zap className="h-4 w-4 mr-2" />
-            Novo
-          </TabsTrigger>
-          <TabsTrigger 
-            value="andamento" 
-            onClick={() => setActiveTab('andamento')}
-            className={cn(
-              "flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white",
-              activeTab === 'andamento' && "bg-[#00A884] text-white"
-            )}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Andamento
-            {campanhasEmAndamento.length > 0 && (
-              <Badge className="ml-2 bg-yellow-500 text-black text-xs">{campanhasEmAndamento.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger 
-            value="historico" 
-            onClick={() => setActiveTab('historico')}
-            className={cn(
-              "flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white",
-              activeTab === 'historico' && "bg-[#00A884] text-white"
-            )}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Histórico
-          </TabsTrigger>
-        </TabsList>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
+        <div className="shrink-0 px-4 pt-3">
+          <TabsList className="w-full bg-[#202C33] border border-[#2A3942] h-11">
+            <TabsTrigger 
+              value="novo" 
+              className="flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Novo
+            </TabsTrigger>
+            <TabsTrigger 
+              value="andamento" 
+              className="flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Andamento
+              {campanhasEmAndamento.length > 0 && (
+                <Badge className="ml-2 bg-yellow-500 text-black text-xs">{campanhasEmAndamento.length}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="historico" 
+              className="flex-1 data-[state=active]:bg-[#00A884] data-[state=active]:text-white"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Histórico
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* TAB: Novo Disparo */}
-        {activeTab === 'novo' && (
-          <div className="p-4 space-y-4 pb-32">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          {/* TAB: Novo Disparo */}
+          <TabsContent value="novo" className="mt-0 p-4 space-y-4 pb-32 data-[state=inactive]:hidden">
             {/* Campaign Name */}
             <div className="space-y-2">
               <Label className="text-[#E9EDEF] text-sm font-medium">Nome da Campanha (opcional)</Label>
@@ -647,12 +635,10 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                 )}
               </CardContent>
             </Card>
-          </div>
-        )}
+          </TabsContent>
 
-        {/* TAB: Em Andamento */}
-        {activeTab === 'andamento' && (
-          <div className="p-4 space-y-4">
+          {/* TAB: Em Andamento */}
+          <TabsContent value="andamento" className="mt-0 p-4 space-y-4 data-[state=inactive]:hidden">
             {selectedCampanhaId && stats.total > 0 ? (
               <Card className="bg-[#202C33] border-[#2A3942]">
                 <CardHeader>
@@ -729,12 +715,10 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                 <p className="text-sm text-[#8696A0] mt-1">Crie um novo disparo para começar</p>
               </div>
             )}
-          </div>
-        )}
+          </TabsContent>
 
-        {/* TAB: Histórico */}
-        {activeTab === 'historico' && (
-          <div className="p-4 space-y-4">
+          {/* TAB: Histórico */}
+          <TabsContent value="historico" className="mt-0 p-4 space-y-4 data-[state=inactive]:hidden">
             {loadingCampanhas ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-[#00A884]" />
@@ -781,9 +765,9 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                 ))}
               </div>
             )}
-          </div>
-        )}
-      </div>
+          </TabsContent>
+        </div>
+      </Tabs>
 
       {/* Fixed Footer - Action Button */}
       {activeTab === 'novo' && (
