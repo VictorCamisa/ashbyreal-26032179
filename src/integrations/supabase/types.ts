@@ -772,6 +772,7 @@ export type Database = {
           last_message: string | null
           last_message_at: string | null
           linked_to_chat_id: string | null
+          phone_number: string | null
           profile_pic_url: string | null
           push_name: string | null
           remote_jid: string
@@ -786,6 +787,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           linked_to_chat_id?: string | null
+          phone_number?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid: string
@@ -800,6 +802,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           linked_to_chat_id?: string | null
+          phone_number?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid?: string

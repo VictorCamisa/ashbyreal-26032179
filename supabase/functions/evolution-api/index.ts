@@ -324,7 +324,24 @@ serve(async (req) => {
           const pushName = chat.pushName || chat.name || chat.notify || null;
           const profilePic = chat.profilePicUrl || chat.imgUrl || null;
 
-          const chatData = {
+          // Extrair número real (PN) se o JID for @lid
+          // Evolution/Baileys retorna phoneNumber quando o id é LID
+          let phoneNumber: string | null = null;
+          if (remoteJid.includes('@lid')) {
+            // Prioridade: phoneNumber fornecido diretamente pela Evolution
+            phoneNumber = chat.phoneNumber || chat.phone || chat.number || null;
+            // Fallback: se não há phoneNumber, extrair dígitos do LID (pode estar OK)
+            if (!phoneNumber) {
+              const digits = remoteJid.replace('@lid', '').replace(/\D/g, '');
+              // LIDs podem conter o número em alguns casos; validar tamanho mínimo
+              phoneNumber = digits.length >= 10 ? digits : null;
+            }
+          } else if (!remoteJid.includes('@g.us')) {
+            // JID normal: extrair número de @s.whatsapp.net ou @c.us
+            phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+          }
+
+          const chatData: Record<string, any> = {
             instance_name,
             remote_jid: remoteJid,
             push_name: pushName,
@@ -340,7 +357,12 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           };
 
-          console.log(`Upserting chat: ${remoteJid} - ${chatData.push_name}`);
+          // Só definir phone_number se disponível para evitar sobrescrever
+          if (phoneNumber) {
+            chatData.phone_number = phoneNumber;
+          }
+
+          console.log(`Upserting chat: ${remoteJid} - ${chatData.push_name} (phone: ${phoneNumber})`);
 
           const { error } = await supabase
             .from('evolution_chats')

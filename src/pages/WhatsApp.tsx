@@ -499,45 +499,47 @@ export default function WhatsApp() {
 
   const isGroupJid = (jid: string) => jid.includes('@g.us');
 
-  const formatPhoneNumber = (jid: string) => {
-    if (isGroupJid(jid)) return '';
+  // Formatar número de telefone para exibição
+  const formatPhoneNumber = (phone: string | null | undefined): string => {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    if (!digits || digits.length < 10) return '';
     
-    // Remover todos os sufixos de JID
-    let number = jid
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '')
-      .replace('@lid', '')
-      .replace(/\D/g, '');
-    
-    if (!number || number.length < 10) return '';
-    
-    if (number.startsWith('55') && number.length >= 12) {
-      const ddd = number.slice(2, 4);
-      const rest = number.slice(4);
+    // Formato BR: 55 + DDD (2 dígitos) + número (8 ou 9 dígitos)
+    if (digits.startsWith('55') && digits.length >= 12) {
+      const ddd = digits.slice(2, 4);
+      const rest = digits.slice(4);
       if (rest.length === 9) return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
       if (rest.length === 8) return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
     }
     
-    return `+${number.slice(0, 2)} ${number.slice(2)}`;
+    return `+${digits.slice(0, 2)} ${digits.slice(2)}`;
   };
 
-  const getDisplayName = (chat: EvolutionChat) => {
+  // Obter nome/número legível para um chat (nunca mostrar @lid)
+  const getDisplayName = (chat: EvolutionChat): string => {
+    // 1) Nome do contato se disponível
     if (chat.push_name?.trim()) return chat.push_name;
-    const formatted = formatPhoneNumber(chat.remote_jid);
-    if (formatted) return formatted;
-    if (chat.is_group) return 'Grupo';
     
-    // Fallback: mostrar número sem formatação
-    const rawNumber = chat.remote_jid
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '')
-      .replace('@lid', '')
-      .replace(/\D/g, '');
-    
-    if (rawNumber && rawNumber.length >= 10) {
-      return `+${rawNumber}`;
+    // 2) Número real (armazenado no campo phone_number quando @lid)
+    if (chat.phone_number) {
+      const formatted = formatPhoneNumber(chat.phone_number);
+      if (formatted) return formatted;
+      return `+${chat.phone_number}`;
     }
     
+    // 3) Grupos
+    if (chat.is_group) return 'Grupo';
+    
+    // 4) JID normal (@s.whatsapp.net ou @c.us)
+    if (!chat.remote_jid.includes('@lid')) {
+      const phone = chat.remote_jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      const formatted = formatPhoneNumber(phone);
+      if (formatted) return formatted;
+      if (phone.length >= 10) return `+${phone}`;
+    }
+    
+    // 5) Fallback (não deveria ocorrer)
     return 'Contato';
   };
 
@@ -800,7 +802,7 @@ export default function WhatsApp() {
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm text-muted-foreground truncate">
-                              {chat.last_message || (chat.is_group ? 'Grupo' : formatPhoneNumber(chat.remote_jid) || 'WhatsApp')}
+                              {chat.last_message || (chat.is_group ? 'Grupo' : formatPhoneNumber(chat.phone_number) || 'WhatsApp')}
                             </p>
                             {chat.unread_count > 0 && (
                               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-emerald-500 text-white text-xs font-medium flex items-center justify-center">

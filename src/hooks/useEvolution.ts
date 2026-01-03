@@ -16,6 +16,7 @@ export interface EvolutionChat {
   created_at: string;
   updated_at: string;
   linked_to_chat_id: string | null;
+  phone_number: string | null;
 }
 
 export interface EvolutionMessage {
