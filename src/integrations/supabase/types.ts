@@ -614,6 +614,80 @@ export type Database = {
           },
         ]
       }
+      delivery_receipts: {
+        Row: {
+          cliente_cpf_cnpj: string | null
+          cliente_endereco: Json | null
+          cliente_nome: string | null
+          cliente_telefone: string | null
+          controle_barris: Json | null
+          created_at: string
+          data_entrega: string | null
+          id: string
+          metodo_pagamento: string | null
+          observacoes: string | null
+          pedido_id: string
+          periodo_entrega: string | null
+          sent_at: string | null
+          signature_data: string | null
+          signed_at: string | null
+          signed_ip: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          cliente_cpf_cnpj?: string | null
+          cliente_endereco?: Json | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          controle_barris?: Json | null
+          created_at?: string
+          data_entrega?: string | null
+          id?: string
+          metodo_pagamento?: string | null
+          observacoes?: string | null
+          pedido_id: string
+          periodo_entrega?: string | null
+          sent_at?: string | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_ip?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          cliente_cpf_cnpj?: string | null
+          cliente_endereco?: Json | null
+          cliente_nome?: string | null
+          cliente_telefone?: string | null
+          controle_barris?: Json | null
+          created_at?: string
+          data_entrega?: string | null
+          id?: string
+          metodo_pagamento?: string | null
+          observacoes?: string | null
+          pedido_id?: string
+          periodo_entrega?: string | null
+          sent_at?: string | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_ip?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_receipts_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           cargo: string | null

@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.scan-order]
 verify_jwt = false
+
+[functions.sign-delivery-receipt]
+verify_jwt = false

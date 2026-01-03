@@ -19,6 +19,7 @@ import Suporte from "./pages/Suporte";
 import Configuracoes from "./pages/Configuracoes";
 import Financeiro from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
+import AssinarComprovante from "./pages/AssinarComprovante";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,8 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              {/* Public route for client signature */}
+              <Route path="/assinar" element={<AssinarComprovante />} />
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/crm" element={<CRM />} />
