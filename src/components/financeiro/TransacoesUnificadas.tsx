@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { format, endOfMonth } from 'date-fns';
 import { 
   Search, 
   Upload, 
@@ -140,6 +140,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   };
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
+  const lastDayOfMonth = format(endOfMonth(referenceMonth), 'yyyy-MM-dd');
   const monthLabel = referenceMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   // Fetch entities for creating transactions
@@ -169,7 +170,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           entities(name, type)
         `)
         .gte('due_date', `${monthStr}-01`)
-        .lte('due_date', `${monthStr}-31`)
+        .lte('due_date', lastDayOfMonth)
         .order('due_date', { ascending: false });
 
       if (error) throw error;
