@@ -120,6 +120,7 @@ export default function WhatsApp() {
       const telefone = conversaSelecionada.remote_jid
         .replace('@s.whatsapp.net', '')
         .replace('@c.us', '')
+        .replace('@lid', '')
         .replace(/\D/g, '');
       
       const { data: cliente } = await supabase
@@ -379,10 +380,14 @@ export default function WhatsApp() {
       }
       const remoteJid = `${phone}@s.whatsapp.net`;
 
-      const existingChat = chats.find(chat => {
-        const chatPhone = chat.remote_jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
-        return chatPhone.slice(-8) === phone.slice(-8);
-      });
+       const existingChat = chats.find(chat => {
+         const chatPhone = chat.remote_jid
+           .replace('@s.whatsapp.net', '')
+           .replace('@c.us', '')
+           .replace('@lid', '')
+           .replace(/\D/g, '');
+         return chatPhone.slice(-8) === phone.slice(-8);
+       });
 
       if (existingChat) {
         handleSelecionarConversa(existingChat);
@@ -433,10 +438,11 @@ export default function WhatsApp() {
   // Encontrar lead vinculado ao chat selecionado
   const linkedLead = useMemo(() => {
     if (!conversaSelecionada) return null;
-    const telefone = conversaSelecionada.remote_jid
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '')
-      .replace(/\D/g, '');
+     const telefone = conversaSelecionada.remote_jid
+       .replace('@s.whatsapp.net', '')
+       .replace('@c.us', '')
+       .replace('@lid', '')
+       .replace(/\D/g, '');
     const normalized = telefone.slice(-8);
     return leadsByPhone.get(normalized) || null;
   }, [conversaSelecionada, leadsByPhone]);
@@ -738,7 +744,7 @@ export default function WhatsApp() {
               ) : (
                 <div className="divide-y divide-border/30">
                   {filteredChats.map((chat, index) => {
-                    const chatPhone = chat.remote_jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '').slice(-8);
+                    const chatPhone = chat.remote_jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '').replace(/\D/g, '').slice(-8);
                     const chatLead = leadsByPhone.get(chatPhone);
                     const isSelected = conversaSelecionada?.id === chat.id;
                     
