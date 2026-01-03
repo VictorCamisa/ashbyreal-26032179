@@ -18,12 +18,17 @@ export interface WhatsAppMessage {
     push_name?: string;
     phone_number?: string;
     profile_picture?: string;
+    remote_jid_raw?: string;
+    remote_jid_alt?: string | null;
   };
   created_at: string;
 }
 
 export interface Conversation {
+  /** Primary JID used for selection/sending (prefer @s.whatsapp.net). */
   remote_jid: string;
+  /** All JIDs that should be considered the same conversation (e.g. primary + @lid aliases). */
+  remote_jids: string[];
   contact_name: string;
   phone_number: string;
   last_message: string | null;
@@ -49,21 +54,51 @@ export function useWhatsAppMessages(instanceId: string | null) {
 
       if (error) throw error;
 
-      // Group messages by remote_jid
+      const normalizeJid = (jid: string) => jid.replace(/:\d+(?=@lid)/g, '');
+
+      // Build a mapping lidJid(normalized) -> realJid(raw) using metadata on messages that already have both.
+      const lidToReal = new Map<string, string>();
+      for (const msg of data || []) {
+        const jidRaw = String(msg.remote_jid);
+        const metadata = (msg.metadata as WhatsAppMessage['metadata']) || {};
+
+        const altRaw = metadata.remote_jid_alt ? String(metadata.remote_jid_alt) : null;
+        const altNorm = altRaw ? normalizeJid(altRaw) : null;
+
+        // When the stored jid is real, and the metadata contains the @lid alias, link them.
+        if (jidRaw.includes('@s.whatsapp.net') && altNorm && altNorm.includes('@lid')) {
+          lidToReal.set(altNorm, jidRaw);
+        }
+
+        // Some payloads store the raw @lid in remote_jid_raw while saving the real jid.
+        const rawAlt = metadata.remote_jid_raw ? String(metadata.remote_jid_raw) : null;
+        const rawNorm = rawAlt ? normalizeJid(rawAlt) : null;
+        if (jidRaw.includes('@s.whatsapp.net') && rawNorm && rawNorm.includes('@lid')) {
+          lidToReal.set(rawNorm, jidRaw);
+        }
+      }
+
+      // Group messages by primary jid (prefer the real jid if we can map it).
       const conversationsMap = new Map<string, Conversation>();
 
       for (const msg of data || []) {
-        const jid = msg.remote_jid;
-        
-        if (!conversationsMap.has(jid)) {
-          // Get contact name from metadata (inbound messages have the sender info)
-          const metadata = msg.metadata as WhatsAppMessage['metadata'] || {};
-          const contactName = metadata.sender_name || metadata.push_name || metadata.phone_number || jid.split('@')[0];
-          
-          conversationsMap.set(jid, {
-            remote_jid: jid,
+        const msgJidRaw = String(msg.remote_jid);
+        const msgJidNorm = normalizeJid(msgJidRaw);
+        const primaryJidRaw = lidToReal.get(msgJidNorm) ?? msgJidRaw;
+
+        const metadata = (msg.metadata as WhatsAppMessage['metadata']) || {};
+        const phoneNumber = primaryJidRaw.split('@')[0];
+        const contactName =
+          metadata.sender_name ||
+          metadata.push_name ||
+          (primaryJidRaw.includes('@s.whatsapp.net') ? phoneNumber : msgJidNorm.split('@')[0]);
+
+        if (!conversationsMap.has(primaryJidRaw)) {
+          conversationsMap.set(primaryJidRaw, {
+            remote_jid: primaryJidRaw,
+            remote_jids: [primaryJidRaw],
             contact_name: contactName,
-            phone_number: jid.split('@')[0],
+            phone_number: phoneNumber,
             last_message: msg.content,
             last_message_at: msg.created_at,
             unread_count: 0,
@@ -71,14 +106,33 @@ export function useWhatsAppMessages(instanceId: string | null) {
           });
         }
 
-        // Find the best contact name from inbound messages
+        const conv = conversationsMap.get(primaryJidRaw)!;
+
+        // Track all variants (RAW, as stored in DB) that belong to this conversation.
+        if (!conv.remote_jids.includes(msgJidRaw)) conv.remote_jids.push(msgJidRaw);
+
+        const altRaw = metadata.remote_jid_alt ? String(metadata.remote_jid_alt) : null;
+        const altNorm = altRaw ? normalizeJid(altRaw) : null;
+        if (altRaw && altNorm && altNorm.includes('@lid') && !conv.remote_jids.includes(altRaw)) {
+          conv.remote_jids.push(altRaw);
+        }
+
+        const rawAlt = metadata.remote_jid_raw ? String(metadata.remote_jid_raw) : null;
+        const rawAltNorm = rawAlt ? normalizeJid(rawAlt) : null;
+        if (rawAlt && rawAltNorm && rawAltNorm.includes('@lid') && !conv.remote_jids.includes(rawAlt)) {
+          conv.remote_jids.push(rawAlt);
+        }
+
+        // Keep last message updated (data is desc, but merging can change ordering).
+        if (!conv.last_message_at || new Date(msg.created_at).getTime() > new Date(conv.last_message_at).getTime()) {
+          conv.last_message = msg.content;
+          conv.last_message_at = msg.created_at;
+        }
+
+        // Improve contact name from inbound messages when possible.
         if (msg.direction === 'inbound') {
-          const conv = conversationsMap.get(jid)!;
-          const metadata = msg.metadata as WhatsAppMessage['metadata'] || {};
           const senderName = metadata.sender_name || metadata.push_name;
-          
-          // Update contact name if this message has a better name
-          if (senderName && conv.contact_name === conv.phone_number) {
+          if (senderName && (conv.contact_name === conv.phone_number || /^\d+$/.test(conv.contact_name))) {
             conv.contact_name = senderName;
           }
         }
@@ -93,24 +147,24 @@ export function useWhatsAppMessages(instanceId: string | null) {
     enabled: !!instanceId,
   });
 
-  // Get messages for a specific conversation
-  const getMessages = (remoteJid: string | null) => {
+  // Get messages for a specific conversation (supports merged @lid + real JIDs)
+  const getMessages = (conversation: Conversation | null) => {
     return useQuery({
-      queryKey: ['whatsapp-messages', instanceId, remoteJid],
+      queryKey: ['whatsapp-messages', instanceId, conversation?.remote_jid, (conversation?.remote_jids || []).slice().sort().join('|')],
       queryFn: async () => {
-        if (!instanceId || !remoteJid) return [];
+        if (!instanceId || !conversation) return [];
 
         const { data, error } = await supabase
           .from('whatsapp_messages')
           .select('*')
           .eq('instance_id', instanceId)
-          .eq('remote_jid', remoteJid)
+          .in('remote_jid', conversation.remote_jids)
           .order('created_at', { ascending: true });
 
         if (error) throw error;
         return data as WhatsAppMessage[];
       },
-      enabled: !!instanceId && !!remoteJid,
+      enabled: !!instanceId && !!conversation,
     });
   };
 
