@@ -54,22 +54,27 @@ serve(async (req) => {
     const uniqueJids = [...new Set(lidMessages.map((m) => m.remote_jid))];
     console.log(`[resolve-lid-jids] Unique JIDs to resolve: ${uniqueJids.length}`);
 
+    const normalizeLidJid = (jid: string) => jid.replace(/:\d+(?=@lid)/g, "");
+
     let resolved = 0;
     const results: Record<string, string | null> = {};
 
     for (const lidJid of uniqueJids) {
+      const lidNormalized = normalizeLidJid(lidJid);
+      const lidBase = lidNormalized.split("@")[0];
+
       try {
         // Try /chat/findContacts to get pnJid
         const url = `${EVOLUTION_API_URL}/chat/findContacts/${instanceName}`;
         console.log(`[resolve-lid-jids] Calling ${url} for ${lidJid}`);
-        
+
         const resp = await fetch(url, {
           method: "POST",
           headers: {
             apikey: EVOLUTION_API_KEY,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ where: { id: lidJid } }),
+          body: JSON.stringify({ where: { id: lidNormalized } }),
         });
 
         const responseText = await resp.text();
@@ -82,7 +87,7 @@ serve(async (req) => {
         }
 
         const data = responseText ? JSON.parse(responseText) : null;
-        
+
         // Response can be an array or single object
         const contacts = Array.isArray(data) ? data : data?.contacts || (data ? [data] : []);
         let realJid: string | null = null;
@@ -101,7 +106,7 @@ serve(async (req) => {
           console.log(`[resolve-lid-jids] Resolved ${lidJid} -> ${realJid} (${contactName})`);
           results[lidJid] = realJid;
 
-          // Update all messages with this JID
+          // Update all messages with this @lid base (handles variants like :48@lid)
           const { error: updateError } = await supabase
             .from("whatsapp_messages")
             .update({
@@ -114,7 +119,7 @@ serve(async (req) => {
                 push_name: contactName,
               },
             })
-            .eq("remote_jid", lidJid);
+            .like("remote_jid", `${lidBase}%@lid`);
 
           if (updateError) {
             console.error(`[resolve-lid-jids] Error updating ${lidJid}:`, updateError);

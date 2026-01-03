@@ -18,17 +18,17 @@ export default function WhatsApp() {
     selectedInstance?.id || null
   );
 
-  const { data: messages = [], isLoading: loadingMessages } = getMessages(selectedJid);
-
   const selectedConversation = conversations.find((c) => c.remote_jid === selectedJid) || null;
 
+  const { data: messages = [], isLoading: loadingMessages } = getMessages(selectedConversation);
+
   const handleSendMessage = async (message: string, messageType: string = 'text', mediaUrl?: string) => {
-    if (!selectedInstance || !selectedJid) return;
+    if (!selectedInstance || !selectedConversation) return;
 
     try {
       await sendMessage.mutateAsync({
         instanceName: selectedInstance.instance_name,
-        remoteJid: selectedJid,
+        remoteJid: selectedConversation.remote_jid,
         message,
         messageType,
         mediaUrl,
