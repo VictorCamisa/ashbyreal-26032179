@@ -95,7 +95,6 @@ export default function Clientes() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="font-medium">Nome</TableHead>
                     <TableHead className="font-medium">Telefone</TableHead>
-                    <TableHead className="font-medium">E-mail</TableHead>
                     <TableHead className="font-medium">Empresa</TableHead>
                     <TableHead className="font-medium">Ticket Médio</TableHead>
                     <TableHead className="font-medium">Status</TableHead>
@@ -105,7 +104,7 @@ export default function Clientes() {
                 <TableBody>
                   {filteredClientes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12">
+                      <TableCell colSpan={6} className="text-center py-12">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="h-10 w-10 text-muted-foreground/30" />
                           <p className="text-muted-foreground">
@@ -123,7 +122,6 @@ export default function Clientes() {
                       >
                         <TableCell className="font-medium">{cliente.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{cliente.telefone}</TableCell>
-                        <TableCell className="text-muted-foreground">{cliente.email}</TableCell>
                         <TableCell className="text-muted-foreground">{cliente.empresa || '-'}</TableCell>
                         <TableCell>R$ {(cliente.ticketMedio || 0).toFixed(2)}</TableCell>
                         <TableCell>
