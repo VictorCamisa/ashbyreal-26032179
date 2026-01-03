@@ -29,6 +29,37 @@ function normalizeToCanonical(remoteJid: string, remoteJidAlt?: string): {
   return { canonicalJid: normalizedPn, lidJid: null, pnJid: normalizedPn, phoneNumber: normalizedPn.split("@")[0], isGroup: false };
 }
 
+// Extract last message text from various formats
+function extractLastMessage(chat: any): string | null {
+  const lm = chat.lastMessage;
+  if (!lm) return null;
+  
+  const msg = lm.message || lm;
+  return (
+    msg?.conversation ||
+    msg?.extendedTextMessage?.text ||
+    msg?.imageMessage?.caption ||
+    (msg?.imageMessage ? "[Imagem]" : null) ||
+    (msg?.videoMessage ? "[Vídeo]" : null) ||
+    (msg?.audioMessage ? "[Áudio]" : null) ||
+    (msg?.documentMessage?.fileName || (msg?.documentMessage ? "[Doc]" : null)) ||
+    (typeof lm === "string" ? lm : null) ||
+    null
+  );
+}
+
+// Extract timestamp from various formats
+function extractTimestamp(chat: any): string | null {
+  const lm = chat.lastMessage;
+  const ts = lm?.messageTimestamp || chat.messageTimestamp || chat.updatedAt;
+  if (!ts) return null;
+  
+  // Handle seconds vs milliseconds
+  const num = Number(ts);
+  if (num > 1e12) return new Date(num).toISOString();
+  return new Date(num * 1000).toISOString();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -43,12 +74,23 @@ Deno.serve(async (req) => {
     console.log(`[Evolution API] Action: ${action}, Instance: ${instanceName}`);
 
     const evolutionFetch = async (endpoint: string, options: RequestInit = {}) => {
-      const res = await fetch(`${EVOLUTION_API_URL}${endpoint}`, {
+      const url = `${EVOLUTION_API_URL}${endpoint}`;
+      console.log(`[Evolution API] Fetching: ${url}`);
+      const res = await fetch(url, {
         ...options,
         headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY, ...options.headers },
       });
-      if (!res.ok) throw new Error(`Evolution API error: ${res.status}`);
-      return res.json();
+      const text = await res.text();
+      if (!res.ok) {
+        console.error(`[Evolution API] Error ${res.status}: ${text.substring(0, 500)}`);
+        throw new Error(`Evolution API error: ${res.status}`);
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        console.error(`[Evolution API] Invalid JSON: ${text.substring(0, 200)}`);
+        return null;
+      }
     };
 
     const extractQrPayload = (result: any): { qrcode: string | null; pairingCode: string | null } => {
@@ -75,6 +117,31 @@ Deno.serve(async (req) => {
       return { qrcode, pairingCode };
     };
 
+    // Helper to fetch and build contact map
+    const fetchContactsMap = async (): Promise<Map<string, string>> => {
+      const contactMap = new Map<string, string>();
+      try {
+        const result = await evolutionFetch(`/chat/findContacts/${instanceName}`, { method: "POST", body: "{}" });
+        const contacts = Array.isArray(result) ? result : (result?.contacts || []);
+        console.log(`[Evolution API] Found ${contacts.length} contacts`);
+        
+        for (const c of contacts) {
+          const jid = c.id || c.remoteJid;
+          const name = c.pushName || c.name || c.notify;
+          if (jid && name) {
+            contactMap.set(jid, name);
+            // Also map variations
+            if (jid.includes("@lid")) {
+              contactMap.set(jid.split("@")[0], name);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[Evolution API] Error fetching contacts:", e);
+      }
+      return contactMap;
+    };
+
     if (action === "create_instance") {
       const newName = `${params.client_slug || "whatsapp"}-${Date.now()}`;
       const result = await evolutionFetch("/instance/create", {
@@ -82,13 +149,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ instanceName: newName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
       });
 
-      console.log(
-        `[Evolution API] create_instance response keys: ${Object.keys(result || {}).join(",")}`,
-      );
+      console.log(`[Evolution API] create_instance response keys: ${Object.keys(result || {}).join(",")}`);
 
       let { qrcode, pairingCode } = extractQrPayload(result);
 
-      // Some Evolution versions don't return the QR on create; fetch it via connect.
       if (!qrcode) {
         try {
           const connectResult = await evolutionFetch(`/instance/connect/${newName}`);
@@ -140,16 +204,26 @@ Deno.serve(async (req) => {
 
       console.log(`[Evolution API] Found ${chats.length} chats from Evolution`);
 
+      // Fetch contacts to enrich push_name
+      const contactMap = await fetchContactsMap();
+
       for (const chat of chats) {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
 
         const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
-        // Ensure canonical_jid is never null - fallback to remoteJid
         const canonicalJid = normalized.canonicalJid || remoteJid;
-        const pushName = chat.pushName || chat.name || null;
+        
+        // Try to get name from multiple sources
+        let pushName = chat.pushName || chat.name || chat.notify || null;
+        if (!pushName) {
+          pushName = contactMap.get(remoteJid) || contactMap.get(canonicalJid) || contactMap.get(remoteJid.split("@")[0]) || null;
+        }
 
-        console.log(`[Evolution API] Upserting chat: ${remoteJid} -> canonical: ${canonicalJid}`);
+        const lastMessage = extractLastMessage(chat);
+        const lastMessageAt = extractTimestamp(chat);
+
+        console.log(`[Evolution API] Chat: ${remoteJid}, name: ${pushName}, lastMsg: ${lastMessage?.substring(0, 30)}`);
 
         const { error: upsertError } = await supabase.from("evolution_chats").upsert({
           instance_name: instanceName,
@@ -160,9 +234,9 @@ Deno.serve(async (req) => {
           phone_number: normalized.phoneNumber,
           push_name: pushName,
           is_group: normalized.isGroup,
-          profile_pic_url: chat.profilePicUrl || null,
-          last_message: chat.lastMessage?.message?.conversation?.substring(0, 200) || null,
-          last_message_at: chat.lastMessage?.messageTimestamp ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString() : null,
+          profile_pic_url: chat.profilePicUrl || chat.profilePictureUrl || null,
+          last_message: lastMessage?.substring(0, 200) || null,
+          last_message_at: lastMessageAt,
         }, { onConflict: "instance_name,canonical_jid" });
 
         if (upsertError) {
@@ -263,17 +337,16 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync_contacts") {
-      const result = await evolutionFetch(`/chat/findContacts/${instanceName}`, { method: "POST" });
-      const contacts = Array.isArray(result) ? result : [];
+      const contactMap = await fetchContactsMap();
       let updated = 0;
 
-      for (const c of contacts) {
-        const jid = c.id || c.remoteJid;
-        if (!jid || !c.pushName) continue;
-      const { error } = await supabase.from("evolution_chats").update({ push_name: c.pushName })
+      for (const [jid, pushName] of contactMap) {
+        const { data } = await supabase.from("evolution_chats")
+          .update({ push_name: pushName })
           .eq("instance_name", instanceName)
-          .or(`canonical_jid.eq.${jid},lid_jid.eq.${jid},pn_jid.eq.${jid}`);
-        if (!error) updated++;
+          .or(`canonical_jid.eq.${jid},lid_jid.eq.${jid},pn_jid.eq.${jid},remote_jid.eq.${jid}`)
+          .select("id");
+        if (data && data.length > 0) updated += data.length;
       }
 
       return new Response(JSON.stringify({ success: true, updated }), { headers: corsHeaders });
@@ -282,33 +355,51 @@ Deno.serve(async (req) => {
     if (action === "rebuild_chats") {
       console.log(`[Evolution API] Rebuilding chats for ${instanceName}`);
       
+      // Delete existing data
       await supabase.from("evolution_messages").delete().eq("instance_name", instanceName);
       await supabase.from("evolution_chats").delete().eq("instance_name", instanceName);
       
+      // Fetch contacts first
+      const contactMap = await fetchContactsMap();
+      
+      // Fetch chats
       const result = await evolutionFetch(`/chat/findChats/${instanceName}`, { method: "POST", body: "{}" });
       const chats = Array.isArray(result) ? result : [];
 
-      console.log(`[Evolution API] Rebuilding with ${chats.length} chats`);
+      console.log(`[Evolution API] Rebuilding with ${chats.length} chats, ${contactMap.size} contacts`);
 
       for (const chat of chats) {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
         
-        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt);
+        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
         const canonicalJid = normalized.canonicalJid || remoteJid;
 
-        const { error: insertError } = await supabase.from("evolution_chats").insert({
+        // Get name from chat or contacts
+        let pushName = chat.pushName || chat.name || chat.notify || null;
+        if (!pushName) {
+          pushName = contactMap.get(remoteJid) || contactMap.get(canonicalJid) || contactMap.get(remoteJid.split("@")[0]) || null;
+        }
+
+        const lastMessage = extractLastMessage(chat);
+        const lastMessageAt = extractTimestamp(chat);
+
+        console.log(`[Evolution API] Rebuild chat: ${remoteJid}, name: ${pushName}, msg: ${lastMessage?.substring(0, 20)}`);
+
+        // Use UPSERT to avoid duplicates
+        const { error: insertError } = await supabase.from("evolution_chats").upsert({
           instance_name: instanceName,
           remote_jid: remoteJid,
           canonical_jid: canonicalJid,
           lid_jid: normalized.lidJid,
           pn_jid: normalized.pnJid,
           phone_number: normalized.phoneNumber,
-          push_name: chat.pushName || chat.name || null,
+          push_name: pushName,
           is_group: normalized.isGroup,
-          last_message: chat.lastMessage?.message?.conversation?.substring(0, 200) || null,
-          last_message_at: chat.lastMessage?.messageTimestamp ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString() : null,
-        });
+          profile_pic_url: chat.profilePicUrl || chat.profilePictureUrl || null,
+          last_message: lastMessage?.substring(0, 200) || null,
+          last_message_at: lastMessageAt,
+        }, { onConflict: "instance_name,canonical_jid" });
 
         if (insertError) {
           console.error(`[Evolution API] Error inserting chat ${remoteJid}:`, insertError);
