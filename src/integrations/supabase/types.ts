@@ -901,6 +901,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          cliente_id: string
           created_at: string | null
           data_criacao: string | null
           email: string | null
@@ -916,6 +917,7 @@ export type Database = {
           valor_estimado: number | null
         }
         Insert: {
+          cliente_id: string
           created_at?: string | null
           data_criacao?: string | null
           email?: string | null
@@ -931,6 +933,7 @@ export type Database = {
           valor_estimado?: number | null
         }
         Update: {
+          cliente_id?: string
           created_at?: string | null
           data_criacao?: string | null
           email?: string | null
@@ -945,7 +948,15 @@ export type Database = {
           updated_at?: string | null
           valor_estimado?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mensagens_whatsapp: {
         Row: {
