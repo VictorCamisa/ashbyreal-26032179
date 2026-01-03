@@ -22,13 +22,15 @@ export default function WhatsApp() {
 
   const selectedConversation = conversations.find((c) => c.remote_jid === selectedJid) || null;
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, messageType: string = 'text', mediaUrl?: string) => {
     if (!selectedInstance || !selectedJid) return;
 
     await sendMessage.mutateAsync({
       instanceName: selectedInstance.instance_name,
       remoteJid: selectedJid,
       message,
+      messageType,
+      mediaUrl,
     });
   };
 

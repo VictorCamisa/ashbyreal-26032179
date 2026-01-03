@@ -121,14 +121,16 @@ export function useWhatsAppMessages(instanceId: string | null) {
       remoteJid,
       message,
       messageType = 'text',
+      mediaUrl,
     }: {
       instanceName: string;
       remoteJid: string;
       message: string;
       messageType?: string;
+      mediaUrl?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-message', {
-        body: { instanceName, remoteJid, message, messageType },
+        body: { instanceName, remoteJid, message, messageType, mediaUrl },
       });
 
       if (error) throw error;
