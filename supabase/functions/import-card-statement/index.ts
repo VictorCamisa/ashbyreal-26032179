@@ -374,56 +374,67 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
     // Parse data rows (after header found)
     if (inLancamentosSection && foundHeader) {
       // Find date, description, and value from non-empty cells
-      // The file has many empty columns, so we need to find values by scanning
-      
+      // The file can have leading non-empty columns, so we detect by content (not position)
+
       const nonEmptyCells: { value: any; idx: number }[] = [];
       for (let j = 0; j < row.length; j++) {
         const cell = row[j];
-        if (cell !== null && cell !== undefined && String(cell).trim() !== '') {
+        if (cell !== null && cell !== undefined && String(cell).trim() !== "") {
           nonEmptyCells.push({ value: cell, idx: j });
         }
       }
-      
-      // We need at least date and value (description might be in between)
+
       if (nonEmptyCells.length < 2) continue;
-      
-      // First cell should be date (DD/Mon format)
-      const firstCell = String(nonEmptyCells[0].value).trim();
-      const date = parseDateAny(firstCell, referenceYear);
-      if (!date) continue;
-      
-      // Last cell should be the value (number)
-      let amount = 0;
-      let valueIdx = -1;
-      for (let j = nonEmptyCells.length - 1; j >= 1; j--) {
-        const val = parsePtBrNumber(nonEmptyCells[j].value);
-        if (isValidAmount(val)) {
-          amount = val;
-          valueIdx = j;
+
+      // Find the first cell that looks like a date
+      let date = "";
+      let datePos = -1;
+      for (let j = 0; j < nonEmptyCells.length; j++) {
+        const candidate = parseDateAny(String(nonEmptyCells[j].value).trim(), referenceYear);
+        if (candidate) {
+          date = candidate;
+          datePos = j;
           break;
         }
       }
-      if (amount === 0) continue;
-      
-      // Description is everything between date and value
-      let description = '';
-      for (let j = 1; j < valueIdx; j++) {
+      if (!date) continue;
+
+      // Find the last cell that looks like an amount
+      let amount = 0;
+      let valuePos = -1;
+      for (let j = nonEmptyCells.length - 1; j >= 0; j--) {
+        const val = parsePtBrNumber(nonEmptyCells[j].value);
+        if (isValidAmount(val)) {
+          amount = val;
+          valuePos = j;
+          break;
+        }
+      }
+      if (!isValidAmount(amount)) continue;
+      if (valuePos <= datePos) continue;
+
+      // Description is typically between date and value
+      let description = "";
+      for (let j = datePos + 1; j < valuePos; j++) {
         const cellStr = String(nonEmptyCells[j].value).trim();
         if (cellStr && hasLetters(cellStr)) {
           description = cellStr;
           break;
         }
       }
-      
-      // If no description found between, try the cell right after date
-      if (!description && nonEmptyCells.length >= 2) {
-        const middleIdx = Math.min(1, nonEmptyCells.length - 1);
-        const middleCell = String(nonEmptyCells[middleIdx].value).trim();
-        if (hasLetters(middleCell)) {
-          description = middleCell;
+
+      // If no description found between, try any other text cell in the row
+      if (!description) {
+        for (let j = 0; j < nonEmptyCells.length; j++) {
+          if (j === datePos || j === valuePos) continue;
+          const cellStr = String(nonEmptyCells[j].value).trim();
+          if (cellStr && hasLetters(cellStr)) {
+            description = cellStr;
+            break;
+          }
         }
       }
-      
+
       if (!description) continue;
       if (isPaymentLine(description)) continue;
       if (isSummaryLine(description)) continue;
