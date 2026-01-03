@@ -1,29 +1,32 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 export interface EvolutionChat {
   id: string;
   instance_name: string;
   remote_jid: string;
+  canonical_jid: string;
+  lid_jid: string | null;
+  pn_jid: string | null;
+  phone_number: string | null;
   push_name: string | null;
   profile_pic_url: string | null;
-  unread_count: number;
+  is_group: boolean;
   last_message: string | null;
   last_message_at: string | null;
-  is_group: boolean;
+  unread_count: number;
   created_at: string;
   updated_at: string;
-  linked_to_chat_id: string | null;
-  phone_number: string | null;
 }
 
 export interface EvolutionMessage {
   id: string;
-  chat_id: string | null;
   instance_name: string;
   remote_jid: string;
+  source_remote_jid: string | null;
+  chat_id: string;
   message_id: string;
   from_me: boolean;
   body: string | null;
@@ -34,411 +37,151 @@ export interface EvolutionMessage {
   created_at: string;
 }
 
-// Callback para notificar desconexão
 type DisconnectCallback = () => void;
 
 export function useEvolution(instanceName: string | null, onDisconnect?: DisconnectCallback) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Helper para detectar erro de desconexão
-  const isDisconnectionError = (error: unknown): boolean => {
-    const errorStr = error instanceof Error ? error.message : String(error);
-    return (
-      errorStr.toLowerCase().includes('connection closed') ||
-      errorStr.toLowerCase().includes('not connected') ||
-      errorStr.toLowerCase().includes('desconectado')
-    );
-  };
-
-  // Handler para erros de desconexão
-  const handleDisconnectionError = (error: unknown) => {
-    if (isDisconnectionError(error)) {
-      toast({
-        title: 'WhatsApp desconectado',
-        description: 'A sessão foi encerrada. Reconecte escaneando o QR code.',
-        variant: 'destructive',
-      });
-      // Notificar a página sobre a desconexão
-      onDisconnect?.();
-      return true;
-    }
-    return false;
-  };
-
-  // Query para buscar chats do banco local
-  const { 
-    data: chats = [], 
-    isLoading: loadingChats,
-    refetch: refetchChats
-  } = useQuery({
-    queryKey: ['evolution-chats', instanceName],
+  const { data: chats, isLoading: loadingChats, refetch: refetchChats } = useQuery({
+    queryKey: ["evolution-chats", instanceName],
     queryFn: async () => {
       if (!instanceName) return [];
-      
       const { data, error } = await supabase
-        .from('evolution_chats')
-        .select('*')
-        .eq('instance_name', instanceName)
-        .order('last_message_at', { ascending: false, nullsFirst: false });
-
+        .from("evolution_chats")
+        .select("*")
+        .eq("instance_name", instanceName)
+        .order("last_message_at", { ascending: false, nullsFirst: false });
       if (error) throw error;
-      return data as EvolutionChat[];
+      return (data || []) as EvolutionChat[];
     },
     enabled: !!instanceName,
   });
 
-  // Helper para normalizar JID (sem converter @lid em telefone)
-  const normalizeJid = (jid: string): string[] => {
-    if (!jid) return [];
-
-    // Grupos e @lid devem permanecer como estão (identificadores reais)
-    if (jid.includes('@g.us') || jid.includes('@lid')) {
-      return [jid];
-    }
-
-    // @c.us e @s.whatsapp.net são o mesmo número (variações)
-    if (jid.includes('@c.us')) {
-      return [jid, jid.replace('@c.us', '@s.whatsapp.net')].filter((v, i, arr) => arr.indexOf(v) === i);
-    }
-    if (jid.includes('@s.whatsapp.net')) {
-      return [jid, jid.replace('@s.whatsapp.net', '@c.us')].filter((v, i, arr) => arr.indexOf(v) === i);
-    }
-
-    // Fallback: número puro
-    const digits = jid.replace(/\D/g, '');
-    if (digits.length < 8) return [jid];
-
-    return [`${digits}@s.whatsapp.net`, `${digits}@c.us`, jid].filter((v, i, arr) => arr.indexOf(v) === i);
-  };
-
-  // Query para buscar mensagens de um chat específico (incluindo todas as variações de JID)
-  const getMessages = (remoteJid: string | null, linkedRemoteJids: string[] = []) => {
+  const getMessages = (chatId: string | null) => {
     return useQuery({
-      queryKey: ['evolution-messages', instanceName, remoteJid, linkedRemoteJids],
+      queryKey: ["evolution-messages", chatId],
       queryFn: async () => {
-        if (!instanceName || !remoteJid) return [];
-        
-        // Buscar mensagens de todas as variações do JID
-        const allJids = [
-          ...normalizeJid(remoteJid),
-          ...linkedRemoteJids.flatMap(normalizeJid)
-        ].filter((v, i, arr) => arr.indexOf(v) === i);
-        
-        console.log('Fetching messages for JIDs:', allJids);
-        
+        if (!chatId) return [];
         const { data, error } = await supabase
-          .from('evolution_messages')
-          .select('*')
-          .eq('instance_name', instanceName)
-          .in('remote_jid', allJids)
-          .order('timestamp', { ascending: true });
-
+          .from("evolution_messages")
+          .select("*")
+          .eq("chat_id", chatId)
+          .order("timestamp", { ascending: true });
         if (error) throw error;
-        return data as EvolutionMessage[];
+        return (data || []) as EvolutionMessage[];
       },
-      enabled: !!instanceName && !!remoteJid,
+      enabled: !!chatId,
     });
   };
 
-  // Mutation para vincular dois chats
-  const linkChats = useMutation({
-    mutationFn: async ({ chatId, targetChatId }: { chatId: string; targetChatId: string }) => {
-      // Vincular chat secundário ao principal
-      const { error } = await supabase
-        .from('evolution_chats')
-        .update({ linked_to_chat_id: targetChatId })
-        .eq('id', chatId);
-
-      if (error) throw error;
-      return { chatId, targetChatId };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-      toast({
-        title: 'Chats vinculados!',
-        description: 'As mensagens de ambos os chats agora serão exibidas juntas.',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao vincular chats',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // Mutation para desvincular um chat
-  const unlinkChat = useMutation({
-    mutationFn: async (chatId: string) => {
-      const { error } = await supabase
-        .from('evolution_chats')
-        .update({ linked_to_chat_id: null })
-        .eq('id', chatId);
-
-      if (error) throw error;
-      return chatId;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-      toast({
-        title: 'Chat desvinculado!',
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao desvincular chat',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // Mutation para sincronizar chats da Evolution API
   const syncChats = useMutation({
     mutationFn: async () => {
-      if (!instanceName) throw new Error('Instance name required');
-
-      const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          action: 'find_chats',
-          instance_name: instanceName,
-        },
+      if (!instanceName) throw new Error("No instance");
+      const { data, error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "find_chats", instance_name: instanceName },
       });
-
       if (error) throw error;
-      
-      // Verificar se há indicação de desconexão na resposta
-      if (data?.disconnected) {
-        throw new Error('WhatsApp desconectado');
-      }
-      
-      if (!data.success) throw new Error(data.error || 'Failed to sync chats');
-      
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
+      queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
+      toast.success("Conversas sincronizadas");
     },
-    onError: (error) => {
-      if (!handleDisconnectionError(error)) {
-        toast({
-          title: 'Erro ao sincronizar',
-          description: error instanceof Error ? error.message : 'Erro desconhecido',
-          variant: 'destructive',
-        });
-      }
+    onError: () => toast.error("Erro ao sincronizar"),
+  });
+
+  const syncMessages = useMutation({
+    mutationFn: async (chatId: string) => {
+      if (!instanceName) throw new Error("No instance");
+      const { data, error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "find_messages", instance_name: instanceName, chatId },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, chatId) => {
+      queryClient.invalidateQueries({ queryKey: ["evolution-messages", chatId] });
     },
   });
 
-  // Mutation para sincronizar contatos da agenda do WhatsApp
+  const sendMessage = useMutation({
+    mutationFn: async ({ chatId, text }: { chatId: string; text: string }) => {
+      if (!instanceName) throw new Error("No instance");
+      const { data, error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "send_message", instance_name: instanceName, chatId, text },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, { chatId }) => {
+      queryClient.invalidateQueries({ queryKey: ["evolution-messages", chatId] });
+      queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
+    },
+    onError: () => toast.error("Erro ao enviar"),
+  });
+
+  const deleteChat = useMutation({
+    mutationFn: async (chatId: string) => {
+      const { error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "delete_chat", instance_name: instanceName, chatId },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
+      toast.success("Conversa excluída");
+    },
+  });
+
   const syncContacts = useMutation({
     mutationFn: async () => {
-      if (!instanceName) throw new Error('Instance name required');
-
-      const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          action: 'sync_contacts',
-          instance_name: instanceName,
-        },
+      const { data, error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "sync_contacts", instance_name: instanceName },
       });
-
       if (error) throw error;
-      
-      if (data?.disconnected) {
-        throw new Error('WhatsApp desconectado');
-      }
-      
-      if (!data.success) throw new Error(data.error || 'Failed to sync contacts');
-      
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-      toast({
-        title: 'Contatos sincronizados!',
-        description: `${data.updated || 0} nomes atualizados.`,
-      });
-    },
-    onError: (error) => {
-      if (!handleDisconnectionError(error)) {
-        toast({
-          title: 'Erro ao sincronizar contatos',
-          description: error instanceof Error ? error.message : 'Erro desconhecido',
-          variant: 'destructive',
-        });
-      }
+      queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
+      toast.success(`${data?.updated || 0} contatos atualizados`);
     },
   });
 
-  // Mutation para sincronizar mensagens de um chat
-  const syncMessages = useMutation({
-    mutationFn: async (remoteJid: string) => {
-      if (!instanceName) throw new Error('Instance name required');
-
-      const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          action: 'find_messages',
-          instance_name: instanceName,
-          remote_jid: remoteJid,
-        },
+  const rebuildChats = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("evolution-api", {
+        body: { action: "rebuild_chats", instance_name: instanceName },
       });
-
       if (error) throw error;
-      
-      // Verificar se há indicação de desconexão na resposta
-      if (data?.disconnected) {
-        throw new Error('WhatsApp desconectado');
-      }
-      
-      if (!data.success) throw new Error(data.error || 'Failed to sync messages');
-      
-      return { ...data, remote_jid: remoteJid };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ 
-        queryKey: ['evolution-messages', instanceName, data.remote_jid] 
-      });
-    },
-    onError: (error) => {
-      if (!handleDisconnectionError(error)) {
-        toast({
-          title: 'Erro ao carregar mensagens',
-          description: error instanceof Error ? error.message : 'Erro desconhecido',
-          variant: 'destructive',
-        });
-      }
-    },
-  });
-
-  // Mutation para enviar mensagem
-  const sendMessage = useMutation({
-    mutationFn: async ({ remoteJid, text }: { remoteJid: string; text: string }) => {
-      if (!instanceName) throw new Error('Instance name required');
-
-      const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          action: 'send_message',
-          instance_name: instanceName,
-          remote_jid: remoteJid,
-          text,
-        },
-      });
-
-      if (error) throw error;
-      
-      // Verificar se há indicação de desconexão na resposta
-      if (data?.disconnected) {
-        throw new Error('WhatsApp desconectado');
-      }
-      
-      if (!data.success) throw new Error(data.error || 'Failed to send message');
-      
-      return { ...data, remote_jid: remoteJid };
-    },
-    onSuccess: (data) => {
-      // Resincronizar mensagens após enviar
-      syncMessages.mutate(data.remote_jid);
-      toast({
-        title: 'Mensagem enviada!',
-      });
-    },
-    onError: (error) => {
-      if (!handleDisconnectionError(error)) {
-        toast({
-          title: 'Erro ao enviar mensagem',
-          description: error instanceof Error ? error.message : 'Erro desconhecido',
-          variant: 'destructive',
-        });
-      }
-    },
-  });
-
-  // Mutation para deletar chat
-  const deleteChat = useMutation({
-    mutationFn: async (remoteJid: string) => {
-      if (!instanceName) throw new Error('Instance name required');
-
-      const { data, error } = await supabase.functions.invoke('evolution-api', {
-        body: {
-          action: 'delete_chat',
-          instance_name: instanceName,
-          remote_jid: remoteJid,
-        },
-      });
-
-      if (error) throw error;
-      
-      if (data?.disconnected) {
-        throw new Error('WhatsApp desconectado');
-      }
-      
-      if (!data.success) throw new Error(data.error || 'Failed to delete chat');
-      
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-      toast({
-        title: 'Conversa apagada!',
-        description: 'A conversa foi removida com sucesso.',
-      });
-    },
-    onError: (error) => {
-      if (!handleDisconnectionError(error)) {
-        toast({
-          title: 'Erro ao apagar conversa',
-          description: error instanceof Error ? error.message : 'Erro desconhecido',
-          variant: 'destructive',
-        });
-      }
+      queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
+      queryClient.invalidateQueries({ queryKey: ["evolution-messages"] });
+      toast.success("Conversas reconstruídas");
     },
   });
 
-  // Realtime subscription para novos chats/mensagens
   useEffect(() => {
     if (!instanceName) return;
 
-    // Subscribe to chats changes
     const chatsChannel = supabase
-      .channel(`evolution-chats-${instanceName}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'evolution_chats',
-          filter: `instance_name=eq.${instanceName}`,
-        },
-        (payload) => {
-          console.log('Chat change detected:', payload);
-          queryClient.invalidateQueries({ queryKey: ['evolution-chats', instanceName] });
-        }
+      .channel("evolution-chats-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "evolution_chats", filter: `instance_name=eq.${instanceName}` },
+        () => queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] })
       )
-      .subscribe((status) => {
-        console.log('Chats channel status:', status);
-      });
+      .subscribe();
 
-    // Subscribe to messages changes
     const messagesChannel = supabase
-      .channel(`evolution-messages-${instanceName}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'evolution_messages',
-          filter: `instance_name=eq.${instanceName}`,
-        },
+      .channel("evolution-messages-changes")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "evolution_messages", filter: `instance_name=eq.${instanceName}` },
         (payload) => {
-          console.log('Message change detected:', payload);
-          queryClient.invalidateQueries({ queryKey: ['evolution-messages'] });
+          const msg = payload.new as EvolutionMessage;
+          queryClient.invalidateQueries({ queryKey: ["evolution-messages", msg.chat_id] });
+          queryClient.invalidateQueries({ queryKey: ["evolution-chats", instanceName] });
         }
       )
-      .subscribe((status) => {
-        console.log('Messages channel status:', status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(chatsChannel);
@@ -446,38 +189,21 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     };
   }, [instanceName, queryClient]);
 
-  // Realtime updates - sem polling, usando apenas Supabase Realtime
-  // As mensagens chegam via webhook e são inseridas no banco
-  // O Supabase Realtime detecta as mudanças e atualiza automaticamente
-
-  // Helper para encontrar chats vinculados a um chat
-  const getLinkedChats = useCallback((chatId: string): EvolutionChat[] => {
-    return chats.filter(c => c.linked_to_chat_id === chatId);
-  }, [chats]);
-
-  // Helper para encontrar o chat principal de um chat vinculado
-  const getPrimaryChat = useCallback((linkedToChatId: string | null): EvolutionChat | null => {
-    if (!linkedToChatId) return null;
-    return chats.find(c => c.id === linkedToChatId) || null;
-  }, [chats]);
-
   return {
-    chats,
+    chats: chats || [],
     loadingChats,
     refetchChats,
     getMessages,
-    getLinkedChats,
-    getPrimaryChat,
     syncChats: syncChats.mutate,
+    syncingChats: syncChats.isPending,
     syncMessages: syncMessages.mutate,
-    syncContacts: syncContacts.mutate,
-    sendMessage: sendMessage.mutate,
+    syncingMessages: syncMessages.isPending,
+    sendMessage: sendMessage.mutateAsync,
+    sendingMessage: sendMessage.isPending,
     deleteChat: deleteChat.mutate,
-    linkChats: linkChats.mutate,
-    unlinkChat: unlinkChat.mutate,
-    isSyncing: syncChats.isPending || syncMessages.isPending || syncContacts.isPending,
-    isSending: sendMessage.isPending,
-    isDeleting: deleteChat.isPending,
-    isLinking: linkChats.isPending,
+    syncContacts: syncContacts.mutate,
+    syncingContacts: syncContacts.isPending,
+    rebuildChats: rebuildChats.mutate,
+    rebuildingChats: rebuildChats.isPending,
   };
 }

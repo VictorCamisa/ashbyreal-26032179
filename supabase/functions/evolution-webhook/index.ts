@@ -1,332 +1,211 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Normalizar JID sem “inventar” telefone para @lid.
-// Regras:
-// - @g.us (grupos): manter como está
-// - @lid (Business ID): manter como está (é o identificador real do chat)
-// - @c.us: converter para @s.whatsapp.net (mesmo número)
-function normalizeRemoteJid(
-  jid: string
-): { normalizedJid: string; originalJid: string; isGroup: boolean } {
-  const originalJid = jid;
-  const isGroup = jid.includes('@g.us');
+// Normalize JID to canonical format using remoteJidAlt when available
+function normalizeToCanonical(remoteJid: string, remoteJidAlt?: string): {
+  canonicalJid: string;
+  lidJid: string | null;
+  pnJid: string | null;
+  phoneNumber: string | null;
+  isGroup: boolean;
+} {
+  const isGroup = remoteJid.includes("@g.us");
+  
   if (isGroup) {
-    return { normalizedJid: jid, originalJid, isGroup: true };
+    return { canonicalJid: remoteJid, lidJid: null, pnJid: null, phoneNumber: null, isGroup: true };
   }
 
-  const isLid = jid.includes('@lid');
-  if (isLid) {
-    // Não normalizar @lid para @s.whatsapp.net — isso cria chats “fantasmas” e separa envio/recebimento.
-    return { normalizedJid: jid, originalJid, isGroup: false };
-  }
-
-  if (jid.includes('@c.us')) {
+  const isLid = remoteJid.includes("@lid");
+  
+  // If we have remoteJidAlt (the real phone number JID), use it as canonical
+  if (remoteJidAlt && (remoteJidAlt.includes("@s.whatsapp.net") || remoteJidAlt.includes("@c.us"))) {
+    const normalizedPn = remoteJidAlt.replace("@c.us", "@s.whatsapp.net");
+    const phoneNumber = normalizedPn.split("@")[0];
     return {
-      normalizedJid: jid.replace('@c.us', '@s.whatsapp.net'),
-      originalJid,
+      canonicalJid: normalizedPn,
+      lidJid: isLid ? remoteJid : null,
+      pnJid: normalizedPn,
+      phoneNumber,
       isGroup: false,
     };
   }
-
-  // Se já é @s.whatsapp.net, manter.
-  if (jid.includes('@s.whatsapp.net')) {
-    return { normalizedJid: jid, originalJid, isGroup: false };
+  
+  if (isLid) {
+    return { canonicalJid: remoteJid, lidJid: remoteJid, pnJid: null, phoneNumber: null, isGroup: false };
   }
-
-  // Fallback: se vier apenas número, anexar @s.whatsapp.net.
-  const digits = jid.replace(/\D/g, '');
-  if (digits.length >= 8 && !jid.includes('@')) {
-    return { normalizedJid: `${digits}@s.whatsapp.net`, originalJid, isGroup: false };
-  }
-
-  return { normalizedJid: jid, originalJid, isGroup: false };
+  
+  const normalizedPn = remoteJid.replace("@c.us", "@s.whatsapp.net");
+  const phoneNumber = normalizedPn.split("@")[0];
+  return { canonicalJid: normalizedPn, lidJid: null, pnJid: normalizedPn, phoneNumber, isGroup: false };
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase credentials not configured');
-    }
+    const payload = await req.json();
+    const event = payload.event;
+    const instanceName = payload.instance || payload.instanceName;
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const body = await req.json();
+    console.log(`[Webhook] Event: ${event}, Instance: ${instanceName}`);
 
-    console.log('=== Evolution Webhook Received ===');
-    console.log('Event:', body.event, 'Instance:', body.instance);
+    if (event === "messages.upsert") {
+      const data = payload.data;
+      if (!data) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
 
-    const event = body.event;
-    const instance = body.instance;
-    const data = body.data;
+      const key = data.key;
+      const message = data.message;
+      const pushName = data.pushName;
 
-    if (!instance) {
-      return new Response(JSON.stringify({ success: true, ignored: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+      if (!key?.remoteJid) return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
 
-    // Processar eventos de mensagem
-    if (event === 'messages.upsert') {
-      let messageData: any = null;
-      
-      if (Array.isArray(data)) {
-        messageData = data[0];
-      } else if (data.message) {
-        messageData = data.message;
-      } else {
-        messageData = data;
+      const remoteJid = key.remoteJid;
+      const remoteJidAlt = key.remoteJidAlt || data.remoteJidAlt;
+      const messageId = key.id;
+      const fromMe = key.fromMe || false;
+      const timestamp = data.messageTimestamp 
+        ? new Date(Number(data.messageTimestamp) * 1000).toISOString()
+        : new Date().toISOString();
+
+      if (remoteJid === "status@broadcast") {
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      const key = messageData?.key || {};
-      const rawRemoteJid = key.remoteJid || messageData?.remoteJid || data?.remoteJid;
-      const messageId = key.id || messageData?.id || data?.id;
-      const fromMe = key.fromMe ?? messageData?.fromMe ?? false;
+      const { canonicalJid, lidJid, pnJid, phoneNumber, isGroup } = normalizeToCanonical(remoteJid, remoteJidAlt);
 
-      console.log('Raw remoteJid:', rawRemoteJid, 'messageId:', messageId, 'fromMe:', fromMe);
+      console.log(`[Webhook] remoteJid=${remoteJid}, alt=${remoteJidAlt}, canonical=${canonicalJid}, phone=${phoneNumber}`);
 
-      if (!rawRemoteJid || !messageId) {
-        return new Response(JSON.stringify({ success: true, ignored: true, reason: 'no_jid_or_id' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
+      // Extract message content
+      let body = "";
+      let messageType = "text";
+      let mediaUrl = null;
 
-      // Normalizar o JID para sempre usar o mesmo formato
-      const { normalizedJid, originalJid, isGroup } = normalizeRemoteJid(rawRemoteJid);
-      
-      console.log('Normalized JID:', normalizedJid, 'from original:', originalJid);
+      if (message?.conversation) body = message.conversation;
+      else if (message?.extendedTextMessage?.text) body = message.extendedTextMessage.text;
+      else if (message?.imageMessage) { messageType = "image"; body = message.imageMessage.caption || "[Imagem]"; }
+      else if (message?.videoMessage) { messageType = "video"; body = message.videoMessage.caption || "[Vídeo]"; }
+      else if (message?.audioMessage) { messageType = "audio"; body = "[Áudio]"; }
+      else if (message?.documentMessage) { messageType = "document"; body = message.documentMessage.fileName || "[Documento]"; }
+      else if (message?.stickerMessage) { messageType = "sticker"; body = "[Sticker]"; }
 
-      // Extrair corpo da mensagem
-      const messageContent = messageData?.message || data?.message?.message || {};
-      const messageBody = messageContent.conversation || 
-                   messageContent.extendedTextMessage?.text ||
-                   messageContent.imageMessage?.caption ||
-                   messageContent.videoMessage?.caption ||
-                   messageContent.documentMessage?.caption ||
-                   messageData?.body ||
-                   data?.body ||
-                   null;
-
-      // Determinar tipo de mensagem
-      const messageType = messageContent.imageMessage ? 'image' :
-                          messageContent.videoMessage ? 'video' :
-                          messageContent.audioMessage ? 'audio' :
-                          messageContent.documentMessage ? 'document' :
-                          messageContent.stickerMessage ? 'sticker' :
-                          messageContent.locationMessage ? 'location' :
-                          messageContent.contactMessage ? 'contact' :
-                          messageData?.messageType || 'text';
-
-      // Extrair URL de mídia
-      const mediaUrl = messageContent.imageMessage?.url ||
-                       messageContent.videoMessage?.url ||
-                       messageContent.audioMessage?.url ||
-                       messageContent.documentMessage?.url ||
-                       messageData?.mediaUrl ||
-                       null;
-
-      // Timestamp
-      const rawTimestamp = messageData?.messageTimestamp || 
-                           data?.messageTimestamp || 
-                           messageData?.timestamp ||
-                           data?.timestamp;
-      
-      let timestamp: string;
-      if (rawTimestamp) {
-        const ts = Number(rawTimestamp);
-        timestamp = ts > 1e12 ? new Date(ts).toISOString() : new Date(ts * 1000).toISOString();
-      } else {
-        timestamp = new Date().toISOString();
-      }
-
-      // Buscar chat existente pelo JID normalizado
-      let chatId: string | null = null;
-      
+      // Upsert chat by canonical_jid
       const { data: existingChat } = await supabase
-        .from('evolution_chats')
-        .select('id, push_name')
-        .eq('instance_name', instance)
-        .eq('remote_jid', normalizedJid)
-        .single();
+        .from("evolution_chats")
+        .select("id, lid_jid, pn_jid, phone_number, push_name, unread_count")
+        .eq("instance_name", instanceName)
+        .eq("canonical_jid", canonicalJid)
+        .maybeSingle();
+
+      let chatId: string;
 
       if (existingChat) {
         chatId = existingChat.id;
-        console.log('Found existing chat:', chatId);
         
-        // Atualizar push_name se veio da mensagem e não tínhamos antes
-        const incomingPushName = messageData?.pushName || data?.pushName;
-        if (incomingPushName && !existingChat.push_name) {
-          await supabase
-            .from('evolution_chats')
-            .update({ push_name: incomingPushName })
-            .eq('id', chatId);
-        }
-      } else {
-        // Criar chat com JID normalizado
-        const pushName = messageData?.pushName || data?.pushName || null;
-
-        console.log('Creating new chat for:', normalizedJid, 'pushName:', pushName);
-
-        const { data: newChat, error: chatError } = await supabase
-          .from('evolution_chats')
-          .insert({
-            instance_name: instance,
-            remote_jid: normalizedJid,
-            push_name: pushName,
-            is_group: isGroup,
-            last_message: messageBody,
-            last_message_at: timestamp,
-            unread_count: fromMe ? 0 : 1,
-          })
-          .select('id')
-          .single();
-
-        if (chatError) {
-          console.error('Error creating chat:', chatError);
-        } else {
-          chatId = newChat?.id || null;
-          console.log('Created new chat:', chatId);
-        }
-      }
-
-      // Salvar mensagem com JID normalizado
-      const msgRecord = {
-        chat_id: chatId,
-        instance_name: instance,
-        remote_jid: normalizedJid,
-        message_id: messageId,
-        from_me: fromMe,
-        body: messageBody,
-        message_type: messageType,
-        media_url: mediaUrl,
-        timestamp: timestamp,
-        status: messageData?.status || null,
-      };
-
-      const { error: msgError } = await supabase
-        .from('evolution_messages')
-        .upsert(msgRecord, { onConflict: 'instance_name,message_id' });
-
-      if (msgError) {
-        console.error('Error saving message:', msgError);
-      } else {
-        console.log('Message saved successfully');
-      }
-
-      // Atualizar chat com última mensagem
-      if (chatId) {
-        const updateData: any = {
-          last_message: messageBody,
+        const updateData: Record<string, unknown> = {
+          last_message: body.substring(0, 200),
           last_message_at: timestamp,
           updated_at: new Date().toISOString(),
         };
 
-        if (!fromMe) {
-          const { data: currentChat } = await supabase
-            .from('evolution_chats')
-            .select('unread_count')
-            .eq('id', chatId)
-            .single();
+        if (lidJid && !existingChat.lid_jid) updateData.lid_jid = lidJid;
+        if (pnJid && !existingChat.pn_jid) updateData.pn_jid = pnJid;
+        if (phoneNumber && !existingChat.phone_number) updateData.phone_number = phoneNumber;
+        if (pushName && !existingChat.push_name) updateData.push_name = pushName;
+        if (!fromMe) updateData.unread_count = (existingChat.unread_count || 0) + 1;
 
-          updateData.unread_count = (currentChat?.unread_count || 0) + 1;
-        }
+        await supabase.from("evolution_chats").update(updateData).eq("id", chatId);
+      } else {
+        const { data: newChat, error } = await supabase
+          .from("evolution_chats")
+          .insert({
+            instance_name: instanceName,
+            remote_jid: remoteJid,
+            canonical_jid: canonicalJid,
+            lid_jid: lidJid,
+            pn_jid: pnJid,
+            phone_number: phoneNumber,
+            push_name: pushName || null,
+            is_group: isGroup,
+            last_message: body.substring(0, 200),
+            last_message_at: timestamp,
+            unread_count: fromMe ? 0 : 1,
+          })
+          .select("id")
+          .single();
 
-        await supabase
-          .from('evolution_chats')
-          .update(updateData)
-          .eq('id', chatId);
+        if (error) throw error;
+        chatId = newChat.id;
       }
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message_id: messageId,
+      // Insert message
+      await supabase.from("evolution_messages").upsert({
+        instance_name: instanceName,
+        remote_jid: canonicalJid,
+        source_remote_jid: remoteJid,
         chat_id: chatId,
-        normalized_jid: normalizedJid,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        message_id: messageId,
+        from_me: fromMe,
+        body,
+        message_type: messageType,
+        media_url: mediaUrl,
+        timestamp,
+        status: fromMe ? "sent" : "received",
+      }, { onConflict: "message_id,instance_name" });
+
+      return new Response(JSON.stringify({ success: true, chat_id: chatId }), { headers: corsHeaders });
     }
 
-    // Processar eventos de status de mensagem
-    if (event === 'messages.update') {
-      const updates = Array.isArray(data) ? data : [data];
-      
+    if (event === "messages.update") {
+      const updates = Array.isArray(payload.data) ? payload.data : [payload.data];
       for (const update of updates) {
-        const key = update.key || {};
-        const messageId = key.id || update.id;
-        const status = update.update?.status || update.status;
+        if (!update?.key?.id) continue;
+        const status = update.status;
+        let statusText = null;
+        if (status === 2 || status === "SERVER_ACK") statusText = "sent";
+        else if (status === 3 || status === "DELIVERY_ACK") statusText = "delivered";
+        else if (status === 4 || status === "READ") statusText = "read";
 
-        if (messageId && status) {
-          await supabase
-            .from('evolution_messages')
-            .update({ status: String(status) })
-            .eq('instance_name', instance)
-            .eq('message_id', messageId);
+        if (statusText) {
+          await supabase.from("evolution_messages").update({ status: statusText })
+            .eq("message_id", update.key.id).eq("instance_name", instanceName);
         }
       }
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    // Processar eventos de conexão
-    if (event === 'connection.update') {
-      const state = data.state || data.status;
-      const isConnected = state === 'open';
-
-      await supabase
-        .from('whatsapp_instances')
-        .update({ is_connected: isConnected })
-        .eq('instance_name', instance);
-
-      return new Response(JSON.stringify({ success: true, state }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (event === "connection.update") {
+      const state = payload.data?.state || payload.data?.status;
+      const isConnected = state === "open" || state === "connected";
+      await supabase.from("whatsapp_instances").update({
+        is_connected: isConnected,
+        status: isConnected ? "connected" : "disconnected",
+      }).eq("instance_name", instanceName);
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    // Processar eventos de presença/leitura
-    if (event === 'messages.read' || event === 'chats.update') {
-      const rawJid = data.remoteJid || data.id;
-      
-      if (rawJid) {
-        const { normalizedJid } = normalizeRemoteJid(rawJid);
-        
-        await supabase
-          .from('evolution_chats')
-          .update({ unread_count: 0 })
-          .eq('instance_name', instance)
-          .eq('remote_jid', normalizedJid);
+    if (event === "messages.read" || event === "chats.update") {
+      const jid = payload.data?.key?.remoteJid || payload.data?.remoteJid;
+      if (jid) {
+        await supabase.from("evolution_chats").update({ unread_count: 0 })
+          .eq("instance_name", instanceName)
+          .or(`canonical_jid.eq.${jid},lid_jid.eq.${jid},pn_jid.eq.${jid}`);
       }
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    return new Response(JSON.stringify({ success: true, unhandled: event }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-
+    return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
   } catch (error) {
-    console.error('Webhook error:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error("[Webhook] Error:", error);
+    return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500, headers: corsHeaders });
   }
 });
