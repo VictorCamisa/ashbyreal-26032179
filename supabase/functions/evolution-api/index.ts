@@ -87,26 +87,36 @@ Deno.serve(async (req) => {
       const result = await evolutionFetch(`/chat/findChats/${instanceName}`, { method: "POST", body: "{}" });
       const chats = Array.isArray(result) ? result : [];
 
+      console.log(`[Evolution API] Found ${chats.length} chats from Evolution`);
+
       for (const chat of chats) {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
 
-        const { canonicalJid, lidJid, pnJid, phoneNumber, isGroup } = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
+        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
+        // Ensure canonical_jid is never null - fallback to remoteJid
+        const canonicalJid = normalized.canonicalJid || remoteJid;
         const pushName = chat.pushName || chat.name || null;
 
-        await supabase.from("evolution_chats").upsert({
+        console.log(`[Evolution API] Upserting chat: ${remoteJid} -> canonical: ${canonicalJid}`);
+
+        const { error: upsertError } = await supabase.from("evolution_chats").upsert({
           instance_name: instanceName,
           remote_jid: remoteJid,
           canonical_jid: canonicalJid,
-          lid_jid: lidJid,
-          pn_jid: pnJid,
-          phone_number: phoneNumber,
+          lid_jid: normalized.lidJid,
+          pn_jid: normalized.pnJid,
+          phone_number: normalized.phoneNumber,
           push_name: pushName,
-          is_group: isGroup,
+          is_group: normalized.isGroup,
           profile_pic_url: chat.profilePicUrl || null,
           last_message: chat.lastMessage?.message?.conversation?.substring(0, 200) || null,
           last_message_at: chat.lastMessage?.messageTimestamp ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString() : null,
         }, { onConflict: "instance_name,canonical_jid" });
+
+        if (upsertError) {
+          console.error(`[Evolution API] Error upserting chat ${remoteJid}:`, upsertError);
+        }
       }
 
       const { data: dbChats } = await supabase.from("evolution_chats").select("*").eq("instance_name", instanceName).order("last_message_at", { ascending: false, nullsFirst: false });
@@ -219,27 +229,39 @@ Deno.serve(async (req) => {
     }
 
     if (action === "rebuild_chats") {
+      console.log(`[Evolution API] Rebuilding chats for ${instanceName}`);
+      
       await supabase.from("evolution_messages").delete().eq("instance_name", instanceName);
       await supabase.from("evolution_chats").delete().eq("instance_name", instanceName);
       
       const result = await evolutionFetch(`/chat/findChats/${instanceName}`, { method: "POST", body: "{}" });
       const chats = Array.isArray(result) ? result : [];
 
+      console.log(`[Evolution API] Rebuilding with ${chats.length} chats`);
+
       for (const chat of chats) {
         const remoteJid = chat.remoteJid || chat.id;
         if (!remoteJid || remoteJid === "status@broadcast") continue;
-        const { canonicalJid, lidJid, pnJid, phoneNumber, isGroup } = normalizeToCanonical(remoteJid, chat.remoteJidAlt);
+        
+        const normalized = normalizeToCanonical(remoteJid, chat.remoteJidAlt);
+        const canonicalJid = normalized.canonicalJid || remoteJid;
 
-        await supabase.from("evolution_chats").insert({
+        const { error: insertError } = await supabase.from("evolution_chats").insert({
           instance_name: instanceName,
           remote_jid: remoteJid,
           canonical_jid: canonicalJid,
-          lid_jid: lidJid,
-          pn_jid: pnJid,
-          phone_number: phoneNumber,
+          lid_jid: normalized.lidJid,
+          pn_jid: normalized.pnJid,
+          phone_number: normalized.phoneNumber,
           push_name: chat.pushName || chat.name || null,
-          is_group: isGroup,
+          is_group: normalized.isGroup,
+          last_message: chat.lastMessage?.message?.conversation?.substring(0, 200) || null,
+          last_message_at: chat.lastMessage?.messageTimestamp ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString() : null,
         });
+
+        if (insertError) {
+          console.error(`[Evolution API] Error inserting chat ${remoteJid}:`, insertError);
+        }
       }
 
       const { data: dbChats } = await supabase.from("evolution_chats").select("*").eq("instance_name", instanceName).order("last_message_at", { ascending: false, nullsFirst: false });
