@@ -31,15 +31,14 @@ export function NovoPedidoDialog({ clienteId, onSuccess }: NovoPedidoDialogProps
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.from('pedidos').insert({
+      const { error } = await supabase.from('pedidos').insert([{
         cliente_id: clienteId,
-        numero_pedido: formData.numero_pedido,
         status: formData.status,
         valor_total: parseFloat(formData.valor_total),
         data_pedido: new Date(formData.data_pedido).toISOString(),
         data_entrega: formData.data_entrega ? new Date(formData.data_entrega).toISOString() : null,
         observacoes: formData.observacoes || null
-      });
+      }]);
 
       if (error) throw error;
 

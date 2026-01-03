@@ -190,7 +190,7 @@ export function ImportarTransacoesDialog({ open, onOpenChange }: ImportarTransac
         const transaction = {
           entity_id: entityId,
           tipo: row.tipo.toLowerCase() === 'receita' ? 'RECEBER' as const : 'PAGAR' as const,
-          amount: String(row.valor),
+          amount: parseFloat(String(row.valor).replace(',', '.')) || 0,
           due_date: parseDate(row.data),
           description: row.descricao,
           category_id: category?.id || null,

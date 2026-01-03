@@ -1200,11 +1200,16 @@ export type Database = {
           descricao: string | null
           estoque: number | null
           estoque_minimo: number | null
+          fornecedor: string | null
           id: string
           imagem_url: string | null
+          localizacao: string | null
+          margem_lucro: number | null
           nome: string
           preco: number
+          preco_custo: number | null
           sku: string | null
+          unidade_medida: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1214,11 +1219,16 @@ export type Database = {
           descricao?: string | null
           estoque?: number | null
           estoque_minimo?: number | null
+          fornecedor?: string | null
           id?: string
           imagem_url?: string | null
+          localizacao?: string | null
+          margem_lucro?: number | null
           nome: string
           preco?: number
+          preco_custo?: number | null
           sku?: string | null
+          unidade_medida?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1228,11 +1238,16 @@ export type Database = {
           descricao?: string | null
           estoque?: number | null
           estoque_minimo?: number | null
+          fornecedor?: string | null
           id?: string
           imagem_url?: string | null
+          localizacao?: string | null
+          margem_lucro?: number | null
           nome?: string
           preco?: number
+          preco_custo?: number | null
           sku?: string | null
+          unidade_medida?: string | null
           updated_at?: string | null
         }
         Relationships: []

@@ -35,7 +35,7 @@ export function useBoletos(status?: string) {
         .order('created_at', { ascending: false });
 
       if (status) {
-        query = query.eq('status', status);
+        query = query.eq('status', status as 'PENDENTE' | 'APROVADO' | 'PAGO' | 'REJEITADO' | 'CANCELADO');
       }
 
       const { data, error } = await query;
@@ -52,7 +52,7 @@ export function useBoletos(status?: string) {
       amount: number;
       due_date: string;
       tipo_nota: 'COM_NOTA' | 'SEM_NOTA';
-      status?: string;
+      status?: 'PENDENTE' | 'APROVADO' | 'PAGO' | 'REJEITADO' | 'CANCELADO';
       image_base64?: string | null;
       notes?: string;
     }) => {

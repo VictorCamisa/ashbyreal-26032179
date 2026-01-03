@@ -49,12 +49,13 @@ export function useTickets() {
 
       const { data, error } = await supabase
         .from('tickets')
-        .insert({
-          user_id: user.id,
+        .insert([{
+          nome: user.user_metadata?.nome || user.email || 'Usuário',
+          email: user.email || '',
           assunto: novoTicket.assunto,
           descricao: novoTicket.descricao,
           prioridade: novoTicket.prioridade,
-        })
+        }])
         .select()
         .single();
 

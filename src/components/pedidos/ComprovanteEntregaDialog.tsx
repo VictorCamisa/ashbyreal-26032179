@@ -112,7 +112,7 @@ export function ComprovanteEntregaDialog({
       }));
 
       setPedidoData({
-        numero_pedido: pedido.numero_pedido,
+        numero_pedido: String(pedido.numero_pedido),
         valor_total: pedido.valor_total,
         observacoes: pedido.observacoes,
         cliente,
