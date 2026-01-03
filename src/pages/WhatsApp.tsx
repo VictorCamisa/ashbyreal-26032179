@@ -25,13 +25,17 @@ export default function WhatsApp() {
   const handleSendMessage = async (message: string, messageType: string = 'text', mediaUrl?: string) => {
     if (!selectedInstance || !selectedJid) return;
 
-    await sendMessage.mutateAsync({
-      instanceName: selectedInstance.instance_name,
-      remoteJid: selectedJid,
-      message,
-      messageType,
-      mediaUrl,
-    });
+    try {
+      await sendMessage.mutateAsync({
+        instanceName: selectedInstance.instance_name,
+        remoteJid: selectedJid,
+        message,
+        messageType,
+        mediaUrl,
+      });
+    } catch {
+      // Error toast is handled inside the mutation; avoid breaking the UI with an unhandled rejection.
+    }
   };
 
   return (
