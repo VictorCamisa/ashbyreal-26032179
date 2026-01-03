@@ -58,6 +58,7 @@ interface PedidoDetails {
   cliente_id: string;
   status: string;
   valor_total: number;
+  valor_sinal: number;
   data_pedido: string;
   data_entrega: string | null;
   data_pagamento: string | null;
@@ -165,7 +166,11 @@ export function DetalhesPedidoDrawer({
         }
       }
 
-      setPedido({ ...pedidoData, status_history: statusHistory });
+      setPedido({ 
+        ...pedidoData, 
+        status_history: statusHistory,
+        valor_sinal: pedidoData.valor_sinal || 0
+      });
 
       // Fetch items with products
       const { data: itemsData } = await supabase
@@ -343,11 +348,31 @@ export function DetalhesPedidoDrawer({
                     <span className="text-muted-foreground">Subtotal</span>
                     <span>R$ {pedido?.valor_total.toFixed(2)}</span>
                   </div>
-                  <Separator />
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span className="text-primary">R$ {pedido?.valor_total.toFixed(2)}</span>
-                  </div>
+                  {pedido && pedido.valor_sinal > 0 && (
+                    <>
+                      <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          Sinal pago
+                        </span>
+                        <span>- R$ {pedido.valor_sinal.toFixed(2)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Restante</span>
+                        <span className="text-primary">R$ {(pedido.valor_total - pedido.valor_sinal).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  {(!pedido || pedido.valor_sinal === 0) && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total</span>
+                        <span className="text-primary">R$ {pedido?.valor_total.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                   {pedido?.metodo_pagamento && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Método</span>

@@ -71,6 +71,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [metodoPagamento, setMetodoPagamento] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [dataEntrega, setDataEntrega] = useState('');
+  const [valorSinal, setValorSinal] = useState<number>(0);
 
   const { createPedido, isLoading } = usePedidosMutations();
 
@@ -183,6 +184,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         metodoPagamento,
         observacoes,
         dataEntrega,
+        valorSinal: valorSinal > 0 ? valorSinal : undefined,
       });
 
       resetDialog();
@@ -202,6 +204,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setDataEntrega('');
     setSearchProduto('');
     setSearchCliente('');
+    setValorSinal(0);
   };
 
   const stepIndex = ['cliente', 'produtos', 'pagamento'].indexOf(step);
@@ -505,6 +508,48 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Sinal (Down Payment) */}
+                <div className="space-y-3 p-4 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-medium">Sinal / Entrada</Label>
+                    <Badge variant="outline" className="text-amber-600">
+                      Opcional
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Valor que o cliente pagará antecipadamente. Será descontado no momento da entrega.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex-1 max-w-xs">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+                      <Input
+                        id="valorSinal"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={totalValue}
+                        value={valorSinal || ''}
+                        onChange={(e) => setValorSinal(Number(e.target.value))}
+                        className="pl-10"
+                        placeholder="0,00"
+                      />
+                    </div>
+                    {valorSinal > 0 && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">Restante na entrega: </span>
+                        <span className="font-bold text-primary">
+                          R$ {(totalValue - valorSinal).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {valorSinal > totalValue && (
+                    <p className="text-sm text-destructive">
+                      O sinal não pode ser maior que o valor total do pedido
+                    </p>
+                  )}
                 </div>
 
                 {/* Delivery Date */}

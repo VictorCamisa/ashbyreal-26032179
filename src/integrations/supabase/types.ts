@@ -1248,6 +1248,7 @@ export type Database = {
           status_history: Json | null
           transaction_id: string | null
           updated_at: string | null
+          valor_sinal: number | null
           valor_total: number | null
         }
         Insert: {
@@ -1266,6 +1267,7 @@ export type Database = {
           status_history?: Json | null
           transaction_id?: string | null
           updated_at?: string | null
+          valor_sinal?: number | null
           valor_total?: number | null
         }
         Update: {
@@ -1284,6 +1286,7 @@ export type Database = {
           status_history?: Json | null
           transaction_id?: string | null
           updated_at?: string | null
+          valor_sinal?: number | null
           valor_total?: number | null
         }
         Relationships: [

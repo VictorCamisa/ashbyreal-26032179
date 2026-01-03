@@ -16,6 +16,7 @@ export interface CreatePedidoData {
   metodoPagamento?: string;
   observacoes?: string;
   dataEntrega?: string;
+  valorSinal?: number;
 }
 
 export function usePedidosMutations() {
@@ -46,6 +47,7 @@ export function usePedidosMutations() {
           cliente_id: data.clienteId,
           status: 'pendente',
           valor_total: valorTotal,
+          valor_sinal: data.valorSinal || 0,
           data_pedido: new Date().toISOString(),
           data_entrega: data.dataEntrega ? new Date(data.dataEntrega).toISOString() : null,
           observacoes: data.observacoes || null,

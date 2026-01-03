@@ -27,6 +27,7 @@ interface ComprovanteEntregaDialogProps {
 interface PedidoData {
   numero_pedido: string;
   valor_total: number;
+  valor_sinal: number;
   observacoes: string | null;
   cliente: {
     nome: string;
@@ -92,7 +93,7 @@ export function ComprovanteEntregaDialog({
     try {
       const { data: pedido } = await supabase
         .from('pedidos')
-        .select('numero_pedido, valor_total, observacoes, cliente_id')
+        .select('numero_pedido, valor_total, valor_sinal, observacoes, cliente_id')
         .eq('id', pedidoId)
         .single();
 
@@ -119,6 +120,7 @@ export function ComprovanteEntregaDialog({
       setPedidoData({
         numero_pedido: String(pedido.numero_pedido),
         valor_total: pedido.valor_total,
+        valor_sinal: pedido.valor_sinal || 0,
         observacoes: pedido.observacoes,
         cliente,
         itens,
@@ -442,12 +444,36 @@ export function ComprovanteEntregaDialog({
                 placeholder="Observações..."
               />
             </div>
-            <div className="flex flex-col justify-end">
+            <div className="flex flex-col justify-end space-y-2">
+              {/* Sinal info */}
+              {pedidoData && pedidoData.valor_sinal > 0 && (
+                <div className="border rounded-lg p-3 print:border-black bg-amber-500/10 border-amber-500/20">
+                  <Label className="text-xs text-amber-600 dark:text-amber-400">SINAL PAGO</Label>
+                  <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                    - R$ {pedidoData.valor_sinal.toFixed(2)}
+                  </p>
+                </div>
+              )}
+              {/* Total or Remaining */}
               <div className="border rounded-lg p-4 print:border-black">
-                <Label className="text-xs text-muted-foreground">TOTAL</Label>
-                <p className="text-2xl font-bold text-primary print:text-black">
-                  R$ {pedidoData?.valor_total.toFixed(2)}
-                </p>
+                {pedidoData && pedidoData.valor_sinal > 0 ? (
+                  <>
+                    <Label className="text-xs text-muted-foreground">TOTAL A RECEBER NA ENTREGA</Label>
+                    <p className="text-2xl font-bold text-primary print:text-black">
+                      R$ {(pedidoData.valor_total - pedidoData.valor_sinal).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      (Total: R$ {pedidoData.valor_total.toFixed(2)})
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Label className="text-xs text-muted-foreground">TOTAL</Label>
+                    <p className="text-2xl font-bold text-primary print:text-black">
+                      R$ {pedidoData?.valor_total.toFixed(2)}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
