@@ -44,7 +44,12 @@ export default function WhatsApp() {
         setInstanceName(stored);
         return;
       }
-      const { data } = await supabase.from("whatsapp_instances").select("instance_name").limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("whatsapp_instances")
+        .select("instance_name")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (data?.instance_name) {
         setInstanceName(data.instance_name);
         localStorage.setItem("whatsapp_instance_name", data.instance_name);

@@ -47,9 +47,35 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
     setError(null);
 
     try {
+      const storedInstance = currentInstanceName || localStorage.getItem('whatsapp_instance_name');
+
+      // Se já existe uma instância salva, tenta só buscar/atualizar o QR Code (sem criar outra instância)
+      if (storedInstance) {
+        console.log('Buscando QR Code para instância existente:', storedInstance);
+
+        const { data, error: fnError } = await supabase.functions.invoke('evolution-api', {
+          body: {
+            action: 'get_qrcode',
+            instance_name: storedInstance,
+          },
+        });
+
+        if (fnError) throw new Error(fnError.message);
+        if (!data?.success) throw new Error(data?.error || 'Erro ao buscar QR Code');
+
+        if (data?.qrcode) {
+          setQrCode(data.qrcode);
+          setPairingCode(data?.pairingCode || null);
+          setCurrentInstanceName(storedInstance);
+          toast.success('QR Code atualizado!');
+          return;
+        }
+
+        console.warn('Instância existe, mas veio sem QR Code. Tentando criar uma nova...');
+      }
+
       console.log('Criando nova instância WhatsApp...');
-      
-      // Chamar a Edge Function para criar instância
+
       const { data, error: fnError } = await supabase.functions.invoke('evolution-api', {
         body: {
           action: 'create_instance',
@@ -57,12 +83,10 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
         },
       });
 
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
+      if (fnError) throw new Error(fnError.message);
 
       console.log('Resposta da criação:', data);
-      
+
       if (!data?.success) {
         throw new Error(data?.error || 'Erro ao criar instância');
       }
@@ -70,21 +94,31 @@ export function GerarQRCodeDialog({ open, onOpenChange, onConnected }: GerarQRCo
       const qrCodeValue = data?.qrcode;
       const pairingCodeValue = data?.pairingCode;
       const instanceNameValue = data?.instance_name;
-      
+
+      if (instanceNameValue) {
+        setCurrentInstanceName(instanceNameValue);
+        localStorage.setItem('whatsapp_instance_name', instanceNameValue);
+        localStorage.setItem('whatsapp_client_slug', CLIENT_SLUG);
+      }
+
       if (qrCodeValue) {
         setQrCode(qrCodeValue);
-        setPairingCode(pairingCodeValue);
-        setCurrentInstanceName(instanceNameValue);
-        
-        // Salva o instance_name no localStorage para uso futuro
-        if (instanceNameValue) {
-          localStorage.setItem('whatsapp_instance_name', instanceNameValue);
-          localStorage.setItem('whatsapp_client_slug', CLIENT_SLUG);
-        }
-        
+        setPairingCode(pairingCodeValue || null);
         toast.success('QR Code gerado com sucesso!');
+      } else if (instanceNameValue) {
+        // Fallback: se criou instância mas não veio QR, tenta buscar via connect
+        const { data: qrData, error: qrErr } = await supabase.functions.invoke('evolution-api', {
+          body: { action: 'get_qrcode', instance_name: instanceNameValue },
+        });
+
+        if (!qrErr && qrData?.qrcode) {
+          setQrCode(qrData.qrcode);
+          setPairingCode(qrData?.pairingCode || null);
+          toast.success('QR Code gerado com sucesso!');
+        } else {
+          setError('Não foi possível gerar o QR Code. Tente novamente.');
+        }
       } else {
-        console.error('Resposta sem QR Code:', data);
         setError('Não foi possível gerar o QR Code. Tente novamente.');
       }
     } catch (err) {
