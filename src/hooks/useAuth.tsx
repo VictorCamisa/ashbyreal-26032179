@@ -6,17 +6,13 @@ import { useToast } from '@/hooks/use-toast';
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  signUp: (username: string, password: string, nome?: string) => Promise<void>;
-  signIn: (username: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, nome?: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Helper to convert username to internal email format
-// Using a valid TLD (.app) since Supabase validates email format
-const usernameToEmail = (username: string) => `${username.toLowerCase().trim()}@ashby.app`;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -44,24 +40,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (username: string, password: string, nome?: string) => {
+  const signUp = async (email: string, password: string, nome?: string) => {
     try {
-      const email = usernameToEmail(username);
+      const redirectUrl = `${window.location.origin}/`;
       
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: redirectUrl,
           data: { 
-            nome: nome || username,
-            username: username.toLowerCase().trim()
+            nome: nome || email.split('@')[0]
           },
         }
       });
 
       if (error) {
         if (error.message.includes('already registered')) {
-          throw new Error('Este usuário já está cadastrado');
+          throw new Error('Este email já está cadastrado');
         }
         throw error;
       }
@@ -80,10 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signIn = async (username: string, password: string) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const email = usernameToEmail(username);
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -91,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Usuário ou senha inválidos');
+          throw new Error('Email ou senha inválidos');
         }
         throw error;
       }
