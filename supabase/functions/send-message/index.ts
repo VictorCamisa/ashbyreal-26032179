@@ -49,11 +49,22 @@ serve(async (req) => {
     let endpoint = "";
     let body: Record<string, any> = {};
 
+    // Clean base64 - remove data URL prefix if present
+    const cleanBase64 = (base64: string | undefined) => {
+      if (!base64) return base64;
+      // Remove data:image/png;base64, or data:audio/ogg;base64, etc.
+      const match = base64.match(/^data:[^;]+;base64,(.+)$/);
+      return match ? match[1] : base64;
+    };
+
+    const cleanedMediaUrl = cleanBase64(mediaUrl);
+    const number = remoteJid.replace("@s.whatsapp.net", "").replace("@lid", "");
+
     switch (messageType) {
       case "text":
         endpoint = `/message/sendText/${instanceName}`;
         body = {
-          number: remoteJid.replace("@s.whatsapp.net", ""),
+          number,
           text: message,
         };
         break;
@@ -61,27 +72,27 @@ serve(async (req) => {
       case "image":
         endpoint = `/message/sendMedia/${instanceName}`;
         body = {
-          number: remoteJid.replace("@s.whatsapp.net", ""),
+          number,
           mediatype: "image",
-          media: mediaUrl,
-          caption: message,
+          media: cleanedMediaUrl,
+          caption: message !== '[Imagem]' ? message : undefined,
         };
         break;
 
       case "audio":
         endpoint = `/message/sendWhatsAppAudio/${instanceName}`;
         body = {
-          number: remoteJid.replace("@s.whatsapp.net", ""),
-          audio: mediaUrl,
+          number,
+          audio: cleanedMediaUrl,
         };
         break;
 
       case "document":
         endpoint = `/message/sendMedia/${instanceName}`;
         body = {
-          number: remoteJid.replace("@s.whatsapp.net", ""),
+          number,
           mediatype: "document",
-          media: mediaUrl,
+          media: cleanedMediaUrl,
           fileName: fileName || "document",
           caption: message,
         };
@@ -90,10 +101,13 @@ serve(async (req) => {
       default:
         endpoint = `/message/sendText/${instanceName}`;
         body = {
-          number: remoteJid.replace("@s.whatsapp.net", ""),
+          number,
           text: message,
         };
     }
+
+    console.log(`[send-message] Type: ${messageType}, Endpoint: ${endpoint}`);
+    console.log(`[send-message] Body keys: ${Object.keys(body).join(', ')}`);
 
     const url = `${EVOLUTION_API_URL}${endpoint}`;
     console.log(`[send-message] POST ${url}`);

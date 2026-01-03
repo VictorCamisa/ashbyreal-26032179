@@ -123,6 +123,7 @@ serve(async (req) => {
           let content = "";
           let messageType = "text";
           let mediaUrl = null;
+          let mediaBase64 = null;
 
           if (msg.message?.conversation) {
             content = msg.message.conversation;
@@ -132,6 +133,10 @@ serve(async (req) => {
             messageType = "image";
             content = msg.message.imageMessage.caption || "[Imagem]";
             mediaUrl = msg.message.imageMessage.url || null;
+            // Check for base64 media
+            if (msg.message.base64) {
+              mediaBase64 = `data:image/jpeg;base64,${msg.message.base64}`;
+            }
           } else if (msg.message?.videoMessage) {
             messageType = "video";
             content = msg.message.videoMessage.caption || "[Vídeo]";
@@ -140,6 +145,13 @@ serve(async (req) => {
             messageType = "audio";
             content = "[Áudio]";
             mediaUrl = msg.message.audioMessage.url || null;
+            // Duration in seconds
+            const duration = msg.message.audioMessage.seconds || 0;
+            content = `[Áudio ${duration}s]`;
+            // Check for base64 audio
+            if (msg.message.base64) {
+              mediaBase64 = `data:audio/ogg;base64,${msg.message.base64}`;
+            }
           } else if (msg.message?.documentMessage) {
             messageType = "document";
             content = msg.message.documentMessage.fileName || "[Documento]";
@@ -147,6 +159,11 @@ serve(async (req) => {
           } else if (msg.message?.stickerMessage) {
             messageType = "sticker";
             content = "[Figurinha]";
+          }
+
+          // Use base64 as media URL if we have it
+          if (mediaBase64) {
+            mediaUrl = mediaBase64;
           }
 
           // Extract contact info - THIS IS THE KEY PART!
