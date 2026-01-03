@@ -51,19 +51,69 @@ Deno.serve(async (req) => {
       return res.json();
     };
 
+    const extractQrPayload = (result: any): { qrcode: string | null; pairingCode: string | null } => {
+      if (!result) return { qrcode: null, pairingCode: null };
+
+      const qrcode =
+        result?.qrcode?.base64 ??
+        result?.qrcode?.base64Qr ??
+        result?.qrcode?.qr ??
+        result?.qrcode?.code ??
+        (typeof result?.qrcode === "string" ? result.qrcode : null) ??
+        result?.base64 ??
+        result?.qr?.base64 ??
+        result?.qrCode?.base64 ??
+        result?.data?.qrcode?.base64 ??
+        null;
+
+      const pairingCode =
+        result?.pairingCode ??
+        result?.pairing_code ??
+        result?.qrcode?.pairingCode ??
+        null;
+
+      return { qrcode, pairingCode };
+    };
+
     if (action === "create_instance") {
       const newName = `${params.client_slug || "whatsapp"}-${Date.now()}`;
       const result = await evolutionFetch("/instance/create", {
         method: "POST",
         body: JSON.stringify({ instanceName: newName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
       });
-      await supabase.from("whatsapp_instances").upsert({ instance_name: newName, is_connected: false }, { onConflict: "instance_name" });
-      return new Response(JSON.stringify({ success: true, instance_name: newName, qrcode: result?.qrcode?.base64 }), { headers: corsHeaders });
+
+      console.log(
+        `[Evolution API] create_instance response keys: ${Object.keys(result || {}).join(",")}`,
+      );
+
+      let { qrcode, pairingCode } = extractQrPayload(result);
+
+      // Some Evolution versions don't return the QR on create; fetch it via connect.
+      if (!qrcode) {
+        try {
+          const connectResult = await evolutionFetch(`/instance/connect/${newName}`);
+          const payload = extractQrPayload(connectResult);
+          qrcode = payload.qrcode;
+          pairingCode = pairingCode || payload.pairingCode;
+        } catch (e) {
+          console.error("[Evolution API] Failed to fetch QR via connect:", e);
+        }
+      }
+
+      await supabase
+        .from("whatsapp_instances")
+        .upsert({ instance_name: newName, is_connected: false }, { onConflict: "instance_name" });
+
+      return new Response(
+        JSON.stringify({ success: true, instance_name: newName, qrcode, pairingCode }),
+        { headers: corsHeaders },
+      );
     }
 
     if (action === "get_qrcode") {
       const result = await evolutionFetch(`/instance/connect/${instanceName}`);
-      return new Response(JSON.stringify({ success: true, qrcode: result?.base64 }), { headers: corsHeaders });
+      const { qrcode, pairingCode } = extractQrPayload(result);
+      return new Response(JSON.stringify({ success: true, qrcode, pairingCode }), { headers: corsHeaders });
     }
 
     if (action === "check_connection") {
