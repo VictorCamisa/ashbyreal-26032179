@@ -216,6 +216,11 @@ export function useEstoque() {
 }
 
 function transformProduto(data: any): ProdutoEstoque {
+  const preco = Number(data.preco || 0);
+  const precoCusto = Number(data.preco_custo || 0);
+  // Calcula margem automaticamente: ((venda - custo) / venda) * 100
+  const margemLucro = preco > 0 ? ((preco - precoCusto) / preco) * 100 : 0;
+  
   return {
     id: data.id,
     nome: data.nome,
@@ -224,9 +229,9 @@ function transformProduto(data: any): ProdutoEstoque {
     categoria: data.categoria,
     estoque: data.estoque || 0,
     estoqueMinimo: data.estoque_minimo || 10,
-    preco: Number(data.preco || 0),
-    precoCusto: Number(data.preco_custo || 0),
-    margemLucro: Number(data.margem_lucro || 0),
+    preco,
+    precoCusto,
+    margemLucro,
     unidadeMedida: data.unidade_medida,
     fornecedor: data.fornecedor,
     localizacao: data.localizacao,
