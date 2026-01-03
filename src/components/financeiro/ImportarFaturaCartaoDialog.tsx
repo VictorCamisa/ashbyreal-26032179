@@ -8,13 +8,17 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, FileSpreadsheet, FileText, CheckCircle2, XCircle, Loader2, CreditCard, AlertTriangle, Calendar, ChevronRight } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Upload, FileSpreadsheet, CheckCircle2, XCircle, Loader2, CreditCard, 
+  AlertTriangle, Calendar, ChevronRight, Copy, AlertCircle, Sparkles
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 
 interface ImportarFaturaCartaoDialogProps {
   open: boolean;
@@ -26,20 +30,29 @@ interface ParsedTransaction {
   date: string;
   description: string;
   amount: number;
-  installment_number?: number;
-  total_installments?: number;
+  installment_number: number;
+  total_installments: number;
   category_suggestion?: string;
+  dedupe_key?: string;
+  purchase_fingerprint?: string;
+  status?: 'NEW' | 'DUPLICATE' | 'FUTURE_INSTALLMENT';
   selected?: boolean;
 }
 
-const CARD_PROVIDERS: Record<string, { label: string; formats: string[] }> = {
-  'LATAM': { label: 'LATAM Pass', formats: ['CSV', 'PDF'] },
-  'LATAM_BLACK': { label: 'LATAM Black', formats: ['CSV', 'PDF'] },
-  'AZUL': { label: 'Azul Itaucard', formats: ['CSV', 'PDF'] },
-  'ITAU_EMPRESAS': { label: 'Itaú Empresas', formats: ['XLSX', 'XLS', 'PDF'] },
-  'MERCADO_LIVRE': { label: 'Mercado Livre', formats: ['PDF', 'CSV'] },
-  'SANTANDER_SMILES': { label: 'Santander Smiles', formats: ['PDF', 'CSV'] },
-  'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX', 'PDF'] },
+interface ImportSummary {
+  new_items: number;
+  duplicates: number;
+  future_installments: number;
+  total_value: number;
+}
+
+const CARD_PROVIDERS: Record<string, { label: string; formats: string[]; color: string }> = {
+  'LATAM': { label: 'LATAM Pass', formats: ['CSV'], color: 'bg-red-500' },
+  'AZUL': { label: 'Azul Itaucard', formats: ['CSV'], color: 'bg-blue-500' },
+  'ITAU_EMPRESAS': { label: 'Itaú Empresas', formats: ['XLSX', 'XLS'], color: 'bg-orange-500' },
+  'MERCADO_LIVRE': { label: 'Mercado Livre', formats: ['CSV'], color: 'bg-yellow-500' },
+  'SANTANDER_SMILES': { label: 'Santander Smiles', formats: ['CSV'], color: 'bg-red-600' },
+  'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX'], color: 'bg-gray-500' },
 };
 
 export function ImportarFaturaCartaoDialog({ 
@@ -48,17 +61,21 @@ export function ImportarFaturaCartaoDialog({
   onSuccess 
 }: ImportarFaturaCartaoDialogProps) {
   const { cartoes } = useCartoes();
-  const { createGasto, isCreating } = useGastosCartaoMutations();
+  const { createGasto, isCreating, confirmImport } = useGastosCartaoMutations();
   
   const [step, setStep] = useState<'select' | 'upload' | 'preview' | 'importing' | 'done'>('select');
   const [selectedCartao, setSelectedCartao] = useState<string>('');
-  const [competenciaAlvo, setCompetenciaAlvo] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [competenciaAlvo, setCompetenciaAlvo] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importId, setImportId] = useState<string | null>(null);
   const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState({ success: 0, failed: 0 });
+  const [importResults, setImportResults] = useState({ success: 0, failed: 0, skipped: 0 });
 
-  // Obter o cartão selecionado e seu provider
   const selectedCartaoData = cartoes?.find(c => c.id === selectedCartao);
   const cardProvider = selectedCartaoData?.card_provider || 'GENERICO';
   const providerInfo = CARD_PROVIDERS[cardProvider] || CARD_PROVIDERS['GENERICO'];
@@ -66,25 +83,21 @@ export function ImportarFaturaCartaoDialog({
   const resetDialog = () => {
     setStep('select');
     setSelectedCartao('');
-    setCompetenciaAlvo(new Date().toISOString().slice(0, 7));
+    setCompetenciaAlvo(() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
     setSelectedFile(null);
     setParsedTransactions([]);
+    setImportSummary(null);
+    setImportId(null);
     setImportProgress(0);
-    setImportResults({ success: 0, failed: 0 });
+    setImportResults({ success: 0, failed: 0, skipped: 0 });
   };
 
   const handleClose = () => {
     resetDialog();
     onOpenChange(false);
-  };
-
-  const parseCSVFile = async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = reject;
-      reader.readAsText(file, 'UTF-8');
-    });
   };
 
   const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
@@ -113,6 +126,15 @@ export function ImportarFaturaCartaoDialog({
     });
   };
 
+  const parseCSVFile = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsText(file, 'UTF-8');
+    });
+  };
+
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -127,12 +149,10 @@ export function ImportarFaturaCartaoDialog({
 
       if (fileExt === 'csv') {
         content = await parseCSVFile(file);
-      } else if (fileExt === 'xlsx' || fileExt === 'xls' || fileExt === 'pdf') {
-        // Enviar o arquivo íntegro (base64) para a Edge Function processar
+      } else if (fileExt === 'xlsx' || fileExt === 'xls') {
         fileBase64 = await readFileAsBase64(file);
       }
 
-      // Call edge function to parse usando o provider do cartão
       const { data: result, error } = await supabase.functions.invoke('import-card-statement', {
         body: {
           creditCardId: selectedCartao,
@@ -141,24 +161,42 @@ export function ImportarFaturaCartaoDialog({
           fileName: file.name,
           content,
           fileBase64,
+          competenciaAlvo,
         }
       });
 
       if (error) throw error;
 
-      // Verificar se há erro retornado (ex: PDF não suportado)
-      if (result.error) {
+      // Verificar se arquivo já foi importado
+      if (result.already_imported) {
+        toast.error(result.error);
+        setStep('select');
+        return;
+      }
+
+      if (result.error && !result.transactions?.length) {
         toast.error(result.error);
         setStep('select');
         return;
       }
 
       if (result.transactions && result.transactions.length > 0) {
-        setParsedTransactions(result.transactions.map((t: ParsedTransaction) => ({ ...t, selected: true })));
+        // Marcar todos como selecionados, exceto duplicatas
+        const txsWithSelection = result.transactions.map((t: ParsedTransaction) => ({
+          ...t,
+          selected: t.status !== 'DUPLICATE'
+        }));
+        
+        setParsedTransactions(txsWithSelection);
+        setImportSummary(result.summary);
+        setImportId(result.import_id);
         setStep('preview');
-        toast.success(`${result.transactions.length} transações encontradas`);
+        
+        if (result.summary.duplicates > 0) {
+          toast.info(`${result.summary.duplicates} transações duplicadas serão ignoradas`);
+        }
       } else {
-        toast.warning('Nenhuma transação encontrada no arquivo. Verifique se o formato está correto.');
+        toast.warning('Nenhuma transação encontrada no arquivo.');
         setStep('select');
       }
     } catch (err: any) {
@@ -166,46 +204,62 @@ export function ImportarFaturaCartaoDialog({
       toast.error('Erro ao processar arquivo: ' + (err.message || 'Erro desconhecido'));
       setStep('select');
     }
-  }, [selectedCartao, cardProvider]);
+  }, [selectedCartao, cardProvider, competenciaAlvo]);
 
   const toggleTransaction = (index: number) => {
     setParsedTransactions(prev => 
-      prev.map((t, i) => i === index ? { ...t, selected: !t.selected } : t)
+      prev.map((t, i) => {
+        if (i !== index) return t;
+        // Não permite selecionar duplicatas
+        if (t.status === 'DUPLICATE') return t;
+        return { ...t, selected: !t.selected };
+      })
     );
   };
 
-  const toggleAll = () => {
-    const allSelected = parsedTransactions.every(t => t.selected);
-    setParsedTransactions(prev => prev.map(t => ({ ...t, selected: !allSelected })));
+  const toggleAllNew = () => {
+    const newItems = parsedTransactions.filter(t => t.status === 'NEW');
+    const allNewSelected = newItems.every(t => t.selected);
+    setParsedTransactions(prev => prev.map(t => {
+      if (t.status !== 'NEW') return t;
+      return { ...t, selected: !allNewSelected };
+    }));
   };
 
   const handleImport = async () => {
-    const toImport = parsedTransactions.filter(t => t.selected);
+    const toImport = parsedTransactions.filter(t => t.selected && t.status === 'NEW');
     if (toImport.length === 0) {
-      toast.error('Selecione ao menos uma transação');
+      toast.error('Selecione ao menos uma transação nova');
       return;
     }
 
     setStep('importing');
     let success = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (let i = 0; i < toImport.length; i++) {
       const t = toImport[i];
       try {
-        await createGasto({
+        const result = await createGasto({
           credit_card_id: selectedCartao,
           description: t.description,
           amount: t.amount,
           purchase_date: t.date,
-          installment_number: t.installment_number || 1,
-          total_installments: t.total_installments || 1,
-          // Força a parcela atual a entrar na fatura (competência) escolhida
+          installment_number: t.installment_number,
+          total_installments: t.total_installments,
           force_competencia: competenciaAlvo,
-          // Criar parcelas FUTURAS (janeiro, fevereiro, etc.) automaticamente
           create_remaining_installments: true,
+          dedupe_key: t.dedupe_key,
+          purchase_fingerprint: t.purchase_fingerprint,
+          source_import_id: importId || undefined,
         });
-        success++;
+        
+        if (result && result.length > 0) {
+          success++;
+        } else {
+          skipped++;
+        }
       } catch (err) {
         console.error('Erro ao importar transação:', err);
         failed++;
@@ -213,11 +267,16 @@ export function ImportarFaturaCartaoDialog({
       setImportProgress(Math.round(((i + 1) / toImport.length) * 100));
     }
 
-    setImportResults({ success, failed });
+    // Confirmar import no banco
+    if (importId && success > 0) {
+      await confirmImport({ importId, recordsImported: success });
+    }
+
+    setImportResults({ success, failed, skipped });
     setStep('done');
     
     if (success > 0) {
-      toast.success(`${success} transações importadas com sucesso`);
+      toast.success(`${success} transações importadas com sucesso!`);
       onSuccess?.();
     }
   };
@@ -226,29 +285,36 @@ export function ImportarFaturaCartaoDialog({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const selectedTransactionsTotal = parsedTransactions
-    .filter(t => t.selected)
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Estatísticas das transações selecionadas
+  const selectedStats = useMemo(() => {
+    const selected = parsedTransactions.filter(t => t.selected && t.status === 'NEW');
+    const total = selected.reduce((sum, t) => sum + t.amount, 0);
+    const futureInstallments = selected.reduce((sum, t) => {
+      if (t.total_installments > 1 && t.installment_number < t.total_installments) {
+        return sum + (t.total_installments - t.installment_number);
+      }
+      return sum;
+    }, 0);
+    return { count: selected.length, total, futureInstallments };
+  }, [parsedTransactions]);
 
   // Calcular resumo de parcelas futuras por mês
   const futureInstallmentsSummary = useMemo(() => {
-    const selected = parsedTransactions.filter(t => t.selected);
+    const selected = parsedTransactions.filter(t => t.selected && t.status === 'NEW');
     const summary: Record<string, { count: number; total: number; items: { description: string; amount: number; installment: string }[] }> = {};
     
-    // Competência base
     const baseDate = new Date(`${competenciaAlvo}-15`);
     
     for (const t of selected) {
       const totalInst = t.total_installments || 1;
       const currentInst = t.installment_number || 1;
-      const remainingCount = totalInst - currentInst; // parcelas FUTURAS (não inclui a atual)
+      const remainingCount = totalInst - currentInst;
       
       if (remainingCount > 0) {
         for (let i = 1; i <= remainingCount; i++) {
           const futureDate = new Date(baseDate);
           futureDate.setMonth(futureDate.getMonth() + i);
           const monthKey = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}`;
-          const monthLabel = futureDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
           
           if (!summary[monthKey]) {
             summary[monthKey] = { count: 0, total: 0, items: [] };
@@ -264,7 +330,6 @@ export function ImportarFaturaCartaoDialog({
       }
     }
     
-    // Ordenar por mês
     return Object.entries(summary)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, data]) => ({
@@ -274,8 +339,18 @@ export function ImportarFaturaCartaoDialog({
       }));
   }, [parsedTransactions, competenciaAlvo]);
 
-  const totalFutureInstallments = futureInstallmentsSummary.reduce((sum, m) => sum + m.count, 0);
-  const totalFutureValue = futureInstallmentsSummary.reduce((sum, m) => sum + m.total, 0);
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'NEW':
+        return <Badge className="bg-emerald-500 text-white">Novo</Badge>;
+      case 'DUPLICATE':
+        return <Badge variant="secondary" className="bg-muted text-muted-foreground">Duplicado</Badge>;
+      case 'FUTURE_INSTALLMENT':
+        return <Badge className="bg-blue-500 text-white">Futuro</Badge>;
+      default:
+        return null;
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -284,9 +359,15 @@ export function ImportarFaturaCartaoDialog({
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Importar Fatura de Cartão
+            {step !== 'select' && selectedCartaoData && (
+              <Badge className={cn("ml-2", providerInfo.color, "text-white")}>
+                {selectedCartaoData.name}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
+        {/* Step 1: Select Card & Competência */}
         {step === 'select' && (
           <div className="space-y-6 py-4">
             <div className="space-y-2">
@@ -296,18 +377,20 @@ export function ImportarFaturaCartaoDialog({
                   <SelectValue placeholder="Escolha um cartão..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {cartoes?.map((cartao) => (
-                    <SelectItem key={cartao.id} value={cartao.id}>
-                      <div className="flex items-center justify-between w-full gap-4">
-                        <span>{cartao.name}</span>
-                        {cartao.card_provider && (
-                          <Badge variant="outline" className="text-xs">
-                            {CARD_PROVIDERS[cartao.card_provider]?.label || cartao.card_provider}
-                          </Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {cartoes?.map((cartao) => {
+                    const info = CARD_PROVIDERS[cartao.card_provider || 'GENERICO'];
+                    return (
+                      <SelectItem key={cartao.id} value={cartao.id}>
+                        <div className="flex items-center gap-3">
+                          <div className={cn("w-3 h-3 rounded-full", info?.color || 'bg-gray-500')} />
+                          <span>{cartao.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            (venc. dia {cartao.due_day})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -315,31 +398,40 @@ export function ImportarFaturaCartaoDialog({
             {selectedCartao && (
               <>
                 <div className="grid gap-2">
-                  <Label>Competência da fatura</Label>
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Competência da Fatura
+                  </Label>
                   <Input
                     type="month"
                     value={competenciaAlvo}
                     onChange={(e) => setCompetenciaAlvo(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Se o CSV traz a data original da compra (parcelados), escolha aqui o mês da fatura do banco
-                    para que tudo entre na mesma fatura.
+                    Todas as transações serão lançadas na fatura deste mês.
+                    Parcelas futuras serão criadas automaticamente nos meses seguintes.
                   </p>
                 </div>
 
-                <div className="bg-primary/10 rounded-lg p-4">
-                  <p className="text-sm">
-                    <strong>Formato detectado:</strong> {providerInfo.label}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Arquivos aceitos: {providerInfo.formats.join(', ')}
-                  </p>
+                <div className="bg-primary/10 rounded-lg p-4 flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">
+                      Formato: {providerInfo.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Arquivos aceitos: {providerInfo.formats.join(', ')}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Sistema de idempotência ativo - duplicatas serão detectadas automaticamente
+                    </p>
+                  </div>
                 </div>
 
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
                   <input
                     type="file"
-                    accept=".csv,.xlsx,.xls,.pdf"
+                    accept=".csv,.xlsx,.xls"
                     onChange={handleFileSelect}
                     className="hidden"
                     id="file-upload"
@@ -348,7 +440,7 @@ export function ImportarFaturaCartaoDialog({
                     <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-lg font-medium">Arraste o arquivo ou clique para selecionar</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Formatos aceitos: {providerInfo.formats.join(', ')}
+                      {providerInfo.formats.join(', ')}
                     </p>
                   </label>
                 </div>
@@ -361,14 +453,16 @@ export function ImportarFaturaCartaoDialog({
                 Instruções
               </h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Cada cartão deve ter um <strong>Provedor</strong> configurado (LATAM, Azul, Itaú Empresas, etc.)</li>
                 <li>• Exporte a fatura do site do seu banco no formato correto</li>
-                <li>• O sistema detectará automaticamente as transações</li>
+                <li>• Duplicatas são detectadas automaticamente e ignoradas</li>
+                <li>• Parcelas futuras são criadas automaticamente</li>
+                <li>• Você pode reimportar a mesma fatura sem criar duplicatas</li>
               </ul>
             </div>
           </div>
         )}
 
+        {/* Step 2: Processing */}
         {step === 'upload' && (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -377,27 +471,52 @@ export function ImportarFaturaCartaoDialog({
           </div>
         )}
 
+        {/* Step 3: Preview */}
         {step === 'preview' && (
           <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
+            {/* Summary Header */}
+            <div className="flex items-center justify-between mb-4 pb-4 border-b">
               <div className="flex items-center gap-4">
-                <Badge variant="secondary" className="text-base px-3 py-1">
-                  {parsedTransactions.filter(t => t.selected).length} / {parsedTransactions.length} selecionadas
-                </Badge>
-                <span className="font-semibold text-lg">
-                  Total: {formatCurrency(selectedTransactionsTotal)}
-                </span>
+                {importSummary && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <span className="text-sm">{importSummary.new_items} novas</span>
+                    </div>
+                    {importSummary.duplicates > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-muted" />
+                        <span className="text-sm text-muted-foreground">{importSummary.duplicates} duplicadas</span>
+                      </div>
+                    )}
+                    {selectedStats.futureInstallments > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                        <span className="text-sm">{selectedStats.futureInstallments} parcelas futuras</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-              <Button variant="outline" size="sm" onClick={toggleAll}>
-                {parsedTransactions.every(t => t.selected) ? 'Desmarcar Todos' : 'Selecionar Todos'}
-              </Button>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-lg">
+                  {formatCurrency(selectedStats.total)}
+                </span>
+                <Button variant="outline" size="sm" onClick={toggleAllNew}>
+                  {parsedTransactions.filter(t => t.status === 'NEW').every(t => t.selected) 
+                    ? 'Desmarcar Novas' 
+                    : 'Selecionar Novas'}
+                </Button>
+              </div>
             </div>
 
+            {/* Transaction Table */}
             <ScrollArea className="flex-1 border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-20">Status</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead>Parcela</TableHead>
@@ -408,25 +527,29 @@ export function ImportarFaturaCartaoDialog({
                   {parsedTransactions.map((t, index) => (
                     <TableRow 
                       key={index} 
-                      className={`cursor-pointer ${!t.selected ? 'opacity-50' : ''}`}
+                      className={cn(
+                        "cursor-pointer transition-colors",
+                        t.status === 'DUPLICATE' && "opacity-50 bg-muted/30",
+                        t.selected && t.status === 'NEW' && "bg-emerald-50 dark:bg-emerald-950/20"
+                      )}
                       onClick={() => toggleTransaction(index)}
                     >
                       <TableCell>
-                        <input 
-                          type="checkbox" 
+                        <Checkbox 
                           checked={t.selected} 
-                          onChange={() => {}}
-                          className="h-4 w-4"
+                          disabled={t.status === 'DUPLICATE'}
+                          onCheckedChange={() => toggleTransaction(index)}
                         />
                       </TableCell>
+                      <TableCell>{getStatusBadge(t.status)}</TableCell>
                       <TableCell className="font-mono text-sm">
                         {new Date(t.date).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{t.description}</TableCell>
                       <TableCell>
-                        {t.total_installments && t.total_installments > 1 
-                          ? `${t.installment_number}/${t.total_installments}`
-                          : '-'
+                        {t.total_installments > 1 
+                          ? <Badge variant="outline">{t.installment_number}/{t.total_installments}</Badge>
+                          : <span className="text-muted-foreground">-</span>
                         }
                       </TableCell>
                       <TableCell className="text-right font-medium">
@@ -438,70 +561,59 @@ export function ImportarFaturaCartaoDialog({
               </Table>
             </ScrollArea>
 
-            {/* Resumo de Parcelas Futuras */}
-            {totalFutureInstallments > 0 && (
+            {/* Future Installments Summary */}
+            {futureInstallmentsSummary.length > 0 && (
               <div className="mt-4 border rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="h-5 w-5 text-blue-600" />
                   <h4 className="font-semibold text-blue-900 dark:text-blue-100">
-                    Parcelas Futuras que serão criadas
+                    Parcelas Futuras a Criar
                   </h4>
                   <Badge variant="secondary" className="ml-auto">
-                    {totalFutureInstallments} parcelas • {formatCurrency(totalFutureValue)}
+                    {selectedStats.futureInstallments} parcelas
                   </Badge>
                 </div>
                 
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {futureInstallmentsSummary.map((monthData) => (
-                    <Collapsible key={monthData.month}>
-                      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-left">
-                        <div className="flex items-center gap-2">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform data-[state=open]:rotate-90" />
-                          <span className="font-medium capitalize">{monthData.monthLabel}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="text-xs">
-                            {monthData.count} {monthData.count === 1 ? 'parcela' : 'parcelas'}
-                          </Badge>
-                          <span className="font-semibold text-sm">{formatCurrency(monthData.total)}</span>
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="ml-6 mt-1 space-y-1 text-sm text-muted-foreground">
-                          {monthData.items.slice(0, 5).map((item, idx) => (
-                            <div key={idx} className="flex justify-between py-1 border-b border-border/50 last:border-0">
-                              <span className="truncate max-w-[300px]">{item.description}</span>
-                              <div className="flex gap-3 shrink-0">
-                                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{item.installment}</span>
-                                <span>{formatCurrency(item.amount)}</span>
-                              </div>
-                            </div>
-                          ))}
-                          {monthData.items.length > 5 && (
-                            <p className="text-xs text-muted-foreground italic">
-                              + {monthData.items.length - 5} mais...
-                            </p>
-                          )}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {futureInstallmentsSummary.slice(0, 6).map((monthData) => (
+                    <div key={monthData.month} className="flex items-center justify-between p-2 rounded bg-blue-100/50 dark:bg-blue-900/30">
+                      <span className="font-medium capitalize">{monthData.monthLabel}</span>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="text-xs">
+                          {monthData.count} {monthData.count === 1 ? 'parcela' : 'parcelas'}
+                        </Badge>
+                        <span className="font-semibold text-sm">{formatCurrency(monthData.total)}</span>
+                      </div>
+                    </div>
                   ))}
+                  {futureInstallmentsSummary.length > 6 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      + {futureInstallmentsSummary.length - 6} meses...
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
+            {/* Action Buttons */}
             <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
               <Button variant="outline" onClick={() => setStep('select')}>
                 Voltar
               </Button>
-              <Button onClick={handleImport} disabled={parsedTransactions.filter(t => t.selected).length === 0}>
-                Importar {parsedTransactions.filter(t => t.selected).length} Transações
-                {totalFutureInstallments > 0 && ` + ${totalFutureInstallments} futuras`}
+              <Button 
+                onClick={handleImport} 
+                disabled={selectedStats.count === 0}
+                className="gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Importar {selectedStats.count} Transações
+                {selectedStats.futureInstallments > 0 && ` + ${selectedStats.futureInstallments} futuras`}
               </Button>
             </div>
           </div>
         )}
 
+        {/* Step 4: Importing */}
         {step === 'importing' && (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -511,18 +623,25 @@ export function ImportarFaturaCartaoDialog({
           </div>
         )}
 
+        {/* Step 5: Done */}
         {step === 'done' && (
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <CheckCircle2 className="h-16 w-16 text-green-500" />
+            <CheckCircle2 className="h-16 w-16 text-emerald-500" />
             <p className="text-xl font-semibold">Importação Concluída!</p>
             <div className="flex gap-6 text-center">
               <div>
-                <p className="text-3xl font-bold text-green-600">{importResults.success}</p>
+                <p className="text-3xl font-bold text-emerald-600">{importResults.success}</p>
                 <p className="text-sm text-muted-foreground">Importadas</p>
               </div>
+              {importResults.skipped > 0 && (
+                <div>
+                  <p className="text-3xl font-bold text-muted-foreground">{importResults.skipped}</p>
+                  <p className="text-sm text-muted-foreground">Ignoradas</p>
+                </div>
+              )}
               {importResults.failed > 0 && (
                 <div>
-                  <p className="text-3xl font-bold text-red-600">{importResults.failed}</p>
+                  <p className="text-3xl font-bold text-destructive">{importResults.failed}</p>
                   <p className="text-sm text-muted-foreground">Falhas</p>
                 </div>
               )}
