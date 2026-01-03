@@ -87,15 +87,41 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     enabled: !!instanceName,
   });
 
-  // Query para buscar mensagens de um chat específico (incluindo chats vinculados)
+  // Helper para normalizar JID
+  const normalizeJid = (jid: string): string[] => {
+    // Extrair número do JID
+    const phone = jid
+      .replace('@s.whatsapp.net', '')
+      .replace('@c.us', '')
+      .replace('@lid', '')
+      .replace(/\D/g, '');
+    
+    if (!phone || phone.length < 8 || jid.includes('@g.us')) {
+      return [jid];
+    }
+    
+    // Retornar todas as variações possíveis do JID
+    return [
+      `${phone}@s.whatsapp.net`,
+      `${phone}@lid`,
+      jid
+    ].filter((v, i, arr) => arr.indexOf(v) === i); // unique
+  };
+
+  // Query para buscar mensagens de um chat específico (incluindo todas as variações de JID)
   const getMessages = (remoteJid: string | null, linkedRemoteJids: string[] = []) => {
     return useQuery({
       queryKey: ['evolution-messages', instanceName, remoteJid, linkedRemoteJids],
       queryFn: async () => {
         if (!instanceName || !remoteJid) return [];
         
-        // Buscar mensagens do chat principal e de chats vinculados
-        const allJids = [remoteJid, ...linkedRemoteJids];
+        // Buscar mensagens de todas as variações do JID
+        const allJids = [
+          ...normalizeJid(remoteJid),
+          ...linkedRemoteJids.flatMap(normalizeJid)
+        ].filter((v, i, arr) => arr.indexOf(v) === i);
+        
+        console.log('Fetching messages for JIDs:', allJids);
         
         const { data, error } = await supabase
           .from('evolution_messages')
