@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Image, FileText, Mic, MessageSquare, Paperclip, X } from 'lucide-react';
+import { Send, Loader2, Image, FileText, Mic, Paperclip, X, Smile, MoreVertical, Search, Phone, Video } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -12,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { WhatsAppMessage, Conversation } from '@/hooks/useWhatsAppMessages';
 import { MediaRenderer } from '@/components/whatsapp/MediaRenderer';
+import { chatBackgroundPatternDark } from './WhatsAppTheme';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
@@ -61,7 +61,6 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
       setSelectedImage(null);
       setImagePreview(null);
       
-      // Convert to base64 for sending
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = reader.result as string;
@@ -95,7 +94,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    if (file.size > 10 * 1024 * 1024) {
       toast.error('Imagem muito grande. Máximo 10MB');
       return;
     }
@@ -127,12 +126,10 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
       };
 
       mediaRecorder.onstop = async () => {
-        // Use the recorded mimeType (browser-dependent)
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         stream.getTracks().forEach(track => track.stop());
         
-        // Convert to base64
         const reader = new FileReader();
         reader.onload = async () => {
           const base64 = reader.result as string;
@@ -184,9 +181,9 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
 
   const formatDateLabel = (dateStr: string) => {
     const date = new Date(dateStr);
-    if (isToday(date)) return 'Hoje';
-    if (isYesterday(date)) return 'Ontem';
-    return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+    if (isToday(date)) return 'HOJE';
+    if (isYesterday(date)) return 'ONTEM';
+    return format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }).toUpperCase();
   };
 
   const getInitials = (name: string) => {
@@ -208,11 +205,11 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
                 kind="image"
                 url={msg.media_url}
                 alt="Imagem"
-                className="max-w-[250px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                className="max-w-[330px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
               />
             )}
             {msg.content && msg.content !== '[Imagem]' && (
-              <p className="text-sm">{msg.content}</p>
+              <p className="text-[14.2px] leading-[19px]">{msg.content}</p>
             )}
           </div>
         );
@@ -223,8 +220,8 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
               <MediaRenderer kind="audio" url={msg.media_url} className="w-full h-10" />
             ) : (
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Mic className="h-4 w-4" />
+                <div className="h-8 w-8 rounded-full bg-[#00A884] flex items-center justify-center">
+                  <Mic className="h-4 w-4 text-white" />
                 </div>
                 <span className="text-sm">{msg.content || 'Áudio'}</span>
               </div>
@@ -233,11 +230,11 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         );
       case 'document':
         return (
-          <div className="flex items-center gap-2 p-2 bg-background/50 rounded">
-            <FileText className="h-8 w-8 text-primary" />
+          <div className="flex items-center gap-2 p-2 bg-black/5 rounded">
+            <FileText className="h-8 w-8 text-[#00A884]" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{msg.content || 'Documento'}</p>
-              <p className="text-xs text-muted-foreground">Documento</p>
+              <p className="text-xs opacity-60">Documento</p>
             </div>
           </div>
         );
@@ -245,7 +242,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         return (
           <div className="space-y-1">
             {msg.media_url ? (
-              <MediaRenderer kind="video" url={msg.media_url} className="max-w-[250px] rounded-lg" />
+              <MediaRenderer kind="video" url={msg.media_url} className="max-w-[330px] rounded-lg" />
             ) : (
               <div className="flex items-center gap-2">
                 <Image className="h-4 w-4" />
@@ -257,25 +254,45 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
       case 'sticker':
         return <span className="text-2xl">🎨 Figurinha</span>;
       default:
-        return <p className="text-sm whitespace-pre-wrap">{msg.content}</p>;
+        return <p className="text-[14.2px] leading-[19px] whitespace-pre-wrap">{msg.content}</p>;
     }
   };
 
-  // Empty state
+  // Empty state - WhatsApp Web style
   if (!conversation) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-muted/30">
-        <MessageSquare className="h-16 w-16 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-medium text-muted-foreground">Selecione uma conversa</h3>
-        <p className="text-sm text-muted-foreground/70">
-          Escolha uma conversa na lista para começar
-        </p>
+      <div 
+        className="flex flex-col items-center justify-center h-full"
+        style={{ backgroundColor: '#222E35' }}
+      >
+        <div className="text-center max-w-[560px] px-8">
+          <div className="w-[320px] h-[188px] mx-auto mb-10 flex items-center justify-center">
+            <svg viewBox="0 0 303 172" width="320" height="188" preserveAspectRatio="xMidYMid meet" fill="none">
+              <path fillRule="evenodd" clipRule="evenodd" d="M229.565 160.229C262.212 149.245 286.931 118.241 283.39 73.4194C278.009 5.31929 212.365 -11.5738 171.472 8.48673C115.998 35.6999 108.478 40.3167 69.293 28.5765C30.108 16.8363 -17.7597 76.0314 8.17017 119.069C34.1001 162.107 40.0497 176.065 98.0497 162.107C135.55 152.852 174.617 157.661 197.943 160.019C206.703 160.925 218.32 163.828 229.565 160.229Z" fill="#364147"></path>
+              <path fillRule="evenodd" clipRule="evenodd" d="M131.589 68.9422C131.589 86.0365 115.756 99.8967 96.5765 99.8967C84.0615 99.8967 73.1714 93.7873 67.0538 84.6374C66.0074 91.3851 62.6811 97.5286 57.7136 102.009C54.9875 104.464 52.3005 106.54 49.4867 107.906C47.5633 108.835 44.4069 109.937 41.3635 110.475C40.1544 110.689 38.9293 110.77 37.7026 110.77C36.8073 110.77 35.9114 110.716 35.0168 110.609C29.8292 109.975 24.3824 108.103 19.2122 105.418C17.6255 104.567 15.8385 103.281 14.1203 102.008C11.1727 99.8149 8.54345 97.5263 7.35553 96.5804C6.88447 96.2042 6.41342 95.8281 5.94237 95.4519C6.28771 95.1277 6.63113 94.8012 6.97265 94.4724C13.1922 88.4924 18.0515 81.1498 19.4562 73.0429C6.49467 64.5617 -1.74451 51.0344 0.352031 35.6128C3.52886 11.4385 30.7519 0.509766 52.82 0.509766C67.6385 0.509766 80.768 6.04151 89.5765 14.7433C98.3851 6.04151 111.515 0.509766 126.333 0.509766C153.321 0.509766 175.18 18.9234 175.18 41.6814C175.18 55.8331 166.065 68.2407 152.529 75.6081C151.049 76.4117 149.536 77.1594 147.994 77.8486C140.936 74.8198 136.583 72.099 131.589 68.9422Z" fill="#6B8F91"></path>
+            </svg>
+          </div>
+          <h1 className="text-[32px] font-light text-[#E9EDEF] mb-4">
+            WhatsApp Web
+          </h1>
+          <p className="text-[14px] text-[#8696A0] leading-[20px]">
+            Envie e receba mensagens sem precisar manter seu celular online.
+            <br />
+            Use o WhatsApp em até 4 aparelhos conectados e 1 celular ao mesmo tempo.
+          </p>
+        </div>
+        <div className="absolute bottom-6 flex items-center gap-2 text-[#8696A0] text-xs">
+          <svg viewBox="0 0 10 12" height="12" width="10" preserveAspectRatio="xMidYMid meet">
+            <path d="M5.00048 11.1248C2.37537 11.1248 0.250488 9.00001 0.250488 6.37488V5.24989C0.250488 2.62476 2.37537 0.499878 5.00048 0.499878C7.62559 0.499878 9.75048 2.62476 9.75048 5.24989V6.37488C9.75048 9.00001 7.62559 11.1248 5.00048 11.1248ZM5.00048 1.49988C2.93275 1.49988 1.25049 3.18213 1.25049 5.24989V6.37488C1.25049 8.44261 2.93275 10.1249 5.00048 10.1249C7.06821 10.1249 8.75048 8.44261 8.75048 6.37488V5.24989C8.75048 3.18213 7.06821 1.49988 5.00048 1.49988Z" fill="currentColor"></path>
+          </svg>
+          <span>Suas mensagens pessoais são protegidas com a criptografia de ponta a ponta</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#0B141A]">
       {/* Hidden file input */}
       <input
         type="file"
@@ -285,25 +302,38 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         className="hidden"
       />
 
-      {/* Chat Header */}
-      <div className="flex items-center gap-3 p-4 border-b bg-card">
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-primary/10 text-primary">
-            {getInitials(conversation.contact_name)}
-          </AvatarFallback>
-        </Avatar>
-        <div>
-          <h3 className="font-semibold">{conversation.contact_name}</h3>
-          <p className="text-sm text-muted-foreground">
-            +{conversation.phone_number.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, '$1 ($2) $3-$4')}
-          </p>
+      {/* WhatsApp Header */}
+      <div className="h-[59px] px-4 flex items-center justify-between bg-[#202C33] shrink-0">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 cursor-pointer">
+            <AvatarFallback className="bg-[#6B7C85] text-white text-sm">
+              {getInitials(conversation.contact_name)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h3 className="text-[16px] font-normal text-[#E9EDEF]">{conversation.contact_name}</h3>
+            <p className="text-[13px] text-[#8696A0]">
+              clique aqui para ver o perfil
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-6 text-[#AEBAC1]">
+          <Search className="h-5 w-5 cursor-pointer hover:text-white transition-colors" />
+          <MoreVertical className="h-5 w-5 cursor-pointer hover:text-white transition-colors" />
         </div>
       </div>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <div 
+        className="flex-1 overflow-y-auto px-[63px] py-2"
+        ref={scrollRef}
+        style={{ 
+          backgroundColor: '#0B141A',
+          backgroundImage: chatBackgroundPatternDark,
+        }}
+      >
         {isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             {[1, 2, 3].map(i => (
               <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
                 <Skeleton className="h-12 w-48 rounded-lg" />
@@ -311,45 +341,62 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <MessageSquare className="h-12 w-12 mb-2 opacity-50" />
-            <p className="text-sm">Nenhuma mensagem ainda</p>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-[#8696A0]">Nenhuma mensagem ainda</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-[2px] py-2">
             {messages.map((msg, index) => {
               const prevMsg = messages[index - 1];
               const showDateLabel = !prevMsg || !isSameDay(new Date(prevMsg.created_at), new Date(msg.created_at));
+              const isOutbound = msg.direction === 'outbound';
 
               return (
                 <div key={msg.id}>
                   {showDateLabel && (
-                    <div className="flex justify-center my-4">
-                      <span className="px-3 py-1 text-xs bg-muted rounded-full text-muted-foreground">
+                    <div className="flex justify-center my-3">
+                      <span className="px-3 py-[6px] text-[12.5px] bg-[#182229] text-[#8696A0] rounded-lg shadow-sm">
                         {formatDateLabel(msg.created_at)}
                       </span>
                     </div>
                   )}
 
-                  <div className={cn('flex', msg.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
+                  <div className={cn('flex mb-[2px]', isOutbound ? 'justify-end' : 'justify-start')}>
                     <div
                       className={cn(
-                        'max-w-[70%] rounded-lg px-3 py-2',
-                        msg.direction === 'outbound'
-                          ? 'bg-primary text-primary-foreground rounded-br-none'
-                          : 'bg-muted rounded-bl-none'
+                        'relative max-w-[65%] rounded-lg px-[9px] py-[6px] shadow-sm',
+                        isOutbound
+                          ? 'bg-[#005C4B] text-[#E9EDEF]'
+                          : 'bg-[#202C33] text-[#E9EDEF]'
                       )}
+                      style={{
+                        borderTopRightRadius: isOutbound ? '0' : undefined,
+                        borderTopLeftRadius: !isOutbound ? '0' : undefined,
+                      }}
                     >
+                      {/* Message tail */}
+                      <div 
+                        className={cn(
+                          'absolute top-0 w-[8px] h-[13px]',
+                          isOutbound ? '-right-[8px]' : '-left-[8px]'
+                        )}
+                        style={{
+                          backgroundImage: isOutbound 
+                            ? `url("data:image/svg+xml,%3Csvg viewBox='0 0 8 13' width='8' height='13' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5.188 0H0v13l8-6.5L5.188 0z' fill='%23005C4B'/%3E%3C/svg%3E")`
+                            : `url("data:image/svg+xml,%3Csvg viewBox='0 0 8 13' width='8' height='13' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.812 0H8v13L0 6.5 2.812 0z' fill='%23202C33'/%3E%3C/svg%3E")`,
+                        }}
+                      />
+                      
                       {renderMessageContent(msg)}
+                      
                       <div className={cn(
-                        'flex items-center justify-end gap-1 mt-1',
-                        msg.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                        'flex items-center justify-end gap-1 mt-1 -mb-[3px]',
+                        'text-[11px]',
+                        isOutbound ? 'text-[#FFFFFF99]' : 'text-[#8696A0]'
                       )}>
-                        <span className="text-[10px]">
-                          {format(new Date(msg.created_at), 'HH:mm')}
-                        </span>
-                        {msg.direction === 'outbound' && (
-                          <span className="text-[10px]">
+                        <span>{format(new Date(msg.created_at), 'HH:mm')}</span>
+                        {isOutbound && (
+                          <span className="text-[#53BDEB]">
                             {msg.status === 'read' ? '✓✓' : msg.status === 'delivered' ? '✓✓' : '✓'}
                           </span>
                         )}
@@ -361,43 +408,39 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
             })}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="p-4 border-t bg-card">
+        <div className="px-4 py-3 bg-[#1F2C34] border-t border-[#2A3942]">
           <div className="relative inline-block">
             <img src={imagePreview} alt="Preview" className="max-h-32 rounded-lg" />
-            <Button
-              size="icon"
-              variant="destructive"
-              className="absolute -top-2 -right-2 h-6 w-6"
+            <button
               onClick={clearSelectedImage}
+              className="absolute -top-2 -right-2 h-6 w-6 bg-[#EF4444] rounded-full flex items-center justify-center"
             >
-              <X className="h-3 w-3" />
-            </Button>
+              <X className="h-3 w-3 text-white" />
+            </button>
           </div>
         </div>
       )}
 
       {/* Input Area */}
-      <div className="p-4 border-t bg-card">
+      <div className="h-[62px] px-4 flex items-center gap-2 bg-[#202C33] shrink-0">
         {isRecording ? (
           // Recording UI
-          <div className="flex items-center gap-3">
-            <Button
-              size="icon"
-              variant="ghost"
+          <>
+            <button
               onClick={cancelRecording}
-              className="h-11 w-11 text-destructive"
+              className="h-[42px] w-[42px] flex items-center justify-center text-[#EF4444] hover:bg-[#2A3942] rounded-full transition-colors"
             >
-              <X className="h-5 w-5" />
-            </Button>
+              <X className="h-6 w-6" />
+            </button>
             
-            <div className="flex-1 flex items-center gap-3">
+            <div className="flex-1 flex items-center gap-3 px-3">
               <span className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium">{formatRecordingTime(recordingTime)}</span>
-              <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+              <span className="text-sm font-medium text-[#E9EDEF]">{formatRecordingTime(recordingTime)}</span>
+              <div className="flex-1 h-1 bg-[#374248] rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-red-500 transition-all duration-1000"
                   style={{ width: `${Math.min(recordingTime * 2, 100)}%` }}
@@ -405,86 +448,86 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
               </div>
             </div>
             
-            <Button
-              size="icon"
+            <button
               onClick={stopRecording}
-              className="h-11 w-11 bg-green-600 hover:bg-green-700"
+              className="h-[42px] w-[42px] flex items-center justify-center bg-[#00A884] text-white rounded-full hover:bg-[#008069] transition-colors"
             >
               <Send className="h-5 w-5" />
-            </Button>
-          </div>
+            </button>
+          </>
         ) : (
           // Normal input UI
-          <div className="flex items-end gap-2">
+          <>
+            <button className="h-[42px] w-[42px] flex items-center justify-center text-[#8696A0] hover:text-[#E9EDEF] transition-colors">
+              <Smile className="h-[26px] w-[26px]" />
+            </button>
+            
             {/* Attach button */}
             <Popover open={isAttachOpen} onOpenChange={setIsAttachOpen}>
               <PopoverTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-11 w-11 shrink-0"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+                <button className="h-[42px] w-[42px] flex items-center justify-center text-[#8696A0] hover:text-[#E9EDEF] transition-colors">
+                  <Paperclip className="h-[26px] w-[26px] rotate-45" />
+                </button>
               </PopoverTrigger>
-              <PopoverContent className="w-48 p-2" side="top" align="start">
+              <PopoverContent className="w-48 p-2 bg-[#233138] border-none shadow-lg" side="top" align="start">
                 <div className="grid gap-1">
-                  <Button
-                    variant="ghost"
-                    className="justify-start gap-2"
+                  <button
+                    className="flex items-center gap-3 px-3 py-2 text-[#E9EDEF] hover:bg-[#374248] rounded transition-colors"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Image className="h-4 w-4 text-blue-500" />
-                    <span>Imagem</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="justify-start gap-2"
+                    <div className="h-[40px] w-[40px] rounded-full bg-[#0063CB] flex items-center justify-center">
+                      <Image className="h-5 w-5 text-white" />
+                    </div>
+                    <span className="text-sm">Fotos e vídeos</span>
+                  </button>
+                  <button
+                    className="flex items-center gap-3 px-3 py-2 text-[#E9EDEF] hover:bg-[#374248] rounded transition-colors"
                     onClick={() => {
                       toast.info('Documentos em breve!');
                       setIsAttachOpen(false);
                     }}
                   >
-                    <FileText className="h-4 w-4 text-purple-500" />
-                    <span>Documento</span>
-                  </Button>
+                    <div className="h-[40px] w-[40px] rounded-full bg-[#7F66FF] flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-white" />
+                    </div>
+                    <span className="text-sm">Documento</span>
+                  </button>
                 </div>
               </PopoverContent>
             </Popover>
 
-            <Textarea
-              placeholder="Digite uma mensagem..."
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyPress}
-              className="min-h-[44px] max-h-[120px] resize-none"
-              rows={1}
-            />
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Digite uma mensagem"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                className="w-full h-[42px] px-3 bg-[#2A3942] text-[#E9EDEF] text-[15px] rounded-lg border-none outline-none placeholder:text-[#8696A0]"
+              />
+            </div>
             
             {inputMessage.trim() || selectedImage ? (
-              <Button 
+              <button 
                 onClick={handleSend} 
                 disabled={isSending}
-                size="icon"
-                className="h-11 w-11 shrink-0"
+                className="h-[42px] w-[42px] flex items-center justify-center text-[#8696A0] hover:text-[#E9EDEF] transition-colors disabled:opacity-50"
               >
                 {isSending ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-[26px] w-[26px] animate-spin" />
                 ) : (
-                  <Send className="h-5 w-5" />
+                  <Send className="h-[26px] w-[26px]" />
                 )}
-              </Button>
+              </button>
             ) : (
-              <Button 
+              <button 
                 onClick={startRecording}
-                size="icon"
-                variant="ghost"
-                className="h-11 w-11 shrink-0"
+                className="h-[42px] w-[42px] flex items-center justify-center text-[#8696A0] hover:text-[#E9EDEF] transition-colors"
               >
-                <Mic className="h-5 w-5" />
-              </Button>
+                <Mic className="h-[26px] w-[26px]" />
+              </button>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
