@@ -1189,8 +1189,10 @@ export type Database = {
           preco_unitario: number
           produto_id: string | null
           quantidade: number
+          quantidade_devolvida: number | null
           subtotal: number
           updated_at: string | null
+          valor_devolvido: number | null
         }
         Insert: {
           created_at?: string | null
@@ -1200,8 +1202,10 @@ export type Database = {
           preco_unitario: number
           produto_id?: string | null
           quantidade?: number
+          quantidade_devolvida?: number | null
           subtotal: number
           updated_at?: string | null
+          valor_devolvido?: number | null
         }
         Update: {
           created_at?: string | null
@@ -1211,8 +1215,10 @@ export type Database = {
           preco_unitario?: number
           produto_id?: string | null
           quantidade?: number
+          quantidade_devolvida?: number | null
           subtotal?: number
           updated_at?: string | null
+          valor_devolvido?: number | null
         }
         Relationships: [
           {
