@@ -1,14 +1,5 @@
 project_id = "chmhbrcugswwmpqzhugs"
 
-[functions.whatsapp-proxy]
-verify_jwt = false
-
-[functions.evolution-api]
-verify_jwt = false
-
-[functions.evolution-webhook]
-verify_jwt = false
-
 [functions.admin-users]
 verify_jwt = false
 
@@ -25,4 +16,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.sign-delivery-receipt]
+verify_jwt = false
+
+[functions.manage-evolution-instance]
+verify_jwt = false
+
+[functions.webhook-evolution]
+verify_jwt = false
+
+[functions.send-message]
 verify_jwt = false

@@ -138,7 +138,7 @@ export function useDashboardEnhanced(mesReferencia: Date = new Date(), entityFil
         // Faturas abertas
         supabase.from('credit_card_invoices').select('total_value').in('status', ['ABERTA', 'FECHADA']),
         // WhatsApp
-        supabase.from('whatsapp_instances').select('is_connected').limit(1),
+        supabase.from('whatsapp_instances').select('id, status').limit(1),
         // Pedidos
         supabase.from('pedidos').select('id, status, valor_total'),
         // Itens pedidos para ranking
@@ -190,11 +190,26 @@ export function useDashboardEnhanced(mesReferencia: Date = new Date(), entityFil
         categoriasDespesa[catName] = (categoriasDespesa[catName] || 0) + Math.abs(Number(t.amount));
       });
 
-      // WhatsApp
-      const isConnected = whatsappResult.data?.[0]?.is_connected || false;
-      const { count: conversasAtivas } = await supabase.from('evolution_chats').select('*', { count: 'exact', head: true });
-      const { data: unreadChats } = await supabase.from('evolution_chats').select('unread_count');
-      const naoLidas = unreadChats?.reduce((acc, c) => acc + (c.unread_count || 0), 0) || 0;
+      // WhatsApp - using new whatsapp_instances table
+      const isConnected = whatsappResult.data?.[0]?.status === 'connected' || false;
+      const instanceId = whatsappResult.data?.[0]?.id;
+      
+      let conversasAtivas = 0;
+      let naoLidas = 0;
+      
+      if (instanceId) {
+        // Count unique conversations from whatsapp_messages
+        const { data: messagesData } = await supabase
+          .from('whatsapp_messages')
+          .select('remote_jid')
+          .eq('instance_id', instanceId);
+        
+        const uniqueJids = new Set(messagesData?.map(m => m.remote_jid) || []);
+        conversasAtivas = uniqueJids.size;
+        
+        // For now, unread count is 0 since we don't track read status per conversation
+        naoLidas = 0;
+      }
 
       // Pedidos
       const pedidos = pedidosResult.data || [];

@@ -1,0 +1,229 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    const payload = await req.json();
+    const event = payload.event;
+    const instanceName = payload.instance || payload.instanceName;
+
+    console.log(`[webhook-evolution] Event: ${event}, Instance: ${instanceName}`);
+    console.log(`[webhook-evolution] Payload:`, JSON.stringify(payload).substring(0, 1000));
+
+    // Get instance from database
+    const { data: instance } = await supabase
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("instance_name", instanceName)
+      .single();
+
+    if (!instance) {
+      console.warn(`[webhook-evolution] Instance not found in database: ${instanceName}`);
+      return new Response(JSON.stringify({ received: true, warning: "Instance not found" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    switch (event) {
+      case "QRCODE_UPDATED": {
+        const qrCode = payload.data?.qrcode?.base64 || payload.qrcode?.base64;
+        
+        if (qrCode) {
+          await supabase
+            .from("whatsapp_instances")
+            .update({ qr_code: qrCode })
+            .eq("id", instance.id);
+          
+          console.log(`[webhook-evolution] QR Code updated for instance ${instanceName}`);
+        }
+        break;
+      }
+
+      case "CONNECTION_UPDATE": {
+        const state = payload.data?.state || payload.state;
+        const isConnected = state === "open";
+        
+        // Extract phone number from instance data
+        let phoneNumber = null;
+        if (payload.data?.instance?.owner) {
+          phoneNumber = payload.data.instance.owner.split("@")[0];
+        } else if (payload.data?.wuid) {
+          phoneNumber = payload.data.wuid.split("@")[0];
+        }
+
+        await supabase
+          .from("whatsapp_instances")
+          .update({
+            status: isConnected ? "connected" : "disconnected",
+            phone_number: phoneNumber,
+            qr_code: isConnected ? null : undefined, // Clear QR code when connected
+          })
+          .eq("id", instance.id);
+
+        console.log(`[webhook-evolution] Connection updated: ${state}, phone: ${phoneNumber}`);
+        break;
+      }
+
+      case "MESSAGES_UPSERT": {
+        const messages = payload.data?.messages || payload.messages || [];
+        
+        for (const msg of messages) {
+          // Ignore group messages
+          const remoteJid = msg.key?.remoteJid || "";
+          if (remoteJid.includes("@g.us")) {
+            console.log(`[webhook-evolution] Ignoring group message: ${remoteJid}`);
+            continue;
+          }
+
+          // Ignore status messages
+          if (remoteJid === "status@broadcast") {
+            continue;
+          }
+
+          const fromMe = msg.key?.fromMe || false;
+          const messageId = msg.key?.id || `msg_${Date.now()}`;
+
+          // Extract message content and type
+          let content = "";
+          let messageType = "text";
+          let mediaUrl = null;
+
+          if (msg.message?.conversation) {
+            content = msg.message.conversation;
+          } else if (msg.message?.extendedTextMessage?.text) {
+            content = msg.message.extendedTextMessage.text;
+          } else if (msg.message?.imageMessage) {
+            messageType = "image";
+            content = msg.message.imageMessage.caption || "[Imagem]";
+            mediaUrl = msg.message.imageMessage.url || null;
+          } else if (msg.message?.videoMessage) {
+            messageType = "video";
+            content = msg.message.videoMessage.caption || "[Vídeo]";
+            mediaUrl = msg.message.videoMessage.url || null;
+          } else if (msg.message?.audioMessage) {
+            messageType = "audio";
+            content = "[Áudio]";
+            mediaUrl = msg.message.audioMessage.url || null;
+          } else if (msg.message?.documentMessage) {
+            messageType = "document";
+            content = msg.message.documentMessage.fileName || "[Documento]";
+            mediaUrl = msg.message.documentMessage.url || null;
+          } else if (msg.message?.stickerMessage) {
+            messageType = "sticker";
+            content = "[Figurinha]";
+          }
+
+          // Extract contact info - THIS IS THE KEY PART!
+          // pushName comes from the contact who sent the message
+          const pushName = msg.pushName || msg.verifiedBizName || null;
+          const phoneNumber = remoteJid.split("@")[0];
+
+          // Build metadata with sender info
+          const metadata: Record<string, any> = {
+            sender_name: pushName,
+            push_name: pushName,
+            phone_number: phoneNumber,
+          };
+
+          // If there's a profile picture, include it
+          if (msg.profilePicUrl) {
+            metadata.profile_picture = msg.profilePicUrl;
+          }
+
+          // Determine direction
+          const direction = fromMe ? "outbound" : "inbound";
+
+          // Check if message already exists
+          const { data: existing } = await supabase
+            .from("whatsapp_messages")
+            .select("id")
+            .eq("external_id", messageId)
+            .single();
+
+          if (existing) {
+            console.log(`[webhook-evolution] Message already exists: ${messageId}`);
+            continue;
+          }
+
+          // Insert message
+          const { error: insertError } = await supabase
+            .from("whatsapp_messages")
+            .insert({
+              instance_id: instance.id,
+              remote_jid: remoteJid,
+              direction,
+              message_type: messageType,
+              content,
+              media_url: mediaUrl,
+              status: "received",
+              external_id: messageId,
+              metadata,
+              created_at: msg.messageTimestamp 
+                ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()
+                : new Date().toISOString(),
+            });
+
+          if (insertError) {
+            console.error(`[webhook-evolution] Error inserting message:`, insertError);
+          } else {
+            console.log(`[webhook-evolution] Message saved: ${messageId}, pushName: ${pushName}, direction: ${direction}`);
+          }
+        }
+        break;
+      }
+
+      case "MESSAGES_UPDATE": {
+        const updates = payload.data || [];
+        
+        for (const update of updates) {
+          const messageId = update.key?.id;
+          const status = update.update?.status;
+
+          if (messageId && status) {
+            const statusMap: Record<number, string> = {
+              1: "pending",
+              2: "sent",
+              3: "delivered",
+              4: "read",
+            };
+
+            await supabase
+              .from("whatsapp_messages")
+              .update({ status: statusMap[status] || "sent" })
+              .eq("external_id", messageId);
+
+            console.log(`[webhook-evolution] Message status updated: ${messageId} -> ${status}`);
+          }
+        }
+        break;
+      }
+
+      default:
+        console.log(`[webhook-evolution] Unhandled event: ${event}`);
+    }
+
+    return new Response(JSON.stringify({ received: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("[webhook-evolution] Error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
