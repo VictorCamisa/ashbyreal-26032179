@@ -765,14 +765,17 @@ export type Database = {
       }
       evolution_chats: {
         Row: {
+          canonical_jid: string
           created_at: string | null
           id: string
           instance_name: string
           is_group: boolean | null
           last_message: string | null
           last_message_at: string | null
+          lid_jid: string | null
           linked_to_chat_id: string | null
           phone_number: string | null
+          pn_jid: string | null
           profile_pic_url: string | null
           push_name: string | null
           remote_jid: string
@@ -780,14 +783,17 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          canonical_jid: string
           created_at?: string | null
           id?: string
           instance_name: string
           is_group?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
+          lid_jid?: string | null
           linked_to_chat_id?: string | null
           phone_number?: string | null
+          pn_jid?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid: string
@@ -795,14 +801,17 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          canonical_jid?: string
           created_at?: string | null
           id?: string
           instance_name?: string
           is_group?: boolean | null
           last_message?: string | null
           last_message_at?: string | null
+          lid_jid?: string | null
           linked_to_chat_id?: string | null
           phone_number?: string | null
+          pn_jid?: string | null
           profile_pic_url?: string | null
           push_name?: string | null
           remote_jid?: string
@@ -831,6 +840,7 @@ export type Database = {
           message_id: string
           message_type: string | null
           remote_jid: string
+          source_remote_jid: string | null
           status: string | null
           timestamp: string
         }
@@ -845,6 +855,7 @@ export type Database = {
           message_id: string
           message_type?: string | null
           remote_jid: string
+          source_remote_jid?: string | null
           status?: string | null
           timestamp: string
         }
@@ -859,6 +870,7 @@ export type Database = {
           message_id?: string
           message_type?: string | null
           remote_jid?: string
+          source_remote_jid?: string | null
           status?: string | null
           timestamp?: string
         }

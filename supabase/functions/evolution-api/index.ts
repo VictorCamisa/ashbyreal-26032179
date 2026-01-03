@@ -1,848 +1,254 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+function normalizeToCanonical(remoteJid: string, remoteJidAlt?: string): {
+  canonicalJid: string;
+  lidJid: string | null;
+  pnJid: string | null;
+  phoneNumber: string | null;
+  isGroup: boolean;
+} {
+  const isGroup = remoteJid.includes("@g.us");
+  if (isGroup) return { canonicalJid: remoteJid, lidJid: null, pnJid: null, phoneNumber: null, isGroup: true };
+
+  const isLid = remoteJid.includes("@lid");
+  
+  if (remoteJidAlt && (remoteJidAlt.includes("@s.whatsapp.net") || remoteJidAlt.includes("@c.us"))) {
+    const normalizedPn = remoteJidAlt.replace("@c.us", "@s.whatsapp.net");
+    return { canonicalJid: normalizedPn, lidJid: isLid ? remoteJid : null, pnJid: normalizedPn, phoneNumber: normalizedPn.split("@")[0], isGroup: false };
   }
+  
+  if (isLid) return { canonicalJid: remoteJid, lidJid: remoteJid, pnJid: null, phoneNumber: null, isGroup: false };
+  
+  const normalizedPn = remoteJid.replace("@c.us", "@s.whatsapp.net");
+  return { canonicalJid: normalizedPn, lidJid: null, pnJid: normalizedPn, phoneNumber: normalizedPn.split("@")[0], isGroup: false };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY');
-    const EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_URL');
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!.replace(/\/$/, "");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    if (!EVOLUTION_API_KEY || !EVOLUTION_API_URL) {
-      throw new Error('Evolution API credentials not configured');
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase credentials not configured');
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const body = await req.json();
-    const { action, instance_name, remote_jid, text } = body;
+    const { action, instance_name: instanceName, ...params } = body;
 
-    console.log(`=== Evolution API Request ===`);
-    console.log(`Action: ${action}`);
-    console.log(`Instance: ${instance_name}`);
-    console.log(`RemoteJid: ${remote_jid || 'N/A'}`);
+    console.log(`[Evolution API] Action: ${action}, Instance: ${instanceName}`);
 
-    // Remove trailing slash from URL if present
-    const baseUrl = EVOLUTION_API_URL.replace(/\/$/, '');
-
-    // Criar nova instância WhatsApp
-    if (action === 'create_instance') {
-      const { client_slug } = body;
-      const newInstanceName = `${client_slug || 'whatsapp'}-${Date.now()}`;
-      
-      console.log(`Creating new instance: ${newInstanceName}`);
-      
-      // POST /instance/create
-      const url = `${baseUrl}/instance/create`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'apikey': EVOLUTION_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          instanceName: newInstanceName,
-          qrcode: true,
-          integration: 'WHATSAPP-BAILEYS',
-        }),
+    const evolutionFetch = async (endpoint: string, options: RequestInit = {}) => {
+      const res = await fetch(`${EVOLUTION_API_URL}${endpoint}`, {
+        ...options,
+        headers: { "Content-Type": "application/json", "apikey": EVOLUTION_API_KEY, ...options.headers },
       });
+      if (!res.ok) throw new Error(`Evolution API error: ${res.status}`);
+      return res.json();
+    };
 
-      console.log(`Create instance response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error creating instance: ${errorText}`);
-        throw new Error(`Failed to create instance: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`Instance created:`, JSON.stringify(result));
-      
-      // Salvar instância no Supabase
-      const { error: dbError } = await supabase
-        .from('whatsapp_instances')
-        .upsert({
-          instance_name: newInstanceName,
-          client_slug: client_slug || 'default',
-          is_active: true,
-          is_connected: false,
-        }, { onConflict: 'instance_name' });
-
-      if (dbError) {
-        console.error('Error saving instance to DB:', dbError);
-      }
-
-      // Extrair QR code da resposta
-      const qrCode = result?.qrcode?.base64 || result?.base64 || result?.qr || null;
-      const pairingCode = result?.qrcode?.pairingCode || result?.pairingCode || null;
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        instance_name: newInstanceName,
-        qrcode: qrCode,
-        pairingCode: pairingCode,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (action === "create_instance") {
+      const newName = `${params.client_slug || "whatsapp"}-${Date.now()}`;
+      const result = await evolutionFetch("/instance/create", {
+        method: "POST",
+        body: JSON.stringify({ instanceName: newName, qrcode: true, integration: "WHATSAPP-BAILEYS" }),
       });
+      await supabase.from("whatsapp_instances").upsert({ instance_name: newName, is_connected: false }, { onConflict: "instance_name" });
+      return new Response(JSON.stringify({ success: true, instance_name: newName, qrcode: result?.qrcode?.base64 }), { headers: corsHeaders });
     }
 
-    // Obter QR code de uma instância existente
-    if (action === 'get_qrcode') {
-      console.log(`Getting QR code for instance: ${instance_name}`);
-      
-      // GET /instance/connect/{instance}
-      const url = `${baseUrl}/instance/connect/${instance_name}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'apikey': EVOLUTION_API_KEY,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log(`Get QR code response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error getting QR code: ${errorText}`);
-        
-        // Se a instância não existe, criar uma nova
-        if (response.status === 404 || errorText.includes('not found')) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'Instance not found',
-            create_new: true
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        throw new Error(`Failed to get QR code: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`QR code result:`, JSON.stringify(result));
-      
-      const qrCode = result?.base64 || result?.qrcode?.base64 || result?.qr || null;
-      const pairingCode = result?.pairingCode || result?.qrcode?.pairingCode || null;
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        instance_name: instance_name,
-        qrcode: qrCode,
-        pairingCode: pairingCode,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (action === "get_qrcode") {
+      const result = await evolutionFetch(`/instance/connect/${instanceName}`);
+      return new Response(JSON.stringify({ success: true, qrcode: result?.base64 }), { headers: corsHeaders });
     }
 
-    // Verificar status de conexão diretamente na Evolution API
-    if (action === 'check_connection') {
-      // GET /instance/connectionState/{instance}
-      const url = `${baseUrl}/instance/connectionState/${instance_name}`;
-      console.log(`Checking connection status from: ${url}`);
-
+    if (action === "check_connection") {
       try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        console.log(`Connection check response status: ${response.status}`);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error checking connection: ${errorText}`);
-          
-          // Se a instância não existe ou está desconectada
-          if (response.status === 404 || errorText.includes('not found') || errorText.includes('does not exist')) {
-            return new Response(JSON.stringify({ 
-              success: true, 
-              connected: false,
-              state: 'not_found',
-              message: 'Instância não encontrada'
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-          
-          return new Response(JSON.stringify({ 
-            success: true, 
-            connected: false,
-            state: 'error',
-            message: 'Erro ao verificar conexão'
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        const result = await response.json();
-        console.log(`Connection state result:`, JSON.stringify(result));
-        
-        // A Evolution API retorna { instance: { instanceName, state } }
-        // state pode ser: 'open', 'close', 'connecting'
-        const state = result?.instance?.state || result?.state || 'unknown';
-        const isConnected = state === 'open';
-
-        return new Response(JSON.stringify({ 
-          success: true, 
-          connected: isConnected,
-          state: state,
-          instanceName: result?.instance?.instanceName || instance_name
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } catch (err) {
-        console.error('Connection check error:', err);
-        return new Response(JSON.stringify({ 
-          success: true, 
-          connected: false,
-          state: 'error',
-          message: 'Erro ao verificar conexão'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const result = await evolutionFetch(`/instance/connectionState/${instanceName}`);
+        const connected = result?.instance?.state === "open" || result?.state === "open";
+        return new Response(JSON.stringify({ success: true, connected }), { headers: corsHeaders });
+      } catch {
+        return new Response(JSON.stringify({ success: true, connected: false }), { headers: corsHeaders });
       }
     }
 
-    // Desconectar/logout da instância e limpar dados
-    if (action === 'logout') {
-      console.log(`Logging out instance: ${instance_name}`);
-      
-      // 1. Chamar logout na Evolution API
-      const logoutUrl = `${baseUrl}/instance/logout/${instance_name}`;
-      try {
-        const logoutResponse = await fetch(logoutUrl, {
-          method: 'DELETE',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-          },
-        });
-        console.log(`Logout response status: ${logoutResponse.status}`);
-      } catch (err) {
-        console.error('Error calling logout:', err);
-      }
-
-      // 2. Limpar dados do banco
-      // Deletar mensagens primeiro
-      await supabase
-        .from('evolution_messages')
-        .delete()
-        .eq('instance_name', instance_name);
-      
-      // Deletar chats
-      await supabase
-        .from('evolution_chats')
-        .delete()
-        .eq('instance_name', instance_name);
-      
-      // Atualizar instância como desconectada
-      await supabase
-        .from('whatsapp_instances')
-        .update({ is_connected: false })
-        .eq('instance_name', instance_name);
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Instância desconectada e dados limpos'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (action === "logout") {
+      try { await evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" }); } catch {}
+      await supabase.from("evolution_messages").delete().eq("instance_name", instanceName);
+      await supabase.from("evolution_chats").delete().eq("instance_name", instanceName);
+      await supabase.from("whatsapp_instances").update({ is_connected: false }).eq("instance_name", instanceName);
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    if (action === 'find_chats') {
-      // Buscar APENAS chats reais (sem adicionar contatos da agenda)
-      const chatsUrl = `${baseUrl}/chat/findChats/${instance_name}`;
-      console.log(`Fetching chats from: ${chatsUrl}`);
+    if (action === "find_chats") {
+      const result = await evolutionFetch(`/chat/findChats/${instanceName}`, { method: "POST", body: "{}" });
+      const chats = Array.isArray(result) ? result : [];
 
-      let chatsData: any[] = [];
+      for (const chat of chats) {
+        const remoteJid = chat.remoteJid || chat.id;
+        if (!remoteJid || remoteJid === "status@broadcast") continue;
 
-      try {
-        const chatsResponse = await fetch(chatsUrl, {
-          method: 'POST',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        });
+        const { canonicalJid, lidJid, pnJid, phoneNumber, isGroup } = normalizeToCanonical(remoteJid, chat.remoteJidAlt || chat.pnJid);
+        const pushName = chat.pushName || chat.name || null;
 
-        console.log(`Chats response status: ${chatsResponse.status}`);
-
-        if (chatsResponse.ok) {
-          const responseData = await chatsResponse.json();
-          if (Array.isArray(responseData)) {
-            chatsData = responseData;
-            console.log(`Found ${chatsData.length} real chats`);
-          }
-        } else {
-          const errorText = await chatsResponse.text();
-          console.error(`Error fetching chats: ${errorText}`);
-          
-          if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
-              disconnected: true
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching chats:', err);
+        await supabase.from("evolution_chats").upsert({
+          instance_name: instanceName,
+          remote_jid: remoteJid,
+          canonical_jid: canonicalJid,
+          lid_jid: lidJid,
+          pn_jid: pnJid,
+          phone_number: phoneNumber,
+          push_name: pushName,
+          is_group: isGroup,
+          profile_pic_url: chat.profilePicUrl || null,
+          last_message: chat.lastMessage?.message?.conversation?.substring(0, 200) || null,
+          last_message_at: chat.lastMessage?.messageTimestamp ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString() : null,
+        }, { onConflict: "instance_name,canonical_jid" });
       }
 
-      console.log(`Total chats to save: ${chatsData.length}`);
-
-      // Salvar chats no Supabase (APENAS chats reais)
-      if (chatsData.length > 0) {
-        for (const chat of chatsData) {
-          const remoteJid = chat.remoteJid || chat.id || chat.jid;
-          if (!remoteJid) continue;
-
-          // Usar apenas dados que vêm diretamente do chat
-          const pushName = chat.pushName || chat.name || chat.notify || null;
-          const profilePic = chat.profilePicUrl || chat.imgUrl || null;
-
-          // Extrair número real (PN) se o JID for @lid
-          // Evolution/Baileys retorna phoneNumber quando o id é LID
-          let phoneNumber: string | null = null;
-          if (remoteJid.includes('@lid')) {
-            // Prioridade: phoneNumber fornecido diretamente pela Evolution
-            phoneNumber = chat.phoneNumber || chat.phone || chat.number || null;
-            // Fallback: se não há phoneNumber, extrair dígitos do LID (pode estar OK)
-            if (!phoneNumber) {
-              const digits = remoteJid.replace('@lid', '').replace(/\D/g, '');
-              // LIDs podem conter o número em alguns casos; validar tamanho mínimo
-              phoneNumber = digits.length >= 10 ? digits : null;
-            }
-          } else if (!remoteJid.includes('@g.us')) {
-            // JID normal: extrair número de @s.whatsapp.net ou @c.us
-            phoneNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
-          }
-
-          const chatData: Record<string, any> = {
-            instance_name,
-            remote_jid: remoteJid,
-            push_name: pushName,
-            profile_pic_url: profilePic,
-            unread_count: chat.unreadCount || 0,
-            last_message: chat.lastMessage?.message?.conversation || 
-                          chat.lastMessage?.message?.extendedTextMessage?.text || 
-                          null,
-            last_message_at: chat.lastMessage?.messageTimestamp 
-              ? new Date(Number(chat.lastMessage.messageTimestamp) * 1000).toISOString()
-              : chat.updatedAt || null,
-            is_group: remoteJid.includes('@g.us'),
-            updated_at: new Date().toISOString(),
-          };
-
-          // Só definir phone_number se disponível para evitar sobrescrever
-          if (phoneNumber) {
-            chatData.phone_number = phoneNumber;
-          }
-
-          console.log(`Upserting chat: ${remoteJid} - ${chatData.push_name} (phone: ${phoneNumber})`);
-
-          const { error } = await supabase
-            .from('evolution_chats')
-            .upsert(chatData, { onConflict: 'instance_name,remote_jid' });
-
-          if (error) {
-            console.error(`Error upserting chat ${remoteJid}:`, error);
-          }
-        }
-      }
-
-      // === DELETAR CHATS QUE NÃO EXISTEM MAIS NO WHATSAPP ===
-      // Criar lista de remote_jids que vieram do WhatsApp
-      const whatsappJids = new Set(
-        chatsData
-          .map(c => c.remoteJid || c.id || c.jid)
-          .filter(Boolean)
-      );
-      
-      console.log(`WhatsApp has ${whatsappJids.size} chats`);
-
-      // Buscar todos os chats desta instância no banco
-      const { data: dbChats, error: dbError } = await supabase
-        .from('evolution_chats')
-        .select('id, remote_jid')
-        .eq('instance_name', instance_name);
-
-      if (!dbError && dbChats) {
-        // Deletar chats que não existem mais no WhatsApp
-        for (const dbChat of dbChats) {
-          if (!whatsappJids.has(dbChat.remote_jid)) {
-            console.log(`Deleting chat no longer in WhatsApp: ${dbChat.remote_jid}`);
-            
-            // Deletar mensagens primeiro
-            await supabase
-              .from('evolution_messages')
-              .delete()
-              .eq('chat_id', dbChat.id);
-            
-            // Deletar o chat
-            await supabase
-              .from('evolution_chats')
-              .delete()
-              .eq('id', dbChat.id);
-          }
-        }
-      }
-
-      // NÃO vincular chats - cada JID é uma conversa independente
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        chats: chatsData.length 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const { data: dbChats } = await supabase.from("evolution_chats").select("*").eq("instance_name", instanceName).order("last_message_at", { ascending: false, nullsFirst: false });
+      return new Response(JSON.stringify({ success: true, chats: dbChats || [] }), { headers: corsHeaders });
     }
 
-    if (action === 'find_messages') {
-      if (!remote_jid) {
-        throw new Error('remote_jid is required for find_messages');
-      }
+    if (action === "find_messages") {
+      const { chatId } = params;
+      const { data: chat } = await supabase.from("evolution_chats").select("*").eq("id", chatId).single();
+      if (!chat) return new Response(JSON.stringify({ error: "Chat not found" }), { status: 404, headers: corsHeaders });
 
-      // POST /chat/findMessages/{instance}
-      const url = `${baseUrl}/chat/findMessages/${instance_name}`;
-      console.log(`Fetching messages from: ${url}`);
-      console.log(`For remoteJid: ${remote_jid}`);
+      const jidsToFetch = [chat.canonical_jid, chat.lid_jid, chat.pn_jid, chat.remote_jid].filter(Boolean);
+      const allMessages: any[] = [];
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'apikey': EVOLUTION_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          where: {
-            key: {
-              remoteJid: remote_jid
-            }
-          },
-          limit: 100
-        }),
-      });
-
-      console.log(`Response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error fetching messages: ${errorText}`);
-        
-        // Detectar erro de conexão fechada
-        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
-            disconnected: true
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
-      }
-
-      const messagesResponse = await response.json();
-      console.log(`Raw messages response type: ${typeof messagesResponse}`);
-      console.log(`Raw messages response keys: ${Object.keys(messagesResponse || {})}`);
-      
-      // A API v2 retorna { messages: { total, pages, currentPage, records: [...] } }
-      let messages: any[] = [];
-      if (Array.isArray(messagesResponse)) {
-        messages = messagesResponse;
-      } else if (messagesResponse?.messages?.records) {
-        messages = messagesResponse.messages.records;
-      } else if (messagesResponse?.messages && Array.isArray(messagesResponse.messages)) {
-        messages = messagesResponse.messages;
-      } else if (messagesResponse?.records) {
-        messages = messagesResponse.records;
-      }
-      
-      console.log(`Found ${messages.length} messages to process`);
-
-      // Buscar o chat_id correspondente
-      const { data: chatData } = await supabase
-        .from('evolution_chats')
-        .select('id')
-        .eq('instance_name', instance_name)
-        .eq('remote_jid', remote_jid)
-        .single();
-
-      const chatId = chatData?.id;
-
-      // Salvar mensagens no Supabase
-      if (Array.isArray(messages) && messages.length > 0) {
-        for (const msg of messages) {
-          const messageId = msg.key?.id || msg.id;
-          if (!messageId) continue;
-
-          const messageData = {
-            chat_id: chatId,
-            instance_name,
-            remote_jid,
-            message_id: messageId,
-            from_me: msg.key?.fromMe || msg.fromMe || false,
-            body: msg.message?.conversation || 
-                  msg.message?.extendedTextMessage?.text ||
-                  msg.message?.imageMessage?.caption ||
-                  msg.message?.videoMessage?.caption ||
-                  msg.message?.documentMessage?.caption ||
-                  null,
-            message_type: msg.message?.imageMessage ? 'image' :
-                          msg.message?.videoMessage ? 'video' :
-                          msg.message?.audioMessage ? 'audio' :
-                          msg.message?.documentMessage ? 'document' :
-                          msg.message?.stickerMessage ? 'sticker' :
-                          msg.message?.locationMessage ? 'location' :
-                          msg.message?.contactMessage ? 'contact' :
-                          'text',
-            media_url: msg.message?.imageMessage?.url ||
-                       msg.message?.videoMessage?.url ||
-                       msg.message?.audioMessage?.url ||
-                       msg.message?.documentMessage?.url ||
-                       null,
-            timestamp: msg.messageTimestamp 
-              ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()
-              : new Date().toISOString(),
-            status: msg.status || null,
-          };
-
-          const { error } = await supabase
-            .from('evolution_messages')
-            .upsert(messageData, { onConflict: 'instance_name,message_id' });
-
-          if (error) {
-            console.error(`Error upserting message ${messageId}:`, error);
-          }
-        }
-      }
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        messages: messages.length 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'send_message') {
-      if (!remote_jid) {
-        throw new Error('remote_jid is required for send_message');
-      }
-
-      if (!text) {
-        throw new Error('text is required for send_message');
-      }
-
-      // POST /message/sendText/{instance}
-      const url = `${baseUrl}/message/sendText/${instance_name}`;
-      console.log(`Sending message to: ${url}`);
-      console.log(`Original remote_jid: ${remote_jid}`);
-
-      // Determinar o formato correto do número
-      // @lid = Business ID interno, precisa enviar o remoteJid completo
-      // @g.us = Grupo, precisa enviar o remoteJid completo  
-      // @s.whatsapp.net = Número normal
-      const isGroup = remote_jid.includes('@g.us');
-      const isLid = remote_jid.includes('@lid');
-      
-      let requestBody;
-      
-      if (isLid) {
-        // @lid: enviar o JID completo - IMPORTANTE para Business IDs
-        console.log(`Sending to @lid: ${remote_jid}`);
-        requestBody = { number: remote_jid, text };
-      } else if (isGroup) {
-        // Grupos: enviar JID completo
-        console.log(`Sending to group: ${remote_jid}`);
-        requestBody = { number: remote_jid, text };
-      } else {
-        // @s.whatsapp.net: extrair o número
-        const phoneNumber = remote_jid.replace('@s.whatsapp.net', '');
-        console.log(`Sending to phone number: ${phoneNumber}`);
-        requestBody = { number: phoneNumber, text };
-      }
-      
-      console.log(`Request body: ${JSON.stringify(requestBody)}`);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'apikey': EVOLUTION_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log(`Response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error sending message: ${errorText}`);
-        
-        // Detectar erro de conexão fechada
-        if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
-          return new Response(JSON.stringify({ 
-            success: false, 
-            error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
-            disconnected: true
-          }), {
-            status: 200, // Retornar 200 para o frontend tratar
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        throw new Error(`Evolution API error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`Message sent:`, result);
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        result 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Deletar chat do WhatsApp e do banco de dados
-    if (action === 'delete_chat') {
-      if (!remote_jid) {
-        throw new Error('remote_jid is required for delete_chat');
-      }
-
-      console.log(`Deleting chat: ${remote_jid} from instance: ${instance_name}`);
-
-      // 1. Deletar chat da Evolution API (limpar histórico no WhatsApp)
-      const deleteUrl = `${baseUrl}/chat/deleteMessage/${instance_name}`;
-      console.log(`Calling Evolution API delete: ${deleteUrl}`);
-
-      try {
-        // A Evolution API usa deleteMessage para limpar conversas
-        // Primeiro, tentar arquivar/deletar a conversa
-        const archiveUrl = `${baseUrl}/chat/archiveChat/${instance_name}`;
-        const archiveResponse = await fetch(archiveUrl, {
-          method: 'PUT',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            lastMessage: {
-              key: {
-                remoteJid: remote_jid,
-              },
-            },
-            archive: true,
-          }),
-        });
-        console.log(`Archive response status: ${archiveResponse.status}`);
-
-        // Tentar também deletar as mensagens usando outro endpoint se disponível
-        const clearUrl = `${baseUrl}/chat/clearChat/${instance_name}`;
+      for (const jid of [...new Set(jidsToFetch)]) {
         try {
-          const clearResponse = await fetch(clearUrl, {
-            method: 'DELETE',
-            headers: {
-              'apikey': EVOLUTION_API_KEY,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              remoteJid: remote_jid,
-            }),
+          const result = await evolutionFetch(`/chat/findMessages/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify({ where: { key: { remoteJid: jid } }, limit: 100 }),
           });
-          console.log(`Clear chat response status: ${clearResponse.status}`);
-        } catch (clearErr) {
-          console.log('Clear chat endpoint not available, continuing...');
-        }
-
-      } catch (err) {
-        console.error('Error calling Evolution API delete:', err);
-        // Continuar mesmo se falhar na Evolution API, vamos limpar do banco
+          const msgs = result?.messages?.records || result?.messages || result || [];
+          if (Array.isArray(msgs)) allMessages.push(...msgs);
+        } catch {}
       }
 
-      // 2. Buscar o chat_id para deletar as mensagens associadas
-      const { data: chatData } = await supabase
-        .from('evolution_chats')
-        .select('id')
-        .eq('instance_name', instance_name)
-        .eq('remote_jid', remote_jid)
-        .single();
+      const seenIds = new Set<string>();
+      for (const msg of allMessages) {
+        const key = msg.key;
+        if (!key?.id || seenIds.has(key.id)) continue;
+        seenIds.add(key.id);
 
-      if (chatData?.id) {
-        // 3. Deletar mensagens do banco
-        const { error: msgError } = await supabase
-          .from('evolution_messages')
-          .delete()
-          .eq('chat_id', chatData.id);
+        const message = msg.message || {};
+        let body = message.conversation || message.extendedTextMessage?.text || "";
+        let messageType = "text";
+        if (message.imageMessage) { messageType = "image"; body = message.imageMessage.caption || "[Imagem]"; }
+        else if (message.videoMessage) { messageType = "video"; body = "[Vídeo]"; }
+        else if (message.audioMessage) { messageType = "audio"; body = "[Áudio]"; }
+        else if (message.documentMessage) { messageType = "document"; body = message.documentMessage.fileName || "[Doc]"; }
 
-        if (msgError) {
-          console.error('Error deleting messages:', msgError);
-        } else {
-          console.log(`Deleted messages for chat ${chatData.id}`);
-        }
-
-        // 4. Deletar o chat do banco
-        const { error: chatError } = await supabase
-          .from('evolution_chats')
-          .delete()
-          .eq('id', chatData.id);
-
-        if (chatError) {
-          console.error('Error deleting chat:', chatError);
-          throw chatError;
-        }
-
-        console.log(`Deleted chat ${chatData.id} from database`);
+        await supabase.from("evolution_messages").upsert({
+          instance_name: instanceName,
+          remote_jid: chat.canonical_jid,
+          source_remote_jid: key.remoteJid,
+          chat_id: chat.id,
+          message_id: key.id,
+          from_me: key.fromMe || false,
+          body,
+          message_type: messageType,
+          timestamp: msg.messageTimestamp ? new Date(Number(msg.messageTimestamp) * 1000).toISOString() : new Date().toISOString(),
+          status: key.fromMe ? "sent" : "received",
+        }, { onConflict: "message_id,instance_name" });
       }
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Conversa apagada com sucesso'
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const { data: dbMessages } = await supabase.from("evolution_messages").select("*").eq("chat_id", chat.id).order("timestamp", { ascending: true });
+      await supabase.from("evolution_chats").update({ unread_count: 0 }).eq("id", chat.id);
+      return new Response(JSON.stringify({ success: true, messages: dbMessages || [] }), { headers: corsHeaders });
+    }
+
+    if (action === "send_message") {
+      const { chatId, text } = params;
+      const { data: chat } = await supabase.from("evolution_chats").select("*").eq("id", chatId).single();
+      if (!chat) return new Response(JSON.stringify({ error: "Chat not found" }), { status: 404, headers: corsHeaders });
+
+      const sendTo = chat.lid_jid || chat.phone_number || chat.canonical_jid;
+      const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        body: JSON.stringify({ number: sendTo, text }),
       });
-    }
 
-    // Sincronizar contatos da agenda do WhatsApp
-    if (action === 'sync_contacts') {
-      console.log(`Syncing contacts for instance: ${instance_name}`);
-      
-      // POST /chat/findContacts/{instance}
-      const contactsUrl = `${baseUrl}/chat/findContacts/${instance_name}`;
-      console.log(`Fetching contacts from: ${contactsUrl}`);
-
-      try {
-        const contactsResponse = await fetch(contactsUrl, {
-          method: 'POST',
-          headers: {
-            'apikey': EVOLUTION_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
+      if (result.key?.id) {
+        await supabase.from("evolution_messages").insert({
+          instance_name: instanceName,
+          remote_jid: chat.canonical_jid,
+          chat_id: chat.id,
+          message_id: result.key.id,
+          from_me: true,
+          body: text,
+          message_type: "text",
+          timestamp: new Date().toISOString(),
+          status: "sent",
         });
-
-        console.log(`Contacts response status: ${contactsResponse.status}`);
-
-        if (!contactsResponse.ok) {
-          const errorText = await contactsResponse.text();
-          console.error(`Error fetching contacts: ${errorText}`);
-          
-          if (errorText.includes('Connection Closed') || errorText.includes('not connected')) {
-            return new Response(JSON.stringify({ 
-              success: false, 
-              error: 'WhatsApp desconectado. Por favor, reconecte escaneando o QR code novamente.',
-              disconnected: true
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-          
-          throw new Error(`Evolution API error: ${contactsResponse.status} - ${errorText}`);
-        }
-
-        const contactsData = await contactsResponse.json();
-        console.log(`Contacts data type: ${typeof contactsData}, isArray: ${Array.isArray(contactsData)}`);
-        
-        if (!Array.isArray(contactsData)) {
-          console.log(`Contacts response:`, JSON.stringify(contactsData));
-          return new Response(JSON.stringify({ 
-            success: true, 
-            contacts: 0,
-            message: 'No contacts array returned' 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        console.log(`Found ${contactsData.length} contacts to process`);
-
-        let updatedCount = 0;
-        
-        for (const contact of contactsData) {
-          const contactJid = contact.id || contact.remoteJid;
-          // O nome pode vir de diferentes campos
-          const contactName = contact.name || contact.pushName || contact.notify || contact.verifiedName;
-          
-          if (!contactJid) continue;
-          
-          console.log(`Processing contact: ${contactJid} - Name: ${contactName}`);
-          
-          // Atualizar o push_name no chat correspondente se tiver nome
-          if (contactName) {
-            const { error: updateError, count } = await supabase
-              .from('evolution_chats')
-              .update({ 
-                push_name: contactName,
-                updated_at: new Date().toISOString()
-              })
-              .eq('instance_name', instance_name)
-              .eq('remote_jid', contactJid);
-
-            if (updateError) {
-              console.error(`Error updating chat for ${contactJid}:`, updateError);
-            } else {
-              updatedCount++;
-              console.log(`Updated chat name for ${contactJid} to: ${contactName}`);
-            }
-          }
-        }
-
-        console.log(`Successfully updated ${updatedCount} contact names`);
-
-        return new Response(JSON.stringify({ 
-          success: true, 
-          contacts: contactsData.length,
-          updated: updatedCount
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-
-      } catch (err) {
-        console.error('Error syncing contacts:', err);
-        throw err;
+        await supabase.from("evolution_chats").update({ last_message: text.substring(0, 200), last_message_at: new Date().toISOString() }).eq("id", chat.id);
       }
+
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    throw new Error(`Unknown action: ${action}`);
+    if (action === "delete_chat") {
+      const { chatId } = params;
+      await supabase.from("evolution_messages").delete().eq("chat_id", chatId);
+      await supabase.from("evolution_chats").delete().eq("id", chatId);
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+    }
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Edge function error:', errorMessage);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: errorMessage 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    if (action === "sync_contacts") {
+      const result = await evolutionFetch(`/chat/findContacts/${instanceName}`, { method: "POST" });
+      const contacts = Array.isArray(result) ? result : [];
+      let updated = 0;
+
+      for (const c of contacts) {
+        const jid = c.id || c.remoteJid;
+        if (!jid || !c.pushName) continue;
+      const { error } = await supabase.from("evolution_chats").update({ push_name: c.pushName })
+          .eq("instance_name", instanceName)
+          .or(`canonical_jid.eq.${jid},lid_jid.eq.${jid},pn_jid.eq.${jid}`);
+        if (!error) updated++;
+      }
+
+      return new Response(JSON.stringify({ success: true, updated }), { headers: corsHeaders });
+    }
+
+    if (action === "rebuild_chats") {
+      await supabase.from("evolution_messages").delete().eq("instance_name", instanceName);
+      await supabase.from("evolution_chats").delete().eq("instance_name", instanceName);
+      
+      const result = await evolutionFetch(`/chat/findChats/${instanceName}`, { method: "POST", body: "{}" });
+      const chats = Array.isArray(result) ? result : [];
+
+      for (const chat of chats) {
+        const remoteJid = chat.remoteJid || chat.id;
+        if (!remoteJid || remoteJid === "status@broadcast") continue;
+        const { canonicalJid, lidJid, pnJid, phoneNumber, isGroup } = normalizeToCanonical(remoteJid, chat.remoteJidAlt);
+
+        await supabase.from("evolution_chats").insert({
+          instance_name: instanceName,
+          remote_jid: remoteJid,
+          canonical_jid: canonicalJid,
+          lid_jid: lidJid,
+          pn_jid: pnJid,
+          phone_number: phoneNumber,
+          push_name: chat.pushName || chat.name || null,
+          is_group: isGroup,
+        });
+      }
+
+      const { data: dbChats } = await supabase.from("evolution_chats").select("*").eq("instance_name", instanceName).order("last_message_at", { ascending: false, nullsFirst: false });
+      return new Response(JSON.stringify({ success: true, chats: dbChats || [] }), { headers: corsHeaders });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: corsHeaders });
+  } catch (error) {
+    console.error("[Evolution API] Error:", error);
+    return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500, headers: corsHeaders });
   }
 });
