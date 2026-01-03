@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.resolve-lid-jids]
 verify_jwt = false
+
+[functions.bulk-send-whatsapp]
+verify_jwt = false

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Settings, ArrowLeft } from 'lucide-react';
+import { Settings, ArrowLeft, Send } from 'lucide-react';
 import { InstanceSettings } from '@/components/whatsapp/InstanceSettings';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
 import { ChatPanel } from '@/components/whatsapp/ChatPanel';
+import { DisparoPanel } from '@/components/whatsapp/DisparoPanel';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ export default function WhatsApp() {
   const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
   const [selectedJid, setSelectedJid] = useState<string | null>(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [showDisparo, setShowDisparo] = useState(false);
 
   const { instances } = useWhatsAppInstances();
   const { conversations, loadingConversations, getMessages, sendMessage } = useWhatsAppMessages(
@@ -70,7 +72,18 @@ export default function WhatsApp() {
         />
         
         {/* Settings button at bottom */}
-        <div className="p-3 border-t border-[#2A3942]">
+        <div className="p-3 border-t border-[#2A3942] space-y-2">
+          {/* Disparo Button */}
+          <Button 
+            variant="ghost" 
+            onClick={() => setShowDisparo(true)}
+            className="w-full justify-start gap-3 text-[#00A884] hover:text-[#00A884] hover:bg-[#202C33] h-11"
+          >
+            <Send className="h-5 w-5" />
+            <span className="font-medium">Disparo em Massa</span>
+          </Button>
+          
+          {/* Settings Sheet */}
           <Sheet>
             <SheetTrigger asChild>
               <Button 
@@ -95,6 +108,13 @@ export default function WhatsApp() {
           </Sheet>
         </div>
       </div>
+
+      {/* Disparo Panel (fullscreen overlay) */}
+      {showDisparo && (
+        <div className="fixed inset-0 z-50 bg-[#111B21]">
+          <DisparoPanel onClose={() => setShowDisparo(false)} />
+        </div>
+      )}
 
       {/* Right Panel - Chat */}
       <div className={cn(
