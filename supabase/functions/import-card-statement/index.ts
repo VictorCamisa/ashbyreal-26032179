@@ -360,9 +360,14 @@ function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransact
       }
     }
     
-    // Stop at "Total de lançamentos"
-    if (rowStr.includes("total de lançamentos") || rowStr.includes("total de produtos")) {
-      console.log(`Stopping at 'Total' row ${i}`);
+    // Stop at totals AFTER we are inside the real table (header found)
+    // (In this XLSX, there is a "Resumo da fatura" section that also contains these words)
+    if (
+      inLancamentosSection &&
+      foundHeader &&
+      (rowStr.includes("total de lançamentos") || rowStr.includes("total de produtos"))
+    ) {
+      console.log(`Stopping at total row ${i}`);
       break;
     }
     
@@ -603,12 +608,14 @@ serve(async (req) => {
     // Check for existing import
     const { data: existingImport } = await supabase
       .from('credit_card_imports')
-      .select('id, created_at, records_imported')
+      .select('id, created_at, records_imported, status')
       .eq('credit_card_id', creditCardId)
       .eq('file_hash', fileHash)
       .maybeSingle();
 
-    if (existingImport) {
+    // Only block if we have a successful import (records_imported > 0).
+    // If a previous attempt produced 0 records (FAILED/PREVIEW empty), allow reimport.
+    if (existingImport && (existingImport.records_imported ?? 0) > 0) {
       console.log("File already imported:", existingImport.id);
       return new Response(
         JSON.stringify({
@@ -619,6 +626,11 @@ serve(async (req) => {
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    if (existingImport) {
+      console.log("Previous empty/failed import found, allowing reimport. Deleting:", existingImport.id);
+      await supabase.from('credit_card_imports').delete().eq('id', existingImport.id);
     }
 
     let transactions: ParsedTransaction[] = [];
