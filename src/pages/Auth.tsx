@@ -15,10 +15,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 
 const authSchema = z.object({
-  username: z.string()
-    .min(3, 'Usuário deve ter pelo menos 3 caracteres')
-    .max(20, 'Usuário deve ter no máximo 20 caracteres')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Usuário pode conter apenas letras, números e _'),
+  email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 
@@ -33,7 +30,7 @@ export default function Auth() {
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
     defaultValues: {
-      username: '',
+      email: '',
       password: '',
     },
   });
@@ -48,12 +45,12 @@ export default function Auth() {
     try {
       setIsSubmitting(true);
       if (isSignUp) {
-        await signUp(data.username, data.password);
+        await signUp(data.email, data.password);
         // After signup, switch to login mode
         setIsSignUp(false);
         form.reset();
       } else {
-        await signIn(data.username, data.password);
+        await signIn(data.email, data.password);
       }
     } catch (error) {
       // Error already handled in useAuth
@@ -88,14 +85,14 @@ export default function Auth() {
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="username"
+              name="email"
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
                     <Input 
-                      type="text" 
-                      placeholder="Usuário" 
-                      autoComplete="username"
+                      type="email" 
+                      placeholder="Email" 
+                      autoComplete="email"
                       className="h-12 bg-muted/30 backdrop-blur-sm border-border/30 text-center placeholder:text-muted-foreground/50 focus:border-border focus:ring-0 rounded-xl"
                       {...field} 
                     />
