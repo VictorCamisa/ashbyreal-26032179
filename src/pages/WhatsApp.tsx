@@ -56,9 +56,10 @@ export default function WhatsApp() {
         </TabsList>
 
         <TabsContent value="conversas" className="h-full mt-0">
-          <div className="grid grid-cols-12 gap-4 h-full">
-            {/* Conversation List */}
-            <div className="col-span-4 border rounded-lg bg-card overflow-hidden">
+          {/* WhatsApp Web Layout */}
+          <div className="h-[calc(100vh-250px)] min-h-[500px] flex rounded-lg overflow-hidden shadow-xl border border-[#222D34]">
+            {/* Left Panel - Conversations */}
+            <div className="w-[30%] min-w-[300px] max-w-[400px] border-r border-[#222D34] flex flex-col">
               <ConversationList
                 conversations={conversations}
                 isLoading={loadingConversations}
@@ -67,8 +68,8 @@ export default function WhatsApp() {
               />
             </div>
 
-            {/* Chat Panel */}
-            <div className="col-span-8 border rounded-lg bg-card overflow-hidden">
+            {/* Right Panel - Chat */}
+            <div className="flex-1 flex flex-col">
               <ChatPanel
                 conversation={selectedConversation}
                 messages={messages}
