@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       return { qrcode, pairingCode };
     };
 
-    // Helper to fetch and build contact map
+    // Helper to fetch and build contact map from multiple JID formats
     const fetchContactsMap = async (): Promise<Map<string, string>> => {
       const contactMap = new Map<string, string>();
       try {
@@ -125,17 +125,26 @@ Deno.serve(async (req) => {
         const contacts = Array.isArray(result) ? result : (result?.contacts || []);
         console.log(`[Evolution API] Found ${contacts.length} contacts`);
         
+        // Log first 3 contacts to understand structure
+        for (let i = 0; i < Math.min(3, contacts.length); i++) {
+          console.log(`[Evolution API] Sample contact ${i}: ${JSON.stringify(contacts[i]).substring(0, 300)}`);
+        }
+        
         for (const c of contacts) {
-          const jid = c.id || c.remoteJid;
-          const name = c.pushName || c.name || c.notify;
-          if (jid && name) {
+          const name = c.pushName || c.name || c.notify || c.verifiedName;
+          if (!name) continue;
+          
+          // Map all possible JID formats
+          const jids = [c.id, c.remoteJid, c.lid, c.pnJid, c.phoneNumber].filter(Boolean);
+          for (const jid of jids) {
             contactMap.set(jid, name);
-            // Also map variations
-            if (jid.includes("@lid")) {
-              contactMap.set(jid.split("@")[0], name);
-            }
+            // Also map without domain
+            const baseId = jid.split("@")[0];
+            if (baseId) contactMap.set(baseId, name);
           }
         }
+        
+        console.log(`[Evolution API] Contact map has ${contactMap.size} entries`);
       } catch (e) {
         console.error("[Evolution API] Error fetching contacts:", e);
       }
