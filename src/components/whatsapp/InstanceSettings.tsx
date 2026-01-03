@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut } from 'lucide-react';
+import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface InstanceSettingsProps {
   onInstanceSelect: (instance: WhatsAppInstance | null) => void;
@@ -25,6 +27,8 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
     checkConnection,
     logout,
   } = useWhatsAppInstances();
+
+  const [isResolvingLids, setIsResolvingLids] = useState(false);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
@@ -101,6 +105,28 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
   const handleLogout = async (instance: WhatsAppInstance) => {
     if (!confirm(`Deseja desconectar o WhatsApp da instância "${instance.name}"?`)) return;
     await logout.mutateAsync(instance.instance_name);
+  };
+
+  const handleResolveLids = async (instance: WhatsAppInstance) => {
+    setIsResolvingLids(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('resolve-lid-jids', {
+        body: { instanceName: instance.instance_name },
+      });
+
+      if (error) throw error;
+
+      if (data?.resolved > 0) {
+        toast.success(`${data.resolved} contato(s) resolvido(s) com sucesso!`);
+      } else {
+        toast.info('Nenhum contato @lid pendente encontrado.');
+      }
+    } catch (err) {
+      console.error('Error resolving LIDs:', err);
+      toast.error('Erro ao resolver contatos');
+    } finally {
+      setIsResolvingLids(false);
+    }
   };
 
   if (isLoading) {
@@ -260,6 +286,18 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
                       title="Atualizar status"
                     >
                       <RefreshCw className={cn('h-4 w-4', checkConnection.isPending && 'animate-spin')} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleResolveLids(instance);
+                      }}
+                      disabled={isResolvingLids}
+                      title="Resolver contatos @lid"
+                    >
+                      <Wrench className={cn('h-4 w-4', isResolvingLids && 'animate-spin')} />
                     </Button>
                     <Button
                       variant="ghost"
