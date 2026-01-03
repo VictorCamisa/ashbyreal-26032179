@@ -87,25 +87,28 @@ export function useEvolution(instanceName: string | null, onDisconnect?: Disconn
     enabled: !!instanceName,
   });
 
-  // Helper para normalizar JID
+  // Helper para normalizar JID (sem converter @lid em telefone)
   const normalizeJid = (jid: string): string[] => {
-    // Extrair número do JID
-    const phone = jid
-      .replace('@s.whatsapp.net', '')
-      .replace('@c.us', '')
-      .replace('@lid', '')
-      .replace(/\D/g, '');
-    
-    if (!phone || phone.length < 8 || jid.includes('@g.us')) {
+    if (!jid) return [];
+
+    // Grupos e @lid devem permanecer como estão (identificadores reais)
+    if (jid.includes('@g.us') || jid.includes('@lid')) {
       return [jid];
     }
-    
-    // Retornar todas as variações possíveis do JID
-    return [
-      `${phone}@s.whatsapp.net`,
-      `${phone}@lid`,
-      jid
-    ].filter((v, i, arr) => arr.indexOf(v) === i); // unique
+
+    // @c.us e @s.whatsapp.net são o mesmo número (variações)
+    if (jid.includes('@c.us')) {
+      return [jid, jid.replace('@c.us', '@s.whatsapp.net')].filter((v, i, arr) => arr.indexOf(v) === i);
+    }
+    if (jid.includes('@s.whatsapp.net')) {
+      return [jid, jid.replace('@s.whatsapp.net', '@c.us')].filter((v, i, arr) => arr.indexOf(v) === i);
+    }
+
+    // Fallback: número puro
+    const digits = jid.replace(/\D/g, '');
+    if (digits.length < 8) return [jid];
+
+    return [`${digits}@s.whatsapp.net`, `${digits}@c.us`, jid].filter((v, i, arr) => arr.indexOf(v) === i);
   };
 
   // Query para buscar mensagens de um chat específico (incluindo todas as variações de JID)

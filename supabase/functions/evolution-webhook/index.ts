@@ -6,31 +6,46 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Normalizar JID para usar sempre o formato @s.whatsapp.net com número puro
-function normalizeRemoteJid(jid: string): { normalizedJid: string; originalJid: string; isGroup: boolean } {
+// Normalizar JID sem “inventar” telefone para @lid.
+// Regras:
+// - @g.us (grupos): manter como está
+// - @lid (Business ID): manter como está (é o identificador real do chat)
+// - @c.us: converter para @s.whatsapp.net (mesmo número)
+function normalizeRemoteJid(
+  jid: string
+): { normalizedJid: string; originalJid: string; isGroup: boolean } {
   const originalJid = jid;
   const isGroup = jid.includes('@g.us');
-  
   if (isGroup) {
     return { normalizedJid: jid, originalJid, isGroup: true };
   }
-  
-  // Extrair apenas números do JID
-  let phone = jid
-    .replace('@s.whatsapp.net', '')
-    .replace('@c.us', '')
-    .replace('@lid', '')
-    .replace(/\D/g, '');
-  
-  // Se não conseguir extrair número, retorna original
-  if (!phone || phone.length < 8) {
+
+  const isLid = jid.includes('@lid');
+  if (isLid) {
+    // Não normalizar @lid para @s.whatsapp.net — isso cria chats “fantasmas” e separa envio/recebimento.
     return { normalizedJid: jid, originalJid, isGroup: false };
   }
-  
-  // Normalizar para formato @s.whatsapp.net
-  const normalizedJid = `${phone}@s.whatsapp.net`;
-  
-  return { normalizedJid, originalJid, isGroup: false };
+
+  if (jid.includes('@c.us')) {
+    return {
+      normalizedJid: jid.replace('@c.us', '@s.whatsapp.net'),
+      originalJid,
+      isGroup: false,
+    };
+  }
+
+  // Se já é @s.whatsapp.net, manter.
+  if (jid.includes('@s.whatsapp.net')) {
+    return { normalizedJid: jid, originalJid, isGroup: false };
+  }
+
+  // Fallback: se vier apenas número, anexar @s.whatsapp.net.
+  const digits = jid.replace(/\D/g, '');
+  if (digits.length >= 8 && !jid.includes('@')) {
+    return { normalizedJid: `${digits}@s.whatsapp.net`, originalJid, isGroup: false };
+  }
+
+  return { normalizedJid: jid, originalJid, isGroup: false };
 }
 
 serve(async (req) => {
