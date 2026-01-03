@@ -170,23 +170,47 @@ Deno.serve(async (req) => {
             body: JSON.stringify(a),
           });
 
-          const arr = Array.isArray(result) ? result : (Array.isArray(result?.contacts) ? result.contacts : []);
-          const c = arr?.[0];
-          if (!c) continue;
+          const arr = Array.isArray(result)
+            ? result
+            : (Array.isArray(result?.contacts) ? result.contacts : []);
 
-          const pnJid =
+          if (!arr || arr.length === 0) continue;
+
+          const q1 = lidJid;
+          const q2 = lidJid.split("@")[0];
+
+          const c = arr.find((x: any) =>
+            x?.id === q1 ||
+            x?.remoteJid === q1 ||
+            x?.id === q2 ||
+            x?.remoteJid === q2,
+          );
+
+          // Se a API ignorar o filtro e devolver contatos aleatórios, não podemos usar o primeiro item.
+          if (!c) {
+            if (arr.length > 1) {
+              console.log(`[Evolution API] resolveLidContact: no exact match for ${lidJid} (returned ${arr.length} contacts)`);
+            }
+            continue;
+          }
+
+          const rawPn =
             c.pnJid ||
             c.remoteJidAlt ||
             c.pnJidAlt ||
             (typeof c.remoteJid === "string" && c.remoteJid.includes("@s.whatsapp.net") ? c.remoteJid : null) ||
             null;
 
+          const pnJid = (typeof rawPn === "string" && rawPn.includes("@s.whatsapp.net"))
+            ? rawPn.replace("@c.us", "@s.whatsapp.net")
+            : null;
+
           const pushName = c.pushName || c.name || c.notify || c.verifiedName || null;
           const profilePicUrl = c.profilePicUrl || null;
 
           if (pnJid || pushName || profilePicUrl) {
             console.log(`[Evolution API] Resolved LID contact for ${lidJid}: pnJid=${pnJid} name=${pushName}`);
-            return { pnJid: pnJid ? String(pnJid).replace("@c.us", "@s.whatsapp.net") : null, pushName, profilePicUrl };
+            return { pnJid, pushName, profilePicUrl };
           }
         } catch {
           // ignore and try next
