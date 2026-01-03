@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Printer, X, Check, Pencil } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Printer, Check, Pencil, Send, Loader2, ExternalLink, RefreshCw, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface ComprovanteEntregaDialogProps {
@@ -44,6 +45,14 @@ interface PedidoData {
   }>;
 }
 
+interface DeliveryReceipt {
+  id: string;
+  token: string;
+  status: 'pending' | 'sent' | 'signed';
+  signed_at: string | null;
+  sent_at: string | null;
+}
+
 export function ComprovanteEntregaDialog({
   open,
   onOpenChange,
@@ -51,10 +60,10 @@ export function ComprovanteEntregaDialog({
   onConfirm,
 }: ComprovanteEntregaDialogProps) {
   const [pedidoData, setPedidoData] = useState<PedidoData | null>(null);
+  const [receipt, setReceipt] = useState<DeliveryReceipt | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -74,11 +83,7 @@ export function ComprovanteEntregaDialog({
   useEffect(() => {
     if (open && pedidoId) {
       fetchPedidoData();
-      // Reset signature
-      setHasSignature(false);
-      setTimeout(() => {
-        clearSignature();
-      }, 100);
+      fetchReceipt();
     }
   }, [open, pedidoId]);
 
@@ -132,71 +137,129 @@ export function ComprovanteEntregaDialog({
     }
   };
 
-  // Signature canvas functions
-  const initCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+  const fetchReceipt = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('delivery_receipts')
+        .select('id, token, status, signed_at, sent_at')
+        .eq('pedido_id', pedidoId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        setReceipt(data as DeliveryReceipt);
+      } else {
+        setReceipt(null);
+      }
+    } catch (error) {
+      console.error('Error fetching receipt:', error);
+    }
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const handleSendReceipt = async () => {
+    if (!pedidoData?.cliente?.telefone) {
+      toast({
+        title: 'Erro',
+        description: 'Cliente não possui telefone cadastrado',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    
-    ctx.beginPath();
-    ctx.moveTo(x, y);
+    setIsSending(true);
+    try {
+      // Create or update delivery receipt
+      const receiptData = {
+        pedido_id: pedidoId,
+        status: 'sent' as const,
+        cliente_nome: pedidoData.cliente?.nome,
+        cliente_telefone: formData.telefone || pedidoData.cliente?.telefone,
+        cliente_cpf_cnpj: formData.cpfCnpj || pedidoData.cliente?.cpf_cnpj,
+        cliente_endereco: pedidoData.cliente?.endereco,
+        controle_barris: {
+          barril50: formData.barril50,
+          barril30: formData.barril30,
+          barril10: formData.barril10,
+          co2: formData.co2,
+        },
+        data_entrega: formData.dataEntrega,
+        periodo_entrega: formData.periodoEntrega,
+        metodo_pagamento: formData.metodoPagamento,
+        observacoes: formData.observacoes,
+        sent_at: new Date().toISOString(),
+      };
+
+      let receiptToken = receipt?.token;
+
+      if (receipt) {
+        // Update existing
+        await supabase
+          .from('delivery_receipts')
+          .update(receiptData)
+          .eq('id', receipt.id);
+      } else {
+        // Create new
+        const { data: newReceipt, error } = await supabase
+          .from('delivery_receipts')
+          .insert(receiptData)
+          .select('token')
+          .single();
+        
+        if (error) throw error;
+        receiptToken = newReceipt.token;
+      }
+
+      // Generate signature link
+      const signatureUrl = `${window.location.origin}/assinar?token=${receiptToken}`;
+
+      // Open WhatsApp with the link
+      const phone = (formData.telefone || pedidoData.cliente?.telefone || '').replace(/\D/g, '');
+      const message = encodeURIComponent(
+        `Olá ${pedidoData.cliente?.nome}! 🍺\n\n` +
+        `Segue o comprovante de entrega do Pedido #${pedidoData.numero_pedido}.\n\n` +
+        `Por favor, assine digitalmente para confirmar o recebimento:\n` +
+        `${signatureUrl}\n\n` +
+        `Taubaté Chopp - Obrigado pela preferência!`
+      );
+      
+      window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+
+      toast({
+        title: 'Link enviado!',
+        description: 'O link de assinatura foi enviado para o cliente',
+      });
+
+      // Refresh receipt data
+      await fetchReceipt();
+
+    } catch (error) {
+      console.error('Error sending receipt:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível enviar o comprovante',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    setHasSignature(true);
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSignature(false);
-    initCanvas();
+  const handleConfirmDelivery = () => {
+    if (receipt?.status !== 'signed') {
+      toast({
+        title: 'Aguardando assinatura',
+        description: 'O cliente ainda não assinou o comprovante',
+        variant: 'destructive',
+      });
+      return;
+    }
+    onConfirm();
+    onOpenChange(false);
   };
 
   const handlePrint = () => {
     window.print();
-  };
-
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
   };
 
   const formatEndereco = (endereco: any) => {
@@ -209,6 +272,19 @@ export function ComprovanteEntregaDialog({
     if (endereco.cidade) parts.push(endereco.cidade);
     if (endereco.estado) parts.push(endereco.estado);
     return parts.join(', ') || '-';
+  };
+
+  const getSignatureUrl = () => {
+    if (!receipt?.token) return '';
+    return `${window.location.origin}/assinar?token=${receipt.token}`;
+  };
+
+  const copySignatureLink = () => {
+    navigator.clipboard.writeText(getSignatureUrl());
+    toast({
+      title: 'Link copiado!',
+      description: 'O link de assinatura foi copiado para a área de transferência',
+    });
   };
 
   if (isLoading) {
@@ -232,6 +308,46 @@ export function ComprovanteEntregaDialog({
             Comprovante de Entrega - Pedido #{pedidoData?.numero_pedido?.slice(-8)}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Status Banner */}
+        {receipt && (
+          <div className={cn(
+            "flex items-center gap-3 p-3 rounded-lg print:hidden",
+            receipt.status === 'signed' 
+              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+              : receipt.status === 'sent'
+              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+              : "bg-muted"
+          )}>
+            {receipt.status === 'signed' ? (
+              <>
+                <CheckCircle className="h-5 w-5" />
+                <div>
+                  <p className="font-medium">Comprovante Assinado</p>
+                  <p className="text-xs">
+                    Assinado em: {new Date(receipt.signed_at!).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </>
+            ) : receipt.status === 'sent' ? (
+              <>
+                <Clock className="h-5 w-5" />
+                <div className="flex-1">
+                  <p className="font-medium">Aguardando Assinatura</p>
+                  <p className="text-xs">
+                    Enviado em: {new Date(receipt.sent_at!).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={fetchReceipt}>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Atualizar
+                </Button>
+              </>
+            ) : (
+              <p className="text-muted-foreground">Comprovante pendente de envio</p>
+            )}
+          </div>
+        )}
 
         {/* Printable Content */}
         <div className="space-y-6 print:p-8">
@@ -442,50 +558,25 @@ export function ComprovanteEntregaDialog({
             </div>
           </div>
 
-          {/* Signature Section */}
-          <div className="border rounded-lg p-4 print:border-black">
-            <p className="text-sm mb-4">
-              Recebi(emos) de <strong>TAUBATÉ CHOPP</strong> os produtos constantes deste pedido.
-            </p>
-            <div className="flex flex-col items-center gap-2">
-              <Label className="text-xs text-muted-foreground">Assinatura do Cliente</Label>
-              <div className="relative w-full">
-                <canvas
-                  ref={canvasRef}
-                  width={500}
-                  height={100}
-                  className="border rounded-lg w-full bg-white cursor-crosshair touch-none"
-                  onMouseDown={startDrawing}
-                  onMouseMove={draw}
-                  onMouseUp={stopDrawing}
-                  onMouseLeave={stopDrawing}
-                  onTouchStart={startDrawing}
-                  onTouchMove={draw}
-                  onTouchEnd={stopDrawing}
+          {/* Link de assinatura (se enviado) */}
+          {receipt && receipt.status !== 'pending' && (
+            <div className="border rounded-lg p-4 print:hidden">
+              <Label className="text-xs text-muted-foreground">Link de Assinatura</Label>
+              <div className="flex gap-2 mt-1">
+                <Input 
+                  value={getSignatureUrl()} 
+                  readOnly 
+                  className="text-xs font-mono"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-1 right-1 h-6 px-2 print:hidden"
-                  onClick={clearSignature}
-                >
-                  <X className="h-3 w-3 mr-1" />
-                  Limpar
+                <Button variant="outline" size="sm" onClick={copySignatureLink}>
+                  Copiar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => window.open(getSignatureUrl(), '_blank')}>
+                  <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2 w-full mt-2">
-                <Separator className="flex-1" />
-                <span className="text-xs text-muted-foreground">
-                  {pedidoData?.cliente?.nome || 'Nome do Cliente'}
-                </span>
-                <Separator className="flex-1" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                ________ de _________________ de 20____
-              </p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -497,10 +588,25 @@ export function ComprovanteEntregaDialog({
             <Printer className="h-4 w-4 mr-2" />
             Imprimir
           </Button>
-          <Button variant="success" onClick={handleConfirm} disabled={!hasSignature}>
-            <Check className="h-4 w-4 mr-2" />
-            Confirmar Pagamento
-          </Button>
+          
+          {receipt?.status !== 'signed' ? (
+            <Button onClick={handleSendReceipt} disabled={isSending}>
+              {isSending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {receipt?.status === 'sent' ? 'Reenviar para Assinar' : 'Enviar para Assinar'}
+            </Button>
+          ) : (
+            <Button 
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={handleConfirmDelivery}
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Confirmar Entrega
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
