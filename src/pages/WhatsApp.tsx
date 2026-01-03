@@ -50,7 +50,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
-import { useLeads } from '@/hooks/useLeads';
+import { useOportunidades } from '@/hooks/useOportunidades';
 import type { Lead } from '@/types/lead';
 import { cn } from '@/lib/utils';
 
@@ -77,8 +77,8 @@ export default function WhatsApp() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Hook de leads
-  const { leads, isLoading: loadingLeads } = useLeads();
+  // Hook de oportunidades
+  const { leads, isLoading: loadingLeads } = useOportunidades();
   
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [instanceName, setInstanceName] = useState<string | null>(() => {

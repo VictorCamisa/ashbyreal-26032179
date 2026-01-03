@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, TrendingUp, UserCheck, DollarSign, Users } from 'lucide-react';
+import { Search, TrendingUp, UserCheck, DollarSign, Target } from 'lucide-react';
 import { PipelineColumn } from '@/types/lead';
-import { useLeads } from '@/hooks/useLeads';
-import { NovoLeadDialog } from '@/components/crm/NovoLeadDialog';
+import { useOportunidades } from '@/hooks/useOportunidades';
+import { NovaOportunidadeDialog } from '@/components/crm/NovaOportunidadeDialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
@@ -14,11 +14,11 @@ import { CSS } from '@dnd-kit/utilities';
 import type { Lead } from '@/types/lead';
 
 const pipelineColumns: PipelineColumn[] = [
-  { id: 'novo_lead', title: 'Novo', color: 'bg-blue-500' },
-  { id: 'qualificado', title: 'Qualificado', color: 'bg-amber-500' },
+  { id: 'novo_lead', title: 'Nova', color: 'bg-blue-500' },
+  { id: 'qualificado', title: 'Qualificada', color: 'bg-amber-500' },
   { id: 'negociacao', title: 'Negociação', color: 'bg-violet-500' },
-  { id: 'fechado', title: 'Fechado', color: 'bg-emerald-500' },
-  { id: 'perdido', title: 'Perdido', color: 'bg-red-500' },
+  { id: 'fechado', title: 'Fechada', color: 'bg-emerald-500' },
+  { id: 'perdido', title: 'Perdida', color: 'bg-red-500' },
 ];
 
 const origemColors: Record<string, string> = {
@@ -30,15 +30,17 @@ const origemColors: Record<string, string> = {
   Outros: 'bg-muted text-muted-foreground'
 };
 
-function DraggableLeadCard({ lead, navigate }: { lead: Lead; navigate: (path: string) => void }) {
+function DraggableOportunidadeCard({ oportunidade, navigate }: { oportunidade: Lead & { clienteId?: string }; navigate: (path: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: lead.id,
+    id: oportunidade.id,
   });
 
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const clienteId = oportunidade.clienteId || oportunidade.id;
 
   return (
     <div 
@@ -47,16 +49,16 @@ function DraggableLeadCard({ lead, navigate }: { lead: Lead; navigate: (path: st
       {...listeners}
       {...attributes}
       className="p-3 rounded-xl bg-card border border-border/50 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-all hover:shadow-md group"
-      onClick={() => navigate(`/cliente/${lead.id}`)}
+      onClick={() => navigate(`/cliente/${clienteId}`)}
     >
-      <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{lead.nome}</p>
-      <p className="text-xs text-muted-foreground mb-2">{lead.telefone}</p>
+      <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{oportunidade.nome}</p>
+      <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
       <div className="flex items-center justify-between">
-        <Badge variant="outline" className={`text-[10px] ${origemColors[lead.origem]}`}>
-          {lead.origem}
+        <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
+          {oportunidade.origem}
         </Badge>
         <span className="text-xs font-medium">
-          R$ {lead.valorEstimado.toLocaleString('pt-BR')}
+          R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
         </span>
       </div>
     </div>
@@ -79,44 +81,44 @@ function DroppableColumn({ column, children }: { column: PipelineColumn; childre
 export default function CRM() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
-  const { leads, isLoading, createLead, isCreating, updateLeadStatus } = useLeads();
+  const { oportunidades, isLoading, createOportunidade, isCreating, updateOportunidadeStatus } = useOportunidades();
 
-  const filteredLeads = leads.filter(lead =>
-    lead.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.telefone.includes(searchTerm)
+  const filteredOportunidades = oportunidades.filter(op =>
+    op.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    op.telefone.includes(searchTerm)
   );
 
-  const getLeadsByStatus = (status: string) => filteredLeads.filter(lead => lead.status === status);
+  const getOportunidadesByStatus = (status: string) => filteredOportunidades.filter(op => op.status === status);
 
   const stats = {
-    total: leads.length,
-    qualificados: leads.filter(l => l.status === 'qualificado').length,
-    fechados: leads.filter(l => l.status === 'fechado').length,
-    valorTotal: leads.filter(l => l.status === 'fechado').reduce((acc, l) => acc + l.valorEstimado, 0),
+    total: oportunidades.length,
+    qualificados: oportunidades.filter(l => l.status === 'qualificado').length,
+    fechados: oportunidades.filter(l => l.status === 'fechado').length,
+    valorTotal: oportunidades.filter(l => l.status === 'fechado').reduce((acc, l) => acc + l.valorEstimado, 0),
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    await updateLeadStatus(active.id as string, over.id as string);
+    await updateOportunidadeStatus(active.id as string, over.id as string);
   };
 
   return (
     <PageLayout
-      title="CRM Pipeline"
-      subtitle="Gestão de leads e oportunidades"
-      icon={TrendingUp}
+      title="Oportunidades"
+      subtitle="Gerencie seu pipeline de vendas"
+      icon={Target}
       showSparkle
       actions={
-        <NovoLeadDialog onSubmit={createLead} isCreating={isCreating} />
+        <NovaOportunidadeDialog onSubmit={createOportunidade} isCreating={isCreating} />
       }
     >
       <div className="space-y-6">
         {/* KPIs */}
         <KPIGrid>
-          <KPICard label="Total Leads" value={stats.total} icon={Users} />
-          <KPICard label="Qualificados" value={stats.qualificados} icon={UserCheck} variant="warning" />
-          <KPICard label="Fechados" value={stats.fechados} icon={TrendingUp} variant="success" />
+          <KPICard label="Total" value={stats.total} icon={Target} />
+          <KPICard label="Qualificadas" value={stats.qualificados} icon={UserCheck} variant="warning" />
+          <KPICard label="Fechadas" value={stats.fechados} icon={TrendingUp} variant="success" />
           <KPICard 
             label="Valor Total" 
             value={`R$ ${(stats.valorTotal / 1000).toFixed(0)}k`} 
@@ -128,7 +130,7 @@ export default function CRM() {
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar leads..."
+            placeholder="Buscar oportunidades..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 h-11 rounded-xl"
@@ -150,23 +152,23 @@ export default function CRM() {
           <DndContext onDragEnd={handleDragEnd}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {pipelineColumns.map((column) => {
-                const columnLeads = getLeadsByStatus(column.id);
+                const columnOportunidades = getOportunidadesByStatus(column.id);
                 return (
                   <Card key={column.id} className="bg-muted/30 overflow-hidden">
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2 mb-3 px-1">
                         <div className={`w-2.5 h-2.5 rounded-full ${column.color}`} />
                         <span className="text-xs font-medium">{column.title}</span>
-                        <span className="text-xs text-muted-foreground ml-auto bg-muted px-1.5 py-0.5 rounded-full">{columnLeads.length}</span>
+                        <span className="text-xs text-muted-foreground ml-auto bg-muted px-1.5 py-0.5 rounded-full">{columnOportunidades.length}</span>
                       </div>
                       <DroppableColumn column={column}>
-                        {columnLeads.length === 0 ? (
+                        {columnOportunidades.length === 0 ? (
                           <div className="p-4 text-center text-xs text-muted-foreground border border-dashed border-border/50 rounded-xl">
-                            Nenhum lead
+                            Nenhuma oportunidade
                           </div>
                         ) : (
-                          columnLeads.map((lead) => (
-                            <DraggableLeadCard key={lead.id} lead={lead} navigate={navigate} />
+                          columnOportunidades.map((op) => (
+                            <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} />
                           ))
                         )}
                       </DroppableColumn>
