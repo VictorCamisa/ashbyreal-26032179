@@ -14,8 +14,40 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Helper to call Evolution API to resolve @lid JIDs
+    const resolveRealJid = async (lidJid: string, instName: string): Promise<string | null> => {
+      if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return null;
+      try {
+        // Try /chat/findContacts to get pnJid
+        const url = `${EVOLUTION_API_URL}/chat/findContacts/${instName}`;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            apikey: EVOLUTION_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ where: { id: lidJid } }),
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        // Response can be an array or single object
+        const contacts = Array.isArray(data) ? data : data?.contacts || [data];
+        for (const c of contacts) {
+          const pn = c?.pnJid || c?.id;
+          if (pn && pn.includes("@s.whatsapp.net")) {
+            return pn;
+          }
+        }
+      } catch (e) {
+        console.warn(`[webhook-evolution] resolveRealJid failed for ${lidJid}:`, e);
+      }
+      return null;
+    };
 
     const payload = await req.json();
     const event = payload.event;
@@ -102,7 +134,17 @@ serve(async (req) => {
 
         for (const msg of messages) {
           const remoteJidRaw = msg.key?.remoteJid || "";
-          const remoteJidAlt = msg.key?.remoteJidAlt || msg.remoteJidAlt || null;
+          let remoteJidAlt = msg.key?.remoteJidAlt || msg.remoteJidAlt || msg.key?.pnJid || msg.pnJid || null;
+
+          // If we have @lid and no alt, try to resolve via Evolution API
+          if (remoteJidRaw.includes("@lid") && !remoteJidAlt) {
+            const resolved = await resolveRealJid(remoteJidRaw, instanceName);
+            if (resolved) {
+              remoteJidAlt = resolved;
+              console.log(`[webhook-evolution] Resolved ${remoteJidRaw} -> ${resolved}`);
+            }
+          }
+
           const remoteJid = remoteJidRaw.includes("@lid") && remoteJidAlt ? remoteJidAlt : remoteJidRaw;
 
           // Ignore group messages
