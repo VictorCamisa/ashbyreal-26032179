@@ -16,7 +16,6 @@ interface ParsedTransaction {
   installment_number: number;
   total_installments: number;
   category_suggestion?: string;
-  // Campos de idempotência
   dedupe_key?: string;
   purchase_fingerprint?: string;
   status?: 'NEW' | 'DUPLICATE' | 'FUTURE_INSTALLMENT';
@@ -102,6 +101,7 @@ function parseDateAny(value: unknown, referenceYear?: number): string {
     return `${yyyy}-${dmy2[2]}-${dmy2[1]}`;
   }
 
+  // DD/Mon format (Itaú Empresas): "27/Nov", "01/Dec"
   const ddMon = v.match(/^(\d{1,2})[\/\-]([A-Za-z]{3,})$/i);
   if (ddMon) {
     const day = ddMon[1].padStart(2, '0');
@@ -123,12 +123,17 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+// Extract installments from description
+// Patterns: "02/05", "PARC 3/12", "Parcela 2 de 10", "3x12"
 function extractInstallments(description: string): { num: number; total: number } {
   const normalized = String(description ?? "").replace(/\s+/g, " ").trim();
 
   const patterns = [
+    // "PARCELA 3/12", "PARC 3 DE 12", "Parcela 2 de 10"
     /(?:PARCELA|PARC\.?|P)\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i,
+    // "01/12" or "1/12" at end of string (after space)
     /\s(\d{1,2})\/(\d{1,2})$/,
+    // "3x12" or "3/12" at end
     /(\d{1,2})\s*[xX\/]\s*(\d{1,2})(?=\s*$)/,
   ];
 
@@ -194,22 +199,20 @@ function isSummaryLine(description: string): boolean {
   const skipPatterns = [
     'total da fatura', 'saldo da fatura', 'total de lançamentos',
     'total de produtos', 'limite total', 'limite disponível',
-    'resumo da fatura', 'fatura anterior'
+    'resumo da fatura', 'fatura anterior', 'total de'
   ];
   return skipPatterns.some(p => lower.includes(p));
 }
 
-// Normalizar merchant para fingerprint
 function normalizeMerchant(description: string): string {
   return String(description ?? "")
     .toUpperCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-    .replace(/[^A-Z0-9]/g, "") // Apenas alfanumérico
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]/g, "")
     .slice(0, 50);
 }
 
-// Gerar dedupe_key para uma transação
 function generateDedupeKey(
   cardId: string,
   competencia: string,
@@ -221,11 +224,9 @@ function generateDedupeKey(
 ): string {
   const normalized = normalizeMerchant(description);
   const amountStr = Math.round(amount * 100).toString();
-  const key = `${cardId}_${competencia}_${date}_${amountStr}_${normalized}_${installmentNum}_${installmentTotal}`;
-  return key;
+  return `${cardId}_${competencia}_${date}_${amountStr}_${normalized}_${installmentNum}_${installmentTotal}`;
 }
 
-// Gerar purchase_fingerprint para uma compra (todas as parcelas compartilham isso)
 function generatePurchaseFingerprint(
   cardId: string,
   purchaseDate: string,
@@ -238,13 +239,11 @@ function generatePurchaseFingerprint(
   return `${cardId}_${purchaseDate}_${amountStr}_${normalized}_${installmentTotal}`;
 }
 
-// Calcular hash SHA-256 do conteúdo para idempotência de arquivo
 async function calculateFileHash(content: string | Uint8Array): Promise<string> {
   let data: ArrayBuffer;
   if (typeof content === 'string') {
     data = new TextEncoder().encode(content).buffer as ArrayBuffer;
   } else {
-    // Copiar para um novo ArrayBuffer para evitar problemas de tipo
     const copy = new Uint8Array(content);
     data = copy.buffer as ArrayBuffer;
   }
@@ -253,79 +252,48 @@ async function calculateFileHash(content: string | Uint8Array): Promise<string> 
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
 }
 
-// ============= XLSX PARSER (ITAU EMPRESAS) =============
+// ============= PARSER: ITAUCARD CSV (LATAM, AZUL) =============
+// Format: data,lançamento,valor
+// Example: 2025-12-17,SUPERMERCADO-CT INDA,7.29
 
-function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTransaction[] {
+function parseItaucardCSV(content: string): ParsedTransaction[] {
+  const lines = content.split("\n").filter((l) => l.trim());
+  if (!lines.length) return [];
+
+  console.log("Parsing Itaucard CSV format (LATAM/Azul)");
   const txs: ParsedTransaction[] = [];
 
-  let referenceYear = new Date().getFullYear();
-  if (fileName) {
-    const yearMatch = fileName.match(/(\d{2})(?:-\d+)?\.xlsx?$/i);
-    if (yearMatch) {
-      const yy = parseInt(yearMatch[1], 10);
-      referenceYear = yy > 50 ? 1900 + yy : 2000 + yy;
-    }
-  }
+  // Detect delimiter
+  const sample = lines[0];
+  const delimiter = sample.includes(';') ? ';' : ',';
+  
+  // Skip header
+  const startLine = lines[0].toLowerCase().includes('data') ? 1 : 0;
 
-  console.log("Reference year for Itaú:", referenceYear);
-
-  let headerRowIndex = -1;
-  let dataCol = -1;
-  let descCol = -1;
-  let valueCol = -1;
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row) continue;
-    const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
+  for (let i = startLine; i < lines.length; i++) {
+    const line = lines[i];
+    const parts = line.split(delimiter).map(p => p.trim().replace(/^["'\uFEFF]|["']$/g, ""));
     
-    const dataIdx = normalized.findIndex((c) => c === "data");
-    const descIdx = normalized.findIndex((c) => c.includes("descr") || c.includes("histórico") || c === "lançamento");
-    const valorIdx = normalized.findIndex((c) => c === "valor" || c.includes("valor"));
+    if (parts.length < 3) continue;
 
-    if (dataIdx >= 0 && (descIdx >= 0 || valorIdx >= 0)) {
-      headerRowIndex = i;
-      dataCol = dataIdx;
-      descCol = descIdx >= 0 ? descIdx : dataIdx + 1;
-      valueCol = valorIdx >= 0 ? valorIdx : row.length - 1;
-      console.log(`Found header at row ${i}: data=${dataCol}, desc=${descCol}, value=${valueCol}`);
-      break;
-    }
-  }
-
-  const start = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
-
-  for (let i = start; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.length === 0) continue;
-
-    const rawDate = row[dataCol];
-    const rawDesc = descCol >= 0 ? row[descCol] : null;
-    const rawVal = row[valueCol];
-
-    const date = parseDateAny(rawDate, referenceYear);
+    const [rawDate, rawDesc, rawValue] = parts;
+    
+    // Parse date (ISO format: 2025-12-17)
+    const date = parseDateAny(rawDate);
     if (!date) continue;
 
-    let description = String(rawDesc ?? "").trim();
-    if (!description || !hasLetters(description)) {
-      const candidate = row.find((c) => typeof c === "string" && c.trim().length > 2 && hasLetters(c.trim()));
-      if (candidate) description = String(candidate).trim();
-    }
+    const description = rawDesc;
     if (!description || !hasLetters(description)) continue;
 
+    // Skip payment lines
     if (isPaymentLine(description)) continue;
-    if (isSummaryLine(description)) continue;
 
-    let amount = parsePtBrNumber(rawVal);
-    if (!isValidAmount(amount)) {
-      const nums = row
-        .map((c) => (typeof c === "number" ? c : parsePtBrNumber(c)))
-        .filter((n) => isValidAmount(n));
-      if (nums.length) amount = nums[nums.length - 1];
-    }
-
-    amount = normalizeAmountByDescription(description, amount);
+    // Parse amount
+    let amount = parsePtBrNumber(rawValue);
     if (!isValidAmount(amount)) continue;
+
+    // Normalize by description (estornos, etc)
+    amount = normalizeAmountByDescription(description, amount);
 
     const { num, total } = extractInstallments(description);
     const cleanedDescription = cleanDescription(description);
@@ -339,10 +307,106 @@ function parseItauEmpresasFromRows(rows: any[][], fileName?: string): ParsedTran
     });
   }
 
+  console.log(`Itaucard CSV: parsed ${txs.length} transactions`);
   return txs;
 }
 
-// ============= CSV PARSER (AZUL, LATAM, GENERIC) =============
+// ============= PARSER: ITAÚ EMPRESAS XLSX =============
+// Format: Tabela com data | descrição | valor
+// Date format: DD/Mon (27/Nov, 01/Dec)
+
+function parseItauEmpresasXLSX(rows: any[][], fileName?: string): ParsedTransaction[] {
+  const txs: ParsedTransaction[] = [];
+
+  // Extract year from filename: ITAUEMPRESAS_DEZEMBRO25NOVO.xlsx -> 2025
+  let referenceYear = new Date().getFullYear();
+  if (fileName) {
+    const yearMatch = fileName.match(/(\d{2})(?:NOVO)?(?:-\d+)?\.xlsx?$/i);
+    if (yearMatch) {
+      const yy = parseInt(yearMatch[1], 10);
+      referenceYear = yy > 50 ? 1900 + yy : 2000 + yy;
+    }
+  }
+
+  console.log("Parsing Itaú Empresas XLSX, reference year:", referenceYear);
+
+  // Find the "Lançamentos nacionais" section with data | descrição | valor
+  let inLancamentosSection = false;
+  let dataCol = -1;
+  let descCol = -1;
+  let valueCol = -1;
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    
+    const rowStr = row.map(c => String(c ?? "").toLowerCase()).join(" ");
+    
+    // Detect "Lançamentos nacionais" section header
+    if (rowStr.includes("lançamentos nacionais") || rowStr.includes("lancamentos nacionais")) {
+      inLancamentosSection = true;
+      continue;
+    }
+    
+    // Detect column headers in this section
+    if (inLancamentosSection && dataCol < 0) {
+      const normalized = row.map((c) => String(c ?? "").toLowerCase().trim());
+      const dataIdx = normalized.findIndex((c) => c === "data");
+      const descIdx = normalized.findIndex((c) => c.includes("descr") || c.includes("descrição"));
+      const valorIdx = normalized.findIndex((c) => c === "valor");
+
+      if (dataIdx >= 0 && valorIdx >= 0) {
+        dataCol = dataIdx;
+        descCol = descIdx >= 0 ? descIdx : dataIdx + 1;
+        valueCol = valorIdx;
+        console.log(`Found headers at row ${i}: data=${dataCol}, desc=${descCol}, value=${valueCol}`);
+        continue;
+      }
+    }
+    
+    // Stop at "Total de lançamentos"
+    if (rowStr.includes("total de lançamentos") || rowStr.includes("total de produtos")) {
+      break;
+    }
+    
+    // Parse data rows
+    if (inLancamentosSection && dataCol >= 0) {
+      const rawDate = row[dataCol];
+      const rawDesc = row[descCol];
+      const rawVal = row[valueCol];
+
+      const date = parseDateAny(rawDate, referenceYear);
+      if (!date) continue;
+
+      let description = String(rawDesc ?? "").trim();
+      if (!description || !hasLetters(description)) continue;
+
+      if (isPaymentLine(description)) continue;
+      if (isSummaryLine(description)) continue;
+
+      let amount = parsePtBrNumber(rawVal);
+      if (!isValidAmount(amount)) continue;
+
+      amount = normalizeAmountByDescription(description, amount);
+
+      const { num, total } = extractInstallments(description);
+      const cleanedDescription = cleanDescription(description);
+
+      txs.push({
+        date,
+        description: cleanedDescription,
+        amount,
+        installment_number: num,
+        total_installments: total,
+      });
+    }
+  }
+
+  console.log(`Itaú Empresas XLSX: parsed ${txs.length} transactions`);
+  return txs;
+}
+
+// ============= PARSER: GENERIC CSV (Fallback) =============
 
 function parseGenericCSV(content: string): ParsedTransaction[] {
   const lines = content.split("\n").filter((l) => l.trim());
@@ -354,7 +418,7 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   const tab = (sample.match(/\t/g) || []).length;
   const delimiter = semi >= comma && semi >= tab ? ";" : comma > tab ? "," : "\t";
 
-  console.log("CSV delimiter:", delimiter, "lines:", lines.length);
+  console.log("Parsing Generic CSV, delimiter:", delimiter, "lines:", lines.length);
 
   const txs: ParsedTransaction[] = [];
 
@@ -366,16 +430,12 @@ function parseGenericCSV(content: string): ParsedTransaction[] {
   const headerParts = headerLine.split(delimiter).map(p => 
     p.trim().toLowerCase().replace(/^["'\uFEFF]|["']$/g, "")
   );
-  
-  console.log("Header parts:", headerParts);
 
   headerParts.forEach((h, idx) => {
     if (h === "data" || h === "date") dateColIdx = idx;
     if (h === "lançamento" || h === "lancamento" || h.includes("descr") || h.includes("estabelecimento") || h === "merchant") descColIdx = idx;
     if (h === "valor" || h === "value" || h === "amount") amountColIdx = idx;
   });
-  
-  console.log("Detected columns:", { dateColIdx, descColIdx, amountColIdx });
 
   const hasHeader = dateColIdx >= 0 || descColIdx >= 0 || amountColIdx >= 0;
   const startLine = hasHeader ? 1 : 0;
@@ -469,14 +529,12 @@ serve(async (req) => {
       competenciaAlvo,
     } = await req.json();
 
-    console.log("=== IMPORT REQUEST (V2 - Idempotent) ===");
+    console.log("=== IMPORT REQUEST (V3 - Provider-Specific Parsers) ===");
     console.log("creditCardId:", creditCardId);
     console.log("cardProvider:", cardProvider);
     console.log("fileType:", fileType);
     console.log("fileName:", fileName);
     console.log("competenciaAlvo:", competenciaAlvo);
-    console.log("content length:", content?.length || 0);
-    console.log("fileBase64 length:", fileBase64?.length || 0);
 
     if (!creditCardId || !cardProvider) {
       return new Response(
@@ -496,7 +554,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Calcular hash do arquivo para idempotência
+    // Calculate file hash
     const fileContent = fileBase64 
       ? decodeBase64ToUint8Array(fileBase64) 
       : new TextEncoder().encode(content || '');
@@ -504,7 +562,7 @@ serve(async (req) => {
     
     console.log("File hash:", fileHash);
 
-    // Verificar se arquivo já foi importado
+    // Check for existing import
     const { data: existingImport } = await supabase
       .from('credit_card_imports')
       .select('id, created_at, records_imported')
@@ -513,7 +571,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingImport) {
-      console.log("Arquivo já importado anteriormente:", existingImport.id);
+      console.log("File already imported:", existingImport.id);
       return new Response(
         JSON.stringify({
           success: false,
@@ -533,12 +591,10 @@ serve(async (req) => {
 
     console.log(`Processing provider: ${provider}, fileType: ${type}`);
 
-    // PDF Processing - not supported
+    // Route to appropriate parser based on provider and file type
     if (type === "PDF") {
-      console.log("PDF files are not directly supported");
-      errorMessage = "PDFs não são suportados. Por favor, exporte a fatura no formato CSV ou XLSX do site do seu banco.";
+      errorMessage = "PDFs não são suportados diretamente. Por favor, exporte a fatura em CSV ou XLSX pelo site/app do banco.";
     }
-    // XLSX Processing
     else if ((type === "XLSX" || type === "XLS") && fileBase64) {
       console.log("Processing XLSX file...");
       const bytes = decodeBase64ToUint8Array(fileBase64);
@@ -551,20 +607,36 @@ serve(async (req) => {
       }) as any[][];
 
       console.log("XLSX rows:", rows.length);
-      transactions = parseItauEmpresasFromRows(rows, fileName);
+      
+      // Use Itaú Empresas parser for XLSX
+      transactions = parseItauEmpresasXLSX(rows, fileName);
     }
-    // CSV Processing
     else if (content) {
       console.log("Processing CSV file...");
-      transactions = parseGenericCSV(content);
+      
+      // Route based on provider
+      if (provider === 'LATAM' || provider === 'LATAM_BLACK' || provider === 'AZUL') {
+        // Both use Itaucard format: data,lançamento,valor
+        transactions = parseItaucardCSV(content);
+      } else {
+        // Generic CSV parser for other providers
+        transactions = parseGenericCSV(content);
+      }
     }
 
     console.log(`Parsed ${transactions.length} transactions`);
 
+    if (transactions.length > 0) {
+      console.log("Sample transactions:");
+      transactions.slice(0, 3).forEach((t, i) => {
+        console.log(`  ${i + 1}. ${t.date} | ${t.description} | ${t.amount} | ${t.installment_number}/${t.total_installments}`);
+      });
+    }
+
     // Competência base formatada
     const competenciaBase = `${competenciaAlvo.slice(0, 7)}-01`;
 
-    // Buscar transações existentes para verificar duplicatas
+    // Check for duplicates
     const { data: existingTransactions } = await supabase
       .from('credit_card_transactions')
       .select('dedupe_key')
@@ -574,7 +646,7 @@ serve(async (req) => {
     const existingDedupeKeys = new Set(existingTransactions?.map(t => t.dedupe_key) || []);
     console.log(`Found ${existingDedupeKeys.size} existing dedupe keys`);
 
-    // Processar transações e adicionar campos de idempotência
+    // Process transactions and add idempotency fields
     const summary: ImportSummary = {
       new_items: 0,
       duplicates: 0,
@@ -585,7 +657,6 @@ serve(async (req) => {
     const processedTransactions: ParsedTransaction[] = [];
 
     for (const tx of transactions) {
-      // Gerar dedupe_key
       const dedupeKey = generateDedupeKey(
         creditCardId,
         competenciaBase,
@@ -596,7 +667,6 @@ serve(async (req) => {
         tx.total_installments
       );
 
-      // Gerar purchase_fingerprint (para parcelas futuras)
       const originalAmount = tx.amount * tx.total_installments;
       const purchaseFingerprint = generatePurchaseFingerprint(
         creditCardId,
@@ -606,7 +676,6 @@ serve(async (req) => {
         tx.total_installments
       );
 
-      // Verificar se é duplicata
       const isDuplicate = existingDedupeKeys.has(dedupeKey);
 
       const processedTx: ParsedTransaction = {
@@ -622,7 +691,6 @@ serve(async (req) => {
         summary.new_items++;
         summary.total_value += tx.amount;
 
-        // Calcular parcelas futuras que serão criadas
         if (tx.total_installments > 1 && tx.installment_number < tx.total_installments) {
           summary.future_installments += (tx.total_installments - tx.installment_number);
         }
@@ -632,14 +700,8 @@ serve(async (req) => {
     }
 
     console.log("Import summary:", summary);
-    if (processedTransactions.length > 0) {
-      console.log("Sample processed transactions:");
-      processedTransactions.slice(0, 3).forEach((t, i) => {
-        console.log(`  ${i + 1}. ${t.date} | ${t.description} | ${t.amount} | ${t.installment_number}/${t.total_installments} | ${t.status}`);
-      });
-    }
 
-    // Salvar registro de import (preview - ainda não importado de fato)
+    // Save preview import record
     const { data: importRecord, error: importError } = await supabase
       .from("credit_card_imports")
       .insert({
@@ -648,7 +710,7 @@ serve(async (req) => {
         file_hash: fileHash,
         competencia: competenciaBase,
         status: processedTransactions.length > 0 ? "PREVIEW" : "FAILED",
-        records_imported: 0, // Será atualizado após confirmação
+        records_imported: 0,
         notes: errorMessage || null,
         raw_data: {
           summary,
@@ -664,7 +726,6 @@ serve(async (req) => {
       console.error("Error saving import record:", importError);
     }
 
-    // Retornar transações processadas para frontend revisar
     return new Response(
       JSON.stringify({
         success: processedTransactions.length > 0 && !errorMessage,
