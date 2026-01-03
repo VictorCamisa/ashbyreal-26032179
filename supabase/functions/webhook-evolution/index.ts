@@ -228,26 +228,55 @@ serve(async (req) => {
       }
 
       case "MESSAGES_UPDATE": {
-        const updates = payload.data || [];
-        
+        // Evolution can send:
+        // - payload.data = []
+        // - payload.data = { keyId, messageId, status, ... }
+        const raw = payload.data;
+        const updates: any[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
+
         for (const update of updates) {
-          const messageId = update.key?.id;
-          const status = update.update?.status;
+          const messageId =
+            update.key?.id ||
+            update.keyId ||
+            update.messageId ||
+            update.id ||
+            null;
 
-          if (messageId && status) {
-            const statusMap: Record<number, string> = {
-              1: "pending",
-              2: "sent",
-              3: "delivered",
-              4: "read",
-            };
+          const statusRaw = update.status || update.update?.status || null;
 
+          // Map both numeric and string statuses
+          const statusMapNum: Record<number, string> = {
+            1: "pending",
+            2: "sent",
+            3: "delivered",
+            4: "read",
+          };
+
+          const statusMapStr: Record<string, string> = {
+            PENDING: "pending",
+            SENT: "sent",
+            SERVER_ACK: "sent",
+            DELIVERY_ACK: "delivered",
+            DELIVERED: "delivered",
+            READ: "read",
+          };
+
+          const mappedStatus =
+            typeof statusRaw === "number"
+              ? statusMapNum[statusRaw]
+              : typeof statusRaw === "string"
+                ? statusMapStr[statusRaw.toUpperCase()] || "sent"
+                : null;
+
+          if (messageId && mappedStatus) {
             await supabase
               .from("whatsapp_messages")
-              .update({ status: statusMap[status] || "sent" })
+              .update({ status: mappedStatus })
               .eq("external_id", messageId);
 
-            console.log(`[webhook-evolution] Message status updated: ${messageId} -> ${status}`);
+            console.log(
+              `[webhook-evolution] Message status updated: ${messageId} -> ${mappedStatus}`
+            );
           }
         }
         break;

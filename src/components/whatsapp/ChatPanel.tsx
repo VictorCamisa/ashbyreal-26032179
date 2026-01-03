@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, Loader2, Image, FileText, Mic, MessageSquare, Paperclip, X, Play, Square } from 'lucide-react';
+import { Send, Loader2, Image, FileText, Mic, MessageSquare, Paperclip, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { WhatsAppMessage, Conversation } from '@/hooks/useWhatsAppMessages';
+import { MediaRenderer } from '@/components/whatsapp/MediaRenderer';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
@@ -126,7 +127,9 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/ogg; codecs=opus' });
+        // Use the recorded mimeType (browser-dependent)
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         stream.getTracks().forEach(track => track.stop());
         
         // Convert to base64
@@ -201,11 +204,11 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         return (
           <div className="space-y-1">
             {msg.media_url && (
-              <img 
-                src={msg.media_url} 
-                alt="Imagem" 
+              <MediaRenderer
+                kind="image"
+                url={msg.media_url}
+                alt="Imagem"
                 className="max-w-[250px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => window.open(msg.media_url!, '_blank')}
               />
             )}
             {msg.content && msg.content !== '[Imagem]' && (
@@ -217,15 +220,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         return (
           <div className="min-w-[200px]">
             {msg.media_url ? (
-              <audio 
-                controls 
-                className="w-full h-10"
-                preload="metadata"
-              >
-                <source src={msg.media_url} type="audio/ogg" />
-                <source src={msg.media_url} type="audio/mpeg" />
-                Seu navegador não suporta áudio.
-              </audio>
+              <MediaRenderer kind="audio" url={msg.media_url} className="w-full h-10" />
             ) : (
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
@@ -250,14 +245,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
         return (
           <div className="space-y-1">
             {msg.media_url ? (
-              <video 
-                controls 
-                className="max-w-[250px] rounded-lg"
-                preload="metadata"
-              >
-                <source src={msg.media_url} type="video/mp4" />
-                Seu navegador não suporta vídeo.
-              </video>
+              <MediaRenderer kind="video" url={msg.media_url} className="max-w-[250px] rounded-lg" />
             ) : (
               <div className="flex items-center gap-2">
                 <Image className="h-4 w-4" />

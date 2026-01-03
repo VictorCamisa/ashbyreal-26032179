@@ -52,8 +52,8 @@ serve(async (req) => {
     // Clean base64 - remove data URL prefix if present
     const cleanBase64 = (base64: string | undefined) => {
       if (!base64) return base64;
-      // Remove data:image/png;base64, or data:audio/ogg;base64, etc.
-      const match = base64.match(/^data:[^;]+;base64,(.+)$/);
+      // Remove data:*;base64, prefix (supports extra params like ;codecs=opus)
+      const match = base64.match(/^data:.*;base64,(.+)$/);
       return match ? match[1] : base64;
     };
 
