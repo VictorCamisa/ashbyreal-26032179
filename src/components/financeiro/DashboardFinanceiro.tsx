@@ -318,16 +318,25 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                 margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  fontSize={12} 
+                  tick={{ fill: 'hsl(var(--foreground))' }}
+                />
                 <YAxis hide />
                 <Tooltip 
                   formatter={(value: number) => [value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), '']}
                   contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
+                    backgroundColor: 'hsl(var(--popover))', 
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    color: 'hsl(var(--popover-foreground))'
                   }}
+                  labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
                 />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={80} />
               </BarChart>
