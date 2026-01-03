@@ -6,8 +6,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Normalizar JID para usar sempre o formato @s.whatsapp.net com número puro
+function normalizeRemoteJid(jid: string): { normalizedJid: string; originalJid: string; isGroup: boolean } {
+  const originalJid = jid;
+  const isGroup = jid.includes('@g.us');
+  
+  if (isGroup) {
+    return { normalizedJid: jid, originalJid, isGroup: true };
+  }
+  
+  // Extrair apenas números do JID
+  let phone = jid
+    .replace('@s.whatsapp.net', '')
+    .replace('@c.us', '')
+    .replace('@lid', '')
+    .replace(/\D/g, '');
+  
+  // Se não conseguir extrair número, retorna original
+  if (!phone || phone.length < 8) {
+    return { normalizedJid: jid, originalJid, isGroup: false };
+  }
+  
+  // Normalizar para formato @s.whatsapp.net
+  const normalizedJid = `${phone}@s.whatsapp.net`;
+  
+  return { normalizedJid, originalJid, isGroup: false };
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -24,35 +50,22 @@ serve(async (req) => {
     const body = await req.json();
 
     console.log('=== Evolution Webhook Received ===');
-    console.log('Full payload:', JSON.stringify(body, null, 2));
+    console.log('Event:', body.event, 'Instance:', body.instance);
 
     const event = body.event;
     const instance = body.instance;
     const data = body.data;
 
     if (!instance) {
-      console.log('Missing instance, ignoring event');
       return new Response(JSON.stringify({ success: true, ignored: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Event type:', event);
-    console.log('Instance:', instance);
-
     // Processar eventos de mensagem
     if (event === 'messages.upsert') {
-      console.log('Processing message upsert event');
-      console.log('Data structure:', JSON.stringify(data, null, 2));
-      
-      // A Evolution API pode enviar de várias formas:
-      // 1. data.key.remoteJid / data.key.id
-      // 2. data.message.key.remoteJid / data.message.key.id
-      // 3. data[0].key.remoteJid (array)
-      
       let messageData: any = null;
       
-      // Se data for array, pegar o primeiro
       if (Array.isArray(data)) {
         messageData = data[0];
       } else if (data.message) {
@@ -61,24 +74,25 @@ serve(async (req) => {
         messageData = data;
       }
 
-      // Tentar extrair key de várias formas
       const key = messageData?.key || {};
-      const remoteJid = key.remoteJid || messageData?.remoteJid || data?.remoteJid;
+      const rawRemoteJid = key.remoteJid || messageData?.remoteJid || data?.remoteJid;
       const messageId = key.id || messageData?.id || data?.id;
       const fromMe = key.fromMe ?? messageData?.fromMe ?? false;
 
-      console.log('Extracted - remoteJid:', remoteJid, 'messageId:', messageId, 'fromMe:', fromMe);
+      console.log('Raw remoteJid:', rawRemoteJid, 'messageId:', messageId, 'fromMe:', fromMe);
 
-      if (!remoteJid || !messageId) {
-        console.log('Could not extract remoteJid or messageId from payload');
-        console.log('Tried key:', key);
-        console.log('Tried messageData:', messageData);
+      if (!rawRemoteJid || !messageId) {
         return new Response(JSON.stringify({ success: true, ignored: true, reason: 'no_jid_or_id' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
-      // Extrair corpo da mensagem - tentar várias estruturas
+      // Normalizar o JID para sempre usar o mesmo formato
+      const { normalizedJid, originalJid, isGroup } = normalizeRemoteJid(rawRemoteJid);
+      
+      console.log('Normalized JID:', normalizedJid, 'from original:', originalJid);
+
+      // Extrair corpo da mensagem
       const messageContent = messageData?.message || data?.message?.message || {};
       const messageBody = messageContent.conversation || 
                    messageContent.extendedTextMessage?.text ||
@@ -88,8 +102,6 @@ serve(async (req) => {
                    messageData?.body ||
                    data?.body ||
                    null;
-
-      console.log('Message body:', messageBody);
 
       // Determinar tipo de mensagem
       const messageType = messageContent.imageMessage ? 'image' :
@@ -109,7 +121,7 @@ serve(async (req) => {
                        messageData?.mediaUrl ||
                        null;
 
-      // Timestamp da mensagem - tentar várias fontes
+      // Timestamp
       const rawTimestamp = messageData?.messageTimestamp || 
                            data?.messageTimestamp || 
                            messageData?.timestamp ||
@@ -117,44 +129,45 @@ serve(async (req) => {
       
       let timestamp: string;
       if (rawTimestamp) {
-        // Pode ser segundos ou milissegundos
         const ts = Number(rawTimestamp);
-        if (ts > 1e12) {
-          timestamp = new Date(ts).toISOString();
-        } else {
-          timestamp = new Date(ts * 1000).toISOString();
-        }
+        timestamp = ts > 1e12 ? new Date(ts).toISOString() : new Date(ts * 1000).toISOString();
       } else {
         timestamp = new Date().toISOString();
       }
 
-      console.log('Timestamp:', timestamp, 'Type:', messageType);
-
-      // Buscar ou criar o chat
+      // Buscar chat existente pelo JID normalizado
       let chatId: string | null = null;
       
       const { data: existingChat } = await supabase
         .from('evolution_chats')
-        .select('id')
+        .select('id, push_name')
         .eq('instance_name', instance)
-        .eq('remote_jid', remoteJid)
+        .eq('remote_jid', normalizedJid)
         .single();
 
       if (existingChat) {
         chatId = existingChat.id;
         console.log('Found existing chat:', chatId);
+        
+        // Atualizar push_name se veio da mensagem e não tínhamos antes
+        const incomingPushName = messageData?.pushName || data?.pushName;
+        if (incomingPushName && !existingChat.push_name) {
+          await supabase
+            .from('evolution_chats')
+            .update({ push_name: incomingPushName })
+            .eq('id', chatId);
+        }
       } else {
-        // Criar chat se não existir
-        const isGroup = remoteJid.includes('@g.us');
+        // Criar chat com JID normalizado
         const pushName = messageData?.pushName || data?.pushName || null;
 
-        console.log('Creating new chat for:', remoteJid, 'pushName:', pushName);
+        console.log('Creating new chat for:', normalizedJid, 'pushName:', pushName);
 
         const { data: newChat, error: chatError } = await supabase
           .from('evolution_chats')
           .insert({
             instance_name: instance,
-            remote_jid: remoteJid,
+            remote_jid: normalizedJid,
             push_name: pushName,
             is_group: isGroup,
             last_message: messageBody,
@@ -172,11 +185,11 @@ serve(async (req) => {
         }
       }
 
-      // Salvar mensagem
+      // Salvar mensagem com JID normalizado
       const msgRecord = {
         chat_id: chatId,
         instance_name: instance,
-        remote_jid: remoteJid,
+        remote_jid: normalizedJid,
         message_id: messageId,
         from_me: fromMe,
         body: messageBody,
@@ -186,8 +199,6 @@ serve(async (req) => {
         status: messageData?.status || null,
       };
 
-      console.log('Saving message record:', msgRecord);
-
       const { error: msgError } = await supabase
         .from('evolution_messages')
         .upsert(msgRecord, { onConflict: 'instance_name,message_id' });
@@ -195,7 +206,7 @@ serve(async (req) => {
       if (msgError) {
         console.error('Error saving message:', msgError);
       } else {
-        console.log('Message saved successfully!');
+        console.log('Message saved successfully');
       }
 
       // Atualizar chat com última mensagem
@@ -206,7 +217,6 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         };
 
-        // Incrementar contador de não lidas se não for mensagem nossa
         if (!fromMe) {
           const { data: currentChat } = await supabase
             .from('evolution_chats')
@@ -221,17 +231,13 @@ serve(async (req) => {
           .from('evolution_chats')
           .update(updateData)
           .eq('id', chatId);
-
-        console.log('Chat updated with last message');
       }
-
-      // NÃO vincular chats - cada JID é uma conversa independente
 
       return new Response(JSON.stringify({ 
         success: true, 
         message_id: messageId,
         chat_id: chatId,
-        body: messageBody
+        normalized_jid: normalizedJid,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -239,9 +245,6 @@ serve(async (req) => {
 
     // Processar eventos de status de mensagem
     if (event === 'messages.update') {
-      console.log('Processing message update event');
-      console.log('Update data:', JSON.stringify(data, null, 2));
-      
       const updates = Array.isArray(data) ? data : [data];
       
       for (const update of updates) {
@@ -250,8 +253,6 @@ serve(async (req) => {
         const status = update.update?.status || update.status;
 
         if (messageId && status) {
-          console.log(`Updating message ${messageId} status to ${status}`);
-          
           await supabase
             .from('evolution_messages')
             .update({ status: String(status) })
@@ -267,12 +268,8 @@ serve(async (req) => {
 
     // Processar eventos de conexão
     if (event === 'connection.update') {
-      console.log('Processing connection update event');
-      
       const state = data.state || data.status;
       const isConnected = state === 'open';
-
-      console.log(`Connection state: ${state}, connected: ${isConnected}`);
 
       await supabase
         .from('whatsapp_instances')
@@ -286,16 +283,16 @@ serve(async (req) => {
 
     // Processar eventos de presença/leitura
     if (event === 'messages.read' || event === 'chats.update') {
-      console.log('Processing read/chat update event');
+      const rawJid = data.remoteJid || data.id;
       
-      const remoteJid = data.remoteJid || data.id;
-      
-      if (remoteJid) {
+      if (rawJid) {
+        const { normalizedJid } = normalizeRemoteJid(rawJid);
+        
         await supabase
           .from('evolution_chats')
           .update({ unread_count: 0 })
           .eq('instance_name', instance)
-          .eq('remote_jid', remoteJid);
+          .eq('remote_jid', normalizedJid);
       }
 
       return new Response(JSON.stringify({ success: true }), {
@@ -303,8 +300,6 @@ serve(async (req) => {
       });
     }
 
-    // Evento não processado
-    console.log('Event not handled:', event);
     return new Response(JSON.stringify({ success: true, unhandled: event }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -320,5 +315,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Função removida - cada chat é mantido separadamente pelo seu JID original

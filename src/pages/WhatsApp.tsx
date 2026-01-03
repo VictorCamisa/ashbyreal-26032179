@@ -273,6 +273,96 @@ export default function WhatsApp() {
     toast.success('Sincronizando contatos...');
   };
 
+  // Limpar chats duplicados (mesclando @lid com @s.whatsapp.net)
+  const handleMergeDuplicateChats = async () => {
+    if (!instanceName) return;
+
+    try {
+      toast.info('Limpando chats duplicados...');
+      
+      // Buscar todos os chats
+      const { data: allChats, error } = await supabase
+        .from('evolution_chats')
+        .select('*')
+        .eq('instance_name', instanceName);
+
+      if (error) throw error;
+      if (!allChats) return;
+
+      // Agrupar por número normalizado
+      const chatsByPhone = new Map<string, typeof allChats>();
+      
+      for (const chat of allChats) {
+        const phone = chat.remote_jid
+          .replace('@s.whatsapp.net', '')
+          .replace('@c.us', '')
+          .replace('@lid', '')
+          .replace(/\D/g, '');
+        
+        if (chat.is_group || phone.length < 8) continue;
+        
+        const existing = chatsByPhone.get(phone) || [];
+        existing.push(chat);
+        chatsByPhone.set(phone, existing);
+      }
+
+      let deletedCount = 0;
+
+      // Para cada grupo de duplicatas, manter apenas o melhor
+      for (const [phone, duplicates] of chatsByPhone) {
+        if (duplicates.length <= 1) continue;
+
+        // Ordenar: preferir @s.whatsapp.net, com push_name, mais recente
+        duplicates.sort((a, b) => {
+          // Preferir @s.whatsapp.net
+          const aIsNormal = a.remote_jid.includes('@s.whatsapp.net') ? 1 : 0;
+          const bIsNormal = b.remote_jid.includes('@s.whatsapp.net') ? 1 : 0;
+          if (aIsNormal !== bIsNormal) return bIsNormal - aIsNormal;
+          
+          // Preferir com push_name
+          const aHasName = a.push_name?.trim() ? 1 : 0;
+          const bHasName = b.push_name?.trim() ? 1 : 0;
+          if (aHasName !== bHasName) return bHasName - aHasName;
+          
+          // Preferir mais recente
+          return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+        });
+
+        // Manter o primeiro, deletar os outros
+        const [keep, ...toDelete] = duplicates;
+        
+        for (const chatToDelete of toDelete) {
+          // Mover mensagens para o chat principal
+          await supabase
+            .from('evolution_messages')
+            .update({ 
+              remote_jid: keep.remote_jid,
+              chat_id: keep.id 
+            })
+            .eq('chat_id', chatToDelete.id);
+          
+          // Deletar o chat duplicado
+          await supabase
+            .from('evolution_chats')
+            .delete()
+            .eq('id', chatToDelete.id);
+          
+          deletedCount++;
+        }
+      }
+
+      if (deletedCount > 0) {
+        toast.success(`${deletedCount} chat(s) duplicado(s) removido(s)`);
+        syncChats();
+      } else {
+        toast.info('Nenhum chat duplicado encontrado');
+      }
+    } catch (err) {
+      console.error('Erro ao mesclar chats:', err);
+      toast.error('Erro ao limpar duplicados');
+    }
+  };
+
   // Iniciar conversa com lead
   const handleStartConversation = async (lead: Lead) => {
     if (!instanceName) {
@@ -351,22 +441,68 @@ export default function WhatsApp() {
     return leadsByPhone.get(normalized) || null;
   }, [conversaSelecionada, leadsByPhone]);
 
-  const filteredChats = chats.filter(chat => {
+  // Agrupar chats pelo número normalizado para evitar duplicatas
+  const normalizedChats = useMemo(() => {
+    const chatMap = new Map<string, EvolutionChat>();
+    
+    for (const chat of chats) {
+      // Extrair número normalizado
+      let phone = chat.remote_jid
+        .replace('@s.whatsapp.net', '')
+        .replace('@c.us', '')
+        .replace('@lid', '')
+        .replace(/\D/g, '');
+      
+      // Se for grupo, usar o JID original como chave
+      if (chat.is_group || chat.remote_jid.includes('@g.us')) {
+        phone = chat.remote_jid;
+      }
+      
+      // Se não conseguir extrair número válido, usar JID original
+      if (!phone || phone.length < 8) {
+        phone = chat.remote_jid;
+      }
+      
+      const existing = chatMap.get(phone);
+      
+      if (!existing) {
+        chatMap.set(phone, chat);
+      } else {
+        // Manter o chat com mais informações (push_name ou mais mensagens)
+        const existingHasPushName = !!existing.push_name?.trim();
+        const currentHasPushName = !!chat.push_name?.trim();
+        
+        // Preferir chat com @s.whatsapp.net e com push_name
+        if (
+          (!existingHasPushName && currentHasPushName) ||
+          (existing.remote_jid.includes('@lid') && !chat.remote_jid.includes('@lid'))
+        ) {
+          chatMap.set(phone, chat);
+        }
+      }
+    }
+    
+    return Array.from(chatMap.values());
+  }, [chats]);
+
+  const filteredChats = normalizedChats.filter(chat => {
     const matchesSearch = (chat.push_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       chat.remote_jid.includes(searchTerm);
     return matchesSearch;
   });
 
   const isGroupJid = (jid: string) => jid.includes('@g.us');
-  const isLinkedId = (jid: string) => jid.includes('@lid');
 
   const formatPhoneNumber = (jid: string) => {
     if (isGroupJid(jid)) return '';
     
-    let number = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
-    if (/[a-zA-Z]/.test(number)) return '';
+    // Remover todos os sufixos de JID
+    let number = jid
+      .replace('@s.whatsapp.net', '')
+      .replace('@c.us', '')
+      .replace('@lid', '')
+      .replace(/\D/g, '');
     
-    number = number.replace(/\D/g, '');
     if (!number || number.length < 10) return '';
     
     if (number.startsWith('55') && number.length >= 12) {
@@ -384,6 +520,18 @@ export default function WhatsApp() {
     const formatted = formatPhoneNumber(chat.remote_jid);
     if (formatted) return formatted;
     if (chat.is_group) return 'Grupo';
+    
+    // Fallback: mostrar número sem formatação
+    const rawNumber = chat.remote_jid
+      .replace('@s.whatsapp.net', '')
+      .replace('@c.us', '')
+      .replace('@lid', '')
+      .replace(/\D/g, '');
+    
+    if (rawNumber && rawNumber.length >= 10) {
+      return `+${rawNumber}`;
+    }
+    
     return 'Contato';
   };
 
@@ -501,6 +649,10 @@ export default function WhatsApp() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleMergeDuplicateChats}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Limpar Duplicados
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                       <LogOut className="h-4 w-4 mr-2" />
                       Desconectar
