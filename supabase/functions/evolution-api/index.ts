@@ -151,6 +151,52 @@ Deno.serve(async (req) => {
       return contactMap;
     };
 
+    // Try to resolve a @lid chat to a phone-number JID using targeted findContacts queries.
+    // Some Evolution deployments can resolve a contact when queried by remoteJid/id even if findContacts (bulk) doesn't return the LID.
+    const resolveLidContact = async (lidJid: string): Promise<{ pnJid: string | null; pushName: string | null; profilePicUrl: string | null } | null> => {
+      if (!lidJid || !lidJid.includes("@lid")) return null;
+
+      const attempts: any[] = [
+        { where: { id: lidJid } },
+        { where: { remoteJid: lidJid } },
+        { where: { id: lidJid.split("@")[0] } },
+        { where: { remoteJid: lidJid.split("@")[0] } },
+      ];
+
+      for (const a of attempts) {
+        try {
+          const result = await evolutionFetch(`/chat/findContacts/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify(a),
+          });
+
+          const arr = Array.isArray(result) ? result : (Array.isArray(result?.contacts) ? result.contacts : []);
+          const c = arr?.[0];
+          if (!c) continue;
+
+          const pnJid =
+            c.pnJid ||
+            c.remoteJidAlt ||
+            c.pnJidAlt ||
+            (typeof c.remoteJid === "string" && c.remoteJid.includes("@s.whatsapp.net") ? c.remoteJid : null) ||
+            null;
+
+          const pushName = c.pushName || c.name || c.notify || c.verifiedName || null;
+          const profilePicUrl = c.profilePicUrl || null;
+
+          if (pnJid || pushName || profilePicUrl) {
+            console.log(`[Evolution API] Resolved LID contact for ${lidJid}: pnJid=${pnJid} name=${pushName}`);
+            return { pnJid: pnJid ? String(pnJid).replace("@c.us", "@s.whatsapp.net") : null, pushName, profilePicUrl };
+          }
+        } catch {
+          // ignore and try next
+        }
+      }
+
+      console.log(`[Evolution API] Could not resolve LID contact for ${lidJid}`);
+      return null;
+    };
+
     if (action === "create_instance") {
       const newName = `${params.client_slug || "whatsapp"}-${Date.now()}`;
       const result = await evolutionFetch("/instance/create", {
@@ -234,13 +280,43 @@ Deno.serve(async (req) => {
           (typeof chat.id === "string" && chat.id !== remoteJid ? chat.id : null) ||
           null;
 
-        const normalized = normalizeToCanonical(remoteJid, altJid);
+        let normalized = normalizeToCanonical(remoteJid, altJid);
         const canonicalJid = normalized.canonicalJid || remoteJid;
-        
+
+        let pnJid = normalized.pnJid;
+        let phoneNumber = normalized.phoneNumber;
+        let profilePicUrl = chat.profilePicUrl || chat.profilePictureUrl || null;
+
+        // If this is a LID chat, try to resolve it to a phone-number JID so we can map names.
+        if (remoteJid.includes("@lid") && !pnJid) {
+          const resolved = await resolveLidContact(remoteJid);
+          if (resolved?.pnJid) {
+            pnJid = resolved.pnJid;
+            phoneNumber = resolved.pnJid.split("@")[0];
+          }
+          if (resolved?.profilePicUrl && !profilePicUrl) profilePicUrl = resolved.profilePicUrl;
+
+          // If we resolved a pnJid, keep lid_jid and store pn_jid/phone_number for display + matching.
+          if (resolved?.pnJid) {
+            normalized = { ...normalized, pnJid: resolved.pnJid, phoneNumber, lidJid: remoteJid };
+          }
+        }
+
         // Try to get name from multiple sources
         let pushName = chat.pushName || chat.name || chat.notify || null;
         if (!pushName) {
-          pushName = contactMap.get(remoteJid) || contactMap.get(canonicalJid) || contactMap.get(remoteJid.split("@")[0]) || null;
+          pushName =
+            contactMap.get(remoteJid) ||
+            contactMap.get(canonicalJid) ||
+            (pnJid ? contactMap.get(pnJid) : null) ||
+            contactMap.get(remoteJid.split("@")[0]) ||
+            null;
+        }
+
+        // Last resort: sometimes lastMessage.pushName is the best we have.
+        const lmPush = chat.lastMessage?.pushName;
+        if (!pushName && lmPush && lmPush !== "Você") {
+          pushName = lmPush;
         }
 
         const lastMessage = extractLastMessage(chat);
@@ -253,11 +329,11 @@ Deno.serve(async (req) => {
           remote_jid: remoteJid,
           canonical_jid: canonicalJid,
           lid_jid: normalized.lidJid,
-          pn_jid: normalized.pnJid,
-          phone_number: normalized.phoneNumber,
+          pn_jid: pnJid,
+          phone_number: phoneNumber,
           push_name: pushName,
           is_group: normalized.isGroup,
-          profile_pic_url: chat.profilePicUrl || chat.profilePictureUrl || null,
+          profile_pic_url: profilePicUrl,
           last_message: lastMessage?.substring(0, 200) || null,
           last_message_at: lastMessageAt,
         }, { onConflict: "instance_name,canonical_jid" });
@@ -291,11 +367,26 @@ Deno.serve(async (req) => {
       }
 
       const seenIds = new Set<string>();
+      let loggedKeySample = false;
       for (const msg of allMessages) {
         const key = msg.key;
+        if (!loggedKeySample && key) {
+          console.log(`[Evolution API] Sample message key: ${JSON.stringify(key).substring(0, 400)}`);
+          loggedKeySample = true;
+        }
         if (!key?.id || seenIds.has(key.id)) continue;
         seenIds.add(key.id);
 
+        // If Evolution/Baileys provides an alternate JID, store it to enable name/phone matching.
+        const alt = (key.remoteJidAlt || key.participantAlt || msg.remoteJidAlt || msg.participantAlt) as string | undefined;
+        if (alt && typeof alt === "string" && alt.includes("@s.whatsapp.net")) {
+          try {
+            await supabase
+              .from("evolution_chats")
+              .update({ pn_jid: alt.replace("@c.us", "@s.whatsapp.net"), phone_number: alt.split("@")[0] })
+              .eq("id", chat.id);
+          } catch {}
+        }
         const message = msg.message || {};
         let body = message.conversation || message.extendedTextMessage?.text || "";
         let messageType = "text";
@@ -409,13 +500,39 @@ Deno.serve(async (req) => {
           (typeof chat.id === "string" && chat.id !== remoteJid ? chat.id : null) ||
           null;
 
-        const normalized = normalizeToCanonical(remoteJid, altJid);
+        let normalized = normalizeToCanonical(remoteJid, altJid);
         const canonicalJid = normalized.canonicalJid || remoteJid;
+
+        let pnJid = normalized.pnJid;
+        let phoneNumber = normalized.phoneNumber;
+        let profilePicUrl = chat.profilePicUrl || chat.profilePictureUrl || null;
+
+        if (remoteJid.includes("@lid") && !pnJid) {
+          const resolved = await resolveLidContact(remoteJid);
+          if (resolved?.pnJid) {
+            pnJid = resolved.pnJid;
+            phoneNumber = resolved.pnJid.split("@")[0];
+          }
+          if (resolved?.profilePicUrl && !profilePicUrl) profilePicUrl = resolved.profilePicUrl;
+          if (resolved?.pnJid) {
+            normalized = { ...normalized, pnJid: resolved.pnJid, phoneNumber, lidJid: remoteJid };
+          }
+        }
 
         // Get name from chat or contacts
         let pushName = chat.pushName || chat.name || chat.notify || null;
         if (!pushName) {
-          pushName = contactMap.get(remoteJid) || contactMap.get(canonicalJid) || contactMap.get(remoteJid.split("@")[0]) || null;
+          pushName =
+            contactMap.get(remoteJid) ||
+            contactMap.get(canonicalJid) ||
+            (pnJid ? contactMap.get(pnJid) : null) ||
+            contactMap.get(remoteJid.split("@")[0]) ||
+            null;
+        }
+
+        const lmPush = chat.lastMessage?.pushName;
+        if (!pushName && lmPush && lmPush !== "Você") {
+          pushName = lmPush;
         }
 
         const lastMessage = extractLastMessage(chat);
@@ -429,11 +546,11 @@ Deno.serve(async (req) => {
           remote_jid: remoteJid,
           canonical_jid: canonicalJid,
           lid_jid: normalized.lidJid,
-          pn_jid: normalized.pnJid,
-          phone_number: normalized.phoneNumber,
+          pn_jid: pnJid,
+          phone_number: phoneNumber,
           push_name: pushName,
           is_group: normalized.isGroup,
-          profile_pic_url: chat.profilePicUrl || chat.profilePictureUrl || null,
+          profile_pic_url: profilePicUrl,
           last_message: lastMessage?.substring(0, 200) || null,
           last_message_at: lastMessageAt,
         }, { onConflict: "instance_name,canonical_jid" });

@@ -65,7 +65,10 @@ export default function WhatsApp() {
         const { data } = await supabase.functions.invoke("evolution-api", { body: { action: "check_connection", instance_name: instanceName } });
         if (data?.connected) {
           setIsConnected(true);
+          // 1) traz conversas + últimas mensagens
           syncChats();
+          // 2) tenta enriquecer nomes via contatos (quando houver pn_jid/phone_number)
+          syncContacts();
         } else {
           setIsConnected(false);
         }
@@ -76,7 +79,7 @@ export default function WhatsApp() {
     check();
     const interval = setInterval(check, 30000);
     return () => clearInterval(interval);
-  }, [instanceName]);
+  }, [instanceName, syncChats, syncContacts]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (selectedChat) inputRef.current?.focus(); }, [selectedChat]);
@@ -275,8 +278,14 @@ function MessageStatus({ status }: { status: string | null }) {
 function getDisplayName(chat: EvolutionChat): string {
   if (chat.push_name) return chat.push_name;
   if (chat.phone_number) return formatPhone(chat.phone_number);
-  if (chat.is_group) return `Grupo ${chat.canonical_jid.split("@")[0].substring(0, 10)}...`;
-  return "Contato";
+
+  // Fallbacks melhores que "Contato" quando a Evolution retorna apenas @lid
+  const raw = chat.pn_jid || chat.lid_jid || chat.canonical_jid || chat.remote_jid;
+  const base = raw?.split("@")[0] || "Contato";
+  if (/^\d{8,15}$/.test(base)) return formatPhone(base);
+
+  if (chat.is_group) return `Grupo ${base.substring(0, 10)}...`;
+  return base;
 }
 
 function formatPhone(phone: string): string {
