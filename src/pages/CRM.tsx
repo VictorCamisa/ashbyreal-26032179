@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, TrendingUp, UserCheck, DollarSign, Target } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, TrendingUp, UserCheck, DollarSign, Target, Loader2 } from 'lucide-react';
 import { PipelineColumn } from '@/types/lead';
 import { useOportunidades } from '@/hooks/useOportunidades';
 import { NovaOportunidadeDialog } from '@/components/crm/NovaOportunidadeDialog';
@@ -11,6 +16,9 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { supabase } from '@/integrations/supabase/client';
+import { useEstoque } from '@/hooks/useEstoque';
+import { toast } from '@/hooks/use-toast';
 import type { Lead } from '@/types/lead';
 
 const pipelineColumns: PipelineColumn[] = [
@@ -78,10 +86,27 @@ function DroppableColumn({ column, children }: { column: PipelineColumn; childre
   );
 }
 
+interface CartItem {
+  produtoId: string;
+  nome: string;
+  quantidade: number;
+  preco: number;
+}
+
 export default function CRM() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
   const { oportunidades, isLoading, createOportunidade, isCreating, updateOportunidadeStatus } = useOportunidades();
+  const { produtos } = useEstoque();
+
+  // Pedido dialog state
+  const [pedidoDialogOpen, setPedidoDialogOpen] = useState(false);
+  const [selectedOportunidade, setSelectedOportunidade] = useState<(Lead & { clienteId?: string }) | null>(null);
+  const [isCreatingPedido, setIsCreatingPedido] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedProduto, setSelectedProduto] = useState('');
+  const [quantidade, setQuantidade] = useState(1);
+  const [observacoes, setObservacoes] = useState('');
 
   const filteredOportunidades = oportunidades.filter(op =>
     op.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,7 +125,118 @@ export default function CRM() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    await updateOportunidadeStatus(active.id as string, over.id as string);
+
+    const newStatus = over.id as string;
+    const oportunidade = oportunidades.find(op => op.id === active.id);
+
+    // If moving to "fechado", open the order dialog
+    if (newStatus === 'fechado' && oportunidade) {
+      setSelectedOportunidade(oportunidade);
+      setCart([]);
+      setObservacoes('');
+      setPedidoDialogOpen(true);
+      return;
+    }
+
+    await updateOportunidadeStatus(active.id as string, newStatus);
+  };
+
+  const addToCart = () => {
+    if (!selectedProduto) return;
+    const produto = produtos.find(p => p.id === selectedProduto);
+    if (!produto) return;
+
+    const existing = cart.find(item => item.produtoId === selectedProduto);
+    if (existing) {
+      setCart(cart.map(item => 
+        item.produtoId === selectedProduto 
+          ? { ...item, quantidade: item.quantidade + quantidade }
+          : item
+      ));
+    } else {
+      setCart([...cart, {
+        produtoId: produto.id,
+        nome: produto.nome,
+        quantidade,
+        preco: produto.preco,
+      }]);
+    }
+    setSelectedProduto('');
+    setQuantidade(1);
+  };
+
+  const removeFromCart = (produtoId: string) => {
+    setCart(cart.filter(item => item.produtoId !== produtoId));
+  };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
+
+  const handleCreatePedido = async () => {
+    if (!selectedOportunidade || cart.length === 0) {
+      toast({
+        title: 'Erro',
+        description: 'Adicione pelo menos um produto ao pedido',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCreatingPedido(true);
+    try {
+      const clienteId = selectedOportunidade.clienteId;
+
+      // Create the order
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('pedidos')
+        .insert([{
+          cliente_id: clienteId,
+          status: 'pendente',
+          valor_total: cartTotal,
+          data_pedido: new Date().toISOString(),
+          observacoes: observacoes || null,
+        }])
+        .select('id')
+        .single();
+
+      if (pedidoError) throw pedidoError;
+
+      // Create order items
+      const itens = cart.map(item => ({
+        pedido_id: pedido.id,
+        produto_id: item.produtoId,
+        quantidade: item.quantidade,
+        preco_unitario: item.preco,
+        subtotal: item.preco * item.quantidade,
+      }));
+
+      const { error: itensError } = await supabase
+        .from('pedido_itens')
+        .insert(itens);
+
+      if (itensError) throw itensError;
+
+      // Update oportunidade status to fechado
+      await updateOportunidadeStatus(selectedOportunidade.id, 'fechado');
+
+      toast({
+        title: 'Pedido criado!',
+        description: `Pedido criado com ${cart.length} produto(s) no valor de R$ ${cartTotal.toFixed(2)}`,
+      });
+
+      setPedidoDialogOpen(false);
+      setSelectedOportunidade(null);
+      setCart([]);
+
+    } catch (error) {
+      console.error('Erro ao criar pedido:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível criar o pedido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingPedido(false);
+    }
   };
 
   return (
@@ -180,6 +316,126 @@ export default function CRM() {
           </DndContext>
         )}
       </div>
+
+      {/* Pedido Dialog */}
+      <Dialog open={pedidoDialogOpen} onOpenChange={setPedidoDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Pedido - {selectedOportunidade?.nome}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Add products */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2">
+                <Label className="text-xs">Produto</Label>
+                <Select value={selectedProduto} onValueChange={setSelectedProduto}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um produto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {produtos.filter(p => p.ativo && p.estoque > 0).map(produto => (
+                      <SelectItem key={produto.id} value={produto.id}>
+                        {produto.nome} - R$ {produto.preco.toFixed(2)} ({produto.estoque} em estoque)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Qtd</Label>
+                <div className="flex gap-1">
+                  <Input 
+                    type="number" 
+                    min="1" 
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(parseInt(e.target.value) || 1)}
+                    className="w-16"
+                  />
+                  <Button onClick={addToCart} disabled={!selectedProduto}>
+                    +
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cart */}
+            {cart.length > 0 && (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="p-2 text-left">Produto</th>
+                      <th className="p-2 text-center">Qtd</th>
+                      <th className="p-2 text-right">Subtotal</th>
+                      <th className="p-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map(item => (
+                      <tr key={item.produtoId} className="border-t">
+                        <td className="p-2">{item.nome}</td>
+                        <td className="p-2 text-center">{item.quantidade}</td>
+                        <td className="p-2 text-right">R$ {(item.preco * item.quantidade).toFixed(2)}</td>
+                        <td className="p-2 text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => removeFromCart(item.produtoId)}
+                          >
+                            ×
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted">
+                    <tr>
+                      <td colSpan={2} className="p-2 font-medium">Total</td>
+                      <td className="p-2 text-right font-bold">R$ {cartTotal.toFixed(2)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {cart.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
+                Adicione produtos ao pedido
+              </div>
+            )}
+
+            {/* Observations */}
+            <div>
+              <Label className="text-xs">Observações</Label>
+              <Textarea 
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="Observações do pedido..."
+                rows={2}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setPedidoDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleCreatePedido} 
+                disabled={isCreatingPedido || cart.length === 0}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isCreatingPedido ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                Criar Pedido
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 }
