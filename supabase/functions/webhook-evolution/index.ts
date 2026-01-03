@@ -21,7 +21,10 @@ serve(async (req) => {
     const event = payload.event;
     const instanceName = payload.instance || payload.instanceName;
 
-    console.log(`[webhook-evolution] Event: ${event}, Instance: ${instanceName}`);
+    // Normalize event name to uppercase
+    const normalizedEvent = event?.toUpperCase().replace(/\./g, "_");
+    
+    console.log(`[webhook-evolution] Event: ${event} (normalized: ${normalizedEvent}), Instance: ${instanceName}`);
     console.log(`[webhook-evolution] Payload:`, JSON.stringify(payload).substring(0, 1000));
 
     // Get instance from database
@@ -38,7 +41,7 @@ serve(async (req) => {
       });
     }
 
-    switch (event) {
+    switch (normalizedEvent) {
       case "QRCODE_UPDATED": {
         const qrCode = payload.data?.qrcode?.base64 || payload.qrcode?.base64;
         
