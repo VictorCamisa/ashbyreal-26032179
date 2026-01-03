@@ -54,7 +54,7 @@ interface DetalhesPedidoDrawerProps {
 
 interface PedidoDetails {
   id: string;
-  numero_pedido: string;
+  numero_pedido: number;
   cliente_id: string;
   status: string;
   valor_total: number;
@@ -89,7 +89,7 @@ interface Cliente {
 interface TransactionInfo {
   id: string;
   status: string;
-  amount: string;
+  amount: number;
 }
 
 const statusIcons: Record<string, React.ElementType> = {
@@ -210,7 +210,7 @@ export function DetalhesPedidoDrawer({
 
   const handleCopyId = () => {
     if (pedido?.numero_pedido) {
-      navigator.clipboard.writeText(pedido.numero_pedido);
+      navigator.clipboard.writeText(String(pedido.numero_pedido));
       toast({ title: 'Copiado!', description: 'Número do pedido copiado.' });
     }
   };
@@ -243,7 +243,7 @@ export function DetalhesPedidoDrawer({
           <div className="flex items-center justify-between">
             <div>
               <SheetTitle className="text-xl">
-                Pedido #{pedido?.numero_pedido?.slice(-8) || pedidoId?.slice(0, 8)}
+                Pedido #{pedido?.numero_pedido ? String(pedido.numero_pedido).slice(-8) : pedidoId?.slice(0, 8)}
               </SheetTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {formatDate(pedido?.data_pedido || null)}
@@ -391,7 +391,7 @@ export function DetalhesPedidoDrawer({
                             >
                               {transaction.status}
                             </Badge>
-                            <span>R$ {parseFloat(transaction.amount).toFixed(2)}</span>
+                            <span>R$ {Number(transaction.amount).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -531,7 +531,7 @@ export function DetalhesPedidoDrawer({
               <AlertDialogHeader>
                 <AlertDialogTitle>Excluir Pedido</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Tem certeza que deseja excluir o pedido #{pedido?.numero_pedido?.slice(-8)}? 
+                  Tem certeza que deseja excluir o pedido #{pedido?.numero_pedido ? String(pedido.numero_pedido).slice(-8) : ''}? 
                   Esta ação irá:
                   <ul className="list-disc list-inside mt-2 space-y-1">
                     <li>Restaurar o estoque dos produtos</li>

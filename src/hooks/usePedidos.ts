@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 type PedidoRow = {
   id: string;
   cliente_id: string;
-  numero_pedido: string;
+  numero_pedido: number;
   status: string;
   valor_total: number;
   data_pedido: string;

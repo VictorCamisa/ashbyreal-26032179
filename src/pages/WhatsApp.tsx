@@ -166,13 +166,10 @@ export default function WhatsApp() {
       return stored;
     }
 
-    const clientSlug = localStorage.getItem('whatsapp_client_slug') || DEFAULT_CLIENT_SLUG;
-    
     const { data, error } = await supabase
       .from('whatsapp_instances')
       .select('instance_name')
-      .eq('client_slug', clientSlug)
-      .eq('is_active', true)
+      .eq('is_connected', true)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();

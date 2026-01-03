@@ -14,7 +14,7 @@ import { NovoPedidoDialog } from '@/components/clientes/NovoPedidoDialog';
 
 interface Pedido {
   id: string;
-  numero_pedido: string;
+  numero_pedido: number;
   status: string;
   valor_total: number;
   data_pedido: string;

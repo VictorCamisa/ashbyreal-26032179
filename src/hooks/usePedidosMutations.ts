@@ -42,9 +42,8 @@ export function usePedidosMutations() {
       // Create the order
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
-        .insert({
+        .insert([{
           cliente_id: data.clienteId,
-          numero_pedido: generateNumeroPedido(),
           status: 'pendente',
           valor_total: valorTotal,
           data_pedido: new Date().toISOString(),
@@ -56,7 +55,7 @@ export function usePedidosMutations() {
             timestamp: new Date().toISOString(),
             user: 'Sistema'
           }])
-        })
+        }])
         .select()
         .single();
 

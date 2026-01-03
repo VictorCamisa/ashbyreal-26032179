@@ -107,7 +107,7 @@ export function PedidosAshby() {
                     <TableCell>
                       <Badge variant={
                         pedido.status === 'PAGO' ? 'default' : 
-                        pedido.status === 'PREVISTO' ? 'secondary' : 
+                        pedido.status === 'PENDENTE' ? 'secondary' : 
                         'destructive'
                       }>
                         {pedido.status}
