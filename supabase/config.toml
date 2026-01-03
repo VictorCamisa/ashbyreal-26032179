@@ -1,4 +1,4 @@
-project_id = "chmhbrcugswwmpqzhugs"
+project_id = "uozxegxvjxmfjlitmmvx"
 
 [functions.admin-users]
 verify_jwt = false
@@ -25,4 +25,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-message]
+verify_jwt = false
+
+[functions.resolve-lid-jids]
 verify_jwt = false
