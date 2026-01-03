@@ -178,6 +178,27 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
+  // Fetch credit card transactions for the month (future invoices)
+  const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
+    queryKey: ['transacoes-cartao', monthStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('credit_card_transactions')
+        .select(`
+          *,
+          credit_cards(name, entity_id, entities(name, type)),
+          categories(name, group),
+          subcategories(name)
+        `)
+        .gte('competencia', `${monthStr}-01`)
+        .lte('competencia', lastDayOfMonth)
+        .order('purchase_date', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    }
+  });
+
   // Auto-correct status: mark overdue transactions as ATRASADO
   const autoCorrectStatusMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -212,30 +233,73 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   }, [bankTransactions]);
 
-  const isLoading = isLoadingBank;
+  const isLoading = isLoadingBank || isLoadingCards;
 
   // Map bank transactions to unified format
   const transactions: UnifiedTransaction[] = useMemo(() => {
-    if (!bankTransactions) return [];
+    const unified: UnifiedTransaction[] = [];
 
-    return bankTransactions.map((t) => ({
-      id: t.id,
-      description: t.description,
-      amount: Math.abs(Number(t.amount)),
-      due_date: t.due_date,
-      payment_date: t.payment_date,
-      status: t.status,
-      tipo: t.tipo as 'PAGAR' | 'RECEBER',
-      origin: t.origin || 'MANUAL',
-      entity_id: t.entity_id,
-      categories: t.categories,
-      subcategories: t.subcategories,
-      accounts: t.accounts,
-      entities: t.entities,
-      tags: t.tags as string[] | null,
-      isCardTransaction: false,
-    })).sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
-  }, [bankTransactions]);
+    // Add bank transactions
+    if (bankTransactions) {
+      bankTransactions.forEach((t) => {
+        unified.push({
+          id: t.id,
+          description: t.description,
+          amount: Math.abs(Number(t.amount)),
+          due_date: t.due_date,
+          payment_date: t.payment_date,
+          status: t.status,
+          tipo: t.tipo as 'PAGAR' | 'RECEBER',
+          origin: t.origin || 'MANUAL',
+          entity_id: t.entity_id,
+          categories: t.categories,
+          subcategories: t.subcategories,
+          accounts: t.accounts,
+          entities: t.entities,
+          tags: t.tags as string[] | null,
+          isCardTransaction: false,
+        });
+      });
+    }
+
+    // Add credit card transactions (future invoices)
+    if (cardTransactions) {
+      cardTransactions.forEach((t) => {
+        const cardData = t.credit_cards as any;
+        const entityData = cardData?.entities;
+        
+        // Build description with installment info
+        let description = t.description;
+        if (t.installment_number && t.total_installments && t.total_installments > 1) {
+          description = `${t.description} (${t.installment_number}/${t.total_installments})`;
+        }
+
+        unified.push({
+          id: `card-${t.id}`,
+          description,
+          amount: Math.abs(Number(t.amount)),
+          due_date: t.competencia, // Use competencia as due date
+          payment_date: null,
+          status: t.item_status === 'POSTADO' ? 'PAGO' : 'PREVISTO',
+          tipo: 'PAGAR',
+          origin: 'CARTAO',
+          entity_id: cardData?.entity_id || '',
+          categories: t.categories,
+          subcategories: t.subcategories,
+          accounts: null,
+          entities: entityData ? { name: entityData.name, type: entityData.type } : null,
+          credit_cards: cardData ? { name: cardData.name } : null,
+          tags: null,
+          isCardTransaction: true,
+          installment_number: t.installment_number || undefined,
+          total_installments: t.total_installments || undefined,
+        });
+      });
+    }
+
+    // Sort by due_date descending
+    return unified.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
+  }, [bankTransactions, cardTransactions]);
 
   // Category color mapping based on group
   const getCategoryColor = (group: string | null) => {
