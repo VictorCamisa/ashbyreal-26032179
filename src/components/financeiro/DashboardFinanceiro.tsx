@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useTransacoes } from '@/hooks/useTransacoes';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { HealthGauge } from './HealthGauge';
@@ -49,9 +50,36 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   
   const monthStr = referenceMonth.toISOString().slice(0, 7);
+  const lastDayOfMonth = new Date(referenceMonth.getFullYear(), referenceMonth.getMonth() + 1, 0).toISOString().slice(0, 10);
   
-  const { transacoes: despesas, isLoading: isLoadingDespesas } = useTransacoes('LOJA', 'PAGAR');
-  const { transacoes: receitas, isLoading: isLoadingReceitas } = useTransacoes('LOJA', 'RECEBER');
+  // Fetch ALL transactions (not filtered by entity)
+  const { data: allTransactions, isLoading: isLoadingTransactions } = useQuery({
+    queryKey: ['all-transactions', monthStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*, categories(name, group)')
+        .gte('due_date', `${monthStr}-01`)
+        .lte('due_date', lastDayOfMonth);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch credit card transactions for the month
+  const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
+    queryKey: ['card-transactions-dashboard', monthStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('credit_card_transactions')
+        .select('*')
+        .gte('competencia', `${monthStr}-01`)
+        .lte('competencia', lastDayOfMonth);
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const { faturas } = useCartoes();
   const { evolutionData, alertStats, isLoading: isLoadingStats } = useFinanceiroStats(referenceMonth);
 
@@ -63,22 +91,25 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     setReferenceMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const filterByMonth = (items: any[]) => {
-    return items?.filter(t => t.due_date?.slice(0, 7) === monthStr) || [];
-  };
-
-  const filteredDespesas = filterByMonth(despesas);
-  const filteredReceitas = filterByMonth(receitas);
-
-  const totalDespesas = filteredDespesas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
-  const totalReceitas = filteredReceitas.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0);
+  // Calculate totals from bank transactions
+  const bankDespesas = allTransactions?.filter(t => t.tipo === 'PAGAR').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
+  const bankReceitas = allTransactions?.filter(t => t.tipo === 'RECEBER').reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
+  
+  // Add credit card transactions to expenses
+  const cardDespesas = cardTransactions?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
+  
+  const totalDespesas = bankDespesas + cardDespesas;
+  const totalReceitas = bankReceitas;
   const resultado = totalReceitas - totalDespesas;
   const isPositive = resultado >= 0;
 
   const faturasPendentes = faturas?.filter(f => f.status !== 'PAGA').slice(0, 3) || [];
   const totalFaturas = faturasPendentes.reduce((acc, f) => acc + f.total_value, 0);
 
-  const despesasPorCategoria = filteredDespesas.reduce((acc: any[], t) => {
+  // All expenses for category breakdown (bank + cards combined into bank with category)
+  const allDespesas = allTransactions?.filter(t => t.tipo === 'PAGAR') || [];
+  
+  const despesasPorCategoria = allDespesas.reduce((acc: any[], t) => {
     const catName = (t.categories as any)?.name || 'Outros';
     const existing = acc.find(c => c.name === catName);
     if (existing) {
@@ -89,7 +120,8 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     return acc;
   }, []).sort((a, b) => b.value - a.value);
 
-  const recentTransactions = [...filteredDespesas.slice(0, 5), ...filteredReceitas.slice(0, 5)]
+  // Recent transactions (most recent 6)
+  const recentTransactions = (allTransactions || [])
     .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
     .slice(0, 6);
 
@@ -97,7 +129,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
 
   const hasAlerts = alertStats.overdueCount > 0 || alertStats.pendingCount > 0 || alertStats.invoicesCount > 0;
 
-  if (isLoadingDespesas || isLoadingReceitas) {
+  if (isLoadingTransactions || isLoadingCards) {
     return (
       <div className="flex items-center justify-center p-12">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
