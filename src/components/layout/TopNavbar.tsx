@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
 const navItems = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Clientes', href: '/clientes', icon: Users },
   { label: 'CRM', href: '/crm', icon: Target },
   { label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
@@ -47,8 +47,8 @@ export function TopNavbar() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          {/* Logo */}
-          <NavLink to="/" className="flex items-center gap-3">
+          {/* Logo - goes to Dashboard when in system */}
+          <NavLink to="/dashboard" className="flex items-center gap-3">
             <img 
               src={logoTaubateChopp} 
               alt="Taubaté Chopp" 
@@ -63,7 +63,7 @@ export function TopNavbar() {
               <NavLink
                 key={item.href}
                 to={item.href}
-                end={item.href === '/'}
+                end={item.href === '/dashboard'}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
@@ -136,7 +136,7 @@ export function TopNavbar() {
                 <NavLink
                   key={item.href}
                   to={item.href}
-                  end={item.href === '/'}
+                  end={item.href === '/dashboard'}
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) =>
                     cn(
