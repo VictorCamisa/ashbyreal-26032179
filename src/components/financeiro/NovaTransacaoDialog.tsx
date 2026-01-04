@@ -4,11 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { useState, useEffect } from 'react';
 import { useCategorias, useSubcategorias } from '@/hooks/useCategorias';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useEntities } from '@/hooks/useEntities';
-import { Loader2, Building2, User } from 'lucide-react';
+import { Loader2, Building2, User, Repeat, CalendarDays } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NovaTransacaoDialogProps {
@@ -16,6 +17,7 @@ interface NovaTransacaoDialogProps {
   onOpenChange: (open: boolean) => void;
   tipo: 'PAGAR' | 'RECEBER';
   onSave: (transaction: any) => void;
+  onSaveMultiple?: (transactions: any[]) => void;
   isLoading?: boolean;
   defaultEntityId?: string;
 }
@@ -25,6 +27,7 @@ export function NovaTransacaoDialog({
   onOpenChange, 
   tipo,
   onSave,
+  onSaveMultiple,
   isLoading = false,
   defaultEntityId
 }: NovaTransacaoDialogProps) {
@@ -38,7 +41,11 @@ export function NovaTransacaoDialog({
     category_id: '',
     subcategory_id: '',
     notes: '',
-    status: 'PREVISTO' as const
+    status: 'PREVISTO' as const,
+    // Recurrence fields
+    is_recurring: false,
+    end_date: '',
+    day_of_month: new Date().getDate().toString()
   });
 
   const { data: entities } = useEntities();
@@ -72,7 +79,10 @@ export function NovaTransacaoDialog({
         category_id: '',
         subcategory_id: '',
         notes: '',
-        status: 'PREVISTO'
+        status: 'PREVISTO',
+        is_recurring: false,
+        end_date: '',
+        day_of_month: new Date().getDate().toString()
       });
     }
   }, [open]);
@@ -82,6 +92,45 @@ export function NovaTransacaoDialog({
     setFormData(prev => ({ ...prev, entity_id: entityId, account_id: '' }));
   };
 
+  // Generate future transactions based on recurrence settings
+  const generateRecurringTransactions = (baseTransaction: any) => {
+    const transactions: any[] = [];
+    const startDate = new Date(formData.due_date);
+    const endDate = formData.end_date ? new Date(formData.end_date) : null;
+    const dayOfMonth = parseInt(formData.day_of_month) || startDate.getDate();
+    
+    // If no end date, generate until December of current year
+    const finalDate = endDate || new Date(startDate.getFullYear(), 11, 31);
+    
+    let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), dayOfMonth);
+    
+    // If we're past this month's day, start from the given date
+    if (currentDate < startDate) {
+      currentDate = startDate;
+    }
+    
+    while (currentDate <= finalDate) {
+      const refMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-01`;
+      
+      transactions.push({
+        ...baseTransaction,
+        due_date: currentDate.toISOString().split('T')[0],
+        reference_month: refMonth,
+        origin: 'RECORRENTE' as const
+      });
+      
+      // Move to next month
+      currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, dayOfMonth);
+      
+      // Handle months with fewer days
+      if (currentDate.getDate() !== dayOfMonth) {
+        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0); // Last day of previous month
+      }
+    }
+    
+    return transactions;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -89,7 +138,7 @@ export function NovaTransacaoDialog({
     if (!amount || amount <= 0) return;
     if (!formData.entity_id) return;
 
-    const transaction = {
+    const baseTransaction = {
       entity_id: formData.entity_id,
       tipo,
       description: formData.description,
@@ -105,15 +154,37 @@ export function NovaTransacaoDialog({
       origin: 'MANUAL' as const
     };
 
-    onSave(transaction);
+    if (formData.is_recurring && onSaveMultiple) {
+      const transactions = generateRecurringTransactions(baseTransaction);
+      onSaveMultiple(transactions);
+    } else {
+      onSave(baseTransaction);
+    }
   };
 
   const isReceita = tipo === 'RECEBER';
   const selectedEntity = entities?.find(e => e.id === formData.entity_id);
 
+  // Calculate how many transactions will be generated
+  const getRecurringCount = () => {
+    if (!formData.is_recurring || !formData.due_date) return 0;
+    const startDate = new Date(formData.due_date);
+    const endDate = formData.end_date ? new Date(formData.end_date) : new Date(startDate.getFullYear(), 11, 31);
+    
+    let count = 0;
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      count++;
+      current = new Date(current.getFullYear(), current.getMonth() + 1, current.getDate());
+    }
+    return count;
+  };
+
+  const recurringCount = getRecurringCount();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className={cn(
@@ -262,6 +333,64 @@ export function NovaTransacaoDialog({
             </div>
           </div>
 
+          {/* Recorrência */}
+          <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-primary" />
+                <Label className="font-medium">É recorrente?</Label>
+              </div>
+              <Switch
+                checked={formData.is_recurring}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_recurring: checked })}
+              />
+            </div>
+
+            {formData.is_recurring && (
+              <div className="space-y-4 pt-2 animate-in fade-in-50">
+                <p className="text-sm text-muted-foreground">
+                  Ao marcar como recorrente, serão criadas transações automaticamente para os próximos meses.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <CalendarDays className="h-3 w-3" />
+                      Dia do Vencimento
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={formData.day_of_month}
+                      onChange={(e) => setFormData({ ...formData, day_of_month: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Data Final (opcional)</Label>
+                    <Input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                      min={formData.due_date}
+                    />
+                  </div>
+                </div>
+
+                {recurringCount > 0 && (
+                  <div className="bg-primary/10 rounded-md p-3 text-sm">
+                    <span className="font-medium text-primary">{recurringCount}</span>
+                    <span className="text-muted-foreground"> transações serão criadas</span>
+                    {!formData.end_date && (
+                      <span className="text-muted-foreground"> (até dezembro)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Observações */}
           <div className="space-y-2">
             <Label>Observações</Label>
@@ -280,13 +409,13 @@ export function NovaTransacaoDialog({
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading || !formData.amount || !formData.entity_id}
+              disabled={isLoading || !formData.amount || !formData.entity_id || (formData.is_recurring && !onSaveMultiple)}
               className={cn(
                 isReceita && "bg-emerald-600 hover:bg-emerald-700"
               )}
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar
+              {formData.is_recurring ? `Criar ${recurringCount} transações` : 'Salvar'}
             </Button>
           </div>
         </form>

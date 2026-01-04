@@ -56,6 +56,26 @@ export function useTransacoes(entityType: 'LOJA' | 'PARTICULAR', tipo: 'PAGAR' |
     }
   });
 
+  const createMultipleMutation = useMutation({
+    mutationFn: async (transactions: any[]) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(transactions)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
+      toast.success(`${data?.length || 0} transações criadas com sucesso!`);
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao criar transações: ' + error.message);
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: any) => {
       const { data, error } = await supabase
@@ -102,9 +122,11 @@ export function useTransacoes(entityType: 'LOJA' | 'PARTICULAR', tipo: 'PAGAR' |
     isLoading,
     entity,
     createTransaction: createMutation.mutate,
+    createMultipleTransactions: createMultipleMutation.mutate,
     updateTransaction: updateMutation.mutate,
     deleteTransaction: deleteMutation.mutate,
     isCreating: createMutation.isPending,
+    isCreatingMultiple: createMultipleMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending
   };
