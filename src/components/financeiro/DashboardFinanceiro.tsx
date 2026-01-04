@@ -405,10 +405,14 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                     <Tooltip 
                       formatter={(value: number) => [value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), '']}
                       contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
+                        backgroundColor: 'hsl(var(--popover))', 
                         border: '1px solid hsl(var(--border))',
-                        borderRadius: '12px'
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        color: 'hsl(var(--popover-foreground))'
                       }}
+                      labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                      itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
