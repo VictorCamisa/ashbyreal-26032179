@@ -515,6 +515,28 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
+  // Create multiple transactions mutation (for recurring)
+  const createMultipleMutation = useMutation({
+    mutationFn: async (transactions: any[]) => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(transactions)
+        .select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
+      toast.success(`${data?.length || 0} transações criadas com sucesso!`);
+      setShowNovaTransacao(false);
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao criar transações: ' + error.message);
+    }
+  });
+
   // Update transaction mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: any) => {
@@ -1155,7 +1177,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         onOpenChange={setShowNovaTransacao}
         tipo={tipoTransacao}
         onSave={(transaction) => createMutation.mutate(transaction)}
-        isLoading={createMutation.isPending}
+        onSaveMultiple={(transactions) => createMultipleMutation.mutate(transactions)}
+        isLoading={createMutation.isPending || createMultipleMutation.isPending}
         defaultEntityId={entityFilter !== 'todos' ? entities?.find(e => e.type === entityFilter)?.id : undefined}
       />
 
