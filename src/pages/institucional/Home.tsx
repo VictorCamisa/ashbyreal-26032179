@@ -276,7 +276,8 @@ export default function InstitucionalHome() {
             nome: formData.nome,
             telefone: formData.telefone,
             email: formData.email || `${formData.telefone}@site.taubatechopp.com.br`,
-            origem: 'Site Institucional',
+            origem: 'Site',
+            status: 'lead',
             observacoes: `Tipo de Evento: ${formData.tipoEvento || 'Não informado'}\nData: ${formData.dataEvento || 'Não informada'}\nMensagem: ${formData.mensagem || 'Sem mensagem'}`
           })
           .select('id')
@@ -294,8 +295,8 @@ export default function InstitucionalHome() {
           nome: formData.nome,
           telefone: formData.telefone,
           email: formData.email || null,
-          origem: 'Site Institucional',
-          status: 'novo',
+          origem: 'Site',
+          status: 'novo_lead',
           valor_estimado: totalLitros * 15, // Estimativa baseada em R$15/litro
           observacoes: `Tipo de Evento: ${formData.tipoEvento || 'Não informado'}\nData do Evento: ${formData.dataEvento || 'Não informada'}\nEstimativa: ${totalLitros}L (${barris30L} barris)\nMensagem: ${formData.mensagem || 'Sem mensagem adicional'}`
         });
