@@ -378,7 +378,7 @@ export function ControleCartoes() {
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium capitalize">
-                                    {competenciaDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })}
+                                    {competenciaDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')} {competenciaDate.toLocaleDateString('pt-BR', { year: '2-digit' })}
                                   </p>
                                   {dueDateFormatted && (
                                     <p className="text-xs text-muted-foreground">
