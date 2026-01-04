@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Plus, 
-  CreditCard, 
-  Receipt, 
-  ShoppingCart, 
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Plus,
+  CreditCard,
+  Receipt,
+  ShoppingCart,
   TrendingUp,
   Calendar,
   ChevronRight,
@@ -49,25 +47,6 @@ export function ControleCartoes() {
   const [showTodasFaturas, setShowTodasFaturas] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'analytics'>('analytics');
-
-  // Fetch all transactions for analytics
-  const { data: allTransactions } = useQuery({
-    queryKey: ['all-card-transactions'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          *,
-          categories(name, group),
-          subcategories(name)
-        `)
-        .order('purchase_date', { ascending: false })
-        .limit(1000);
-
-      if (error) throw error;
-      return data || [];
-    },
-  });
 
   if (isLoading) {
     return (
@@ -138,7 +117,7 @@ export function ControleCartoes() {
             <ShoppingCart className="h-4 w-4" />
             <span className="hidden sm:inline">Lançar Gasto</span>
           </Button>
-          <Button onClick={() => setShowImportarFatura(true)} variant="default" size="sm" className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600">
+          <Button onClick={() => setShowImportarFatura(true)} variant="success" size="sm" className="gap-2">
             <Upload className="h-4 w-4" />
             <span className="hidden sm:inline">Importar Fatura</span>
           </Button>
@@ -158,7 +137,7 @@ export function ControleCartoes() {
         <CartoesAnalytics 
           cartoes={cartoes} 
           faturas={faturas} 
-          transactions={allTransactions}
+          onSelectCard={(c) => c && setSelectedCard(c)}
         />
       )}
 
