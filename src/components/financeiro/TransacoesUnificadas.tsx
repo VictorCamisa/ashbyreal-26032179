@@ -626,28 +626,45 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   };
 
+  // Filter only bank transactions (not card transactions which have "card-" prefix)
+  const getBankTransactionIds = () => {
+    return Array.from(selectedIds).filter(id => !id.startsWith('card-'));
+  };
+
   const handleBatchMarkAsPaid = () => {
-    if (selectedIds.size > 0) {
-      batchMarkAsPaidMutation.mutate(Array.from(selectedIds));
+    const bankIds = getBankTransactionIds();
+    if (bankIds.length > 0) {
+      batchMarkAsPaidMutation.mutate(bankIds);
+    } else {
+      toast.error('Nenhuma transação bancária selecionada. Transações de cartão não podem ser marcadas como pagas aqui.');
     }
   };
 
   const handleBatchChangeEntity = (entityId: string) => {
-    if (selectedIds.size > 0) {
-      batchChangeEntityMutation.mutate({ ids: Array.from(selectedIds), entityId });
+    const bankIds = getBankTransactionIds();
+    if (bankIds.length > 0) {
+      batchChangeEntityMutation.mutate({ ids: bankIds, entityId });
+    } else {
+      toast.error('Nenhuma transação bancária selecionada.');
     }
   };
 
   const handleBatchChangeStatus = (status: string) => {
-    if (selectedIds.size > 0) {
-      batchChangeStatusMutation.mutate({ ids: Array.from(selectedIds), status });
+    const bankIds = getBankTransactionIds();
+    if (bankIds.length > 0) {
+      batchChangeStatusMutation.mutate({ ids: bankIds, status });
+    } else {
+      toast.error('Nenhuma transação bancária selecionada.');
     }
   };
 
   const handleBatchDelete = () => {
-    if (selectedIds.size > 0) {
-      batchDeleteMutation.mutate(Array.from(selectedIds));
+    const bankIds = getBankTransactionIds();
+    if (bankIds.length > 0) {
+      batchDeleteMutation.mutate(bankIds);
       setShowBatchDeleteConfirm(false);
+    } else {
+      toast.error('Nenhuma transação bancária selecionada.');
     }
   };
 
