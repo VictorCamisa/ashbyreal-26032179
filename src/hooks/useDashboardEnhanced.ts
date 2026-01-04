@@ -127,10 +127,10 @@ export function useDashboardEnhanced(mesReferencia: Date = new Date(), entityFil
         supabase.from('leads').select('id, status'),
         // Produtos
         supabase.from('produtos').select('id, nome, estoque, estoque_minimo, preco'),
-        // Transações mês atual
-        supabase.from('transactions').select('amount, tipo, category_id, categories(name)').like('due_date', `${monthStr}%`),
+        // Transações mês atual - using date range instead of like
+        supabase.from('transactions').select('amount, tipo, category_id, categories(name)').gte('due_date', format(inicioMes, 'yyyy-MM-dd')).lte('due_date', format(fimMes, 'yyyy-MM-dd')),
         // Transações mês anterior
-        supabase.from('transactions').select('amount, tipo').like('due_date', `${prevMonthStr}%`),
+        supabase.from('transactions').select('amount, tipo').gte('due_date', format(inicioMesAnterior, 'yyyy-MM-dd')).lte('due_date', format(fimMesAnterior, 'yyyy-MM-dd')),
         // Atrasadas
         supabase.from('transactions').select('amount').eq('status', 'PREVISTO').eq('tipo', 'PAGAR').lt('due_date', format(new Date(), 'yyyy-MM-dd')),
         // Pendentes 7 dias
