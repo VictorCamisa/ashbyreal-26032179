@@ -1468,6 +1468,89 @@ export type Database = {
           },
         ]
       }
+      recurring_expenses: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string | null
+          created_at: string | null
+          day_of_month: number | null
+          description: string
+          end_date: string | null
+          entity_id: string | null
+          frequency: string
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          start_date: string
+          subcategory_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id?: string | null
+          created_at?: string | null
+          day_of_month?: number | null
+          description: string
+          end_date?: string | null
+          entity_id?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          start_date: string
+          subcategory_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string | null
+          created_at?: string | null
+          day_of_month?: number | null
+          description?: string
+          end_date?: string | null
+          entity_id?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          start_date?: string
+          subcategory_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_expenses_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expenses_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subcategories: {
         Row: {
           category_id: string

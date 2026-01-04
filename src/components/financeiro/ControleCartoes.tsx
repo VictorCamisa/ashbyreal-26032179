@@ -18,11 +18,13 @@ import {
   FileText,
   BarChart3,
   LayoutGrid,
+  Repeat,
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
+import { useRecurringExpenses, RecurringExpense } from '@/hooks/useRecurringExpenses';
 import { Badge } from '@/components/ui/badge';
 import { NovoCartaoDialog } from './NovoCartaoDialog';
 import { NovaFaturaDialog } from './NovaFaturaDialog';
@@ -32,6 +34,8 @@ import { DetalhesCartaoSheet } from './DetalhesCartaoSheet';
 import { CartaoAlerts } from './CartaoAlerts';
 import { TodasFaturasSheet } from './TodasFaturasSheet';
 import { CartoesAnalytics } from './CartoesAnalytics';
+import { DespesasFixasAnalytics } from './DespesasFixasAnalytics';
+import { NovaDespesaFixaDialog } from './NovaDespesaFixaDialog';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -40,13 +44,18 @@ export function ControleCartoes() {
   const { createCartao, isCreating } = useCartoesMutations();
   const { createFatura, isCreating: isCreatingFatura } = useFaturasMutations();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
+  const { expenses, createExpense, toggleActive, deleteExpense, isCreating: isCreatingExpense } = useRecurringExpenses();
+  
   const [showNovoCartao, setShowNovoCartao] = useState(false);
   const [showNovaFatura, setShowNovaFatura] = useState(false);
   const [showNovoGasto, setShowNovoGasto] = useState(false);
   const [showImportarFatura, setShowImportarFatura] = useState(false);
   const [showTodasFaturas, setShowTodasFaturas] = useState(false);
+  const [showNovaDespesaFixa, setShowNovaDespesaFixa] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<RecurringExpense | null>(null);
   const [selectedCard, setSelectedCard] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'cards' | 'analytics'>('analytics');
+  const [viewMode, setViewMode] = useState<'analytics' | 'cards' | 'despesas'>('analytics');
+
 
   if (isLoading) {
     return (
@@ -98,7 +107,7 @@ export function ControleCartoes() {
 
       {/* View Mode Tabs + Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cards' | 'analytics')} className="w-auto">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'analytics' | 'cards' | 'despesas')} className="w-auto">
           <TabsList>
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -108,27 +117,35 @@ export function ControleCartoes() {
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline">Cartões</span>
             </TabsTrigger>
+            <TabsTrigger value="despesas" className="gap-2">
+              <Repeat className="h-4 w-4" />
+              <span className="hidden sm:inline">Despesas Fixas</span>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {/* Action Bar */}
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setShowNovoGasto(true)} className="gap-2" size="sm">
-            <ShoppingCart className="h-4 w-4" />
-            <span className="hidden sm:inline">Lançar Gasto</span>
-          </Button>
-          <Button onClick={() => setShowImportarFatura(true)} variant="success" size="sm" className="gap-2">
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Importar Fatura</span>
-          </Button>
-          <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" size="sm" className="gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Ver Faturas</span>
-          </Button>
-          <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm" className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo Cartão</span>
-          </Button>
+          {viewMode !== 'despesas' && (
+            <>
+              <Button onClick={() => setShowNovoGasto(true)} className="gap-2" size="sm">
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden sm:inline">Lançar Gasto</span>
+              </Button>
+              <Button onClick={() => setShowImportarFatura(true)} variant="success" size="sm" className="gap-2">
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Importar Fatura</span>
+              </Button>
+              <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" size="sm" className="gap-2">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Ver Faturas</span>
+              </Button>
+              <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Novo Cartão</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -138,6 +155,23 @@ export function ControleCartoes() {
           cartoes={cartoes} 
           faturas={faturas} 
           onSelectCard={(c) => c && setSelectedCard(c)}
+        />
+      )}
+
+      {/* Despesas Fixas View */}
+      {viewMode === 'despesas' && (
+        <DespesasFixasAnalytics
+          expenses={expenses}
+          onAddNew={() => {
+            setEditingExpense(null);
+            setShowNovaDespesaFixa(true);
+          }}
+          onEdit={(expense) => {
+            setEditingExpense(expense);
+            setShowNovaDespesaFixa(true);
+          }}
+          onToggleActive={(id, isActive) => toggleActive({ id, is_active: isActive })}
+          onDelete={deleteExpense}
         />
       )}
 
@@ -468,6 +502,21 @@ export function ControleCartoes() {
         onOpenChange={setShowTodasFaturas}
         faturas={faturas || []}
         cartoes={cartoes || []}
+      />
+
+      <NovaDespesaFixaDialog
+        open={showNovaDespesaFixa}
+        onOpenChange={(open) => {
+          setShowNovaDespesaFixa(open);
+          if (!open) setEditingExpense(null);
+        }}
+        editingExpense={editingExpense}
+        onSave={(expense) => {
+          createExpense(expense);
+          setShowNovaDespesaFixa(false);
+          setEditingExpense(null);
+        }}
+        isLoading={isCreatingExpense}
       />
     </div>
   );
