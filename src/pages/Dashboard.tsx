@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDashboardEnhanced } from '@/hooks/useDashboardEnhanced';
 import { PageLayout } from '@/components/layout/PageLayout';
-import { EnhancedKPIs } from '@/components/dashboard/EnhancedKPIs';
+import { DashboardKPIsEnhanced } from '@/components/dashboard/DashboardKPIsEnhanced';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart';
 import { LeadFunnelChart } from '@/components/dashboard/LeadFunnelChart';
@@ -11,6 +11,8 @@ import { WhatsAppStatus } from '@/components/dashboard/WhatsAppStatus';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { HealthGauge } from '@/components/financeiro/HealthGauge';
 import { EvolutionChart } from '@/components/financeiro/EvolutionChart';
+import { ComparisonChart } from '@/components/dashboard/ComparisonChart';
+import { CategoryDonutChart } from '@/components/dashboard/CategoryDonutChart';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -88,8 +90,8 @@ export default function Dashboard() {
       }
     >
       <div className="space-y-6">
-        {/* KPIs Grid */}
-        <EnhancedKPIs data={dashboardData} isLoading={isLoading} />
+        {/* Enhanced KPIs Grid - 3 rows of interactive cards */}
+        <DashboardKPIsEnhanced data={dashboardData} isLoading={isLoading} />
 
         {/* Alerts + WhatsApp Row */}
         {dashboardData && (
@@ -110,6 +112,22 @@ export default function Dashboard() {
               isConnected={dashboardData.whatsapp.isConnected}
               conversasAtivas={dashboardData.whatsapp.conversasAtivas}
               naoLidas={dashboardData.whatsapp.naoLidas}
+            />
+          </div>
+        )}
+
+        {/* Charts Row - Comparison + Category Distribution */}
+        {dashboardData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ComparisonChart
+              receitas={dashboardData.financeiro.receitas}
+              despesas={dashboardData.financeiro.despesas}
+              receitasAnterior={dashboardData.vendas.mesAnterior}
+              despesasAnterior={dashboardData.vendas.mesAnterior * 0.7}
+            />
+            <CategoryDonutChart
+              data={dashboardData.topCategoriasDespesa}
+              title="Top Categorias de Despesa"
             />
           </div>
         )}
