@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, 
   CreditCard, 
@@ -14,7 +17,9 @@ import {
   Clock,
   Wallet,
   Upload,
-  FileText
+  FileText,
+  BarChart3,
+  LayoutGrid,
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
@@ -28,6 +33,7 @@ import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
 import { DetalhesCartaoSheet } from './DetalhesCartaoSheet';
 import { CartaoAlerts } from './CartaoAlerts';
 import { TodasFaturasSheet } from './TodasFaturasSheet';
+import { CartoesAnalytics } from './CartoesAnalytics';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +48,26 @@ export function ControleCartoes() {
   const [showImportarFatura, setShowImportarFatura] = useState(false);
   const [showTodasFaturas, setShowTodasFaturas] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'analytics'>('analytics');
+
+  // Fetch all transactions for analytics
+  const { data: allTransactions } = useQuery({
+    queryKey: ['all-card-transactions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('credit_card_transactions')
+        .select(`
+          *,
+          categories(name, group),
+          subcategories(name)
+        `)
+        .order('purchase_date', { ascending: false })
+        .limit(1000);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   if (isLoading) {
     return (
@@ -91,32 +117,56 @@ export function ControleCartoes() {
         <CartaoAlerts cartoes={cartoes} faturas={faturas} />
       )}
 
-      {/* Action Bar */}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => setShowNovoGasto(true)} className="gap-2">
-          <ShoppingCart className="h-4 w-4" />
-          Lançar Gasto
-        </Button>
-        <Button onClick={() => setShowImportarFatura(true)} variant="default" className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600">
-          <Upload className="h-4 w-4" />
-          Importar Fatura
-        </Button>
-        <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" className="gap-2">
-          <FileText className="h-4 w-4" />
-          Ver Faturas
-        </Button>
-        <Button onClick={() => setShowNovaFatura(true)} variant="outline" className="gap-2">
-          <Receipt className="h-4 w-4" />
-          Nova Fatura
-        </Button>
-        <Button onClick={() => setShowNovoCartao(true)} variant="outline" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Cartão
-        </Button>
+      {/* View Mode Tabs + Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cards' | 'analytics')} className="w-auto">
+          <TabsList>
+            <TabsTrigger value="analytics" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="cards" className="gap-2">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline">Cartões</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Action Bar */}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setShowNovoGasto(true)} className="gap-2" size="sm">
+            <ShoppingCart className="h-4 w-4" />
+            <span className="hidden sm:inline">Lançar Gasto</span>
+          </Button>
+          <Button onClick={() => setShowImportarFatura(true)} variant="default" size="sm" className="gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600">
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Importar Fatura</span>
+          </Button>
+          <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" size="sm" className="gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Ver Faturas</span>
+          </Button>
+          <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm" className="gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Novo Cartão</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Analytics View */}
+      {viewMode === 'analytics' && cartoes && faturas && (
+        <CartoesAnalytics 
+          cartoes={cartoes} 
+          faturas={faturas} 
+          transactions={allTransactions}
+        />
+      )}
+
+      {/* Cards View */}
+      {viewMode === 'cards' && (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="glass-card border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -384,6 +434,8 @@ export function ControleCartoes() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* Dialogs */}
       <NovoCartaoDialog
