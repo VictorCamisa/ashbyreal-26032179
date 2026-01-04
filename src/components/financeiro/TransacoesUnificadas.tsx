@@ -20,6 +20,7 @@ import {
   Tag,
   X,
   CreditCard,
+  BarChart3,
   CheckSquare,
   Square,
   MoreHorizontal
@@ -47,6 +48,7 @@ import { ImportarTransacoesDialog } from './ImportarTransacoesDialog';
 import { NovaTransacaoDialog } from './NovaTransacaoDialog';
 import { EditarTransacaoDialog } from './EditarTransacaoDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
+import { TransacoesDRE } from './TransacoesDRE';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,7 +110,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [referenceMonth, setReferenceMonth] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'dre'>('list');
 
   // Batch selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -689,22 +691,51 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           <div className="flex items-center gap-2">
             {/* View toggle */}
             <div className="flex items-center border rounded-lg p-0.5">
-              <Button 
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-7 px-2"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant={viewMode === 'calendar' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                className="h-7 px-2"
-                onClick={() => setViewMode('calendar')}
-              >
-                <Calendar className="h-4 w-4" />
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="h-7 px-2"
+                      onClick={() => setViewMode('list')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Lista</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={viewMode === 'dre' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="h-7 px-2"
+                      onClick={() => setViewMode('dre')}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>DRE</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant={viewMode === 'calendar' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className="h-7 px-2"
+                      onClick={() => setViewMode('calendar')}
+                    >
+                      <Calendar className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Calendário</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="gap-2">
@@ -915,6 +946,19 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           referenceMonth={referenceMonth}
           onMonthChange={setReferenceMonth}
           onTransactionClick={(t) => setEditingTransaction(t)}
+        />
+      )}
+
+      {/* DRE View */}
+      {viewMode === 'dre' && (
+        <TransacoesDRE
+          transactions={filteredTransactions}
+          isLoading={isLoading}
+          onEdit={(t) => setEditingTransaction(t)}
+          onDelete={(id) => setDeletingId(id)}
+          onMarkAsPaid={(id) => markAsPaidMutation.mutate(id)}
+          onRemoveTag={handleRemoveTag}
+          formatCurrency={formatCurrency}
         />
       )}
 
