@@ -6,30 +6,73 @@ import {
   Award, 
   ArrowLeft,
   MessageCircle,
-  Filter,
   Search,
-  Star,
   Droplets,
   Thermometer,
-  Percent
+  Percent,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
+
+// Contact info
+const WHATSAPP_NUMBER = '551234326712';
 
 // Animation variants
 const fadeInUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+  hidden: { opacity: 0, y: 40 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }
+};
+
+const fadeInScale = {
+  hidden: { opacity: 0, scale: 0.9 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
 };
 
 const staggerContainer = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  visible: { opacity: 1, transition: { staggerChildren: 0.08 } }
 };
+
+// Glassmorphism components
+const GlassCard = ({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={`
+      relative overflow-hidden rounded-2xl
+      bg-white/5 backdrop-blur-xl 
+      border border-white/10 
+      shadow-[0_8px_32px_rgba(0,0,0,0.12)]
+      hover:bg-white/10 hover:border-white/20
+      hover:shadow-[0_16px_48px_rgba(251,191,36,0.15)]
+      transition-all duration-500 ease-out
+      ${className}
+    `}
+    {...props}
+  >
+    {children}
+  </div>
+);
+
+const GlassButton = ({ children, className = '', ...props }: React.ComponentProps<typeof Button>) => (
+  <Button
+    className={`
+      relative overflow-hidden
+      bg-white/10 backdrop-blur-xl 
+      border border-white/20 
+      shadow-[0_8px_32px_rgba(0,0,0,0.12)]
+      hover:bg-white/20 hover:border-white/30
+      hover:shadow-[0_8px_32px_rgba(251,191,36,0.2)]
+      transition-all duration-500 ease-out
+      ${className}
+    `}
+    {...props}
+  >
+    {children}
+  </Button>
+);
 
 // Products data based on Ashby
 const products = [
@@ -158,7 +201,7 @@ const products = [
 const categories = [
   { id: 'todos', label: 'Todos', icon: Beer },
   { id: 'pilsen', label: 'Pilsen', icon: Droplets },
-  { id: 'especiais', label: 'Especiais', icon: Star },
+  { id: 'especiais', label: 'Especiais', icon: Sparkles },
   { id: 'premium', label: 'Premium', icon: Award },
   { id: 'frutadas', label: 'Frutadas', icon: Droplets }
 ];
@@ -275,22 +318,26 @@ export default function ProdutosPage() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {filteredProducts.map((product) => (
-                <motion.div key={product.id} variants={fadeInUp}>
-                  <Card className="h-full overflow-hidden group hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-300 border-border/40 hover:border-amber-500/30">
+                <motion.div key={product.id} variants={fadeInScale}>
+                  <GlassCard className="h-full overflow-hidden group">
                     {/* Product Image Area */}
                     <div className={`relative h-48 bg-gradient-to-br ${product.color} flex items-center justify-center overflow-hidden`}>
-                      <span className="text-8xl group-hover:scale-110 transition-transform duration-500">
+                      <motion.span 
+                        className="text-8xl"
+                        whileHover={{ scale: 1.2, rotate: 10 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                      >
                         {product.image}
-                      </span>
+                      </motion.span>
                       {product.badge && (
-                        <Badge className="absolute top-4 right-4 bg-black/80 text-white border-0">
+                        <Badge className="absolute top-4 right-4 bg-gradient-to-r from-amber-500 to-amber-600 text-black border-0 shadow-lg">
                           {product.badge}
                         </Badge>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                     </div>
 
-                    <CardContent className="p-5 space-y-4">
+                    <div className="p-5 space-y-4">
                       {/* Title & Description */}
                       <div>
                         <h3 className="font-bold text-lg mb-2 group-hover:text-amber-500 transition-colors">
@@ -320,20 +367,22 @@ export default function ProdutosPage() {
                       </div>
 
                       {/* CTA */}
-                      <Button 
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
-                        onClick={() => {
-                          const message = encodeURIComponent(
-                            `Olá! Gostaria de saber mais sobre o chopp ${product.name}.`
-                          );
-                          window.open(`https://wa.me/5512999999999?text=${message}`, '_blank');
-                        }}
-                      >
-                        <MessageCircle className="w-4 h-4 mr-2" />
-                        Consultar Preço
-                      </Button>
-                    </CardContent>
-                  </Card>
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button 
+                          className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-semibold rounded-xl shadow-lg shadow-amber-500/20"
+                          onClick={() => {
+                            const message = encodeURIComponent(
+                              `Olá! Gostaria de saber mais sobre o chopp ${product.name}.`
+                            );
+                            window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
+                          }}
+                        >
+                          <MessageCircle className="w-4 h-4 mr-2" />
+                          Consultar Preço
+                        </Button>
+                      </motion.div>
+                    </div>
+                  </GlassCard>
                 </motion.div>
               ))}
             </motion.div>
@@ -354,53 +403,60 @@ export default function ProdutosPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10">
+      <section className="py-20 relative">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="space-y-6"
+            className="space-y-8"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold">
-              Pronto para seu <span className="text-amber-500">evento</span>?
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Entre em contato conosco para um orçamento personalizado. 
-              Nossa equipe está pronta para ajudar você a escolher os melhores chopps.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/#contato">
-                <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-black font-semibold">
-                  Solicitar Orçamento
-                </Button>
-              </Link>
-              <a href="https://wa.me/5512999999999" target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  WhatsApp
-                </Button>
-              </a>
-            </div>
+            <GlassCard className="p-12">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                Pronto para seu <span className="text-amber-500">evento</span>?
+              </h2>
+              <p className="text-muted-foreground max-w-xl mx-auto mb-8 text-lg">
+                Entre em contato conosco para um orçamento personalizado. 
+                Nossa equipe está pronta para ajudar você a escolher os melhores chopps.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link to="/#contato">
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+                    <Button size="lg" className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold rounded-full shadow-lg shadow-amber-500/25 px-8">
+                      Solicitar Orçamento
+                    </Button>
+                  </motion.div>
+                </Link>
+                <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer">
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+                    <GlassButton size="lg" className="rounded-full px-8">
+                      <MessageCircle className="w-4 h-4 mr-2 text-green-500" />
+                      WhatsApp
+                    </GlassButton>
+                  </motion.div>
+                </a>
+              </div>
+            </GlassCard>
           </motion.div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-border/40">
+      <footer className="py-10 border-t border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img 
+              <motion.img 
                 src={logoTaubateChopp} 
                 alt="Taubaté Chopp" 
-                className="h-8 w-8 rounded-full object-cover"
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-amber-500/20"
+                whileHover={{ scale: 1.1 }}
               />
               <span className="text-sm text-muted-foreground">
                 Taubaté Chopp - Distribuidor Oficial Ashby
               </span>
             </div>
-            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-amber-500 transition-colors">
               ← Voltar ao início
             </Link>
           </div>
@@ -409,16 +465,22 @@ export default function ProdutosPage() {
 
       {/* Floating WhatsApp Button */}
       <motion.a
-        href="https://wa.me/5512999999999"
+        href={`https://wa.me/${WHATSAPP_NUMBER}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-colors"
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileHover={{ scale: 1.1 }}
+        className="fixed bottom-6 right-6 z-50 w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-full shadow-2xl shadow-green-500/40 flex items-center justify-center transition-all duration-300"
+        initial={{ scale: 0, rotate: -180 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 200, delay: 0.5 }}
+        whileHover={{ scale: 1.15 }}
         whileTap={{ scale: 0.95 }}
       >
-        <MessageCircle className="w-6 h-6 text-white" />
+        <MessageCircle className="w-7 h-7 text-white" />
+        <motion.div 
+          className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full"
+          animate={{ scale: [1, 1.2, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        />
       </motion.a>
     </div>
   );
