@@ -220,7 +220,7 @@ export default function InstitucionalHome() {
               </Link>
               <Link to="/auth">
                 <Button size="sm" className="bg-primary hover:bg-primary/90">
-                  Área do Cliente
+                  Sistema
                 </Button>
               </Link>
             </div>
