@@ -23,7 +23,8 @@ import {
   BarChart3,
   CheckSquare,
   Square,
-  MoreHorizontal
+  MoreHorizontal,
+  Repeat
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ import {
 import { ImportarTransacoesDialog } from './ImportarTransacoesDialog';
 import { NovaTransacaoDialog } from './NovaTransacaoDialog';
 import { EditarTransacaoDialog } from './EditarTransacaoDialog';
+import { TornarRecorrenteDialog } from './TornarRecorrenteDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
 import { TransacoesDRE } from './TransacoesDRE';
 import {
@@ -115,6 +117,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   // Batch selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [recurringTransaction, setRecurringTransaction] = useState<any>(null);
 
   // Apply initial filter when component mounts or filter changes
   useEffect(() => {
@@ -1134,9 +1137,26 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          {/* Edit/Delete - only for bank transactions */}
+                          {/* Edit/Delete/Recurring - only for bank transactions */}
                           {!t.isCardTransaction && (
                             <>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                      onClick={() => setRecurringTransaction(t)}
+                                    >
+                                      <Repeat className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Tornar recorrente</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1237,6 +1257,18 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tornar Recorrente Dialog */}
+      <TornarRecorrenteDialog
+        open={!!recurringTransaction}
+        onOpenChange={(open) => !open && setRecurringTransaction(null)}
+        transaction={recurringTransaction}
+        onConfirm={(transactions) => {
+          createMultipleMutation.mutate(transactions);
+          setRecurringTransaction(null);
+        }}
+        isLoading={createMultipleMutation.isPending}
+      />
     </div>
   );
 }
