@@ -27,7 +27,10 @@ serve(async (req) => {
     console.log(`[manage-evolution-instance] Action: ${action}, Instance: ${instanceName}`);
 
     const evolutionFetch = async (endpoint: string, options: RequestInit = {}) => {
-      const url = `${EVOLUTION_API_URL}${endpoint}`;
+      // Remove trailing slash from base URL and leading slash from endpoint to avoid double slashes
+      const baseUrl = EVOLUTION_API_URL.replace(/\/+$/, '');
+      const cleanEndpoint = endpoint.replace(/^\/+/, '');
+      const url = `${baseUrl}/${cleanEndpoint}`;
       console.log(`[Evolution API] ${options.method || 'GET'} ${url}`);
       
       const response = await fetch(url, {
@@ -40,6 +43,7 @@ serve(async (req) => {
       });
       
       const text = await response.text();
+      console.log(`[Evolution API] Response status: ${response.status}`);
       console.log(`[Evolution API] Response: ${text.substring(0, 500)}`);
       
       if (!response.ok) {
