@@ -301,7 +301,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg p-0 overflow-hidden flex flex-col bg-gradient-to-b from-background to-muted/20">
+        <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
           {/* Header - Bank-style card visualization */}
           <div className="relative overflow-hidden">
             {/* Background gradient */}
