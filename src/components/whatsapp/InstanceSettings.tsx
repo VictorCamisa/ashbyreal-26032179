@@ -6,11 +6,22 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut, Wrench } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut, Wrench, Download, List, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+interface EvolutionInstance {
+  instanceName: string;
+  instanceId: string;
+  status: string;
+  ownerJid: string | null;
+  profileName: string | null;
+  profilePicUrl: string | null;
+  isImported: boolean;
+}
 
 interface InstanceSettingsProps {
   onInstanceSelect: (instance: WhatsAppInstance | null) => void;
@@ -32,6 +43,10 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showExistingDialog, setShowExistingDialog] = useState(false);
+  const [evolutionInstances, setEvolutionInstances] = useState<EvolutionInstance[]>([]);
+  const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
+  const [importingInstance, setImportingInstance] = useState<string | null>(null);
   const [newInstanceName, setNewInstanceName] = useState('');
   const [newInstanceSlug, setNewInstanceSlug] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -129,6 +144,64 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
     }
   };
 
+  const handleFetchEvolutionInstances = async () => {
+    setIsLoadingEvolution(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-evolution-instance', {
+        body: { action: 'list-all' },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setEvolutionInstances(data.instances || []);
+      setShowExistingDialog(true);
+    } catch (err) {
+      console.error('Error fetching Evolution instances:', err);
+      toast.error('Erro ao buscar instâncias da Evolution API');
+    } finally {
+      setIsLoadingEvolution(false);
+    }
+  };
+
+  const handleImportInstance = async (evolutionInstance: EvolutionInstance) => {
+    if (evolutionInstance.isImported) {
+      toast.info('Esta instância já foi importada');
+      return;
+    }
+
+    setImportingInstance(evolutionInstance.instanceName);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-evolution-instance', {
+        body: { 
+          action: 'import', 
+          instanceName: evolutionInstance.instanceName,
+          name: evolutionInstance.profileName || evolutionInstance.instanceName,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Instância importada com sucesso!');
+      
+      // Update local list
+      setEvolutionInstances(prev => prev.map(i => 
+        i.instanceName === evolutionInstance.instanceName 
+          ? { ...i, isImported: true } 
+          : i
+      ));
+
+      // Close dialog and refresh
+      setShowExistingDialog(false);
+    } catch (err) {
+      console.error('Error importing instance:', err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao importar instância');
+    } finally {
+      setImportingInstance(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -147,64 +220,79 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <div>
             <CardTitle>Instâncias WhatsApp</CardTitle>
             <CardDescription>Gerencie suas conexões do WhatsApp</CardDescription>
           </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Instância
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Criar Nova Instância</DialogTitle>
-                <DialogDescription>
-                  Configure uma nova conexão WhatsApp
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome da Instância</Label>
-                  <Input
-                    id="name"
-                    placeholder="Ex: WhatsApp Principal"
-                    value={newInstanceName}
-                    onChange={(e) => setNewInstanceName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="slug">Identificador Único</Label>
-                  <Input
-                    id="slug"
-                    placeholder="Ex: whatsapp-principal"
-                    value={newInstanceSlug}
-                    onChange={(e) => setNewInstanceSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use apenas letras minúsculas, números e hífens
-                  </p>
-                </div>
-                <Button
-                  onClick={handleCreate}
-                  disabled={!newInstanceName.trim() || !newInstanceSlug.trim() || createInstance.isPending}
-                  className="w-full"
-                >
-                  {createInstance.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    'Criar e Conectar'
-                  )}
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={handleFetchEvolutionInstances}
+              disabled={isLoadingEvolution}
+            >
+              {isLoadingEvolution ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <List className="h-4 w-4 mr-2" />
+              )}
+              {!isLoadingEvolution && 'Ver Existentes'}
+            </Button>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Instância
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Nova Instância</DialogTitle>
+                  <DialogDescription>
+                    Configure uma nova conexão WhatsApp
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome da Instância</Label>
+                    <Input
+                      id="name"
+                      placeholder="Ex: WhatsApp Principal"
+                      value={newInstanceName}
+                      onChange={(e) => setNewInstanceName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slug">Identificador Único</Label>
+                    <Input
+                      id="slug"
+                      placeholder="Ex: whatsapp-principal"
+                      value={newInstanceSlug}
+                      onChange={(e) => setNewInstanceSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use apenas letras minúsculas, números e hífens
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={!newInstanceName.trim() || !newInstanceSlug.trim() || createInstance.isPending}
+                    className="w-full"
+                  >
+                    {createInstance.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Criando...
+                      </>
+                    ) : (
+                      'Criar e Conectar'
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           {instances.length === 0 ? (
@@ -355,6 +443,104 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
                 <p className="text-sm text-muted-foreground mt-2">Carregando QR Code...</p>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Existing Evolution Instances Dialog */}
+      <Dialog open={showExistingDialog} onOpenChange={setShowExistingDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Instâncias na Evolution API</DialogTitle>
+            <DialogDescription>
+              Escolha uma instância existente para importar ou crie uma nova
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[400px] pr-4">
+            {evolutionInstances.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Nenhuma instância encontrada na Evolution API</p>
+                <p className="text-sm mt-1">Crie uma nova instância para começar</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evolutionInstances.map((instance) => (
+                  <div
+                    key={instance.instanceName}
+                    className={cn(
+                      'flex items-center justify-between p-3 rounded-lg border',
+                      instance.isImported ? 'bg-muted/50' : 'hover:bg-muted/30'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'h-10 w-10 rounded-full flex items-center justify-center overflow-hidden',
+                        instance.status === 'open'
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                          : 'bg-amber-100 dark:bg-amber-900/30'
+                      )}>
+                        {instance.profilePicUrl ? (
+                          <img 
+                            src={instance.profilePicUrl} 
+                            alt="" 
+                            className="h-full w-full object-cover"
+                          />
+                        ) : instance.status === 'open' ? (
+                          <Wifi className="h-5 w-5 text-emerald-600" />
+                        ) : (
+                          <WifiOff className="h-5 w-5 text-amber-600" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium">{instance.profileName || instance.instanceName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {instance.instanceName}
+                          {instance.ownerJid && ` • ${instance.ownerJid.replace('@s.whatsapp.net', '')}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={instance.status === 'open' ? 'default' : 'secondary'}>
+                        {instance.status === 'open' ? 'Online' : instance.status}
+                      </Badge>
+                      {instance.isImported ? (
+                        <Button variant="ghost" size="sm" disabled>
+                          <Check className="h-4 w-4 mr-1" />
+                          Importado
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm"
+                          onClick={() => handleImportInstance(instance)}
+                          disabled={importingInstance === instance.instanceName}
+                        >
+                          {importingInstance === instance.instanceName ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-1" />
+                              Importar
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-between pt-4 border-t">
+            <Button variant="ghost" onClick={() => setShowExistingDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => {
+              setShowExistingDialog(false);
+              setShowCreateDialog(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Nova
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
