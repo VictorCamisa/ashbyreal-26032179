@@ -1076,6 +1076,13 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                                 )}
                               </Badge>
                             )}
+                            {/* Recurring badge */}
+                            {t.origin === 'RECORRENTE' && (
+                              <Badge variant="outline" className="text-xs py-0 h-5 gap-1 bg-blue-500/10 text-blue-700 border-blue-500/30">
+                                <Repeat className="h-3 w-3" />
+                                Recorrente
+                              </Badge>
+                            )}
                             {/* Tags */}
                             {tags && tags.map(tag => (
                               <Badge 
