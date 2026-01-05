@@ -53,6 +53,128 @@ serve(async (req) => {
     const webhookUrl = `${SUPABASE_URL}/functions/v1/webhook-evolution`;
 
     switch (action) {
+      case "list-all": {
+        // List all instances from Evolution API
+        const allInstances = await evolutionFetch("/instance/fetchInstances", {
+          method: "GET",
+        });
+
+        console.log("[manage-evolution-instance] All Evolution instances:", allInstances);
+
+        // Get instances already in our database
+        const { data: dbInstances } = await supabase
+          .from("whatsapp_instances")
+          .select("instance_name");
+
+        const dbInstanceNames = new Set(dbInstances?.map(i => i.instance_name) || []);
+
+        // Format and return instances
+        const instances = (allInstances || []).map((instance: any) => ({
+          instanceName: instance.instance?.instanceName || instance.instanceName,
+          instanceId: instance.instance?.instanceId || instance.instanceId,
+          status: instance.instance?.status || instance.status || "unknown",
+          ownerJid: instance.instance?.owner || instance.owner,
+          profileName: instance.instance?.profileName || instance.profileName,
+          profilePicUrl: instance.instance?.profilePicUrl || instance.profilePicUrl,
+          isImported: dbInstanceNames.has(instance.instance?.instanceName || instance.instanceName),
+        }));
+
+        return new Response(
+          JSON.stringify({ success: true, instances }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      case "import": {
+        if (!instanceName || !name) {
+          throw new Error("instanceName and name are required");
+        }
+
+        // Check if already exists in DB
+        const { data: existing } = await supabase
+          .from("whatsapp_instances")
+          .select("id")
+          .eq("instance_name", instanceName)
+          .single();
+
+        if (existing) {
+          throw new Error("Instância já foi importada");
+        }
+
+        // Get instance state
+        let status = "disconnected";
+        let phoneNumber = null;
+
+        try {
+          const stateResult = await evolutionFetch(`/instance/connectionState/${instanceName}`, {
+            method: "GET",
+          });
+          const isConnected = stateResult?.state === "open" || stateResult?.instance?.state === "open";
+          status = isConnected ? "connected" : "disconnected";
+          
+          // Try to get profile info
+          if (isConnected) {
+            try {
+              const profileResult = await evolutionFetch(`/instance/fetchInstances?instanceName=${instanceName}`, {
+                method: "GET",
+              });
+              phoneNumber = profileResult?.[0]?.instance?.owner?.replace("@s.whatsapp.net", "") || null;
+            } catch (e) {
+              console.warn("[manage-evolution-instance] Could not fetch profile:", e);
+            }
+          }
+        } catch (e) {
+          console.warn("[manage-evolution-instance] Could not get connection state:", e);
+        }
+
+        // Configure webhook for this instance
+        try {
+          await evolutionFetch(`/webhook/set/${instanceName}`, {
+            method: "POST",
+            body: JSON.stringify({
+              webhook: {
+                enabled: true,
+                url: webhookUrl,
+                webhookByEvents: true,
+                webhookBase64: true,
+                events: [
+                  "MESSAGES_UPSERT",
+                  "MESSAGES_UPDATE",
+                  "CONNECTION_UPDATE",
+                  "QRCODE_UPDATED",
+                ],
+              },
+            }),
+          });
+        } catch (e) {
+          console.warn("[manage-evolution-instance] Could not configure webhook:", e);
+        }
+
+        // Save to database
+        const { data: dbInstance, error: dbError } = await supabase
+          .from("whatsapp_instances")
+          .insert({
+            name,
+            instance_name: instanceName,
+            status,
+            phone_number: phoneNumber,
+            webhook_url: webhookUrl,
+            webhook_enabled: true,
+          })
+          .select()
+          .single();
+
+        if (dbError) {
+          console.error("[manage-evolution-instance] DB error:", dbError);
+          throw dbError;
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, instance: dbInstance }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       case "create": {
         if (!instanceName || !name) {
           throw new Error("instanceName and name are required");
