@@ -48,6 +48,12 @@ import {
   ArrowUpRight,
   MoreVertical,
   Trash2,
+  Plus,
+  Upload,
+  Pencil,
+  BarChart3,
+  Target,
+  Zap,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -59,6 +65,12 @@ import {
 import { cn } from '@/lib/utils';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import { useLimparImportacao } from '@/hooks/useLimparImportacao';
+import { useCartoesMutations } from '@/hooks/useCartoesMutations';
+import { NovoGastoCartaoDialog } from './NovoGastoCartaoDialog';
+import { ImportarFaturaCartaoDialog } from './ImportarFaturaCartaoDialog';
+import { EditarCartaoDialog } from './EditarCartaoDialog';
+import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
+import { useCartoes } from '@/hooks/useCartoes';
 
 interface DetalhesCartaoSheetProps {
   open: boolean;
@@ -73,15 +85,23 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   const [invoiceToPay, setInvoiceToPay] = useState<any>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  
+  // Quick action dialogs
+  const [showNovoGasto, setShowNovoGasto] = useState(false);
+  const [showImportar, setShowImportar] = useState(false);
+  const [showEditar, setShowEditar] = useState(false);
 
   const { payInvoice, isPaying, updateInvoiceStatus } = useFaturasMutations();
   const { limparImportacao, isLimpando } = useLimparImportacao();
+  const { updateCartao, isUpdating } = useCartoesMutations();
+  const { createGasto, isCreating } = useGastosCartaoMutations();
+  const { cartoes } = useCartoes();
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
   const monthLabel = format(referenceMonth, 'MMMM yyyy', { locale: ptBR });
 
-  // Fetch invoices for this card (moved up to use in transactions query)
-  const { data: invoices, isLoading: isLoadingInvoices } = useQuery({
+  // Fetch invoices for this card
+  const { data: invoices, isLoading: isLoadingInvoices, refetch: refetchInvoices } = useQuery({
     queryKey: ['card-invoices', cartao?.id],
     queryFn: async () => {
       if (!cartao?.id) return [];
@@ -104,13 +124,12 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     inv.competencia.startsWith(monthStr)
   );
 
-  // Fetch transactions for this card by invoice_id (competência) NOT purchase_date
+  // Fetch transactions for this card by invoice_id
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['card-transactions', cartao?.id, currentInvoice?.id],
     queryFn: async () => {
       if (!cartao?.id) return [];
       
-      // Se temos uma fatura para esse mês, buscar por invoice_id
       if (currentInvoice?.id) {
         const { data, error } = await supabase
           .from('credit_card_transactions')
@@ -126,12 +145,10 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
         return data || [];
       }
       
-      // Fallback: se não há fatura, não há transações para esse mês
       return [];
     },
     enabled: open && !!cartao?.id && invoices !== undefined,
   });
-
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -160,6 +177,29 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     return { total, parceladas, avista: total - parceladas };
   }, [filteredTransactions]);
 
+  // Calculate statistics
+  const stats = useMemo(() => {
+    if (!invoices || invoices.length === 0) return null;
+    
+    const paidInvoices = invoices.filter(inv => inv.status === 'PAGA');
+    const avgSpend = paidInvoices.length > 0 
+      ? paidInvoices.reduce((sum, inv) => sum + (inv.total_value || 0), 0) / paidInvoices.length 
+      : 0;
+    
+    const maxInvoice = invoices.reduce((max, inv) => 
+      (inv.total_value || 0) > (max?.total_value || 0) ? inv : max, null as any);
+    
+    const pendingInvoices = invoices.filter(inv => inv.status !== 'PAGA');
+    const totalPending = pendingInvoices.reduce((sum, inv) => sum + (inv.total_value || 0), 0);
+    
+    return {
+      avgSpend,
+      maxInvoice,
+      pendingCount: pendingInvoices.length,
+      totalPending,
+    };
+  }, [invoices]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -186,9 +226,15 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     }
   };
 
+  const handlePayCurrentInvoice = () => {
+    if (currentInvoice && currentInvoice.status !== 'PAGA') {
+      setInvoiceToPay(currentInvoice);
+    }
+  };
+
   const handleDeleteInvoice = async () => {
     if (invoiceToDelete && cartao) {
-      const competencia = invoiceToDelete.competencia.slice(0, 7); // YYYY-MM
+      const competencia = invoiceToDelete.competencia.slice(0, 7);
       await limparImportacao({ creditCardId: cartao.id, competencia });
       setInvoiceToDelete(null);
     }
@@ -199,6 +245,15 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
       await limparImportacao({ creditCardId: cartao.id });
       setDeleteAllConfirm(false);
     }
+  };
+
+  const handleSaveGasto = (data: any) => {
+    createGasto({ ...data, credit_card_id: cartao.id });
+    setShowNovoGasto(false);
+  };
+
+  const handleSaveCartao = (updates: any) => {
+    updateCartao(updates);
   };
 
   if (!cartao) return null;
@@ -215,30 +270,33 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     const closingDate = invoice.closing_date ? new Date(invoice.closing_date) : null;
 
     if (invoice.status === 'PAGA') {
-      return { label: 'Paga', variant: 'default' as const, color: 'text-emerald-600', bgColor: 'bg-emerald-500/10' };
+      return { label: 'Paga', variant: 'default' as const, color: 'text-emerald-600', bgColor: 'bg-emerald-500/10', icon: CheckCircle2 };
     }
     
     if (dueDate && isBefore(dueDate, now)) {
       const days = differenceInDays(now, dueDate);
-      return { label: `Vencida há ${days}d`, variant: 'destructive' as const, color: 'text-destructive', bgColor: 'bg-destructive/10' };
+      return { label: `Vencida há ${days}d`, variant: 'destructive' as const, color: 'text-destructive', bgColor: 'bg-destructive/10', icon: AlertTriangle };
     }
 
     if (dueDate && isBefore(dueDate, addDays(now, 5))) {
       const days = differenceInDays(dueDate, now);
-      return { label: `Vence em ${days}d`, variant: 'secondary' as const, color: 'text-amber-600', bgColor: 'bg-amber-500/10' };
+      return { label: `Vence em ${days}d`, variant: 'secondary' as const, color: 'text-amber-600', bgColor: 'bg-amber-500/10', icon: Clock };
     }
 
     if (invoice.status === 'FECHADA') {
-      return { label: 'Fechada', variant: 'secondary' as const, color: 'text-primary', bgColor: 'bg-primary/10' };
+      return { label: 'Fechada', variant: 'secondary' as const, color: 'text-primary', bgColor: 'bg-primary/10', icon: Clock };
     }
 
     if (closingDate && isBefore(closingDate, addDays(now, 3)) && isAfter(closingDate, now)) {
       const days = differenceInDays(closingDate, now);
-      return { label: `Fecha em ${days}d`, variant: 'outline' as const, color: 'text-blue-600', bgColor: 'bg-blue-500/10' };
+      return { label: `Fecha em ${days}d`, variant: 'outline' as const, color: 'text-blue-600', bgColor: 'bg-blue-500/10', icon: Clock };
     }
 
-    return { label: 'Aberta', variant: 'outline' as const, color: 'text-muted-foreground', bgColor: 'bg-muted/50' };
+    return { label: 'Aberta', variant: 'outline' as const, color: 'text-muted-foreground', bgColor: 'bg-muted/50', icon: Clock };
   };
+
+  const currentInvoiceStatus = currentInvoice ? getInvoiceStatusInfo(currentInvoice) : null;
+  const canPayCurrentInvoice = currentInvoice && currentInvoice.status !== 'PAGA';
 
   return (
     <>
@@ -251,7 +309,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMzAiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50" />
             
             <div className="relative p-6 pb-8 text-primary-foreground">
-              <SheetHeader className="space-y-0 mb-6">
+              <SheetHeader className="space-y-0 mb-4">
                 <div className="flex items-center justify-between">
                   <SheetTitle className="text-primary-foreground/90 text-sm font-normal">
                     {cartao.card_provider || 'Cartão de Crédito'}
@@ -263,6 +321,14 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-popover">
+                      <DropdownMenuItem 
+                        onClick={() => setShowEditar(true)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Editar Cartão
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         onClick={() => setDeleteAllConfirm(true)}
                         className="gap-2 cursor-pointer text-destructive focus:text-destructive"
@@ -277,7 +343,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
 
               {/* Card Name */}
               <h2 className="text-2xl font-bold mb-1">{cartao.name}</h2>
-              <p className="text-sm text-primary-foreground/70 mb-6">
+              <p className="text-sm text-primary-foreground/70 mb-4">
                 Venc. dia {cartao.due_day || '-'} • Fecha dia {cartao.closing_day || '-'}
               </p>
 
@@ -307,23 +373,90 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
             </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="flex gap-2 px-4 -mt-4 relative z-10">
+            {canPayCurrentInvoice && (
+              <Button 
+                onClick={handlePayCurrentInvoice}
+                className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-lg"
+                size="sm"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Pagar Fatura
+              </Button>
+            )}
+            <Button 
+              onClick={() => setShowNovoGasto(true)}
+              variant="secondary"
+              className="flex-1 gap-2 shadow-lg"
+              size="sm"
+            >
+              <Plus className="h-4 w-4" />
+              Lançar
+            </Button>
+            <Button 
+              onClick={() => setShowImportar(true)}
+              variant="secondary"
+              className="flex-1 gap-2 shadow-lg"
+              size="sm"
+            >
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
+          </div>
+
+          {/* Current Invoice Summary Card */}
+          {currentInvoice && currentInvoiceStatus && (
+            <div className={cn(
+              "mx-4 mt-4 p-4 rounded-xl border",
+              currentInvoiceStatus.bgColor
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "h-10 w-10 rounded-full flex items-center justify-center",
+                    currentInvoice.status === 'PAGA' ? 'bg-emerald-500/20' : 
+                    currentInvoiceStatus.variant === 'destructive' ? 'bg-destructive/20' : 'bg-primary/10'
+                  )}>
+                    <currentInvoiceStatus.icon className={cn("h-5 w-5", currentInvoiceStatus.color)} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Fatura Atual</p>
+                    <p className="text-xs text-muted-foreground">
+                      {currentInvoice.due_date 
+                        ? `Vencimento: ${format(new Date(currentInvoice.due_date), 'dd/MM/yyyy')}`
+                        : 'Sem data de vencimento'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Badge variant={currentInvoiceStatus.variant} className="mb-1">
+                    {currentInvoiceStatus.label}
+                  </Badge>
+                  <p className="text-lg font-bold">{formatCurrency(currentInvoice.total_value || 0)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quick Stats Row */}
-          <div className="grid grid-cols-3 gap-2 px-4 -mt-4 relative z-10">
-            <div className="bg-card rounded-xl p-3 shadow-lg border">
+          <div className="grid grid-cols-3 gap-2 px-4 mt-4">
+            <div className="bg-card rounded-xl p-3 shadow-sm border">
               <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
                 <Wallet className="h-3.5 w-3.5" />
                 <span className="text-[10px] uppercase tracking-wide">Total</span>
               </div>
               <p className="font-bold text-sm">{formatCurrency(totals.total)}</p>
             </div>
-            <div className="bg-card rounded-xl p-3 shadow-lg border">
+            <div className="bg-card rounded-xl p-3 shadow-sm border">
               <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
                 <TrendingUp className="h-3.5 w-3.5" />
                 <span className="text-[10px] uppercase tracking-wide">Parcelado</span>
               </div>
               <p className="font-bold text-sm">{formatCurrency(totals.parceladas)}</p>
             </div>
-            <div className="bg-card rounded-xl p-3 shadow-lg border">
+            <div className="bg-card rounded-xl p-3 shadow-sm border">
               <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
                 <Banknote className="h-3.5 w-3.5" />
                 <span className="text-[10px] uppercase tracking-wide">À Vista</span>
@@ -334,7 +467,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
 
           {/* Tabs */}
           <Tabs defaultValue="transacoes" className="flex-1 flex flex-col overflow-hidden mt-4">
-            <TabsList className="grid w-full grid-cols-2 mx-4 w-[calc(100%-2rem)]">
+            <TabsList className="grid w-full grid-cols-3 mx-4 w-[calc(100%-2rem)]">
               <TabsTrigger value="transacoes" className="gap-2 text-xs">
                 <Receipt className="h-3.5 w-3.5" />
                 Transações
@@ -342,6 +475,10 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
               <TabsTrigger value="faturas" className="gap-2 text-xs">
                 <Calendar className="h-3.5 w-3.5" />
                 Faturas
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="gap-2 text-xs">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Estatísticas
               </TabsTrigger>
             </TabsList>
 
@@ -410,12 +547,10 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                         key={t.id}
                         className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
                       >
-                        {/* Icon */}
                         <div className="h-10 w-10 rounded-full bg-muted/80 flex items-center justify-center shrink-0">
                           <ArrowUpRight className="h-4 w-4 text-destructive" />
                         </div>
                         
-                        {/* Info */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
                             {t.description || 'Sem descrição'}
@@ -437,7 +572,6 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                           </div>
                         </div>
 
-                        {/* Amount */}
                         <span className="text-sm font-semibold text-foreground">
                           {formatCurrency(t.amount)}
                         </span>
@@ -475,7 +609,6 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-3">
-                              {/* Status Icon */}
                               <div className={cn(
                                 'h-10 w-10 rounded-full flex items-center justify-center shrink-0',
                                 inv.status === 'PAGA' ? 'bg-emerald-500/20' : 
@@ -490,7 +623,6 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                                 )}
                               </div>
 
-                              {/* Info */}
                               <div>
                                 <p className="font-semibold capitalize">
                                   {format(new Date(inv.competencia), 'MMMM yyyy', { locale: ptBR })}
@@ -510,51 +642,49 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                               </div>
                             </div>
 
-                            {/* Value and Actions */}
                             <div className="text-right flex flex-col items-end gap-2">
                               <p className="text-lg font-bold">
                                 {formatCurrency(inv.total_value)}
                               </p>
                               
                               <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="bg-popover">
-                                    {canPay && (
-                                      <DropdownMenuItem 
-                                        onClick={() => setInvoiceToPay(inv)}
-                                        className="gap-2 cursor-pointer"
-                                      >
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                        Marcar como Paga
-                                      </DropdownMenuItem>
-                                    )}
-                                    {inv.status === 'ABERTA' && (
-                                      <DropdownMenuItem 
-                                        onClick={() => updateInvoiceStatus({ invoiceId: inv.id, status: 'FECHADA' })}
-                                        className="gap-2 cursor-pointer"
-                                      >
-                                        <Clock className="h-4 w-4" />
-                                        Fechar Fatura
-                                      </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuSeparator />
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-popover">
+                                  {canPay && (
                                     <DropdownMenuItem 
-                                      onClick={() => setInvoiceToDelete(inv)}
-                                      className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                      onClick={() => setInvoiceToPay(inv)}
+                                      className="gap-2 cursor-pointer"
                                     >
-                                      <Trash2 className="h-4 w-4" />
-                                      Limpar Fatura
+                                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                      Marcar como Paga
                                     </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                  )}
+                                  {inv.status === 'ABERTA' && (
+                                    <DropdownMenuItem 
+                                      onClick={() => updateInvoiceStatus({ invoiceId: inv.id, status: 'FECHADA' })}
+                                      className="gap-2 cursor-pointer"
+                                    >
+                                      <Clock className="h-4 w-4" />
+                                      Fechar Fatura
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    onClick={() => setInvoiceToDelete(inv)}
+                                    className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Limpar Fatura
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
 
-                          {/* Pay Button for prominent display */}
                           {canPay && inv.status === 'FECHADA' && (
                             <Button
                               onClick={() => setInvoiceToPay(inv)}
@@ -572,9 +702,119 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                 )}
               </ScrollArea>
             </TabsContent>
+
+            <TabsContent value="stats" className="flex-1 overflow-hidden mt-3 px-4">
+              <ScrollArea className="h-full -mx-4 px-4">
+                <div className="space-y-4 pb-4">
+                  {/* Statistics Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <TrendingUp className="h-4 w-4" />
+                        <span className="text-xs uppercase tracking-wide">Média Mensal</span>
+                      </div>
+                      <p className="text-lg font-bold">
+                        {stats ? formatCurrency(stats.avgSpend) : '-'}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <Target className="h-4 w-4" />
+                        <span className="text-xs uppercase tracking-wide">Maior Fatura</span>
+                      </div>
+                      <p className="text-lg font-bold">
+                        {stats?.maxInvoice ? formatCurrency(stats.maxInvoice.total_value) : '-'}
+                      </p>
+                      {stats?.maxInvoice && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(stats.maxInvoice.competencia), 'MMM yyyy', { locale: ptBR })}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <Clock className="h-4 w-4" />
+                        <span className="text-xs uppercase tracking-wide">Pendentes</span>
+                      </div>
+                      <p className="text-lg font-bold">
+                        {stats?.pendingCount || 0} faturas
+                      </p>
+                    </div>
+                    
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <Zap className="h-4 w-4" />
+                        <span className="text-xs uppercase tracking-wide">Total Pendente</span>
+                      </div>
+                      <p className="text-lg font-bold">
+                        {stats ? formatCurrency(stats.totalPending) : '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card Info */}
+                  <div className="bg-muted/50 rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Informações do Cartão
+                    </h4>
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <span className="text-muted-foreground">Limite:</span>
+                      <span className="font-medium text-right">
+                        {limitValue > 0 ? formatCurrency(limitValue) : 'Não definido'}
+                      </span>
+                      <span className="text-muted-foreground">Disponível:</span>
+                      <span className="font-medium text-right">
+                        {limitValue > 0 ? formatCurrency(availableLimit) : '-'}
+                      </span>
+                      <span className="text-muted-foreground">Fechamento:</span>
+                      <span className="font-medium text-right">Dia {cartao.closing_day || '-'}</span>
+                      <span className="text-muted-foreground">Vencimento:</span>
+                      <span className="font-medium text-right">Dia {cartao.due_day || '-'}</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full mt-2 gap-2"
+                      onClick={() => setShowEditar(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar Cartão
+                    </Button>
+                  </div>
+                </div>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </SheetContent>
       </Sheet>
+
+      {/* Novo Gasto Dialog */}
+      <NovoGastoCartaoDialog
+        open={showNovoGasto}
+        onOpenChange={setShowNovoGasto}
+        cartoes={cartoes || []}
+        onSave={handleSaveGasto}
+        isLoading={isCreating}
+      />
+
+      {/* Importar Fatura Dialog */}
+      <ImportarFaturaCartaoDialog
+        open={showImportar}
+        onOpenChange={setShowImportar}
+        onSuccess={() => refetchInvoices()}
+      />
+
+      {/* Editar Cartão Dialog */}
+      <EditarCartaoDialog
+        open={showEditar}
+        onOpenChange={setShowEditar}
+        cartao={cartao}
+        onSave={handleSaveCartao}
+        isLoading={isUpdating}
+      />
 
       {/* Confirm Pay Dialog */}
       <AlertDialog open={!!invoiceToPay} onOpenChange={() => setInvoiceToPay(null)}>
