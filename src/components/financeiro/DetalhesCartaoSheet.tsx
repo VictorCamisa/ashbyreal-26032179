@@ -301,7 +301,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col bg-gradient-to-b from-background to-muted/20 overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg p-0 bg-gradient-to-b from-background to-muted/20 overflow-y-auto max-h-screen">
           {/* Header - Bank-style card visualization */}
           <div className="relative overflow-hidden">
             {/* Background gradient */}
@@ -466,7 +466,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
           </div>
 
           {/* Tabs */}
-          <Tabs defaultValue="transacoes" className="flex-1 flex flex-col overflow-hidden mt-4">
+          <Tabs defaultValue="transacoes" className="mt-4 pb-6">
             <TabsList className="grid w-full grid-cols-3 mx-4 w-[calc(100%-2rem)]">
               <TabsTrigger value="transacoes" className="gap-2 text-xs">
                 <Receipt className="h-3.5 w-3.5" />
@@ -482,7 +482,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="transacoes" className="flex-1 flex flex-col overflow-hidden mt-3 px-4">
+            <TabsContent value="transacoes" className="mt-3 px-4">
               {/* Month Navigation */}
               <div className="flex items-center justify-center gap-2 mb-3">
                 <Button
@@ -530,7 +530,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
               </div>
 
               {/* Transactions List */}
-              <ScrollArea className="flex-1 -mx-4 px-4">
+              <div className="-mx-4 px-4">
                 {isLoadingTransactions ? (
                   <div className="py-8 text-center text-sm text-muted-foreground">
                     Carregando...
@@ -579,11 +579,11 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                     ))}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </TabsContent>
 
-            <TabsContent value="faturas" className="flex-1 overflow-hidden mt-3 px-4">
-              <ScrollArea className="h-full -mx-4 px-4">
+            <TabsContent value="faturas" className="mt-3 px-4">
+              <div className="-mx-4 px-4">
                 {isLoadingInvoices ? (
                   <div className="py-8 text-center text-sm text-muted-foreground">
                     Carregando...
@@ -700,11 +700,11 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                     })}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </TabsContent>
 
-            <TabsContent value="stats" className="flex-1 overflow-hidden mt-3 px-4">
-              <ScrollArea className="h-full -mx-4 px-4">
+            <TabsContent value="stats" className="mt-3 px-4">
+              <div className="-mx-4 px-4">
                 <div className="space-y-4 pb-4">
                   {/* Statistics Cards */}
                   <div className="grid grid-cols-2 gap-3">
@@ -785,7 +785,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                     </Button>
                   </div>
                 </div>
-              </ScrollArea>
+              </div>
             </TabsContent>
           </Tabs>
         </SheetContent>
