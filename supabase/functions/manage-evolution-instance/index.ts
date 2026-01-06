@@ -12,19 +12,23 @@ serve(async (req) => {
   }
 
   try {
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      throw new Error("Evolution API credentials not configured");
-    }
-
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-    const { action, instanceName, name } = await req.json();
+    
+    const body = await req.json();
+    const { action, instanceName, name, evolutionApiUrl, evolutionApiKey } = body;
 
     console.log(`[manage-evolution-instance] Action: ${action}, Instance: ${instanceName}`);
+
+    // Use credentials from request body OR fallback to env vars
+    const EVOLUTION_API_URL = evolutionApiUrl || Deno.env.get("EVOLUTION_API_URL");
+    const EVOLUTION_API_KEY = evolutionApiKey || Deno.env.get("EVOLUTION_API_KEY");
+
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      throw new Error("Evolution API credentials not provided");
+    }
 
     const evolutionFetch = async (endpoint: string, options: RequestInit = {}) => {
       // Remove trailing slash from base URL and leading slash from endpoint to avoid double slashes
