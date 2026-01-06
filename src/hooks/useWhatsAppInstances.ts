@@ -15,6 +15,13 @@ export interface WhatsAppInstance {
   updated_at: string;
 }
 
+interface CreateInstanceParams {
+  name: string;
+  instanceName: string;
+  evolutionApiUrl?: string;
+  evolutionApiKey?: string;
+}
+
 export function useWhatsAppInstances() {
   const queryClient = useQueryClient();
 
@@ -32,9 +39,15 @@ export function useWhatsAppInstances() {
   });
 
   const createInstance = useMutation({
-    mutationFn: async ({ name, instanceName }: { name: string; instanceName: string }) => {
+    mutationFn: async ({ name, instanceName, evolutionApiUrl, evolutionApiKey }: CreateInstanceParams) => {
       const { data, error } = await supabase.functions.invoke('manage-evolution-instance', {
-        body: { action: 'create', name, instanceName },
+        body: { 
+          action: 'create', 
+          name, 
+          instanceName,
+          evolutionApiUrl,
+          evolutionApiKey,
+        },
       });
 
       if (error) throw error;
