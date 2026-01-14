@@ -66,14 +66,24 @@ serve(async (req) => {
           return null;
         }
         
-        const audioBlob = await audioResponse.blob();
-        console.log("[webhook-evolution] Audio fetched, size:", audioBlob.size);
+        // Get the audio as ArrayBuffer first
+        const audioBuffer = await audioResponse.arrayBuffer();
+        console.log("[webhook-evolution] Audio fetched, size:", audioBuffer.byteLength);
+        
+        // Create a proper Blob with correct MIME type for OGG/Opus (WhatsApp format)
+        // Using .oga extension which is supported by Whisper
+        const audioBlob = new Blob([audioBuffer], { type: "audio/ogg" });
+        
+        // Create a File object with .oga extension (OGG Audio, supported by Whisper)
+        const audioFile = new File([audioBlob], "audio.oga", { type: "audio/ogg" });
         
         // Create form data for Whisper API
         const formData = new FormData();
-        formData.append("file", audioBlob, "audio.ogg");
+        formData.append("file", audioFile);
         formData.append("model", "whisper-1");
         formData.append("language", "pt");
+        
+        console.log("[webhook-evolution] Sending to Whisper API...");
         
         const whisperResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
           method: "POST",
@@ -90,7 +100,7 @@ serve(async (req) => {
         }
         
         const result = await whisperResponse.json();
-        console.log("[webhook-evolution] Transcription:", result.text?.substring(0, 100));
+        console.log("[webhook-evolution] Transcription success:", result.text?.substring(0, 100));
         return result.text || null;
       } catch (error) {
         console.error("[webhook-evolution] Transcription failed:", error);
