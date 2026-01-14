@@ -25,7 +25,23 @@ interface AIAgent {
   greeting_message: string | null;
   instance_id: string | null;
   is_active: boolean;
+  elevenlabs_voice_id: string | null;
 }
+
+const ELEVENLABS_VOICES = [
+  { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (Feminina, natural)" },
+  { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (Feminina, suave)" },
+  { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (Feminina, clara)" },
+  { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (Feminina, jovem)" },
+  { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (Feminina, amigável)" },
+  { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (Masculina, grave)" },
+  { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (Masculina, jovem)" },
+  { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (Masculina, profissional)" },
+  { value: "nPczCjzI2devNBz1zQrb", label: "Brian (Masculina, casual)" },
+  { value: "cjVigY5qzO86Huf0OWal", label: "Eric (Masculina, enérgico)" },
+  { value: "CwhRBWXzGAHq8TQ4Fs17", label: "Roger (Masculina, madura)" },
+  { value: "IKne3meq5aSn9XLyUdCD", label: "Charlie (Masculina, natural)" },
+];
 
 interface ConfigurarAgenteDialogProps {
   agent: AIAgent;
@@ -64,6 +80,7 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
     max_tokens: agent.max_tokens || 1000,
     instance_id: agent.instance_id || "",
     qualification_criteria: agent.qualification_criteria || {},
+    elevenlabs_voice_id: agent.elevenlabs_voice_id || "XrExE9yKIg1WjnnlVkGX",
   });
 
   // Sync form data when agent changes
@@ -80,6 +97,7 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
       max_tokens: agent.max_tokens || 1000,
       instance_id: agent.instance_id || "",
       qualification_criteria: agent.qualification_criteria || {},
+      elevenlabs_voice_id: agent.elevenlabs_voice_id || "XrExE9yKIg1WjnnlVkGX",
     });
   }, [agent]);
 
@@ -113,6 +131,7 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
           max_tokens: formData.max_tokens,
           instance_id: formData.instance_id || null,
           qualification_criteria: formData.qualification_criteria,
+          elevenlabs_voice_id: formData.elevenlabs_voice_id || null,
         })
         .eq("id", agent.id);
 
@@ -323,6 +342,28 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Vincule este agente a uma instância do WhatsApp para ativar a automação.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Voz para Respostas em Áudio (ElevenLabs)</Label>
+                <Select
+                  value={formData.elevenlabs_voice_id}
+                  onValueChange={(value) => setFormData({ ...formData, elevenlabs_voice_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma voz" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ELEVENLABS_VOICES.map((voice) => (
+                      <SelectItem key={voice.value} value={voice.value}>
+                        {voice.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Quando o cliente enviar um áudio, o agente responderá com áudio usando esta voz.
                 </p>
               </div>
 
