@@ -224,7 +224,7 @@ serve(async (req) => {
     }
 
     // UPDATE PROFILE
-    if (req.method === "PUT" && action === "update") {
+    if (req.method === "POST" && action === "update") {
       const { userId, nome, telefone, cargo, is_owner } = await req.json();
       console.log("Updating profile:", userId);
 
