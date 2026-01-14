@@ -142,7 +142,7 @@ export default function Estoque() {
                 <KPICard label="Total Produtos" value={produtos.filter(p => p.ativo).length} icon={Box} />
                 <KPICard 
                   label="Chopp Disponível" 
-                  value={`${totalLitrosChopp.toLocaleString('pt-BR')}L`} 
+                  value={`${totalLitrosChopp.toLocaleString('pt-BR')} LITROS`} 
                   icon={Beer}
                 />
                 <KPICard label="Em Alerta" value={produtosComAlerta.length} icon={AlertTriangle} variant="warning" />
@@ -275,7 +275,7 @@ export default function Estoque() {
                                 {isChopp ? (
                                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
                                     <Beer className="h-3 w-3 mr-1" />
-                                    {capacidade}L
+                                    {capacidade} LITROS
                                   </Badge>
                                 ) : (
                                   <Badge variant="outline" className="text-muted-foreground">
@@ -288,7 +288,7 @@ export default function Estoque() {
                                   <div className="flex flex-col">
                                     <span className="font-medium flex items-center gap-1">
                                       <Droplets className="h-3 w-3 text-blue-500" />
-                                      {produto.estoqueLitros.toLocaleString('pt-BR')}L
+                                      {produto.estoqueLitros.toLocaleString('pt-BR')} LITROS
                                     </span>
                                     <span className="text-xs text-muted-foreground">
                                       ≈ {Math.floor(produto.estoqueLitros / capacidade)} barris
@@ -313,7 +313,7 @@ export default function Estoque() {
                                 R$ {produto.precoCusto.toFixed(2)}
                                 {isChopp && (
                                   <span className="block text-xs">
-                                    R$ {(produto.precoCusto / capacidade).toFixed(2)}/L
+                                    R$ {(produto.precoCusto / capacidade).toFixed(2)}/LITRO
                                   </span>
                                 )}
                               </TableCell>
@@ -321,7 +321,7 @@ export default function Estoque() {
                                 R$ {produto.preco.toFixed(2)}
                                 {isChopp && (
                                   <span className="block text-xs text-muted-foreground font-normal">
-                                    R$ {(produto.preco / capacidade).toFixed(2)}/L
+                                    R$ {(produto.preco / capacidade).toFixed(2)}/LITRO
                                   </span>
                                 )}
                               </TableCell>

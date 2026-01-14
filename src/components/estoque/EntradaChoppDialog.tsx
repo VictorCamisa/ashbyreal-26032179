@@ -49,7 +49,7 @@ export function EntradaChoppDialog({ onSuccess }: EntradaChoppDialogProps) {
       await registrarEntradaChopp(
         produtoId, 
         litrosCalculados, 
-        observacoes || `Entrada: ${modoEntrada === 'barris' ? `${quantidadeBarris} barris de ${capacidadeBarril}L` : `${quantidadeLitros}L`}`
+        observacoes || `Entrada: ${modoEntrada === 'barris' ? `${quantidadeBarris} barris de ${capacidadeBarril} LITROS` : `${quantidadeLitros} LITROS`}`
       );
 
       setOpen(false);
@@ -108,7 +108,7 @@ export function EntradaChoppDialog({ onSuccess }: EntradaChoppDialogProps) {
                       <div className="flex items-center gap-2">
                         <span>{produto.nome}</span>
                         <Badge variant="outline" className="text-xs">
-                          {produto.estoqueLitros}L
+                          {produto.estoqueLitros} LITROS
                         </Badge>
                       </div>
                     </SelectItem>
@@ -204,10 +204,10 @@ export function EntradaChoppDialog({ onSuccess }: EntradaChoppDialogProps) {
             <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-1">Será adicionado ao estoque</p>
-                <p className="text-2xl font-bold text-emerald-600">+{litrosCalculados}L</p>
+                <p className="text-2xl font-bold text-emerald-600">+{litrosCalculados} LITROS</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Estoque atual: {produtoSelecionado.estoqueLitros}L → 
-                  Novo: {produtoSelecionado.estoqueLitros + litrosCalculados}L
+                  Estoque atual: {produtoSelecionado.estoqueLitros} LITROS → 
+                  Novo: {produtoSelecionado.estoqueLitros + litrosCalculados} LITROS
                 </p>
               </div>
             </div>
