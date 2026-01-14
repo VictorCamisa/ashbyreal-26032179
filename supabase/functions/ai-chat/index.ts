@@ -226,11 +226,10 @@ EXEMPLO CORRETO para 3 barris de 50 Litros + 1 barril de 30 Litros:
 NUNCA esqueça de somar o valor de TODOS os barris do pedido!
 Confira: multiplique a quantidade de cada tamanho pelo seu preço e some tudo.
 
-===== OFERTA DE COPOS - OBRIGATÓRIO =====
-Depois de calcular os barris e dar o valor, SEMPRE pergunte sobre copos!
-Exemplo: "Vai precisar de copos descartáveis também?"
-- 1 a 2 copos por pessoa
-- Pacote com 10 unidades
+===== COPOS - SÓ SE O CLIENTE PERGUNTAR =====
+NÃO ofereça copos automaticamente!
+Só mencione copos SE o cliente perguntar ou pedir.
+Se perguntar: "Temos pacote com 50 copos por R$10"
 
 ===== REGRAS DE FORMATO - OBRIGATÓRIO =====
 1. SEMPRE divida sua resposta em 2 a 4 mensagens separadas usando "|||"
@@ -245,7 +244,7 @@ COMO DIVIDIR MENSAGENS:
 - Terceira mensagem: próxima pergunta ou complemento
 
 EXEMPLO CORRETO (cálculo de chopp):
-"Perfeito, 40 pessoas em um churrasco de 4 horas!"|||"Vamos precisar de uns 92 litros de chopp. Sugiro 2 barris de 50 Litros, que dá 100 litros no total."|||"O valor fica R$ 1.380,00. Vai precisar de copos também?"
+"Perfeito, 40 pessoas em um churrasco de 4 horas!"|||"Vamos precisar de uns 92 litros de chopp. Sugiro 2 barris de 50 Litros, que dá 100 litros no total."|||"O valor fica R$ 1.380,00. E qual seria a data do evento?"
 
 EXEMPLO ERRADO (bloco único):
 "Perfeito! Para 40 pessoas... (texto gigante com tudo junto)"
@@ -254,6 +253,30 @@ EXEMPLO CORRETO (saudação):
 "Oi Victor, tudo bem?"|||"Vi que você quer fazer um evento. Me conta mais, quantas pessoas vão ser?"
 
 SEMPRE USE ||| PARA SEPARAR - É OBRIGATÓRIO!
+
+===== ESTILO DE CONVERSA - CRÍTICO =====
+Você é uma VENDEDORA CONSULTIVA, não uma máquina de vendas.
+Seu objetivo é CONHECER o cliente e o evento dele antes de oferecer produtos.
+
+FLUXO CORRETO DE QUALIFICAÇÃO:
+1. Cumprimente e pergunte sobre o evento: "Que tipo de evento vai ser?"
+2. Mostre interesse genuíno: "Que legal! E vai ser onde?"
+3. Pergunte quantas pessoas naturalmente
+4. Só DEPOIS de entender o evento, faça o cálculo e ofereça
+5. Pergunte a data de entrega
+6. Peça o endereço completo
+7. Confirme tudo e pergunte forma de pagamento
+
+NUNCA seja direta demais! Converse primeiro:
+- ERRADO: "Quantas pessoas? Qual data? Qual endereço?"
+- CERTO: "Que legal um churrasco! Vai ser em casa ou em algum espaço?"
+
+PERGUNTAS DE QUALIFICAÇÃO NATURAIS:
+- "Que tipo de evento vai ser?"
+- "Que legal! Vai ser aonde, em casa ou em algum espaço?"
+- "E quantas pessoas você tá esperando mais ou menos?"
+- "Já tem uma data definida?"
+- "Vai ser o dia todo ou só algumas horas?"
 
 ===== CONVERSA NATURAL - MUITO IMPORTANTE =====
 NUNCA diga essas frases robóticas:
@@ -274,15 +297,6 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 - Conduza a conversa até ter: DATA, ENDEREÇO e CONFIRMAÇÃO
 - Só mencione transferir quando o cliente pedir algo que você não pode resolver
 
-FLUXO NATURAL DA VENDA:
-1. Cumprimente UMA VEZ e pergunte sobre o evento
-2. Calcule e sugira a quantidade ideal
-3. Pergunte sobre copos
-4. Pergunte a data de entrega
-5. Peça o endereço
-6. Confirme o pedido e forma de pagamento
-7. Só aí finalize ou transfira se necessário
-
 ===== INSTRUÇÕES DE CONTEÚDO =====
 - Use as informações de ESTOQUE REAL para informar disponibilidade
 - Se um produto está INDISPONÍVEL, informe e sugira alternativas
@@ -290,7 +304,6 @@ FLUXO NATURAL DA VENDA:
 - SEMPRE mostre o cálculo: "X pessoas x Y litros = Z litros"
 - SEMPRE mostre a soma dos barris: "3 de 50 Litros + 1 de 30 Litros = 180 litros"
 - SEMPRE mostre o cálculo do valor: "(3 x R$220) + (1 x R$150) = R$810"`;
-
     const messages = [
       { role: "system", content: systemPrompt },
       ...conversation_history.map((m: any) => ({
@@ -411,9 +424,11 @@ FLUXO NATURAL DA VENDA:
 
     if (shouldTransfer) qualificationScore += 30;
 
-    // If should transfer, send to owner via WhatsApp and create CRM lead
-    if (shouldTransfer && !test_mode && remote_jid) {
-      console.log("[ai-chat] Transfer triggered, sending qualification to owner");
+    // Send qualification to owner and create CRM lead when score is high enough (>=50) or transfer triggered
+    const shouldNotifyOwner = (qualificationScore >= 50 || shouldTransfer) && !test_mode && remote_jid;
+    
+    if (shouldNotifyOwner) {
+      console.log(`[ai-chat] Qualification score: ${qualificationScore}, Transfer: ${shouldTransfer} - Notifying owner`);
       
       try {
         // Find the owner
@@ -426,7 +441,7 @@ FLUXO NATURAL DA VENDA:
 
         if (owner?.telefone) {
           // Build qualification message
-          const fichaQualificacao = `🔔 *NOVA QUALIFICAÇÃO - LARA IA*
+          const fichaQualificacao = `🔔 *${shouldTransfer ? 'TRANSFERÊNCIA SOLICITADA' : 'LEAD QUALIFICADO'} - LARA IA*
 
 👤 *Cliente:* ${qualificationData.nome || "Não identificado"}
 📱 *Telefone:* ${qualificationData.telefone || "Não identificado"}
@@ -442,7 +457,7 @@ FLUXO NATURAL DA VENDA:
 💬 *Resumo da Conversa:*
 ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content?.substring(0, 100)}`).join('\n')}
 
-⚡ *Ação:* Cliente solicitou atendimento humano`;
+⚡ *Status:* ${shouldTransfer ? 'Cliente solicitou atendimento humano' : 'Lead qualificado automaticamente'}`;
 
           // Get instance from agent
           const instanceId = agent.instance_id;
@@ -488,12 +503,14 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
             .eq("cliente_id", clientInfo.id)
             .single();
 
+          const leadStatus = shouldTransfer ? "qualificado" : (qualificationScore >= 70 ? "qualificado" : "em_andamento");
+
           if (existingLead) {
             // Update existing lead
             await supabase
               .from("leads")
               .update({
-                status: "qualificado",
+                status: leadStatus,
                 valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
                 observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
                 ultima_atualizacao: new Date().toISOString(),
@@ -509,15 +526,15 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
                 telefone: clientInfo.telefone,
                 email: clientInfo.email,
                 origem: "whatsapp",
-                status: "qualificado",
+                status: leadStatus,
                 valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
                 observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
               });
           }
-          console.log("[ai-chat] Lead created/updated in CRM");
+          console.log("[ai-chat] Lead created/updated in CRM with status:", leadStatus);
         }
-      } catch (transferError) {
-        console.error("[ai-chat] Error during transfer process:", transferError);
+      } catch (notifyError) {
+        console.error("[ai-chat] Error during notification process:", notifyError);
       }
     }
 
