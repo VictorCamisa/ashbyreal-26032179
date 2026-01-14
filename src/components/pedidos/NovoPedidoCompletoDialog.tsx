@@ -243,6 +243,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     try {
       const pedido = await createPedido({
         clienteId: selectedCliente.id,
+        lojistaId: isVendaLojista ? selectedLojistaId : null,
         items: cart,
         metodoPagamento,
         observacoes,
@@ -250,7 +251,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         valorSinal: valorSinal > 0 ? valorSinal : undefined,
       });
 
-      // Se cliente é CNPJ e há barris selecionados, movimentar
+      // Se cliente é CNPJ ou lojista e há barris selecionados, movimentar
       if (clienteIsCNPJ && (selectedBarrisEntrega.length > 0 || selectedBarrisRetorno.length > 0)) {
         const barrisEntregaData = selectedBarrisEntrega.map(id => ({
           barrilId: id,
@@ -265,6 +266,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         await movimentarBarris({
           pedidoId: pedido.id,
           clienteId: selectedCliente.id,
+          lojistaId: isVendaLojista ? selectedLojistaId : null,
           barrisEntrega: barrisEntregaData,
           barrisRetorno: barrisRetornoData,
         });
@@ -636,11 +638,12 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
             </div>
           )}
 
-          {/* Step 3: Barris (only for CNPJ clients) */}
+          {/* Step 3: Barris (only for CNPJ clients or lojistas) */}
           {step === 'barris' && selectedCliente && (
             <SelecionarBarrisStep
               clienteId={selectedCliente.id}
-              clienteNome={selectedCliente.nome}
+              lojistaId={isVendaLojista ? selectedLojistaId : null}
+              clienteNome={isVendaLojista && selectedLojista ? selectedLojista.nome : selectedCliente.nome}
               selectedEntrega={selectedBarrisEntrega}
               selectedRetorno={selectedBarrisRetorno}
               onEntregaChange={setSelectedBarrisEntrega}
