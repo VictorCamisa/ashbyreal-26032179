@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { Loader2, Volume2 } from "lucide-react";
 
 interface AIAgent {
   id: string;
@@ -28,20 +29,13 @@ interface AIAgent {
   elevenlabs_voice_id: string | null;
 }
 
-const ELEVENLABS_VOICES = [
-  { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda (Feminina, natural)" },
-  { value: "EXAVITQu4vr4xnSDxMaL", label: "Sarah (Feminina, suave)" },
-  { value: "FGY2WhTYpPnrIDTdsKH5", label: "Laura (Feminina, clara)" },
-  { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily (Feminina, jovem)" },
-  { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica (Feminina, amigável)" },
-  { value: "JBFqnCBsd6RMkjVDRZzb", label: "George (Masculina, grave)" },
-  { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam (Masculina, jovem)" },
-  { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel (Masculina, profissional)" },
-  { value: "nPczCjzI2devNBz1zQrb", label: "Brian (Masculina, casual)" },
-  { value: "cjVigY5qzO86Huf0OWal", label: "Eric (Masculina, enérgico)" },
-  { value: "CwhRBWXzGAHq8TQ4Fs17", label: "Roger (Masculina, madura)" },
-  { value: "IKne3meq5aSn9XLyUdCD", label: "Charlie (Masculina, natural)" },
-];
+interface ElevenLabsVoice {
+  id: string;
+  name: string;
+  category: string;
+  labels: Record<string, string>;
+  preview_url?: string;
+}
 
 interface ConfigurarAgenteDialogProps {
   agent: AIAgent;
@@ -112,6 +106,16 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
 
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch ElevenLabs voices
+  const { data: elevenLabsVoices, isLoading: isLoadingVoices } = useQuery({
+    queryKey: ["elevenlabs-voices"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("elevenlabs-voices");
+      if (error) throw error;
+      return data?.voices as ElevenLabsVoice[] || [];
     },
   });
 
@@ -347,21 +351,34 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
 
               <div className="space-y-2">
                 <Label>Voz para Respostas em Áudio (ElevenLabs)</Label>
-                <Select
-                  value={formData.elevenlabs_voice_id}
-                  onValueChange={(value) => setFormData({ ...formData, elevenlabs_voice_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma voz" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ELEVENLABS_VOICES.map((voice) => (
-                      <SelectItem key={voice.value} value={voice.value}>
-                        {voice.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isLoadingVoices ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando vozes...
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.elevenlabs_voice_id}
+                    onValueChange={(value) => setFormData({ ...formData, elevenlabs_voice_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma voz" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {elevenLabsVoices?.map((voice) => (
+                        <SelectItem key={voice.id} value={voice.id}>
+                          <div className="flex items-center gap-2">
+                            <Volume2 className="h-3 w-3" />
+                            {voice.name}
+                            <span className="text-xs text-muted-foreground">
+                              ({voice.category})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Quando o cliente enviar um áudio, o agente responderá com áudio usando esta voz.
                 </p>
