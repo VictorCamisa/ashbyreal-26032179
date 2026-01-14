@@ -328,17 +328,181 @@ FLUXO NATURAL DA VENDA:
       messageLower.includes(keyword.toLowerCase())
     );
 
-    // Calculate qualification score based on conversation
-    let qualificationScore = 0;
+    // Extract qualification data from conversation
     const fullConversation = [...conversation_history, { role: "user", content: message }];
+    const allMessages = fullConversation.map((m: any) => m.content || "").join(" ").toLowerCase();
     
-    // Simple scoring logic
-    if (fullConversation.some((m: any) => m.content?.toLowerCase().includes("evento"))) qualificationScore += 20;
-    if (fullConversation.some((m: any) => m.content?.toLowerCase().includes("festa"))) qualificationScore += 20;
-    if (fullConversation.some((m: any) => m.content?.toLowerCase().includes("pessoas"))) qualificationScore += 15;
-    if (fullConversation.some((m: any) => m.content?.toLowerCase().includes("endereço"))) qualificationScore += 15;
-    if (fullConversation.some((m: any) => m.content?.toLowerCase().includes("data"))) qualificationScore += 15;
+    // Calculate qualification score
+    let qualificationScore = 0;
+    const qualificationData: {
+      evento: string | null;
+      pessoas: string | null;
+      data: string | null;
+      endereco: string | null;
+      nome: string | null;
+      telefone: string | null;
+      observacoes: string[];
+    } = {
+      evento: null,
+      pessoas: null,
+      data: null,
+      endereco: null,
+      nome: clientInfo?.nome || null,
+      telefone: remote_jid ? remote_jid.split("@")[0] : null,
+      observacoes: []
+    };
+
+    // Extract event type
+    if (allMessages.includes("casamento")) {
+      qualificationData.evento = "Casamento";
+      qualificationScore += 20;
+    } else if (allMessages.includes("aniversário") || allMessages.includes("aniversario")) {
+      qualificationData.evento = "Aniversário";
+      qualificationScore += 20;
+    } else if (allMessages.includes("festa")) {
+      qualificationData.evento = "Festa";
+      qualificationScore += 20;
+    } else if (allMessages.includes("churrasco")) {
+      qualificationData.evento = "Churrasco";
+      qualificationScore += 20;
+    } else if (allMessages.includes("evento")) {
+      qualificationData.evento = "Evento";
+      qualificationScore += 15;
+    }
+
+    // Extract number of people
+    const pessoasMatch = allMessages.match(/(\d+)\s*(?:pessoas|convidados|participantes)/);
+    if (pessoasMatch) {
+      qualificationData.pessoas = pessoasMatch[1];
+      qualificationScore += 15;
+    }
+
+    // Check for date mentions
+    if (allMessages.includes("sábado") || allMessages.includes("sabado") || 
+        allMessages.includes("domingo") || allMessages.includes("amanhã") ||
+        allMessages.match(/dia\s*\d+/)) {
+      qualificationData.data = "Data mencionada na conversa";
+      qualificationScore += 15;
+    }
+
+    // Check for address
+    if (allMessages.includes("endereço") || allMessages.includes("endereco") ||
+        allMessages.includes("rua") || allMessages.includes("bairro")) {
+      qualificationData.endereco = "Endereço mencionado na conversa";
+      qualificationScore += 15;
+    }
+
     if (shouldTransfer) qualificationScore += 30;
+
+    // If should transfer, send to owner via WhatsApp and create CRM lead
+    if (shouldTransfer && !test_mode && remote_jid) {
+      console.log("[ai-chat] Transfer triggered, sending qualification to owner");
+      
+      try {
+        // Find the owner
+        const { data: owner } = await supabase
+          .from("profiles")
+          .select("id, nome, telefone")
+          .eq("is_owner", true)
+          .limit(1)
+          .single();
+
+        if (owner?.telefone) {
+          // Build qualification message
+          const fichaQualificacao = `🔔 *NOVA QUALIFICAÇÃO - LARA IA*
+
+👤 *Cliente:* ${qualificationData.nome || "Não identificado"}
+📱 *Telefone:* ${qualificationData.telefone || "Não identificado"}
+
+📋 *DADOS COLETADOS:*
+• Evento: ${qualificationData.evento || "Não informado"}
+• Pessoas: ${qualificationData.pessoas || "Não informado"}
+• Data: ${qualificationData.data || "Não informada"}
+• Endereço: ${qualificationData.endereco || "Não informado"}
+
+📊 *Score de Qualificação:* ${qualificationScore}%
+
+💬 *Resumo da Conversa:*
+${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content?.substring(0, 100)}`).join('\n')}
+
+⚡ *Ação:* Cliente solicitou atendimento humano`;
+
+          // Get instance from agent
+          const instanceId = agent.instance_id;
+          if (instanceId) {
+            const { data: instance } = await supabase
+              .from("whatsapp_instances")
+              .select("instance_name")
+              .eq("id", instanceId)
+              .single();
+
+            if (instance) {
+              const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
+              const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+
+              if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+                const ownerPhone = owner.telefone.replace(/\D/g, "");
+                const ownerJid = ownerPhone.includes("@") ? ownerPhone : `${ownerPhone}@s.whatsapp.net`;
+
+                await fetch(`${EVOLUTION_API_URL}/message/sendText/${instance.instance_name}`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "apikey": EVOLUTION_API_KEY,
+                  },
+                  body: JSON.stringify({
+                    number: ownerJid,
+                    text: fichaQualificacao,
+                  }),
+                });
+
+                console.log("[ai-chat] Qualification sent to owner:", ownerPhone);
+              }
+            }
+          }
+        }
+
+        // Create or update lead in CRM
+        if (clientInfo?.id) {
+          // Check if lead already exists
+          const { data: existingLead } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("cliente_id", clientInfo.id)
+            .single();
+
+          if (existingLead) {
+            // Update existing lead
+            await supabase
+              .from("leads")
+              .update({
+                status: "qualificado",
+                valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
+                observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
+                ultima_atualizacao: new Date().toISOString(),
+              })
+              .eq("id", existingLead.id);
+          } else {
+            // Create new lead
+            await supabase
+              .from("leads")
+              .insert({
+                cliente_id: clientInfo.id,
+                nome: clientInfo.nome,
+                telefone: clientInfo.telefone,
+                email: clientInfo.email,
+                origem: "whatsapp",
+                status: "qualificado",
+                valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
+                observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
+              });
+          }
+          console.log("[ai-chat] Lead created/updated in CRM");
+        }
+      } catch (transferError) {
+        console.error("[ai-chat] Error during transfer process:", transferError);
+      }
+    }
 
     // If not in test mode, save the conversation
     if (!test_mode && remote_jid) {
@@ -361,6 +525,7 @@ FLUXO NATURAL DA VENDA:
           .update({
             qualification_score: qualificationScore,
             qualification_status: shouldTransfer ? "qualified" : "pending",
+            qualification_notes: JSON.stringify(qualificationData),
             transferred_at: shouldTransfer ? new Date().toISOString() : null,
             transferred_reason: shouldTransfer ? "Keyword de transferência detectada" : null,
           })
@@ -375,6 +540,7 @@ FLUXO NATURAL DA VENDA:
             status: "active",
             qualification_status: "pending",
             qualification_score: qualificationScore,
+            qualification_notes: JSON.stringify(qualificationData),
           })
           .select("id")
           .single();
