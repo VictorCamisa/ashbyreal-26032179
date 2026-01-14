@@ -25,6 +25,7 @@ export interface Barril {
   lojista?: {
     id: string;
     nome: string;
+    nome_fantasia: string | null;
   };
 }
 
@@ -71,7 +72,8 @@ export function useBarris() {
         .from('barris')
         .select(`
           *,
-          cliente:clientes(id, nome, telefone)
+          cliente:clientes(id, nome, telefone),
+          lojista:lojistas(id, nome, nome_fantasia)
         `)
         .order('codigo');
       
