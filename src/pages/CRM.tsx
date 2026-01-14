@@ -4,11 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, TrendingUp, UserCheck, DollarSign, Target, Loader2 } from 'lucide-react';
+import { Search, TrendingUp, UserCheck, DollarSign, Target, Loader2, Trash2 } from 'lucide-react';
 import { PipelineColumn } from '@/types/lead';
 import { useOportunidades } from '@/hooks/useOportunidades';
 import { NovaOportunidadeDialog } from '@/components/crm/NovaOportunidadeDialog';
@@ -38,7 +39,15 @@ const origemColors: Record<string, string> = {
   Outros: 'bg-muted text-muted-foreground'
 };
 
-function DraggableOportunidadeCard({ oportunidade, navigate }: { oportunidade: Lead & { clienteId?: string }; navigate: (path: string) => void }) {
+function DraggableOportunidadeCard({ 
+  oportunidade, 
+  navigate,
+  onDelete 
+}: { 
+  oportunidade: Lead & { clienteId?: string }; 
+  navigate: (path: string) => void;
+  onDelete: (id: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: oportunidade.id,
   });
@@ -54,21 +63,54 @@ function DraggableOportunidadeCard({ oportunidade, navigate }: { oportunidade: L
     <div 
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className="p-3 rounded-xl bg-card border border-border/50 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-all hover:shadow-md group"
-      onClick={() => navigate(`/cliente/${clienteId}`)}
+      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative"
     >
-      <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{oportunidade.nome}</p>
-      <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
-      <div className="flex items-center justify-between">
-        <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
-          {oportunidade.origem}
-        </Badge>
-        <span className="text-xs font-medium">
-          R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
-        </span>
+      <div 
+        {...listeners}
+        {...attributes}
+        className="cursor-grab active:cursor-grabbing"
+        onClick={() => navigate(`/cliente/${clienteId}`)}
+      >
+        <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{oportunidade.nome}</p>
+        <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
+        <div className="flex items-center justify-between">
+          <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
+            {oportunidade.origem}
+          </Badge>
+          <span className="text-xs font-medium">
+            R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
+          </span>
+        </div>
       </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir oportunidade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A oportunidade de {oportunidade.nome} será excluída permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => onDelete(oportunidade.id)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -96,7 +138,7 @@ interface CartItem {
 export default function CRM() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
-  const { oportunidades, isLoading, createOportunidade, isCreating, updateOportunidadeStatus } = useOportunidades();
+  const { oportunidades, isLoading, createOportunidade, isCreating, updateOportunidadeStatus, deleteOportunidade } = useOportunidades();
   const { produtos } = useEstoque();
 
   // Pedido dialog state
@@ -304,7 +346,7 @@ export default function CRM() {
                           </div>
                         ) : (
                           columnOportunidades.map((op) => (
-                            <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} />
+                            <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} onDelete={deleteOportunidade} />
                           ))
                         )}
                       </DroppableColumn>
