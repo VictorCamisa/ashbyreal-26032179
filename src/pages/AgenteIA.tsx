@@ -31,6 +31,7 @@ interface AIAgent {
   instance_id: string | null;
   is_active: boolean;
   created_at: string;
+  elevenlabs_voice_id: string | null;
   whatsapp_instances?: { id: string; name: string; status: string } | null;
 }
 

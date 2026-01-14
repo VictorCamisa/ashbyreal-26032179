@@ -49,7 +49,7 @@ serve(async (req) => {
     };
 
     // Helper to generate TTS audio via ElevenLabs
-    const generateTTSAudio = async (text: string): Promise<string | null> => {
+    const generateTTSAudio = async (text: string, voiceId?: string): Promise<string | null> => {
       if (!ELEVENLABS_API_KEY) {
         console.log("[webhook-evolution] ElevenLabs not configured, skipping TTS");
         return null;
@@ -62,7 +62,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, voiceId }),
         });
 
         if (!response.ok) {
@@ -318,7 +318,7 @@ serve(async (req) => {
               // Check if there's an active AI agent linked to this instance
               const { data: agent } = await supabase
                 .from("ai_agents")
-                .select("id, name, is_active")
+                .select("id, name, is_active, elevenlabs_voice_id")
                 .eq("instance_id", instance.id)
                 .eq("is_active", true)
                 .single();
@@ -368,9 +368,10 @@ serve(async (req) => {
                       if (!msgText || !msgText.trim()) continue;
 
                       if (shouldRespondWithAudio) {
-                        // Generate TTS audio
-                        console.log(`[webhook-evolution] Generating TTS for audio response`);
-                        const audioBase64 = await generateTTSAudio(msgText.trim());
+                        // Generate TTS audio with agent's configured voice
+                        const voiceId = agent.elevenlabs_voice_id || undefined;
+                        console.log(`[webhook-evolution] Generating TTS for audio response with voice: ${voiceId || 'default'}`);
+                        const audioBase64 = await generateTTSAudio(msgText.trim(), voiceId);
                         
                         if (audioBase64) {
                           const audioSent = await sendAudioMessage(instanceName, phoneNumber, audioBase64);
