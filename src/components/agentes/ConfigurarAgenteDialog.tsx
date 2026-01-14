@@ -35,8 +35,11 @@ interface ConfigurarAgenteDialogProps {
 
 const AVAILABLE_MODELS = [
   { value: "gpt-4o-mini", label: "GPT-4o Mini (Rápido e econômico)" },
-  { value: "gpt-4o", label: "GPT-4o (Mais inteligente)" },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo (Equilibrado)" },
+  { value: "gpt-4o", label: "GPT-4o (Equilibrado)" },
+  { value: "gpt-4.1-2025-04-14", label: "GPT-4.1 (Mais recente e poderoso)" },
+  { value: "gpt-5-mini-2025-08-07", label: "GPT-5 Mini (Nova geração, eficiente)" },
+  { value: "gpt-5-2025-08-07", label: "GPT-5 (Flagship - máxima qualidade)" },
+  { value: "o4-mini-2025-04-16", label: "O4 Mini (Raciocínio avançado)" },
 ];
 
 const AVAILABLE_TABLES = [

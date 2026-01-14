@@ -225,9 +225,12 @@ Fornecer suporte inicial e direcionar corretamente:
 ];
 
 const AVAILABLE_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Rápido e econômico. Ideal para alto volume.", cost: "$", speed: "Muito rápido" },
-  { value: "gpt-4o", label: "GPT-4o", description: "Mais inteligente e preciso. Melhor para casos complexos.", cost: "$$$", speed: "Rápido" },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Equilibrado entre custo e qualidade.", cost: "$$", speed: "Rápido" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Econômico e rápido. Bom para alto volume.", cost: "$", speed: "Muito rápido" },
+  { value: "gpt-4o", label: "GPT-4o", description: "Equilibrado entre custo e qualidade.", cost: "$$", speed: "Rápido" },
+  { value: "gpt-4.1-2025-04-14", label: "GPT-4.1", description: "Mais recente da linha GPT-4. Alta qualidade.", cost: "$$", speed: "Rápido" },
+  { value: "gpt-5-mini-2025-08-07", label: "GPT-5 Mini", description: "Nova geração, eficiente e poderoso.", cost: "$$", speed: "Rápido" },
+  { value: "gpt-5-2025-08-07", label: "GPT-5 Flagship", description: "O melhor modelo. Máxima qualidade e raciocínio.", cost: "$$$", speed: "Moderado" },
+  { value: "o4-mini-2025-04-16", label: "O4 Mini", description: "Raciocínio avançado para problemas complexos.", cost: "$$", speed: "Rápido" },
 ];
 
 const AVAILABLE_TABLES = [
