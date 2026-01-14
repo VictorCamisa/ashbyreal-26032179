@@ -136,30 +136,90 @@ serve(async (req) => {
       }
     }
 
+    // Get current date info for the AI
+    const now = new Date();
+    const diasSemana = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+    const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    
+    const diaAtual = now.getDate();
+    const mesAtual = meses[now.getMonth()];
+    const anoAtual = now.getFullYear();
+    const diaSemanaAtual = diasSemana[now.getDay()];
+    
+    // Calculate next Saturday and Sunday
+    const diasAteProximoSabado = (6 - now.getDay() + 7) % 7 || 7;
+    const proximoSabado = new Date(now);
+    proximoSabado.setDate(now.getDate() + diasAteProximoSabado);
+    const proximoDomingo = new Date(proximoSabado);
+    proximoDomingo.setDate(proximoSabado.getDate() + 1);
+    
+    // Calculate tomorrow
+    const amanha = new Date(now);
+    amanha.setDate(now.getDate() + 1);
+
+    const dateContext = `
+===== DATA E HORA ATUAL =====
+- Hoje é ${diaSemanaAtual}, dia ${diaAtual} de ${mesAtual} de ${anoAtual}
+- Amanhã será ${diasSemana[amanha.getDay()]}, dia ${amanha.getDate()} de ${meses[amanha.getMonth()]}
+- Próximo sábado: dia ${proximoSabado.getDate()} de ${meses[proximoSabado.getMonth()]}
+- Próximo domingo: dia ${proximoDomingo.getDate()} de ${meses[proximoDomingo.getMonth()]}
+
+USE ESTAS DATAS quando o cliente mencionar "amanhã", "fim de semana", "próximo sábado", etc.`;
+
     // Build messages array for OpenAI with multi-message instruction
     const systemPrompt = `${agent.system_prompt}
 
+${dateContext}
 ${contextData ? `\n\nCONTEXTO DO BANCO DE DADOS:\n${contextData}` : ""}
 
-REGRAS ABSOLUTAS DE FORMATO - SIGA À RISCA:
+===== REGRAS DE CÁLCULO - SIGA EXATAMENTE =====
+
+CÁLCULO DE LITROS:
+- Evento curto (até 3h): 1 litro por pessoa
+- Evento longo (4-5h): 2.3 litros por pessoa
+- Fórmula: PESSOAS x LITROS_POR_PESSOA = TOTAL_LITROS
+
+CÁLCULO DE BARRIS (30L e 50L apenas):
+1. Calcule o total de litros necessários
+2. Encontre a combinação de barris de 30 e 50 que seja IGUAL ou MAIOR
+3. Priorize usar menos barris
+
+EXEMPLOS DE CÁLCULO CORRETO:
+- 30 litros → 1 barril de 30L
+- 50 litros → 1 barril de 50L
+- 60 litros → 1 de 50L + 1 de 30L = 80L
+- 70 litros → 1 de 50L + 1 de 30L = 80L
+- 80 litros → 1 de 50L + 1 de 30L = 80L
+- 90 litros → 2 de 50L = 100L
+- 100 litros → 2 de 50L = 100L
+- 110 litros → 2 de 50L + 1 de 30L = 130L
+- 130 litros → 2 de 50L + 1 de 30L = 130L
+- 134 litros → 3 de 50L = 150L (ou 2 de 50L + 2 de 30L = 160L)
+- 150 litros → 3 de 50L = 150L
+- 160 litros → 3 de 50L + 1 de 30L = 180L
+
+CÁLCULO DE COPOS:
+- Sugerir 1 a 2 copos por pessoa no MÁXIMO
+- Copos vêm em pacotes de 10 unidades
+- Exemplo: 50 pessoas = 5 a 10 pacotes (50 a 100 copos)
+
+===== REGRAS DE FORMATO =====
 1. CADA MENSAGEM DEVE TER NO MÁXIMO 15 PALAVRAS
 2. Use "|||" para separar CADA mensagem curta
 3. Envie de 1 a 3 mensagens separadas por conversa
 4. NUNCA escreva parágrafos longos
 5. Seja direta e objetiva
 
-EXEMPLOS CORRETOS:
+EXEMPLOS CORRETOS DE FORMATO:
 - "Oi, tudo bem?"
-- "Oi, tudo sim. E você?"|||"Tem algum evento chegando?"
-- "Que legal!"|||"Qual tipo de chopp você prefere?"
+- "Oi, tudo sim!"|||"Tem algum evento chegando?"
 
-EXEMPLOS ERRADOS (não fazer assim):
-- "Oi, tudo bem? Que legal saber que você tem interesse em chopp! Temos várias opções disponíveis..."
-
-INSTRUÇÕES DE CONTEÚDO:
+===== INSTRUÇÕES DE CONTEÚDO =====
 - Use as informações de ESTOQUE REAL para informar disponibilidade
 - Se um produto está INDISPONÍVEL, informe e sugira alternativas
-- Nunca ofereça produtos sem estoque`;
+- Nunca ofereça produtos sem estoque
+- SEMPRE mostre o cálculo: "X pessoas x Y litros = Z litros"
+- SEMPRE mostre a soma dos barris: "1 de 50L + 1 de 30L = 80 litros"`;
 
     const messages = [
       { role: "system", content: systemPrompt },
