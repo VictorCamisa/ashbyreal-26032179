@@ -16,6 +16,7 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+    const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -23,7 +24,6 @@ serve(async (req) => {
     const resolveRealJid = async (lidJid: string, instName: string): Promise<string | null> => {
       if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return null;
       try {
-        // Try /chat/findContacts to get pnJid
         const url = `${EVOLUTION_API_URL}/chat/findContacts/${instName}`;
         const resp = await fetch(url, {
           method: "POST",
@@ -35,7 +35,6 @@ serve(async (req) => {
         });
         if (!resp.ok) return null;
         const data = await resp.json();
-        // Response can be an array or single object
         const contacts = Array.isArray(data) ? data : data?.contacts || [data];
         for (const c of contacts) {
           const pn = c?.pnJid || c?.id;
@@ -49,11 +48,77 @@ serve(async (req) => {
       return null;
     };
 
+    // Helper to generate TTS audio via ElevenLabs
+    const generateTTSAudio = async (text: string): Promise<string | null> => {
+      if (!ELEVENLABS_API_KEY) {
+        console.log("[webhook-evolution] ElevenLabs not configured, skipping TTS");
+        return null;
+      }
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/elevenlabs-tts`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({ text }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("[webhook-evolution] TTS error:", errText);
+          return null;
+        }
+
+        const data = await response.json();
+        return data.audioContent || null;
+      } catch (error) {
+        console.error("[webhook-evolution] TTS generation failed:", error);
+        return null;
+      }
+    };
+
+    // Helper to send audio via Evolution API
+    const sendAudioMessage = async (
+      instanceName: string,
+      phoneNumber: string,
+      audioBase64: string
+    ): Promise<boolean> => {
+      if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return false;
+
+      try {
+        const sendUrl = `${EVOLUTION_API_URL}/message/sendWhatsAppAudio/${instanceName}`;
+        const response = await fetch(sendUrl, {
+          method: "POST",
+          headers: {
+            apikey: EVOLUTION_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            number: phoneNumber,
+            audio: `data:audio/mpeg;base64,${audioBase64}`,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("[webhook-evolution] Send audio error:", errText);
+          return false;
+        }
+
+        console.log(`[webhook-evolution] Audio sent to ${phoneNumber}`);
+        return true;
+      } catch (error) {
+        console.error("[webhook-evolution] Send audio failed:", error);
+        return false;
+      }
+    };
+
     const payload = await req.json();
     const event = payload.event;
     const instanceName = payload.instance || payload.instanceName;
 
-    // Normalize event name to uppercase
     const normalizedEvent = event?.toUpperCase().replace(/\./g, "_");
     
     console.log(`[webhook-evolution] Event: ${event} (normalized: ${normalizedEvent}), Instance: ${instanceName}`);
@@ -92,7 +157,6 @@ serve(async (req) => {
         const state = payload.data?.state || payload.state;
         const isConnected = state === "open";
         
-        // Extract phone number from instance data
         let phoneNumber = null;
         if (payload.data?.instance?.owner) {
           phoneNumber = payload.data.instance.owner.split("@")[0];
@@ -105,7 +169,7 @@ serve(async (req) => {
           .update({
             status: isConnected ? "connected" : "disconnected",
             phone_number: phoneNumber,
-            qr_code: isConnected ? null : undefined, // Clear QR code when connected
+            qr_code: isConnected ? null : undefined,
           })
           .eq("id", instance.id);
 
@@ -114,9 +178,6 @@ serve(async (req) => {
       }
 
       case "MESSAGES_UPSERT": {
-        // Evolution can send this event in two formats:
-        // 1) payload.data.messages = [] (history/batch)
-        // 2) payload.data = single message object
         const data = payload.data;
         let messages: any[] = [];
 
@@ -136,7 +197,6 @@ serve(async (req) => {
           const remoteJidRaw = msg.key?.remoteJid || "";
           let remoteJidAlt = msg.key?.remoteJidAlt || msg.remoteJidAlt || msg.key?.pnJid || msg.pnJid || null;
 
-          // If we have @lid and no alt, try to resolve via Evolution API
           if (remoteJidRaw.includes("@lid") && !remoteJidAlt) {
             const resolved = await resolveRealJid(remoteJidRaw, instanceName);
             if (resolved) {
@@ -147,13 +207,11 @@ serve(async (req) => {
 
           const remoteJid = remoteJidRaw.includes("@lid") && remoteJidAlt ? remoteJidAlt : remoteJidRaw;
 
-          // Ignore group messages
           if (remoteJid.includes("@g.us")) {
             console.log(`[webhook-evolution] Ignoring group message: ${remoteJid}`);
             continue;
           }
 
-          // Ignore status messages
           if (remoteJid === "status@broadcast") {
             continue;
           }
@@ -161,11 +219,11 @@ serve(async (req) => {
           const fromMe = msg.key?.fromMe || false;
           const messageId = msg.key?.id || `msg_${Date.now()}`;
 
-          // Extract message content and type
           let content = "";
           let messageType = "text";
           let mediaUrl = null;
           let mediaBase64 = null;
+          let isAudioMessage = false;
 
           if (msg.message?.conversation) {
             content = msg.message.conversation;
@@ -175,7 +233,6 @@ serve(async (req) => {
             messageType = "image";
             content = msg.message.imageMessage.caption || "[Imagem]";
             mediaUrl = msg.message.imageMessage.url || null;
-            // Check for base64 media
             if (msg.message.base64) {
               mediaBase64 = `data:image/jpeg;base64,${msg.message.base64}`;
             }
@@ -185,12 +242,10 @@ serve(async (req) => {
             mediaUrl = msg.message.videoMessage.url || null;
           } else if (msg.message?.audioMessage) {
             messageType = "audio";
-            content = "[Áudio]";
-            mediaUrl = msg.message.audioMessage.url || null;
-            // Duration in seconds
+            isAudioMessage = true;
             const duration = msg.message.audioMessage.seconds || 0;
             content = `[Áudio ${duration}s]`;
-            // Check for base64 audio
+            mediaUrl = msg.message.audioMessage.url || null;
             if (msg.message.base64) {
               mediaBase64 = `data:audio/ogg;base64,${msg.message.base64}`;
             }
@@ -203,34 +258,28 @@ serve(async (req) => {
             content = "[Figurinha]";
           }
 
-          // Use base64 as media URL if we have it
           if (mediaBase64) {
             mediaUrl = mediaBase64;
           }
 
-          // Extract contact info - THIS IS THE KEY PART!
-          // pushName comes from the contact who sent the message
           const pushName = msg.pushName || msg.verifiedBizName || data?.pushName || null;
           const phoneNumber = remoteJid.split("@")[0];
 
-          // Build metadata with sender info
           const metadata: Record<string, any> = {
             sender_name: pushName,
             push_name: pushName,
             phone_number: phoneNumber,
             remote_jid_raw: remoteJidRaw,
             remote_jid_alt: remoteJidAlt,
+            is_audio_message: isAudioMessage,
           };
 
-          // If there's a profile picture, include it
           if (msg.profilePicUrl) {
             metadata.profile_picture = msg.profilePicUrl;
           }
 
-          // Determine direction
           const direction = fromMe ? "outbound" : "inbound";
 
-          // Check if message already exists
           const { data: existing } = await supabase
             .from("whatsapp_messages")
             .select("id")
@@ -242,7 +291,6 @@ serve(async (req) => {
             continue;
           }
 
-          // Insert message
           const { error: insertError } = await supabase
             .from("whatsapp_messages")
             .insert({
@@ -263,10 +311,10 @@ serve(async (req) => {
           if (insertError) {
             console.error(`[webhook-evolution] Error inserting message:`, insertError);
           } else {
-            console.log(`[webhook-evolution] Message saved: ${messageId}, pushName: ${pushName}, direction: ${direction}`);
+            console.log(`[webhook-evolution] Message saved: ${messageId}, pushName: ${pushName}, direction: ${direction}, type: ${messageType}`);
             
             // If inbound message, check for AI agent and respond
-            if (direction === "inbound" && content && content.trim()) {
+            if (direction === "inbound") {
               // Check if there's an active AI agent linked to this instance
               const { data: agent } = await supabase
                 .from("ai_agents")
@@ -278,8 +326,18 @@ serve(async (req) => {
               if (agent) {
                 console.log(`[webhook-evolution] Found active agent: ${agent.name} (${agent.id})`);
                 
+                // For audio messages, we still need text to process
+                // The AI will respond, and we'll convert response to audio
+                const messageToProcess = isAudioMessage 
+                  ? "[O usuário enviou um áudio. Responda de forma amigável que você recebeu o áudio]"
+                  : content;
+
+                if (!messageToProcess || !messageToProcess.trim()) {
+                  console.log("[webhook-evolution] Empty message, skipping AI processing");
+                  continue;
+                }
+
                 try {
-                  // Call ai-chat function to get response
                   const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
                     method: "POST",
                     headers: {
@@ -289,7 +347,7 @@ serve(async (req) => {
                     body: JSON.stringify({
                       agent_id: agent.id,
                       remote_jid: remoteJid,
-                      message: content,
+                      message: messageToProcess,
                       test_mode: false,
                     }),
                   });
@@ -301,13 +359,42 @@ serve(async (req) => {
                     const aiData = await aiResponse.json();
                     console.log(`[webhook-evolution] AI response received:`, JSON.stringify(aiData).substring(0, 500));
                     
-                    // Get messages array or fallback to single response
                     const messagesToSend = aiData.messages || [aiData.response];
                     
-                    // Send each message separately via Evolution API
+                    // If the incoming message was audio, respond with audio
+                    const shouldRespondWithAudio = isAudioMessage && ELEVENLABS_API_KEY;
+
                     for (const msgText of messagesToSend) {
                       if (!msgText || !msgText.trim()) continue;
+
+                      if (shouldRespondWithAudio) {
+                        // Generate TTS audio
+                        console.log(`[webhook-evolution] Generating TTS for audio response`);
+                        const audioBase64 = await generateTTSAudio(msgText.trim());
+                        
+                        if (audioBase64) {
+                          const audioSent = await sendAudioMessage(instanceName, phoneNumber, audioBase64);
+                          
+                          if (audioSent) {
+                            // Save outbound audio message to DB
+                            await supabase.from("whatsapp_messages").insert({
+                              instance_id: instance.id,
+                              remote_jid: remoteJid,
+                              direction: "outbound",
+                              message_type: "audio",
+                              content: msgText.trim(),
+                              status: "sent",
+                              metadata: { from_ai_agent: agent.id, tts_generated: true },
+                            });
+                            continue;
+                          }
+                        }
+                        
+                        // Fallback to text if audio fails
+                        console.log(`[webhook-evolution] Audio failed, falling back to text`);
+                      }
                       
+                      // Send text message
                       const sendUrl = `${EVOLUTION_API_URL}/message/sendText/${instanceName}`;
                       const sendResp = await fetch(sendUrl, {
                         method: "POST",
@@ -327,7 +414,6 @@ serve(async (req) => {
                       } else {
                         console.log(`[webhook-evolution] AI message sent to ${phoneNumber}`);
                         
-                        // Save outbound message to DB
                         await supabase.from("whatsapp_messages").insert({
                           instance_id: instance.id,
                           remote_jid: remoteJid,
@@ -339,7 +425,6 @@ serve(async (req) => {
                         });
                       }
                       
-                      // Small delay between messages for natural feel
                       await new Promise(r => setTimeout(r, 800));
                     }
                   }
@@ -356,9 +441,6 @@ serve(async (req) => {
       }
 
       case "MESSAGES_UPDATE": {
-        // Evolution can send:
-        // - payload.data = []
-        // - payload.data = { keyId, messageId, status, ... }
         const raw = payload.data;
         const updates: any[] = Array.isArray(raw) ? raw : raw ? [raw] : [];
 
@@ -372,7 +454,6 @@ serve(async (req) => {
 
           const statusRaw = update.status || update.update?.status || null;
 
-          // Map both numeric and string statuses
           const statusMapNum: Record<number, string> = {
             1: "pending",
             2: "sent",
