@@ -334,9 +334,9 @@ export default function CRM() {
                     <SelectValue placeholder="Selecione um produto" />
                   </SelectTrigger>
                   <SelectContent>
-                    {produtos.filter(p => p.ativo && p.estoque > 0).map(produto => (
+                    {produtos.filter(p => p.ativo && (p.estoque > 0 || p.tipoProduto === 'CHOPP')).map(produto => (
                       <SelectItem key={produto.id} value={produto.id}>
-                        {produto.nome} - R$ {produto.preco.toFixed(2)} ({produto.estoque} em estoque)
+                        {produto.nome} - R$ {produto.preco.toFixed(2)} {produto.tipoProduto === 'CHOPP' ? '(Sob Demanda)' : `(${produto.estoque} em estoque)`}
                       </SelectItem>
                     ))}
                   </SelectContent>
