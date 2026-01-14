@@ -384,6 +384,46 @@ serve(async (req) => {
         );
       }
 
+      case "reconfigure-webhook": {
+        if (!instanceName) {
+          throw new Error("instanceName is required");
+        }
+
+        console.log(`[manage-evolution-instance] Reconfiguring webhook for ${instanceName}`);
+
+        // Configure webhook for this instance
+        const webhookConfig = await evolutionFetch(`/webhook/set/${instanceName}`, {
+          method: "POST",
+          body: JSON.stringify({
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              webhookByEvents: true,
+              webhookBase64: true,
+              events: [
+                "MESSAGES_UPSERT",
+                "MESSAGES_UPDATE",
+                "CONNECTION_UPDATE",
+                "QRCODE_UPDATED",
+              ],
+            },
+          }),
+        });
+
+        console.log("[manage-evolution-instance] Webhook reconfigured:", webhookConfig);
+
+        // Update database
+        await supabase
+          .from("whatsapp_instances")
+          .update({ webhook_url: webhookUrl, webhook_enabled: true })
+          .eq("instance_name", instanceName);
+
+        return new Response(
+          JSON.stringify({ success: true, webhook: webhookConfig, webhookUrl }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
