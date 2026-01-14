@@ -23,9 +23,9 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { agent_id, message, conversation_history = [], remote_jid, test_mode = false } = await req.json();
+    const { agent_id, message, conversation_history = [], remote_jid, test_mode = false, pushName = null } = await req.json();
 
-    console.log(`[ai-chat] Agent: ${agent_id}, Test mode: ${test_mode}, Message: ${message?.substring(0, 50)}`);
+    console.log(`[ai-chat] Agent: ${agent_id}, Test mode: ${test_mode}, Message: ${message?.substring(0, 50)}, pushName: ${pushName}`);
 
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
@@ -42,9 +42,62 @@ serve(async (req) => {
     let contextData = "";
     const knowledgeTables = agent.knowledge_tables || [];
 
-    // If we have a remote_jid, try to find the client
+    // If we have a remote_jid, try to find or create the client
     let clientInfo = null;
-    if (remote_jid) {
+    let clientWasCreated = false;
+    
+    if (remote_jid && !test_mode) {
+      const phoneNumber = remote_jid.split("@")[0];
+      
+      // Try to find existing client
+      const { data: existingCliente } = await supabase
+        .from("clientes")
+        .select("*")
+        .or(`telefone.ilike.%${phoneNumber}%,telefone.ilike.%${phoneNumber.slice(-8)}%`)
+        .limit(1)
+        .single();
+
+      if (existingCliente) {
+        clientInfo = existingCliente;
+        
+        // Update last interaction
+        await supabase
+          .from("clientes")
+          .update({ 
+            updated_at: new Date().toISOString(),
+            ultimo_contato: new Date().toISOString()
+          })
+          .eq("id", existingCliente.id);
+          
+        console.log(`[ai-chat] Existing client found and updated: ${existingCliente.nome} (${existingCliente.id})`);
+      } else {
+        // CREATE NEW CLIENT automatically
+        const clientName = pushName || `Lead WhatsApp ${phoneNumber.slice(-4)}`;
+        
+        const { data: newCliente, error: createError } = await supabase
+          .from("clientes")
+          .insert({
+            nome: clientName,
+            telefone: phoneNumber,
+            email: `${phoneNumber}@whatsapp.lead`,
+            origem: "whatsapp",
+            status: "lead",
+            data_cadastro: new Date().toISOString(),
+            observacoes: `Lead criado automaticamente via WhatsApp em ${new Date().toLocaleString('pt-BR')}`
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error("[ai-chat] Error creating client:", createError);
+        } else {
+          clientInfo = newCliente;
+          clientWasCreated = true;
+          console.log(`[ai-chat] NEW CLIENT CREATED: ${clientName} (${newCliente.id})`);
+        }
+      }
+    } else if (remote_jid && test_mode) {
+      // In test mode, just try to find client without creating
       const phoneNumber = remote_jid.split("@")[0];
       const { data: cliente } = await supabase
         .from("clientes")
@@ -52,52 +105,117 @@ serve(async (req) => {
         .or(`telefone.ilike.%${phoneNumber}%,telefone.ilike.%${phoneNumber.slice(-8)}%`)
         .limit(1)
         .single();
+      if (cliente) clientInfo = cliente;
+    }
 
-      if (cliente) {
-        clientInfo = cliente;
-        contextData += `\n\n--- INFORMAÇÕES DO CLIENTE ---\n`;
-        contextData += `Nome: ${cliente.nome}\n`;
-        contextData += `Telefone: ${cliente.telefone}\n`;
-        contextData += `Email: ${cliente.email || "Não informado"}\n`;
-        contextData += `Status: ${cliente.status || "lead"}\n`;
-        contextData += `Data de Cadastro: ${cliente.data_cadastro || "Não informada"}\n`;
-        if (cliente.observacoes) {
-          contextData += `Observações: ${cliente.observacoes}\n`;
+    // Add client info to context if found
+    if (clientInfo) {
+      contextData += `\n\n--- INFORMAÇÕES DO CLIENTE ---\n`;
+      contextData += `Nome: ${clientInfo.nome}\n`;
+      contextData += `Telefone: ${clientInfo.telefone}\n`;
+      contextData += `Email: ${clientInfo.email || "Não informado"}\n`;
+      contextData += `Status: ${clientInfo.status || "lead"}\n`;
+      contextData += `Data de Cadastro: ${clientInfo.data_cadastro || "Não informada"}\n`;
+      if (clientInfo.observacoes) {
+        contextData += `Observações: ${clientInfo.observacoes}\n`;
+      }
+
+      // Fetch recent orders if available
+      if (knowledgeTables.includes("pedidos")) {
+        const { data: pedidos } = await supabase
+          .from("pedidos")
+          .select("numero_pedido, valor_total, status, data_pedido")
+          .eq("cliente_id", clientInfo.id)
+          .order("data_pedido", { ascending: false })
+          .limit(5);
+
+        if (pedidos && pedidos.length > 0) {
+          contextData += `\n--- ÚLTIMOS PEDIDOS ---\n`;
+          pedidos.forEach((p: any) => {
+            contextData += `- Pedido #${p.numero_pedido}: R$ ${p.valor_total?.toFixed(2)} (${p.status}) em ${p.data_pedido}\n`;
+          });
+        } else {
+          contextData += `\n--- ÚLTIMOS PEDIDOS ---\nNenhum pedido anterior encontrado.\n`;
         }
+      }
 
-        // Fetch recent orders if available
-        if (knowledgeTables.includes("pedidos")) {
-          const { data: pedidos } = await supabase
-            .from("pedidos")
-            .select("numero_pedido, valor_total, status, data_pedido")
-            .eq("cliente_id", cliente.id)
-            .order("data_pedido", { ascending: false })
-            .limit(5);
+      // Fetch barrels if available
+      if (knowledgeTables.includes("barris")) {
+        const { data: barris } = await supabase
+          .from("barris")
+          .select("codigo, capacidade, status_conteudo, localizacao")
+          .eq("cliente_id", clientInfo.id);
 
-          if (pedidos && pedidos.length > 0) {
-            contextData += `\n--- ÚLTIMOS PEDIDOS ---\n`;
-            pedidos.forEach((p: any) => {
-              contextData += `- Pedido #${p.numero_pedido}: R$ ${p.valor_total?.toFixed(2)} (${p.status}) em ${p.data_pedido}\n`;
-            });
-          } else {
-            contextData += `\n--- ÚLTIMOS PEDIDOS ---\nNenhum pedido anterior encontrado.\n`;
-          }
+        if (barris && barris.length > 0) {
+          contextData += `\n--- BARRIS COM O CLIENTE ---\n`;
+          barris.forEach((b: any) => {
+            contextData += `- ${b.codigo} (${b.capacidade}L) - ${b.status_conteudo} - ${b.localizacao}\n`;
+          });
         }
+      }
+    }
 
-        // Fetch barrels if available
-        if (knowledgeTables.includes("barris")) {
-          const { data: barris } = await supabase
-            .from("barris")
-            .select("codigo, capacidade, status_conteudo, localizacao")
-            .eq("cliente_id", cliente.id);
+    // ========== CRM LEAD MANAGEMENT ==========
+    let crmLead = null;
+    let userMessageCount = 0;
+    
+    if (clientInfo?.id && !test_mode) {
+      // Check if CRM lead exists
+      const { data: existingLead } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("cliente_id", clientInfo.id)
+        .single();
 
-          if (barris && barris.length > 0) {
-            contextData += `\n--- BARRIS COM O CLIENTE ---\n`;
-            barris.forEach((b: any) => {
-              contextData += `- ${b.codigo} (${b.capacidade}L) - ${b.status_conteudo} - ${b.localizacao}\n`;
-            });
-          }
+      if (existingLead) {
+        crmLead = existingLead;
+        console.log(`[ai-chat] Existing CRM lead found: ${existingLead.id} - status: ${existingLead.status}`);
+      } else {
+        // CREATE NEW CRM LEAD in "novo_lead" stage
+        const { data: newLead, error: leadError } = await supabase
+          .from("leads")
+          .insert({
+            cliente_id: clientInfo.id,
+            nome: clientInfo.nome,
+            telefone: clientInfo.telefone,
+            email: clientInfo.email,
+            origem: "whatsapp",
+            status: "novo_lead",
+            valor_estimado: 0,
+            observacoes: `Lead criado automaticamente pela Lara IA em ${new Date().toLocaleString('pt-BR')}`,
+            data_criacao: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (leadError) {
+          console.error("[ai-chat] Error creating CRM lead:", leadError);
+        } else {
+          crmLead = newLead;
+          console.log(`[ai-chat] NEW CRM LEAD CREATED: ${newLead.id} - status: novo_lead`);
         }
+      }
+
+      // Count user messages in conversation to track engagement
+      const { data: existingConv } = await supabase
+        .from("ai_conversations")
+        .select("id")
+        .eq("agent_id", agent_id)
+        .eq("remote_jid", remote_jid)
+        .eq("status", "active")
+        .single();
+
+      if (existingConv) {
+        const { count } = await supabase
+          .from("ai_messages")
+          .select("*", { count: "exact", head: true })
+          .eq("conversation_id", existingConv.id)
+          .eq("role", "user");
+
+        userMessageCount = (count || 0) + 1; // +1 for current message
+        console.log(`[ai-chat] User message count: ${userMessageCount}`);
+      } else {
+        userMessageCount = 1; // First message
       }
     }
 
@@ -424,11 +542,49 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 
     if (shouldTransfer) qualificationScore += 30;
 
-    // Send qualification to owner and create CRM lead when score is high enough (>=50) or transfer triggered
-    const shouldNotifyOwner = (qualificationScore >= 50 || shouldTransfer) && !test_mode && remote_jid;
+    // ========== CRM PIPELINE STAGE MANAGEMENT ==========
+    if (crmLead && !test_mode) {
+      let newStatus = crmLead.status;
+      let statusChanged = false;
+
+      // Rule: More than 5 messages = move to "qualificado"
+      if (userMessageCount > 5 && crmLead.status === "novo_lead") {
+        newStatus = "qualificado";
+        statusChanged = true;
+        console.log(`[ai-chat] Moving lead to QUALIFICADO (${userMessageCount} messages)`);
+      }
+
+      // Rule: Transfer requested = move to "negociacao"
+      if (shouldTransfer && crmLead.status !== "negociacao" && crmLead.status !== "fechado" && crmLead.status !== "perdido") {
+        newStatus = "negociacao";
+        statusChanged = true;
+        console.log(`[ai-chat] Moving lead to NEGOCIACAO (transfer requested)`);
+      }
+
+      if (statusChanged) {
+        const { error: updateError } = await supabase
+          .from("leads")
+          .update({
+            status: newStatus,
+            ultima_atualizacao: new Date().toISOString(),
+            valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : crmLead.valor_estimado,
+            observacoes: `${crmLead.observacoes || ''}\n[${new Date().toLocaleString('pt-BR')}] Status atualizado para ${newStatus}. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
+          })
+          .eq("id", crmLead.id);
+
+        if (updateError) {
+          console.error("[ai-chat] Error updating lead status:", updateError);
+        } else {
+          console.log(`[ai-chat] Lead ${crmLead.id} status updated to: ${newStatus}`);
+        }
+      }
+    }
+
+    // Send qualification to owner when transfer is triggered
+    const shouldNotifyOwner = shouldTransfer && !test_mode && remote_jid;
     
     if (shouldNotifyOwner) {
-      console.log(`[ai-chat] Qualification score: ${qualificationScore}, Transfer: ${shouldTransfer} - Notifying owner`);
+      console.log(`[ai-chat] Transfer triggered - Notifying owner and sending full qualification sheet`);
       
       try {
         // Find the owner
@@ -440,8 +596,8 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
           .single();
 
         if (owner?.telefone) {
-          // Build qualification message
-          const fichaQualificacao = `🔔 *${shouldTransfer ? 'TRANSFERÊNCIA SOLICITADA' : 'LEAD QUALIFICADO'} - LARA IA*
+          // Build COMPLETE qualification message
+          const fichaQualificacao = `🔔 *TRANSFERÊNCIA SOLICITADA - LARA IA*
 
 👤 *Cliente:* ${qualificationData.nome || "Não identificado"}
 📱 *Telefone:* ${qualificationData.telefone || "Não identificado"}
@@ -453,11 +609,12 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 • Endereço: ${qualificationData.endereco || "Não informado"}
 
 📊 *Score de Qualificação:* ${qualificationScore}%
+📬 *Total de mensagens trocadas:* ${userMessageCount}
 
 💬 *Resumo da Conversa:*
-${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content?.substring(0, 100)}`).join('\n')}
+${fullConversation.slice(-8).map((m: any) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content?.substring(0, 150)}`).join('\n')}
 
-⚡ *Status:* ${shouldTransfer ? 'Cliente solicitou atendimento humano' : 'Lead qualificado automaticamente'}`;
+⚡ *Status:* Cliente solicitou atendimento humano - Lead movido para NEGOCIAÇÃO no CRM`;
 
           // Get instance from agent
           const instanceId = agent.instance_id;
@@ -476,7 +633,7 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
                 const ownerPhone = owner.telefone.replace(/\D/g, "");
                 const ownerJid = ownerPhone.includes("@") ? ownerPhone : `${ownerPhone}@s.whatsapp.net`;
 
-                await fetch(`${EVOLUTION_API_URL}/message/sendText/${instance.instance_name}`, {
+                const sendResult = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instance.instance_name}`, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
@@ -488,50 +645,12 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
                   }),
                 });
 
-                console.log("[ai-chat] Qualification sent to owner:", ownerPhone);
+                console.log("[ai-chat] Qualification sent to owner:", ownerPhone, "Status:", sendResult.status);
               }
             }
           }
-        }
-
-        // Create or update lead in CRM
-        if (clientInfo?.id) {
-          // Check if lead already exists
-          const { data: existingLead } = await supabase
-            .from("leads")
-            .select("id")
-            .eq("cliente_id", clientInfo.id)
-            .single();
-
-          const leadStatus = shouldTransfer ? "qualificado" : (qualificationScore >= 70 ? "qualificado" : "em_andamento");
-
-          if (existingLead) {
-            // Update existing lead
-            await supabase
-              .from("leads")
-              .update({
-                status: leadStatus,
-                valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
-                observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
-                ultima_atualizacao: new Date().toISOString(),
-              })
-              .eq("id", existingLead.id);
-          } else {
-            // Create new lead
-            await supabase
-              .from("leads")
-              .insert({
-                cliente_id: clientInfo.id,
-                nome: clientInfo.nome,
-                telefone: clientInfo.telefone,
-                email: clientInfo.email,
-                origem: "whatsapp",
-                status: leadStatus,
-                valor_estimado: qualificationData.pessoas ? parseInt(qualificationData.pessoas) * 50 : null,
-                observacoes: `Qualificado pela Lara IA. Evento: ${qualificationData.evento || 'N/A'}, ${qualificationData.pessoas || 'N/A'} pessoas. Score: ${qualificationScore}%`,
-              });
-          }
-          console.log("[ai-chat] Lead created/updated in CRM with status:", leadStatus);
+        } else {
+          console.warn("[ai-chat] No owner found with is_owner=true or missing phone");
         }
       } catch (notifyError) {
         console.error("[ai-chat] Error during notification process:", notifyError);
@@ -562,6 +681,7 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
             qualification_notes: JSON.stringify(qualificationData),
             transferred_at: shouldTransfer ? new Date().toISOString() : null,
             transferred_reason: shouldTransfer ? "Keyword de transferência detectada" : null,
+            cliente_id: clientInfo?.id || null,
           })
           .eq("id", conversationId);
       } else {
@@ -602,6 +722,9 @@ ${fullConversation.slice(-6).map((m: any) => `${m.role === 'user' ? '👤' : '�
         should_transfer: shouldTransfer,
         qualification_score: qualificationScore,
         tokens_used: tokensUsed,
+        client_created: clientWasCreated,
+        client_id: clientInfo?.id || null,
+        crm_lead_id: crmLead?.id || null,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
