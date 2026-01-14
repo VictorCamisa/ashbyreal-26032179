@@ -346,8 +346,9 @@ Confira: multiplique a quantidade de cada tamanho pelo seu preço e some tudo.
 
 ===== COPOS - SÓ SE O CLIENTE PERGUNTAR =====
 NÃO ofereça copos automaticamente!
-Só mencione copos SE o cliente perguntar ou pedir.
-Se perguntar: "Temos pacote com 50 copos por R$10"
+NUNCA mencione copos a menos que o cliente pergunte ou peça.
+Se o cliente perguntar sobre copos: "Temos pacote com 50 copos por R$10 o pacote"
+Esse é o ÚNICO preço de copos - R$10 por pacote de 50 unidades.
 
 ===== REGRAS DE FORMATO - OBRIGATÓRIO =====
 1. SEMPRE divida sua resposta em 2 a 4 mensagens separadas usando "|||"
@@ -376,14 +377,21 @@ SEMPRE USE ||| PARA SEPARAR - É OBRIGATÓRIO!
 Você é uma VENDEDORA CONSULTIVA, não uma máquina de vendas.
 Seu objetivo é CONHECER o cliente e o evento dele antes de oferecer produtos.
 
+PRIMEIRA PERGUNTA OBRIGATÓRIA:
+- Depois de cumprimentar, SEMPRE pergunte: "Você tá procurando chopp pra algum evento?"
+- Só continue o atendimento depois de CONFIRMAR o que o cliente quer
+- NUNCA assuma que o cliente quer chopp sem ele confirmar
+
 FLUXO CORRETO DE QUALIFICAÇÃO:
-1. Cumprimente e pergunte sobre o evento: "Que tipo de evento vai ser?"
-2. Mostre interesse genuíno: "Que legal! E vai ser onde?"
-3. Pergunte quantas pessoas naturalmente
-4. Só DEPOIS de entender o evento, faça o cálculo e ofereça
-5. Pergunte a data de entrega
-6. Peça o endereço completo
-7. Confirme tudo e pergunte forma de pagamento
+1. Cumprimente e pergunte: "Você tá procurando chopp pra algum evento?"
+2. ESPERE a confirmação do cliente
+3. Pergunte que tipo de evento: "Que legal! Que tipo de evento vai ser?"
+4. Mostre interesse genuíno: "Que massa! E vai ser onde?"
+5. Pergunte quantas pessoas naturalmente
+6. Só DEPOIS de entender o evento, faça o cálculo e ofereça
+7. Pergunte a data de entrega
+8. Peça o endereço completo
+9. Confirme tudo e diga: "Vou anotar tudo certinho e passar pro Alexandre confirmar!"
 
 NUNCA seja direta demais! Converse primeiro:
 - ERRADO: "Quantas pessoas? Qual data? Qual endereço?"
@@ -547,18 +555,21 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
       let newStatus = crmLead.status;
       let statusChanged = false;
 
-      // Rule: More than 5 messages = move to "qualificado"
+    // Rule: More than 5 messages = move to "qualificado"
       if (userMessageCount > 5 && crmLead.status === "novo_lead") {
         newStatus = "qualificado";
         statusChanged = true;
         console.log(`[ai-chat] Moving lead to QUALIFICADO (${userMessageCount} messages)`);
       }
 
-      // Rule: Transfer requested = move to "negociacao"
-      if (shouldTransfer && crmLead.status !== "negociacao" && crmLead.status !== "fechado" && crmLead.status !== "perdido") {
+      // Rule: Transfer requested OR full qualification completed = move to "negociacao"
+      const isFullyQualified = qualificationData.pessoas && qualificationData.data && qualificationData.endereco;
+      const shouldMoveToNegociacao = shouldTransfer || (isFullyQualified && userMessageCount >= 8);
+      
+      if (shouldMoveToNegociacao && crmLead.status !== "negociacao" && crmLead.status !== "fechado" && crmLead.status !== "perdido") {
         newStatus = "negociacao";
         statusChanged = true;
-        console.log(`[ai-chat] Moving lead to NEGOCIACAO (transfer requested)`);
+        console.log(`[ai-chat] Moving lead to NEGOCIACAO (transfer: ${shouldTransfer}, qualified: ${isFullyQualified}, messages: ${userMessageCount})`);
       }
 
       if (statusChanged) {
@@ -580,8 +591,9 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
       }
     }
 
-    // Send qualification to owner when transfer is triggered
-    const shouldNotifyOwner = shouldTransfer && !test_mode && remote_jid;
+    // Send qualification to owner when transfer is triggered OR fully qualified
+    const isFullyQualifiedFinal = qualificationData.pessoas && qualificationData.data && qualificationData.endereco;
+    const shouldNotifyOwner = (shouldTransfer || (isFullyQualifiedFinal && userMessageCount >= 8)) && !test_mode && remote_jid;
     
     if (shouldNotifyOwner) {
       console.log(`[ai-chat] Transfer triggered - Notifying owner and sending full qualification sheet`);
