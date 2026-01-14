@@ -93,10 +93,69 @@ export function ComprovanteEntregaDialog({
 
   useEffect(() => {
     if (open && pedidoId) {
+      // Reset states when opening
+      setBarrisEntrega([]);
+      setBarrisRetorno([]);
       fetchPedidoData();
       fetchReceipt();
+      fetchBarrisVinculados();
     }
   }, [open, pedidoId]);
+
+  // Buscar barris vinculados ao pedido através das movimentações
+  const fetchBarrisVinculados = async () => {
+    try {
+      const { data: movimentacoes, error } = await supabase
+        .from('barril_movimentacoes')
+        .select(`
+          tipo_movimento,
+          barril_id,
+          barris:barril_id (
+            id,
+            codigo,
+            capacidade
+          )
+        `)
+        .eq('pedido_id', pedidoId);
+
+      if (error) {
+        console.error('Error fetching barril movimentacoes:', error);
+        return;
+      }
+
+      if (movimentacoes && movimentacoes.length > 0) {
+        const entrega: BarrilSelecionado[] = [];
+        const retorno: BarrilSelecionado[] = [];
+
+        movimentacoes.forEach((mov) => {
+          const barril = mov.barris as any;
+          if (barril) {
+            const barrilData = {
+              id: barril.id,
+              codigo: barril.codigo,
+              capacidade: barril.capacidade,
+            };
+
+            if (mov.tipo_movimento === 'SAIDA') {
+              entrega.push(barrilData);
+            } else if (mov.tipo_movimento === 'RETORNO') {
+              retorno.push(barrilData);
+            }
+          }
+        });
+
+        // Só definir se o estado estiver vazio (para não sobrescrever seleção manual)
+        if (entrega.length > 0) {
+          setBarrisEntrega(prev => prev.length === 0 ? entrega : prev);
+        }
+        if (retorno.length > 0) {
+          setBarrisRetorno(prev => prev.length === 0 ? retorno : prev);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching barris vinculados:', error);
+    }
+  };
 
   const fetchPedidoData = async () => {
     setIsLoading(true);
