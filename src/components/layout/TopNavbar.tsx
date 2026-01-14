@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LogOut,
+  Circle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -33,6 +34,7 @@ const navItems = [
   { label: 'Clientes', href: '/clientes', icon: Users },
   { label: 'CRM', href: '/crm', icon: Target },
   { label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
+  { label: 'Barris', href: '/barris', icon: Circle },
   { label: 'Estoque', href: '/estoque', icon: Package },
   { label: 'Financeiro', href: '/financeiro', icon: Wallet },
   { label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
