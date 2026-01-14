@@ -39,16 +39,13 @@ const statusColors: Record<string, string> = {
   disponivel: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   baixo: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
   esgotado: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
+  sempre_disponivel: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
 };
 
-const getStatusEstoque = (produto: ProdutoEstoque): 'disponivel' | 'baixo' | 'esgotado' => {
-  // Para produtos CHOPP, usar estoqueLitros
+const getStatusEstoque = (produto: ProdutoEstoque): 'disponivel' | 'baixo' | 'esgotado' | 'sempre_disponivel' => {
+  // Para produtos CHOPP, sempre disponível (não tem estoque finito, pede na fábrica)
   if (produto.tipoProduto === 'CHOPP') {
-    const capacidade = produto.capacidadeBarril || 30;
-    const estoqueEmBarris = produto.estoqueLitros / capacidade;
-    if (produto.estoqueLitros === 0) return 'esgotado';
-    if (estoqueEmBarris <= produto.estoqueMinimo) return 'baixo';
-    return 'disponivel';
+    return 'sempre_disponivel';
   }
   
   // Para produtos padrão, usar estoque normal
@@ -62,6 +59,7 @@ const getStatusLabel = (status: string): string => {
     disponivel: 'Ok',
     baixo: 'Baixo',
     esgotado: 'Esgotado',
+    sempre_disponivel: 'Sob Demanda',
   };
   return labels[status] || status;
 };
