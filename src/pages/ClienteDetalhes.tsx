@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Phone, Mail, Building, MapPin } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ArrowLeft, Phone, Mail, Building, MapPin, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Cliente } from '@/types/cliente';
 import type { Interacao } from '@/types/cliente';
 import { NovaInteracaoDialog } from '@/components/clientes/NovaInteracaoDialog';
 import { NovoPedidoDialog } from '@/components/clientes/NovoPedidoDialog';
+import { toast } from '@/hooks/use-toast';
 
 interface Pedido {
   id: string;
@@ -145,12 +147,72 @@ export default function ClienteDetalhes() {
     );
   }
 
+  const handleDeleteCliente = async () => {
+    if (!id) return;
+    
+    try {
+      // First delete related leads
+      await supabase.from('leads').delete().eq('cliente_id', id);
+      
+      // Delete related interactions
+      await supabase.from('interacoes').delete().eq('cliente_id', id);
+      
+      // Delete the client
+      const { error } = await supabase.from('clientes').delete().eq('id', id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Cliente excluído',
+        description: 'O cliente e seus dados foram removidos com sucesso.',
+      });
+      
+      navigate('/clientes');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir',
+        description: error.message,
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate(-1)}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Voltar
-      </Button>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
+        
+        {cliente?.status === 'lead' && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir Lead
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  O lead "{cliente.nome}" será excluído permanentemente, incluindo todas as interações e oportunidades relacionadas.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  className="bg-destructive hover:bg-destructive/90"
+                  onClick={handleDeleteCliente}
+                >
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
 
       {/* Header */}
       <Card>
