@@ -306,14 +306,14 @@ export function ConfigurarAgenteDialog({ agent, open, onOpenChange }: Configurar
               <div className="space-y-2">
                 <Label>Instância WhatsApp</Label>
                 <Select
-                  value={formData.instance_id}
-                  onValueChange={(value) => setFormData({ ...formData, instance_id: value })}
+                  value={formData.instance_id || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, instance_id: value === "none" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma instância" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
+                    <SelectItem value="none">Nenhuma</SelectItem>
                     {instances?.map((instance) => (
                       <SelectItem key={instance.id} value={instance.id}>
                         {instance.name} ({instance.status})
