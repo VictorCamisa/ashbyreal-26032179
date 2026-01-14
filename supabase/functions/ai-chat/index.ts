@@ -653,7 +653,11 @@ ${fullConversation.slice(-8).map((m: any) => `${m.role === 'user' ? 'ðŸ‘¤' : 'ðŸ
               const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
 
               if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-                const ownerPhone = owner.telefone.replace(/\D/g, "");
+                let ownerPhone = owner.telefone.replace(/\D/g, "");
+                // Ensure phone has country code (55 for Brazil)
+                if (!ownerPhone.startsWith("55") && ownerPhone.length <= 11) {
+                  ownerPhone = "55" + ownerPhone;
+                }
                 const ownerJid = ownerPhone.includes("@") ? ownerPhone : `${ownerPhone}@s.whatsapp.net`;
 
                 const sendResult = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instance.instance_name}`, {
