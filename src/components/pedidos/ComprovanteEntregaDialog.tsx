@@ -154,7 +154,7 @@ export function ComprovanteEntregaDialog({
     try {
       const { data, error } = await supabase
         .from('delivery_receipts')
-        .select('id, token, status, signed_at, sent_at')
+        .select('id, token, status, signed_at, sent_at, controle_barris')
         .eq('pedido_id', pedidoId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -162,6 +162,17 @@ export function ComprovanteEntregaDialog({
 
       if (!error && data) {
         setReceipt(data as DeliveryReceipt);
+        
+        // Carregar barris salvos no comprovante
+        const controle = data.controle_barris as any;
+        if (controle) {
+          if (controle.barrisEntrega && Array.isArray(controle.barrisEntrega)) {
+            setBarrisEntrega(controle.barrisEntrega);
+          }
+          if (controle.barrisRetorno && Array.isArray(controle.barrisRetorno)) {
+            setBarrisRetorno(controle.barrisRetorno);
+          }
+        }
       } else {
         setReceipt(null);
       }
