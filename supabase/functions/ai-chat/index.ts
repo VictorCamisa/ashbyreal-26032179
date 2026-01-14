@@ -191,24 +191,40 @@ CÁLCULO DE LITROS:
 - Evento longo (4-5h): 2.3 litros por pessoa
 - Fórmula: PESSOAS x LITROS_POR_PESSOA = TOTAL_LITROS
 
-CÁLCULO DE BARRIS (30L e 50L apenas):
+CÁLCULO DE BARRIS (30 Litros e 50 Litros apenas):
 1. Calcule o total de litros necessários
 2. Encontre a combinação de barris de 30 e 50 que seja IGUAL ou MAIOR
 3. Priorize usar menos barris
 
 EXEMPLOS DE CÁLCULO CORRETO:
-- 30 litros → 1 barril de 30L
-- 50 litros → 1 barril de 50L
-- 60 litros → 1 de 50L + 1 de 30L = 80L
-- 70 litros → 1 de 50L + 1 de 30L = 80L
-- 80 litros → 1 de 50L + 1 de 30L = 80L
-- 90 litros → 2 de 50L = 100L
-- 100 litros → 2 de 50L = 100L
-- 110 litros → 2 de 50L + 1 de 30L = 130L
-- 130 litros → 2 de 50L + 1 de 30L = 130L
-- 134 litros → 3 de 50L = 150L (ou 2 de 50L + 2 de 30L = 160L)
-- 150 litros → 3 de 50L = 150L
-- 160 litros → 3 de 50L + 1 de 30L = 180L
+- 30 litros → 1 barril de 30 Litros
+- 50 litros → 1 barril de 50 Litros
+- 60 litros → 1 de 50 Litros + 1 de 30 Litros = 80 litros
+- 70 litros → 1 de 50 Litros + 1 de 30 Litros = 80 litros
+- 80 litros → 1 de 50 Litros + 1 de 30 Litros = 80 litros
+- 90 litros → 2 de 50 Litros = 100 litros
+- 100 litros → 2 de 50 Litros = 100 litros
+- 110 litros → 2 de 50 Litros + 1 de 30 Litros = 130 litros
+- 130 litros → 2 de 50 Litros + 1 de 30 Litros = 130 litros
+- 134 litros → 3 de 50 Litros = 150 litros (ou 2 de 50 + 2 de 30 = 160 litros)
+- 150 litros → 3 de 50 Litros = 150 litros
+- 160 litros → 3 de 50 Litros + 1 de 30 Litros = 180 litros
+
+===== FORMATO DE ESCRITA =====
+NUNCA escreva "50L" ou "30L". 
+SEMPRE escreva "50 Litros" ou "30 Litros" por extenso.
+Exemplos corretos: "barril de 50 Litros", "barril de 30 Litros"
+Exemplos ERRADOS: "50L", "30L", "barril de 50L"
+
+===== CÁLCULO DE VALOR - CRÍTICO =====
+Quando calcular o valor do pedido, SOME O PREÇO DE TODOS OS BARRIS:
+
+EXEMPLO CORRETO para 3 barris de 50 Litros + 1 barril de 30 Litros:
+- Se 50 Litros = R$220 e 30 Litros = R$150
+- Total = (3 x R$220) + (1 x R$150) = R$660 + R$150 = R$810
+
+NUNCA esqueça de somar o valor de TODOS os barris do pedido!
+Confira: multiplique a quantidade de cada tamanho pelo seu preço e some tudo.
 
 CÁLCULO DE COPOS:
 - Sugerir 1 a 2 copos por pessoa no MÁXIMO
@@ -231,7 +247,8 @@ EXEMPLOS CORRETOS DE FORMATO:
 - Se um produto está INDISPONÍVEL, informe e sugira alternativas
 - Nunca ofereça produtos sem estoque
 - SEMPRE mostre o cálculo: "X pessoas x Y litros = Z litros"
-- SEMPRE mostre a soma dos barris: "1 de 50L + 1 de 30L = 80 litros"`;
+- SEMPRE mostre a soma dos barris: "3 de 50 Litros + 1 de 30 Litros = 180 litros"
+- SEMPRE mostre o cálculo do valor: "(3 x R$220) + (1 x R$150) = R$810"`;
 
     const messages = [
       { role: "system", content: systemPrompt },
