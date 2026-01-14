@@ -264,6 +264,92 @@ serve(async (req) => {
             console.error(`[webhook-evolution] Error inserting message:`, insertError);
           } else {
             console.log(`[webhook-evolution] Message saved: ${messageId}, pushName: ${pushName}, direction: ${direction}`);
+            
+            // If inbound message, check for AI agent and respond
+            if (direction === "inbound" && content && content.trim()) {
+              // Check if there's an active AI agent linked to this instance
+              const { data: agent } = await supabase
+                .from("ai_agents")
+                .select("id, name, is_active")
+                .eq("instance_id", instance.id)
+                .eq("is_active", true)
+                .single();
+
+              if (agent) {
+                console.log(`[webhook-evolution] Found active agent: ${agent.name} (${agent.id})`);
+                
+                try {
+                  // Call ai-chat function to get response
+                  const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      agent_id: agent.id,
+                      remote_jid: remoteJid,
+                      message: content,
+                      test_mode: false,
+                    }),
+                  });
+
+                  if (!aiResponse.ok) {
+                    const errText = await aiResponse.text();
+                    console.error(`[webhook-evolution] AI chat error: ${errText}`);
+                  } else {
+                    const aiData = await aiResponse.json();
+                    console.log(`[webhook-evolution] AI response received:`, JSON.stringify(aiData).substring(0, 500));
+                    
+                    // Get messages array or fallback to single response
+                    const messagesToSend = aiData.messages || [aiData.response];
+                    
+                    // Send each message separately via Evolution API
+                    for (const msgText of messagesToSend) {
+                      if (!msgText || !msgText.trim()) continue;
+                      
+                      const sendUrl = `${EVOLUTION_API_URL}/message/sendText/${instanceName}`;
+                      const sendResp = await fetch(sendUrl, {
+                        method: "POST",
+                        headers: {
+                          "apikey": EVOLUTION_API_KEY!,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          number: phoneNumber,
+                          text: msgText.trim(),
+                        }),
+                      });
+                      
+                      if (!sendResp.ok) {
+                        const sendErr = await sendResp.text();
+                        console.error(`[webhook-evolution] Error sending message: ${sendErr}`);
+                      } else {
+                        console.log(`[webhook-evolution] AI message sent to ${phoneNumber}`);
+                        
+                        // Save outbound message to DB
+                        await supabase.from("whatsapp_messages").insert({
+                          instance_id: instance.id,
+                          remote_jid: remoteJid,
+                          direction: "outbound",
+                          message_type: "text",
+                          content: msgText.trim(),
+                          status: "sent",
+                          metadata: { from_ai_agent: agent.id },
+                        });
+                      }
+                      
+                      // Small delay between messages for natural feel
+                      await new Promise(r => setTimeout(r, 800));
+                    }
+                  }
+                } catch (aiError) {
+                  console.error(`[webhook-evolution] Error calling AI:`, aiError);
+                }
+              } else {
+                console.log(`[webhook-evolution] No active agent for instance ${instance.id}`);
+              }
+            }
           }
         }
         break;
