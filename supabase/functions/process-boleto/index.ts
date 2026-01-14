@@ -26,73 +26,136 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY não configurada');
     }
 
-    console.log('Processando boleto com OpenAI GPT-4o, tipo:', tipoNota);
+    console.log('[process-boleto] Processando boleto, tipo:', tipoNota);
 
-    const prompt = `Você é um especialista em leitura de boletos bancários e notas fiscais brasileiras.
-Analise a imagem com MÁXIMA ATENÇÃO e extraia TODAS as informações disponíveis.
+    // PROMPT OTIMIZADO COM EXEMPLOS E REGRAS ESPECÍFICAS
+    const prompt = `Você é um especialista em OCR de documentos financeiros brasileiros.
+Analise esta imagem de boleto/nota fiscal com MÁXIMA PRECISÃO.
 
-**REGRAS CRÍTICAS DE EXTRAÇÃO:**
+═══════════════════════════════════════════
+📍 LOCAIS TÍPICOS DE CADA CAMPO
+═══════════════════════════════════════════
 
-1. **BENEFICIÁRIO/CEDENTE** (MUITO IMPORTANTE):
-   - Este é o nome da EMPRESA QUE VAI RECEBER O PAGAMENTO (quem emitiu o boleto/nota)
-   - Geralmente aparece como "CEDENTE", "BENEFICIÁRIO", "FORNECEDOR", "RAZÃO SOCIAL"
-   - NÃO confunda com o PAGADOR/SACADO (quem vai pagar)
-   - Se for uma cervejaria, o beneficiário será a cervejaria (ex: "CERVEJARIA ARTESANAL LTDA")
-   - O cliente que paga (ex: "Taubaté Chopp") NÃO é o beneficiário
+1. **BENEFICIÁRIO/CEDENTE** (quem RECEBE o dinheiro):
+   - Geralmente no TOPO do documento, logo abaixo do logo do banco
+   - Campos: "CEDENTE", "BENEFICIÁRIO", "RAZÃO SOCIAL", "FORNECEDOR"
+   - Em notas fiscais: aparece como emissor da NF
+   - EXEMPLOS: "CERVEJARIA ASHBY LTDA", "AMBEV S/A", "HEINEKEN BRASIL"
+   - ⚠️ NÃO é quem paga (sacado/pagador)
 
-2. **VALOR** (CRÍTICO):
-   - Procure por "VALOR DO DOCUMENTO", "TOTAL A PAGAR", "VALOR TOTAL", "TOTAL"
-   - Extraia o valor EXATO, sem modificar
-   - Use vírgula como separador decimal (padrão brasileiro)
-   - Inclua os centavos
+2. **VALOR** (CRÍTICO - máxima atenção):
+   - Campos: "VALOR DO DOCUMENTO", "TOTAL A PAGAR", "VALOR TOTAL", "(=) VALOR TOTAL"
+   - Geralmente em destaque, negrito ou maior
+   - Formato brasileiro: 1.234,56 (ponto = milhar, vírgula = decimal)
+   - Em notas: procure "TOTAL DA NOTA" ou soma no rodapé
+   - ⚠️ CONFIRA: some os itens para validar o total
 
-3. **VENCIMENTO**:
-   - Procure por "DATA DE VENCIMENTO", "VENCIMENTO", "VENC."
-   - ${tipoNota === 'SEM_NOTA' ? 'Se NÃO houver data de vencimento visível, calcule como DATA DE EMISSÃO + 15 dias' : 'Extraia a data exata do documento'}
+3. **DATA DE VENCIMENTO**:
+   - Campos: "VENCIMENTO", "DATA VENC.", "VENC."
+   - ${tipoNota === 'SEM_NOTA' ? 'Se não houver, calcule: DATA EMISSÃO + 15 dias' : 'Deve estar explícita no documento'}
 
-4. **NÚM.MOV / NÚMERO DO DOCUMENTO** (MUITO IMPORTANTE para ${tipoNota === 'SEM_NOTA' ? 'SEM NOTA' : 'COM NOTA'}):
-   - Procure por: "NÚM.MOV", "Nº MOV", "NUM MOV", "NÚMERO MOVIMENTO", "Nº DOCUMENTO", "NÚMERO DO DOCUMENTO"
-   - Este é um identificador ÚNICO do documento
-   - Geralmente está próximo da data ou no cabeçalho
-   - É OBRIGATÓRIO extrair este campo
+4. **NÚM. MOV / DOCUMENTO**:
+   - Campos: "NÚM.MOV", "Nº MOV", "NÚMERO DO DOCUMENTO", "DOC Nº"
+   - Geralmente no cabeçalho ou próximo à data
+   - Pode ter letras e números
 
 5. **DATA DE EMISSÃO**:
-   - Procure por "EMISSÃO", "DATA EMISSÃO", "DATA"
-   - Importante especialmente para documentos SEM NOTA
+   - Campos: "EMISSÃO", "DATA", "EMITIDO EM"
+   - Importante para documentos SEM NOTA
 
-**ITENS DA NOTA:**
-Extraia TODOS os produtos/serviços listados com:
-- Descrição completa
-- Quantidade
-- Valor unitário
-- Valor total
+6. **ITENS/PRODUTOS** (se houver):
+   - Cada linha com: descrição, quantidade, valor unitário, valor total
+   - A SOMA dos valores totais deve ser igual ao VALOR TOTAL
 
-Responda APENAS em JSON válido:
+═══════════════════════════════════════════
+📊 FORMATO DE RESPOSTA (JSON)
+═══════════════════════════════════════════
+
 {
-  "amount": "valor com vírgula decimal, ex: 2.108,00",
-  "due_date": "YYYY-MM-DD",
-  "emission_date": "YYYY-MM-DD se disponível",
-  "beneficiario": "nome da empresa que RECEBE o pagamento",
-  "sacado": "nome de quem PAGA (cliente)",
-  "description": "descrição resumida do documento",
-  "numero_movimento": "NÚM.MOV ou Número do Documento",
-  "cnpj_beneficiario": "CNPJ do beneficiário",
-  "numero_nf": "número da nota fiscal",
-  "numero_pedido": "número do pedido",
+  "amount": {
+    "value": "2.108,00",
+    "confidence": 95,
+    "source": "Campo 'VALOR TOTAL' no rodapé"
+  },
+  "due_date": {
+    "value": "2025-01-20",
+    "confidence": 90,
+    "source": "Campo 'VENCIMENTO' no cabeçalho"
+  },
+  "emission_date": {
+    "value": "2025-01-05",
+    "confidence": 85,
+    "source": "Campo 'DATA EMISSÃO'"
+  },
+  "beneficiario": {
+    "value": "CERVEJARIA ASHBY LTDA",
+    "confidence": 95,
+    "source": "Campo 'CEDENTE' no topo"
+  },
+  "sacado": {
+    "value": "TAUBATE CHOPP COMERCIO",
+    "confidence": 80,
+    "source": "Campo 'SACADO'"
+  },
+  "description": {
+    "value": "NF 12345 - Compra de chopp",
+    "confidence": 90,
+    "source": "Inferido dos itens"
+  },
+  "numero_movimento": {
+    "value": "122653",
+    "confidence": 85,
+    "source": "Campo 'NÚM.MOV'"
+  },
+  "cnpj_beneficiario": {
+    "value": "12.345.678/0001-99",
+    "confidence": 90,
+    "source": "Abaixo do nome do cedente"
+  },
+  "numero_nf": {
+    "value": "12345",
+    "confidence": 95,
+    "source": "Campo 'NOTA FISCAL Nº'"
+  },
+  "numero_pedido": {
+    "value": "PED-001",
+    "confidence": 70,
+    "source": "Campo 'PEDIDO'"
+  },
   "itens": [
     {
-      "descricao": "nome do produto",
-      "quantidade": "qtd",
-      "valor_unitario": "valor",
-      "valor_total": "total"
+      "descricao": "CHOPP PILSEN BARRIL 30L",
+      "quantidade": "10",
+      "valor_unitario": "200,00",
+      "valor_total": "2.000,00",
+      "confidence": 90
     }
-  ]
+  ],
+  "validacao": {
+    "soma_itens": "2.000,00",
+    "valor_documento": "2.108,00",
+    "diferenca": "108,00",
+    "observacao": "Diferença pode ser frete ou impostos"
+  }
 }
 
-IMPORTANTE:
-- Se não encontrar um campo, deixe string vazia ""
-- NUNCA inverta beneficiário com sacado
-- Responda APENAS o JSON, sem markdown`;
+═══════════════════════════════════════════
+⚠️ REGRAS CRÍTICAS
+═══════════════════════════════════════════
+
+1. CONFIDENCE (0-100):
+   - 95-100: Leitura clara, campo identificado
+   - 80-94: Leitura boa, alta certeza
+   - 60-79: Leitura parcial, precisa revisão
+   - <60: Incerto, destacar para revisão manual
+
+2. Se não encontrar um campo: { "value": "", "confidence": 0, "source": "Não encontrado" }
+
+3. NUNCA inverta beneficiário (recebe) com sacado (paga)
+
+4. Para valores, SEMPRE use formato brasileiro (1.234,56)
+
+5. Responda APENAS o JSON, sem markdown ou explicações`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -106,88 +169,111 @@ IMPORTANTE:
           {
             role: 'user',
             content: [
-              {
-                type: 'text',
-                text: prompt,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: image,
-                },
-              },
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: image, detail: 'high' } },
             ],
           },
         ],
-        max_tokens: 2000,
+        max_tokens: 3000,
+        temperature: 0.1, // Baixa temperatura para maior precisão
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erro na API OpenAI:', response.status, errorText);
+      console.error('[process-boleto] Erro OpenAI:', response.status, errorText);
       throw new Error(`Erro na API OpenAI: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Resposta da OpenAI:', JSON.stringify(data, null, 2));
+    console.log('[process-boleto] Tokens usados:', data.usage);
 
     const content = data.choices?.[0]?.message?.content || '';
     
-    let extracted = {
-      amount: '',
-      due_date: '',
-      emission_date: '',
-      beneficiario: '',
-      sacado: '',
-      description: '',
-      numero_movimento: '',
-      cnpj_beneficiario: '',
-      numero_nf: '',
-      numero_pedido: '',
-      itens: []
+    let extracted: any = {
+      amount: { value: '', confidence: 0, source: '' },
+      due_date: { value: '', confidence: 0, source: '' },
+      emission_date: { value: '', confidence: 0, source: '' },
+      beneficiario: { value: '', confidence: 0, source: '' },
+      sacado: { value: '', confidence: 0, source: '' },
+      description: { value: '', confidence: 0, source: '' },
+      numero_movimento: { value: '', confidence: 0, source: '' },
+      cnpj_beneficiario: { value: '', confidence: 0, source: '' },
+      numero_nf: { value: '', confidence: 0, source: '' },
+      numero_pedido: { value: '', confidence: 0, source: '' },
+      itens: [],
+      validacao: null
     };
 
     try {
       const jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-      extracted = JSON.parse(jsonStr);
+      const parsed = JSON.parse(jsonStr);
+      
+      // Merge parsed data
+      extracted = { ...extracted, ...parsed };
       
       // Format amount if needed
-      if (extracted.amount) {
-        extracted.amount = extracted.amount.toString()
+      if (extracted.amount?.value) {
+        extracted.amount.value = extracted.amount.value.toString()
           .replace('R$', '')
           .replace(/\s/g, '')
           .trim();
       }
 
       // If SEM_NOTA and no due_date but has emission_date, calculate +15 days
-      if (tipoNota === 'SEM_NOTA' && !extracted.due_date && extracted.emission_date) {
+      if (tipoNota === 'SEM_NOTA' && !extracted.due_date?.value && extracted.emission_date?.value) {
         try {
-          const emission = new Date(extracted.emission_date);
+          const emission = new Date(extracted.emission_date.value);
           emission.setDate(emission.getDate() + 15);
-          extracted.due_date = emission.toISOString().split('T')[0];
-          console.log('Vencimento calculado (+15 dias):', extracted.due_date);
+          extracted.due_date = {
+            value: emission.toISOString().split('T')[0],
+            confidence: 70,
+            source: 'Calculado: emissão + 15 dias'
+          };
+          console.log('[process-boleto] Vencimento calculado:', extracted.due_date.value);
         } catch (e) {
-          console.error('Erro ao calcular vencimento:', e);
+          console.error('[process-boleto] Erro ao calcular vencimento:', e);
         }
       }
 
-      console.log('Dados extraídos com sucesso:', extracted);
+      // Calculate overall confidence
+      const fields = ['amount', 'due_date', 'beneficiario', 'description'];
+      const confidences = fields.map(f => extracted[f]?.confidence || 0);
+      const overallConfidence = Math.round(confidences.reduce((a, b) => a + b, 0) / fields.length);
+
+      // Flag low confidence fields
+      const lowConfidenceFields = fields.filter(f => (extracted[f]?.confidence || 0) < 80);
+
+      console.log('[process-boleto] Extração completa. Confiança geral:', overallConfidence, '%. Campos baixa confiança:', lowConfidenceFields);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          extracted,
+          overallConfidence,
+          lowConfidenceFields,
+          needsReview: overallConfidence < 80 || lowConfidenceFields.length > 0,
+          raw: content 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
     } catch (parseError) {
-      console.error('Erro ao parsear JSON:', parseError, 'Content:', content);
+      console.error('[process-boleto] Erro ao parsear JSON:', parseError, 'Content:', content);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Erro ao interpretar resposta da IA',
+          raw: content,
+          extracted 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        extracted,
-        raw: content 
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
   } catch (error: any) {
-    console.error('Erro no processamento:', error);
+    console.error('[process-boleto] Erro:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

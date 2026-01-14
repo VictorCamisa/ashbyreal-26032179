@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Camera, FileText, Receipt, Loader2, Upload, X, Plus, Trash2 } from 'lucide-react';
+import { Camera, FileText, Receipt, Loader2, Upload, X, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useCategorias } from '@/hooks/useCategorias';
@@ -31,6 +32,13 @@ interface BoletoItemProduto {
   quantidade: string;
   valor_unitario: string;
   valor_total: string;
+  confidence?: number;
+}
+
+interface FieldWithConfidence {
+  value: string;
+  confidence: number;
+  source: string;
 }
 
 interface BoletoItem {
@@ -44,6 +52,17 @@ interface BoletoItem {
   imageData: string | null;
   processed: boolean;
   itens: BoletoItemProduto[];
+  // Confidence data
+  confidences: {
+    description: number;
+    amount: number;
+    due_date: number;
+    beneficiario: number;
+    numero_movimento: number;
+  };
+  overallConfidence: number;
+  needsReview: boolean;
+  lowConfidenceFields: string[];
 }
 
 export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogProps) {
@@ -94,6 +113,16 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
     imageData: null,
     processed: false,
     itens: [],
+    confidences: {
+      description: 100,
+      amount: 100,
+      due_date: 100,
+      beneficiario: 100,
+      numero_movimento: 100,
+    },
+    overallConfidence: 100,
+    needsReview: false,
+    lowConfidenceFields: [],
   });
 
   // Auto-select LOJA entity
@@ -148,24 +177,56 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
       if (error) throw error;
 
       if (data?.extracted) {
+        const ext = data.extracted;
+        
+        // Extract values and confidences from the new format
+        const getValue = (field: any) => {
+          if (typeof field === 'object' && field?.value !== undefined) {
+            return field.value || '';
+          }
+          return field || '';
+        };
+        
+        const getConfidence = (field: any) => {
+          if (typeof field === 'object' && field?.confidence !== undefined) {
+            return field.confidence;
+          }
+          return 100; // Default if old format
+        };
+
         setBoletos(prev => prev.map(b => 
           b.id === boletoId 
             ? {
                 ...b,
-                description: data.extracted.description || '',
-                amount: data.extracted.amount || '',
-                due_date: data.extracted.due_date || '',
-                beneficiario: data.extracted.beneficiario || '',
-                numero_movimento: data.extracted.numero_movimento || '',
-                itens: Array.isArray(data.extracted.itens) ? data.extracted.itens : [],
+                description: getValue(ext.description),
+                amount: getValue(ext.amount),
+                due_date: getValue(ext.due_date),
+                beneficiario: getValue(ext.beneficiario),
+                numero_movimento: getValue(ext.numero_movimento),
+                itens: Array.isArray(ext.itens) ? ext.itens : [],
                 processed: true,
+                confidences: {
+                  description: getConfidence(ext.description),
+                  amount: getConfidence(ext.amount),
+                  due_date: getConfidence(ext.due_date),
+                  beneficiario: getConfidence(ext.beneficiario),
+                  numero_movimento: getConfidence(ext.numero_movimento),
+                },
+                overallConfidence: data.overallConfidence || 100,
+                needsReview: data.needsReview || false,
+                lowConfidenceFields: data.lowConfidenceFields || [],
               }
             : b
         ));
-        toast.success('Dados extraídos com sucesso!');
+        
+        if (data.needsReview) {
+          toast.warning(`Extração com ${data.overallConfidence}% de confiança. Revise os campos destacados.`);
+        } else {
+          toast.success(`Dados extraídos com ${data.overallConfidence}% de confiança!`);
+        }
       } else {
         setBoletos(prev => prev.map(b => 
-          b.id === boletoId ? { ...b, processed: true } : b
+          b.id === boletoId ? { ...b, processed: true, needsReview: true } : b
         ));
         toast.warning('Não foi possível extrair todos os dados. Preencha manualmente.');
       }
@@ -173,7 +234,7 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
       console.error('Erro ao processar imagem:', error);
       toast.error('Erro ao processar boleto: ' + error.message);
       setBoletos(prev => prev.map(b => 
-        b.id === boletoId ? { ...b, processed: true } : b
+        b.id === boletoId ? { ...b, processed: true, needsReview: true } : b
       ));
     } finally {
       setIsProcessing(false);
@@ -423,6 +484,32 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                 </div>
               )}
 
+              {/* Confidence Banner */}
+              {currentBoleto.needsReview && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      Confiança: {currentBoleto.overallConfidence}% - Revise os campos destacados
+                    </p>
+                    {currentBoleto.lowConfidenceFields.length > 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-500">
+                        Campos incertos: {currentBoleto.lowConfidenceFields.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!currentBoleto.needsReview && currentBoleto.overallConfidence > 0 && currentBoleto.processed && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                    Extração com {currentBoleto.overallConfidence}% de confiança
+                  </p>
+                </div>
+              )}
+
               {/* Image Preview */}
               {currentBoleto.imageData && (
                 <div className="relative">
@@ -442,36 +529,77 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="beneficiario">Beneficiário</Label>
-                    <Input
-                      id="beneficiario"
-                      value={currentBoleto.beneficiario}
-                      onChange={(e) => updateCurrentBoleto('beneficiario', e.target.value)}
-                      placeholder="Nome do beneficiário"
-                    />
+                <TooltipProvider>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="beneficiario" className="flex items-center gap-2">
+                        Beneficiário
+                        {currentBoleto.confidences.beneficiario < 80 && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Confiança: {currentBoleto.confidences.beneficiario}%</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <Input
+                        id="beneficiario"
+                        value={currentBoleto.beneficiario}
+                        onChange={(e) => updateCurrentBoleto('beneficiario', e.target.value)}
+                        placeholder="Nome do beneficiário"
+                        className={currentBoleto.confidences.beneficiario < 80 ? 'border-amber-500 bg-amber-500/5' : ''}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="numero_movimento" className="flex items-center gap-2">
+                        NÚM. MOV
+                        {currentBoleto.confidences.numero_movimento < 80 && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Confiança: {currentBoleto.confidences.numero_movimento}%</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <Input
+                        id="numero_movimento"
+                        value={currentBoleto.numero_movimento}
+                        onChange={(e) => updateCurrentBoleto('numero_movimento', e.target.value)}
+                        placeholder="Ex: 122653"
+                        className={currentBoleto.confidences.numero_movimento < 80 ? 'border-amber-500 bg-amber-500/5' : ''}
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="numero_movimento">NÚM. MOV</Label>
-                    <Input
-                      id="numero_movimento"
-                      value={currentBoleto.numero_movimento}
-                      onChange={(e) => updateCurrentBoleto('numero_movimento', e.target.value)}
-                      placeholder="Ex: 122653"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Descrição</Label>
-                  <Input
-                    id="description"
-                    value={currentBoleto.description}
-                    onChange={(e) => updateCurrentBoleto('description', e.target.value)}
-                    placeholder="Descrição do boleto"
-                  />
-                </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description" className="flex items-center gap-2">
+                      Descrição
+                      {currentBoleto.confidences.description < 80 && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Confiança: {currentBoleto.confidences.description}%</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </Label>
+                    <Input
+                      id="description"
+                      value={currentBoleto.description}
+                      onChange={(e) => updateCurrentBoleto('description', e.target.value)}
+                      placeholder="Descrição do boleto"
+                      className={currentBoleto.confidences.description < 80 ? 'border-amber-500 bg-amber-500/5' : ''}
+                    />
+                  </div>
+                </TooltipProvider>
 
                 {/* Itens da Nota */}
                 {currentBoleto.itens && currentBoleto.itens.length > 0 && (
@@ -507,26 +635,54 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="amount">Valor *</Label>
-                    <Input
-                      id="amount"
-                      value={currentBoleto.amount}
-                      onChange={(e) => updateCurrentBoleto('amount', e.target.value)}
-                      placeholder="0,00"
-                    />
+                <TooltipProvider>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="amount" className="flex items-center gap-2">
+                        Valor *
+                        {currentBoleto.confidences.amount < 80 && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Confiança: {currentBoleto.confidences.amount}%</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <Input
+                        id="amount"
+                        value={currentBoleto.amount}
+                        onChange={(e) => updateCurrentBoleto('amount', e.target.value)}
+                        placeholder="0,00"
+                        className={currentBoleto.confidences.amount < 80 ? 'border-amber-500 bg-amber-500/5' : ''}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="due_date" className="flex items-center gap-2">
+                        Vencimento *
+                        {currentBoleto.confidences.due_date < 80 && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Confiança: {currentBoleto.confidences.due_date}%</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <Input
+                        id="due_date"
+                        type="date"
+                        value={currentBoleto.due_date}
+                        onChange={(e) => updateCurrentBoleto('due_date', e.target.value)}
+                        className={currentBoleto.confidences.due_date < 80 ? 'border-amber-500 bg-amber-500/5' : ''}
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="due_date">Vencimento *</Label>
-                    <Input
-                      id="due_date"
-                      type="date"
-                      value={currentBoleto.due_date}
-                      onChange={(e) => updateCurrentBoleto('due_date', e.target.value)}
-                    />
-                  </div>
-                </div>
+                </TooltipProvider>
 
                 <div className="grid gap-2">
                   <Label htmlFor="notes">Observações</Label>
