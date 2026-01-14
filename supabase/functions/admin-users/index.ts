@@ -223,6 +223,40 @@ serve(async (req) => {
       });
     }
 
+    // UPDATE PROFILE
+    if (req.method === "PUT" && action === "update") {
+      const { userId, nome, telefone, cargo, is_owner } = await req.json();
+      console.log("Updating profile:", userId);
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "userId é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (nome !== undefined) updateData.nome = nome;
+      if (telefone !== undefined) updateData.telefone = telefone;
+      if (cargo !== undefined) updateData.cargo = cargo;
+      if (is_owner !== undefined) updateData.is_owner = is_owner;
+
+      const { error: updateError } = await supabaseAdmin
+        .from("profiles")
+        .update(updateData)
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("Update profile error:", updateError);
+        throw updateError;
+      }
+
+      console.log("Profile updated successfully");
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

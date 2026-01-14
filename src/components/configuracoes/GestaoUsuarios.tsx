@@ -8,17 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, UserPlus, Shield, Trash2, Crown, Loader2, Phone } from 'lucide-react';
+import { Users, UserPlus, Shield, Trash2, Crown, Loader2, Phone, Pencil } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useAdminUsers, useCurrentUserRole } from '@/hooks/useAdminUsers';
+import { useAdminUsers, useCurrentUserRole, AdminUser } from '@/hooks/useAdminUsers';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function GestaoUsuarios() {
   const { user } = useAuth();
   const { data: currentRoles, isLoading: rolesLoading } = useCurrentUserRole();
-  const { users, isLoading, error, createUser, deleteUser, updateRole, bootstrapAdmin } = useAdminUsers();
+  const { users, isLoading, error, createUser, deleteUser, updateRole, updateProfile, bootstrapAdmin } = useAdminUsers();
   
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [newUser, setNewUser] = useState({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
 
   const isAdmin = currentRoles?.includes('admin');
@@ -28,6 +30,24 @@ export default function GestaoUsuarios() {
     await createUser.mutateAsync(newUser);
     setNewUser({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
     setDialogOpen(false);
+  };
+
+  const handleEditUser = (u: AdminUser) => {
+    setEditingUser({ ...u });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    await updateProfile.mutateAsync({
+      userId: editingUser.id,
+      nome: editingUser.nome,
+      telefone: editingUser.telefone,
+      cargo: editingUser.cargo,
+      is_owner: editingUser.is_owner
+    });
+    setEditDialogOpen(false);
+    setEditingUser(null);
   };
 
   const handleBootstrap = async () => {
@@ -211,7 +231,7 @@ export default function GestaoUsuarios() {
                     <div className="flex items-center gap-2">
                       {u.nome}
                       {u.is_owner && (
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
                           <Crown className="h-3 w-3 mr-1" />
                           Dono
                         </Badge>
@@ -261,35 +281,104 @@ export default function GestaoUsuarios() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    {u.id !== user?.id && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta ação não pode ser desfeita. O usuário {u.nome} ({u.email}) será permanentemente removido.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteUser.mutate(u.id)}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleEditUser(u)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {u.id !== user?.id && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. O usuário {u.nome} ({u.email}) será permanentemente removido.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteUser.mutate(u.id)}>
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
+
+        {/* Edit User Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+            </DialogHeader>
+            {editingUser && (
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="edit-nome">Nome</Label>
+                  <Input
+                    id="edit-nome"
+                    value={editingUser.nome || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, nome: e.target.value })}
+                    placeholder="Nome completo"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-telefone">WhatsApp</Label>
+                  <Input
+                    id="edit-telefone"
+                    type="tel"
+                    value={editingUser.telefone || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, telefone: e.target.value })}
+                    placeholder="(12) 99999-9999"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-cargo">Cargo</Label>
+                  <Input
+                    id="edit-cargo"
+                    value={editingUser.cargo || ''}
+                    onChange={(e) => setEditingUser({ ...editingUser, cargo: e.target.value })}
+                    placeholder="Ex: Gerente, Vendedor"
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-is_owner"
+                    checked={editingUser.is_owner || false}
+                    onCheckedChange={(checked) => setEditingUser({ ...editingUser, is_owner: checked === true })}
+                  />
+                  <Label htmlFor="edit-is_owner" className="flex items-center gap-2 cursor-pointer">
+                    <Crown className="h-4 w-4 text-amber-500" />
+                    Marcar como Dono
+                  </Label>
+                </div>
+                <Button 
+                  onClick={handleSaveEdit} 
+                  disabled={updateProfile.isPending}
+                  className="w-full"
+                >
+                  {updateProfile.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Salvar Alterações
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

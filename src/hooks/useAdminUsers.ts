@@ -144,6 +144,37 @@ export function useAdminUsers() {
     },
   });
 
+  const updateProfile = useMutation({
+    mutationFn: async (profileData: { userId: string; nome?: string; telefone?: string; cargo?: string; is_owner?: boolean }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('admin-users?action=update', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: profileData,
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro ao atualizar perfil');
+      }
+
+      const responseData = response.data;
+      if (responseData?.error) {
+        throw new Error(responseData.error);
+      }
+
+      return responseData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: 'Perfil atualizado com sucesso!' });
+    },
+    onError: (error: Error) => {
+      toast({ variant: 'destructive', title: 'Erro ao atualizar perfil', description: error.message });
+    },
+  });
+
   const bootstrapAdmin = useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -184,6 +215,7 @@ export function useAdminUsers() {
     createUser,
     deleteUser,
     updateRole,
+    updateProfile,
     bootstrapAdmin,
   };
 }
