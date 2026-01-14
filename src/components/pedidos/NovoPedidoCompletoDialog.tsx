@@ -13,6 +13,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Plus,
   Minus,
@@ -29,11 +37,15 @@ import {
   ArrowRight,
   Check,
   Circle,
+  Store,
+  Eye,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePedidosMutations, CartItem } from '@/hooks/usePedidosMutations';
 import { useBarrisMutations } from '@/hooks/useBarrisMutations';
+import { useLojistas } from '@/hooks/useLojistas';
 import { SelecionarBarrisStep } from '@/components/barris/SelecionarBarrisStep';
+import { LojistaDetailsSheet } from '@/components/lojistas/LojistaDetailsSheet';
 import { cn } from '@/lib/utils';
 
 interface NovoPedidoCompletoDialogProps {
@@ -86,6 +98,12 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [dataEntrega, setDataEntrega] = useState('');
   const [valorSinal, setValorSinal] = useState<number>(0);
   
+  // Lojista state
+  const [isVendaLojista, setIsVendaLojista] = useState(false);
+  const [selectedLojistaId, setSelectedLojistaId] = useState<string | null>(null);
+  const [lojistaSheetOpen, setLojistaSheetOpen] = useState(false);
+  const { lojistas } = useLojistas();
+  
   // Barris state
   const [selectedBarrisEntrega, setSelectedBarrisEntrega] = useState<string[]>([]);
   const [selectedBarrisRetorno, setSelectedBarrisRetorno] = useState<string[]>([]);
@@ -93,10 +111,11 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const { createPedido, isLoading } = usePedidosMutations();
   const { movimentarBarris, isLoading: movingBarris } = useBarrisMutations();
 
-  // Check if cliente is CNPJ (requires barrel management)
+  // Check if cliente is CNPJ OR if it's a lojista sale (requires barrel management)
   const clienteIsCNPJ = useMemo(() => {
+    if (isVendaLojista) return true;
     return selectedCliente ? isCNPJ(selectedCliente.cpf_cnpj) : false;
-  }, [selectedCliente]);
+  }, [selectedCliente, isVendaLojista]);
 
   // Dynamic steps based on cliente type
   const steps = useMemo(() => {
@@ -107,6 +126,10 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     baseSteps.push('pagamento');
     return baseSteps;
   }, [clienteIsCNPJ]);
+
+  const selectedLojista = useMemo(() => {
+    return lojistas.find(l => l.id === selectedLojistaId);
+  }, [lojistas, selectedLojistaId]);
 
   const stepLabels: Record<Step, string> = {
     cliente: 'Cliente',
@@ -267,6 +290,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setValorSinal(0);
     setSelectedBarrisEntrega([]);
     setSelectedBarrisRetorno([]);
+    setIsVendaLojista(false);
+    setSelectedLojistaId(null);
   };
 
   const stepIndex = steps.indexOf(step);
@@ -351,6 +376,59 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
           {/* Step 1: Cliente */}
           {step === 'cliente' && (
             <div className="h-full flex flex-col p-6">
+              {/* Lojista Toggle */}
+              <div className="flex items-center justify-between p-4 mb-4 bg-muted/50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Store className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium">Venda para Lojista</p>
+                    <p className="text-sm text-muted-foreground">Ativar para vendas B2B</p>
+                  </div>
+                </div>
+                <Switch checked={isVendaLojista} onCheckedChange={setIsVendaLojista} />
+              </div>
+
+              {/* Lojista Selection */}
+              {isVendaLojista && (
+                <div className="mb-4 p-4 border rounded-xl space-y-3">
+                  <Label>Selecionar Lojista</Label>
+                  <div className="flex gap-2">
+                    <Select value={selectedLojistaId || ''} onValueChange={setSelectedLojistaId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Escolha um lojista..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {lojistas.map((lojista) => (
+                          <SelectItem key={lojista.id} value={lojista.id}>
+                            <div className="flex items-center gap-2">
+                              <Store className="h-4 w-4" />
+                              <span>{lojista.nome}</span>
+                              {lojista.nome_fantasia && (
+                                <span className="text-muted-foreground">({lojista.nome_fantasia})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedLojistaId && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setLojistaSheetOpen(true)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {selectedLojista && (
+                    <div className="text-sm text-muted-foreground">
+                      CNPJ: {selectedLojista.cnpj || 'N/A'} | Tel: {selectedLojista.telefone}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -358,7 +436,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                   value={searchCliente}
                   onChange={(e) => setSearchCliente(e.target.value)}
                   className="pl-10 h-11"
-                  autoFocus
+                  autoFocus={!isVendaLojista}
                 />
               </div>
               <ScrollArea className="flex-1 -mx-2 px-2">
@@ -403,6 +481,13 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                   )}
                 </div>
               </ScrollArea>
+
+              {/* Lojista Details Sheet */}
+              <LojistaDetailsSheet
+                lojistaId={selectedLojistaId}
+                open={lojistaSheetOpen}
+                onOpenChange={setLojistaSheetOpen}
+              />
             </div>
           )}
 
