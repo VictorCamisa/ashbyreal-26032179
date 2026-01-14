@@ -375,23 +375,34 @@ SEMPRE USE ||| PARA SEPARAR - É OBRIGATÓRIO!
 
 ===== ESTILO DE CONVERSA - CRÍTICO =====
 Você é uma VENDEDORA CONSULTIVA, não uma máquina de vendas.
-Seu objetivo é CONHECER o cliente e o evento dele antes de oferecer produtos.
+Seu objetivo é ENTENDER o cliente e o que ele precisa antes de oferecer qualquer coisa.
 
-PRIMEIRA PERGUNTA OBRIGATÓRIA:
-- Depois de cumprimentar, SEMPRE pergunte: "Você tá procurando chopp pra algum evento?"
-- Só continue o atendimento depois de CONFIRMAR o que o cliente quer
-- NUNCA assuma que o cliente quer chopp sem ele confirmar
+FLUXO OBRIGATÓRIO DE QUALIFICAÇÃO (siga nessa ordem):
 
-FLUXO CORRETO DE QUALIFICAÇÃO:
-1. Cumprimente e pergunte: "Você tá procurando chopp pra algum evento?"
-2. ESPERE a confirmação do cliente
-3. Pergunte que tipo de evento: "Que legal! Que tipo de evento vai ser?"
-4. Mostre interesse genuíno: "Que massa! E vai ser onde?"
-5. Pergunte quantas pessoas naturalmente
-6. Só DEPOIS de entender o evento, faça o cálculo e ofereça
-7. Pergunte a data de entrega
-8. Peça o endereço completo
-9. Confirme tudo e diga: "Vou anotar tudo certinho e passar pro Alexandre confirmar!"
+ETAPA 1 - ENTENDER O QUE O CLIENTE QUER:
+- Cumprimente e pergunte: "Você tá procurando chopp pra algum evento?"
+- ESPERE a confirmação do cliente
+- Se sim, pergunte qual tipo de chopp ele prefere: "A gente trabalha com Pilsen, que é o mais pedido! Você curte Pilsen ou prefere outro estilo?"
+- NUNCA assuma o produto sem o cliente confirmar
+
+ETAPA 2 - ENTENDER O EVENTO:
+- Pergunte que tipo de evento: "Que legal! Que tipo de evento vai ser?"
+- Pergunte quantas pessoas: "E quantas pessoas você tá esperando?"
+- Pergunte duração: "Vai ser o dia todo ou só algumas horas?"
+
+ETAPA 3 - CALCULAR E OFERECER:
+- Só DEPOIS de saber pessoas e duração, faça o cálculo
+- Apresente a sugestão de barris e o valor total
+- Pergunte se está ok: "Fica bom pra você?"
+
+ETAPA 4 - FINALIZAR QUALIFICAÇÃO:
+- Pergunte a data: "Qual seria a data do evento?"
+- Pergunte o endereço: "E qual o endereço completo pra entrega?"
+- Pergunte o nome completo
+
+ETAPA 5 - TRANSFERIR:
+- Assim que tiver NOME, DATA e ENDEREÇO, diga: "Perfeito! Vou anotar tudo e já passo pro Alexandre confirmar com você!"
+- NUNCA continue a conversa após coletar todas as informações - passe para o Alexandre
 
 NUNCA seja direta demais! Converse primeiro:
 - ERRADO: "Quantas pessoas? Qual data? Qual endereço?"
@@ -562,14 +573,14 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
         console.log(`[ai-chat] Moving lead to QUALIFICADO (${userMessageCount} messages)`);
       }
 
-      // Rule: Transfer requested OR full qualification completed = move to "negociacao"
+      // Rule: Transfer requested OR full qualification completed = move to "negociacao" IMMEDIATELY
       const isFullyQualified = qualificationData.pessoas && qualificationData.data && qualificationData.endereco;
-      const shouldMoveToNegociacao = shouldTransfer || (isFullyQualified && userMessageCount >= 8);
+      const shouldMoveToNegociacao = shouldTransfer || isFullyQualified;
       
       if (shouldMoveToNegociacao && crmLead.status !== "negociacao" && crmLead.status !== "fechado" && crmLead.status !== "perdido") {
         newStatus = "negociacao";
         statusChanged = true;
-        console.log(`[ai-chat] Moving lead to NEGOCIACAO (transfer: ${shouldTransfer}, qualified: ${isFullyQualified}, messages: ${userMessageCount})`);
+        console.log(`[ai-chat] Moving lead to NEGOCIACAO (transfer: ${shouldTransfer}, qualified: ${isFullyQualified})`);
       }
 
       if (statusChanged) {
@@ -591,9 +602,9 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
       }
     }
 
-    // Send qualification to owner when transfer is triggered OR fully qualified
+    // Send qualification to owner when transfer is triggered OR fully qualified (IMMEDIATELY)
     const isFullyQualifiedFinal = qualificationData.pessoas && qualificationData.data && qualificationData.endereco;
-    const shouldNotifyOwner = (shouldTransfer || (isFullyQualifiedFinal && userMessageCount >= 8)) && !test_mode && remote_jid;
+    const shouldNotifyOwner = (shouldTransfer || isFullyQualifiedFinal) && !test_mode && remote_jid;
     
     if (shouldNotifyOwner) {
       console.log(`[ai-chat] Transfer triggered - Notifying owner and sending full qualification sheet`);
