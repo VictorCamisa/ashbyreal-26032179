@@ -48,6 +48,56 @@ serve(async (req) => {
       return null;
     };
 
+    // Helper to transcribe audio via OpenAI Whisper
+    const transcribeAudio = async (audioUrl: string): Promise<string | null> => {
+      const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+      if (!OPENAI_API_KEY || !audioUrl) {
+        console.log("[webhook-evolution] OpenAI not configured or no audio URL");
+        return null;
+      }
+
+      try {
+        console.log("[webhook-evolution] Fetching audio from:", audioUrl.substring(0, 100));
+        
+        // Fetch the audio file
+        const audioResponse = await fetch(audioUrl);
+        if (!audioResponse.ok) {
+          console.error("[webhook-evolution] Failed to fetch audio:", audioResponse.status);
+          return null;
+        }
+        
+        const audioBlob = await audioResponse.blob();
+        console.log("[webhook-evolution] Audio fetched, size:", audioBlob.size);
+        
+        // Create form data for Whisper API
+        const formData = new FormData();
+        formData.append("file", audioBlob, "audio.ogg");
+        formData.append("model", "whisper-1");
+        formData.append("language", "pt");
+        
+        const whisperResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: formData,
+        });
+        
+        if (!whisperResponse.ok) {
+          const errText = await whisperResponse.text();
+          console.error("[webhook-evolution] Whisper error:", errText);
+          return null;
+        }
+        
+        const result = await whisperResponse.json();
+        console.log("[webhook-evolution] Transcription:", result.text?.substring(0, 100));
+        return result.text || null;
+      } catch (error) {
+        console.error("[webhook-evolution] Transcription failed:", error);
+        return null;
+      }
+    };
+
     // Helper to generate TTS audio via ElevenLabs
     const generateTTSAudio = async (text: string, voiceId?: string): Promise<string | null> => {
       if (!ELEVENLABS_API_KEY) {
@@ -88,6 +138,7 @@ serve(async (req) => {
       if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return false;
 
       try {
+        // Try sending as base64 directly without data URI prefix
         const sendUrl = `${EVOLUTION_API_URL}/message/sendWhatsAppAudio/${instanceName}`;
         const response = await fetch(sendUrl, {
           method: "POST",
@@ -97,7 +148,8 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             number: phoneNumber,
-            audio: `data:audio/mpeg;base64,${audioBase64}`,
+            audio: audioBase64,
+            encoding: true,
           }),
         });
 
@@ -112,6 +164,38 @@ serve(async (req) => {
       } catch (error) {
         console.error("[webhook-evolution] Send audio failed:", error);
         return false;
+      }
+    };
+
+    // Helper to get conversation history from database
+    const getConversationHistory = async (agentId: string, remoteJid: string, limit: number = 20): Promise<any[]> => {
+      try {
+        // Find conversation
+        const { data: conv } = await supabase
+          .from("ai_conversations")
+          .select("id")
+          .eq("agent_id", agentId)
+          .eq("remote_jid", remoteJid)
+          .eq("status", "active")
+          .single();
+
+        if (!conv) return [];
+
+        // Get recent messages
+        const { data: messages } = await supabase
+          .from("ai_messages")
+          .select("role, content")
+          .eq("conversation_id", conv.id)
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        if (!messages || messages.length === 0) return [];
+
+        // Reverse to get chronological order
+        return messages.reverse();
+      } catch (error) {
+        console.error("[webhook-evolution] Error getting conversation history:", error);
+        return [];
       }
     };
 
@@ -326,16 +410,27 @@ serve(async (req) => {
               if (agent) {
                 console.log(`[webhook-evolution] Found active agent: ${agent.name} (${agent.id})`);
                 
-                // For audio messages, we still need text to process
-                // The AI will respond, and we'll convert response to audio
-                const messageToProcess = isAudioMessage 
-                  ? "[O usuário enviou um áudio. Responda de forma amigável que você recebeu o áudio]"
-                  : content;
+                // For audio messages, transcribe first
+                let messageToProcess = content;
+                if (isAudioMessage && mediaUrl) {
+                  console.log("[webhook-evolution] Transcribing audio message...");
+                  const transcription = await transcribeAudio(mediaUrl);
+                  if (transcription) {
+                    messageToProcess = transcription;
+                    console.log(`[webhook-evolution] Audio transcribed: ${transcription.substring(0, 100)}`);
+                  } else {
+                    messageToProcess = "[O usuário enviou um áudio que não pôde ser transcrito. Peça para ele repetir por texto]";
+                  }
+                }
 
                 if (!messageToProcess || !messageToProcess.trim()) {
                   console.log("[webhook-evolution] Empty message, skipping AI processing");
                   continue;
                 }
+
+                // Get conversation history for context
+                const conversationHistory = await getConversationHistory(agent.id, remoteJid, 30);
+                console.log(`[webhook-evolution] Retrieved ${conversationHistory.length} messages for context`);
 
                 try {
                   const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
@@ -348,6 +443,7 @@ serve(async (req) => {
                       agent_id: agent.id,
                       remote_jid: remoteJid,
                       message: messageToProcess,
+                      conversation_history: conversationHistory,
                       test_mode: false,
                     }),
                   });
