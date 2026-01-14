@@ -115,14 +115,25 @@ serve(async (req) => {
         const outros = produtos.filter((p: any) => p.tipo_produto !== "CHOPP");
         
       if (chopps.length > 0) {
-          contextData += `\nCHOPPS DISPONÍVEIS:\n`;
-          chopps.forEach((p: any) => {
-            const estoque = p.estoque_litros || p.estoque || 0;
-            const disponivel = estoque > 0;
-            const status = disponivel ? `✓ DISPONÍVEL (${estoque} LITROS em estoque)` : `✗ SEM ESTOQUE (disponível sob encomenda)`;
-            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} por barril - ${status}\n`;
+          // Separar Pilsen dos outros
+          const pilsenChopps = chopps.filter((p: any) => p.nome.toLowerCase().includes('pilsen'));
+          const outrosChopps = chopps.filter((p: any) => !p.nome.toLowerCase().includes('pilsen'));
+          
+          contextData += `\n===== REGRA DE VENDAS =====\n`;
+          contextData += `PRIORIDADE: Sempre ofereça o CHOPP PILSEN primeiro!\n`;
+          contextData += `Só mencione outros sabores SE o cliente perguntar especificamente.\n\n`;
+          
+          contextData += `CHOPP PRINCIPAL (oferecer primeiro):\n`;
+          pilsenChopps.forEach((p: any) => {
+            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} por barril\n`;
           });
-          contextData += `\nIMPORTANTE: Todo chopp pode ser solicitado, pois trabalhamos com a fábrica. Informe o cliente que está disponível!\n`;
+          
+          contextData += `\nOUTROS CHOPPS (só se o cliente perguntar):\n`;
+          outrosChopps.forEach((p: any) => {
+            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} por barril\n`;
+          });
+          
+          contextData += `\nIMPORTANTE: Todo chopp está disponível, trabalhamos direto com a fábrica!\n`;
         }
         
         if (outros.length > 0) {
