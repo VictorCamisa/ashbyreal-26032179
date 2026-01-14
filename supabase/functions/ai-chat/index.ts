@@ -114,14 +114,15 @@ serve(async (req) => {
         const chopps = produtos.filter((p: any) => p.tipo_produto === "CHOPP");
         const outros = produtos.filter((p: any) => p.tipo_produto !== "CHOPP");
         
-        if (chopps.length > 0) {
-          contextData += `\nCHOPPS:\n`;
+      if (chopps.length > 0) {
+          contextData += `\nCHOPPS DISPONÍVEIS:\n`;
           chopps.forEach((p: any) => {
             const estoque = p.estoque_litros || p.estoque || 0;
             const disponivel = estoque > 0;
-            const status = disponivel ? `✓ DISPONÍVEL (${estoque}L em estoque)` : `✗ INDISPONÍVEL (sem estoque)`;
-            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)}/L - ${status}\n`;
+            const status = disponivel ? `✓ DISPONÍVEL (${estoque} LITROS em estoque)` : `✗ SEM ESTOQUE (disponível sob encomenda)`;
+            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} por barril - ${status}\n`;
           });
+          contextData += `\nIMPORTANTE: Todo chopp pode ser solicitado, pois trabalhamos com a fábrica. Informe o cliente que está disponível!\n`;
         }
         
         if (outros.length > 0) {
