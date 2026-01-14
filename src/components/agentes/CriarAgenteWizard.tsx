@@ -772,15 +772,16 @@ export function CriarAgenteWizard({ open, onOpenChange }: CriarAgenteWizardProps
             <div className="space-y-4">
               <Label className="text-base">Instância do WhatsApp</Label>
               <Select
-                value={formData.instance_id}
-                onValueChange={(value) => setFormData({ ...formData, instance_id: value })}
+                value={formData.instance_id || "none"}
+                onValueChange={(value) => setFormData({ ...formData, instance_id: value === "none" ? "" : value })}
               >
                 <SelectTrigger className="h-12">
                   <SelectValue placeholder="Selecione uma instância..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Nenhuma instância</SelectItem>
                   {instances?.map((instance) => (
-                    <SelectItem key={instance.id} value={instance.id}>
+                    <SelectItem key={instance.id} value={instance.id || "unknown"}>
                       <div className="flex items-center gap-2">
                         <div className={cn(
                           "w-2 h-2 rounded-full",
