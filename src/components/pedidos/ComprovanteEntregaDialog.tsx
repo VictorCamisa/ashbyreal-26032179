@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Check, Pencil, Send, Loader2, ExternalLink, RefreshCw, Clock, CheckCircle } from 'lucide-react';
+import { Printer, Check, Pencil, Send, Loader2, ExternalLink, RefreshCw, Clock, CheckCircle, Package } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useBarrisMutations } from '@/hooks/useBarrisMutations';
+import { SelecionarBarrisPedido } from './SelecionarBarrisPedido';
 
 interface ComprovanteEntregaDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface PedidoData {
   valor_total: number;
   valor_sinal: number;
   observacoes: string | null;
+  cliente_id: string | null;
   cliente: {
     nome: string;
     telefone: string;
@@ -52,6 +54,13 @@ interface DeliveryReceipt {
   status: 'pending' | 'sent' | 'signed';
   signed_at: string | null;
   sent_at: string | null;
+  controle_barris?: any;
+}
+
+interface BarrilSelecionado {
+  id: string;
+  codigo: string;
+  capacidade: number;
 }
 
 export function ComprovanteEntregaDialog({
@@ -64,7 +73,13 @@ export function ComprovanteEntregaDialog({
   const [receipt, setReceipt] = useState<DeliveryReceipt | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const { toast } = useToast();
+  const { movimentarBarris } = useBarrisMutations();
+  
+  // Barris selecionados
+  const [barrisEntrega, setBarrisEntrega] = useState<BarrilSelecionado[]>([]);
+  const [barrisRetorno, setBarrisRetorno] = useState<BarrilSelecionado[]>([]);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -74,11 +89,6 @@ export function ComprovanteEntregaDialog({
     observacoes: '',
     cpfCnpj: '',
     telefone: '',
-    // Controle de barris
-    barril50: { estoque: '', entregue: '', retirado: '' },
-    barril30: { estoque: '', entregue: '', retirado: '' },
-    barril10: { estoque: '', entregue: '', retirado: '' },
-    co2: { estoque: '', entregue: '', retirado: '' },
   });
 
   useEffect(() => {
@@ -122,6 +132,7 @@ export function ComprovanteEntregaDialog({
         valor_total: pedido.valor_total,
         valor_sinal: pedido.valor_sinal || 0,
         observacoes: pedido.observacoes,
+        cliente_id: pedido.cliente_id,
         cliente,
         itens,
       });
@@ -180,10 +191,8 @@ export function ComprovanteEntregaDialog({
         cliente_cpf_cnpj: formData.cpfCnpj || pedidoData.cliente?.cpf_cnpj,
         cliente_endereco: pedidoData.cliente?.endereco,
         controle_barris: {
-          barril50: formData.barril50,
-          barril30: formData.barril30,
-          barril10: formData.barril10,
-          co2: formData.co2,
+          barrisEntrega: barrisEntrega.map(b => ({ id: b.id, codigo: b.codigo, capacidade: b.capacidade })),
+          barrisRetorno: barrisRetorno.map(b => ({ id: b.id, codigo: b.codigo, capacidade: b.capacidade })),
         },
         data_entrega: formData.dataEntrega,
         periodo_entrega: formData.periodoEntrega,
@@ -247,7 +256,7 @@ export function ComprovanteEntregaDialog({
     }
   };
 
-  const handleConfirmDelivery = () => {
+  const handleConfirmDelivery = async () => {
     if (receipt?.status !== 'signed') {
       toast({
         title: 'Aguardando assinatura',
@@ -256,8 +265,33 @@ export function ComprovanteEntregaDialog({
       });
       return;
     }
-    onConfirm();
-    onOpenChange(false);
+
+    setIsConfirming(true);
+    try {
+      // Movimentar barris se houver barris selecionados
+      if ((barrisEntrega.length > 0 || barrisRetorno.length > 0) && pedidoData?.cliente_id) {
+        await movimentarBarris({
+          pedidoId,
+          clienteId: pedidoData.cliente_id,
+          barrisEntrega: barrisEntrega.map(b => ({ barrilId: b.id, codigo: b.codigo })),
+          barrisRetorno: barrisRetorno.map(b => ({ barrilId: b.id, codigo: b.codigo })),
+        });
+      }
+
+      onConfirm();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Erro ao confirmar entrega:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao movimentar barris, mas a entrega foi confirmada.',
+        variant: 'destructive',
+      });
+      onConfirm();
+      onOpenChange(false);
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handlePrint = () => {
@@ -478,43 +512,40 @@ export function ComprovanteEntregaDialog({
             </div>
           </div>
 
-          {/* Controle de Barris */}
+          {/* Controle de Barris - Seleção por código */}
           <div className="border rounded-lg p-4 print:border-black">
-            <h3 className="font-semibold mb-3">CONTROLE DE BARRIS</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-muted-foreground">
-                  <th className="text-left p-1">Produtos</th>
-                  <th className="p-1">50 lts</th>
-                  <th className="p-1">30 lts</th>
-                  <th className="p-1">10 lts</th>
-                  <th className="p-1">Co2</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="p-1">Estoque</td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril50.estoque} onChange={(e) => setFormData(prev => ({ ...prev, barril50: { ...prev.barril50, estoque: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril30.estoque} onChange={(e) => setFormData(prev => ({ ...prev, barril30: { ...prev.barril30, estoque: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril10.estoque} onChange={(e) => setFormData(prev => ({ ...prev, barril10: { ...prev.barril10, estoque: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.co2.estoque} onChange={(e) => setFormData(prev => ({ ...prev, co2: { ...prev.co2, estoque: e.target.value } }))} /></td>
-                </tr>
-                <tr>
-                  <td className="p-1">Entregue</td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril50.entregue} onChange={(e) => setFormData(prev => ({ ...prev, barril50: { ...prev.barril50, entregue: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril30.entregue} onChange={(e) => setFormData(prev => ({ ...prev, barril30: { ...prev.barril30, entregue: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril10.entregue} onChange={(e) => setFormData(prev => ({ ...prev, barril10: { ...prev.barril10, entregue: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.co2.entregue} onChange={(e) => setFormData(prev => ({ ...prev, co2: { ...prev.co2, entregue: e.target.value } }))} /></td>
-                </tr>
-                <tr>
-                  <td className="p-1">Retirado</td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril50.retirado} onChange={(e) => setFormData(prev => ({ ...prev, barril50: { ...prev.barril50, retirado: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril30.retirado} onChange={(e) => setFormData(prev => ({ ...prev, barril30: { ...prev.barril30, retirado: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.barril10.retirado} onChange={(e) => setFormData(prev => ({ ...prev, barril10: { ...prev.barril10, retirado: e.target.value } }))} /></td>
-                  <td className="p-1"><Input className="h-6 w-12 text-center text-xs" value={formData.co2.retirado} onChange={(e) => setFormData(prev => ({ ...prev, co2: { ...prev.co2, retirado: e.target.value } }))} /></td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="h-4 w-4" />
+              <h3 className="font-semibold">CONTROLE DE BARRIS</h3>
+              {(barrisEntrega.length > 0 || barrisRetorno.length > 0) && (
+                <Badge variant="secondary" className="ml-auto">
+                  {barrisEntrega.length} entrega / {barrisRetorno.length} retorno
+                </Badge>
+              )}
+            </div>
+            
+            <SelecionarBarrisPedido
+              clienteId={pedidoData?.cliente_id || null}
+              barrisEntrega={barrisEntrega}
+              barrisRetorno={barrisRetorno}
+              onBarrisEntregaChange={setBarrisEntrega}
+              onBarrisRetornoChange={setBarrisRetorno}
+              disabled={receipt?.status === 'signed'}
+            />
+
+            {/* Resumo para impressão */}
+            <div className="hidden print:block mt-4 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="font-medium">Barris Entregues (Cheios):</p>
+                  <p>{barrisEntrega.map(b => `${b.codigo} (${b.capacidade}L)`).join(', ') || 'Nenhum'}</p>
+                </div>
+                <div>
+                  <p className="font-medium">Barris Retirados (Vazios):</p>
+                  <p>{barrisRetorno.map(b => `${b.codigo} (${b.capacidade}L)`).join(', ') || 'Nenhum'}</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Entrega e Pagamento */}
@@ -628,9 +659,14 @@ export function ComprovanteEntregaDialog({
             <Button 
               className="bg-emerald-600 hover:bg-emerald-700"
               onClick={handleConfirmDelivery}
+              disabled={isConfirming}
             >
-              <Check className="h-4 w-4 mr-2" />
-              Confirmar Entrega
+              {isConfirming ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              {isConfirming ? 'Confirmando...' : 'Confirmar Entrega'}
             </Button>
           )}
         </div>
