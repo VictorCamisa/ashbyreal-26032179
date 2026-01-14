@@ -18,6 +18,7 @@ import WhatsApp from "./pages/WhatsApp";
 import Suporte from "./pages/Suporte";
 import Configuracoes from "./pages/Configuracoes";
 import Financeiro from "./pages/Financeiro";
+import Barris from "./pages/Barris";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
@@ -50,6 +51,7 @@ const App = () => (
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/cliente/:id" element={<ClienteDetalhes />} />
                 <Route path="/pedidos" element={<Pedidos />} />
+                <Route path="/barris" element={<Barris />} />
                 <Route path="/estoque" element={<Estoque />} />
                 <Route path="/suporte" element={<Suporte />} />
                 <Route path="/financeiro" element={<Financeiro />} />
