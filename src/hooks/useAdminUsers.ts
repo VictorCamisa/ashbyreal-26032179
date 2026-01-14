@@ -151,7 +151,7 @@ export function useAdminUsers() {
       if (!session) throw new Error('Não autenticado');
 
       const response = await supabase.functions.invoke('admin-users?action=update', {
-        method: 'PUT',
+        method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: profileData,
       });
