@@ -226,6 +226,7 @@ export type Database = {
           data_ultima_movimentacao: string | null
           id: string
           localizacao: Database["public"]["Enums"]["barril_localizacao"]
+          lojista_id: string | null
           observacoes: string | null
           status_conteudo: Database["public"]["Enums"]["barril_status_conteudo"]
           updated_at: string
@@ -238,6 +239,7 @@ export type Database = {
           data_ultima_movimentacao?: string | null
           id?: string
           localizacao?: Database["public"]["Enums"]["barril_localizacao"]
+          lojista_id?: string | null
           observacoes?: string | null
           status_conteudo?: Database["public"]["Enums"]["barril_status_conteudo"]
           updated_at?: string
@@ -250,6 +252,7 @@ export type Database = {
           data_ultima_movimentacao?: string | null
           id?: string
           localizacao?: Database["public"]["Enums"]["barril_localizacao"]
+          lojista_id?: string | null
           observacoes?: string | null
           status_conteudo?: Database["public"]["Enums"]["barril_status_conteudo"]
           updated_at?: string
@@ -260,6 +263,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barris_lojista_id_fkey"
+            columns: ["lojista_id"]
+            isOneToOne: false
+            referencedRelation: "lojistas"
             referencedColumns: ["id"]
           },
         ]
@@ -1256,6 +1266,54 @@ export type Database = {
           },
         ]
       }
+      lojistas: {
+        Row: {
+          cnpj: string | null
+          contato_responsavel: string | null
+          created_at: string | null
+          data_cadastro: string | null
+          email: string | null
+          endereco: Json | null
+          id: string
+          nome: string
+          nome_fantasia: string | null
+          observacoes: string | null
+          status: string | null
+          telefone: string
+          updated_at: string | null
+        }
+        Insert: {
+          cnpj?: string | null
+          contato_responsavel?: string | null
+          created_at?: string | null
+          data_cadastro?: string | null
+          email?: string | null
+          endereco?: Json | null
+          id?: string
+          nome: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          status?: string | null
+          telefone: string
+          updated_at?: string | null
+        }
+        Update: {
+          cnpj?: string | null
+          contato_responsavel?: string | null
+          created_at?: string | null
+          data_cadastro?: string | null
+          email?: string | null
+          endereco?: Json | null
+          id?: string
+          nome?: string
+          nome_fantasia?: string | null
+          observacoes?: string | null
+          status?: string | null
+          telefone?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       movimentacoes_estoque: {
         Row: {
           created_at: string | null
@@ -1370,6 +1428,7 @@ export type Database = {
           endereco_entrega: Json | null
           historico: Json | null
           id: string
+          lojista_id: string | null
           metodo_pagamento: string | null
           numero_pedido: number
           observacoes: string | null
@@ -1389,6 +1448,7 @@ export type Database = {
           endereco_entrega?: Json | null
           historico?: Json | null
           id?: string
+          lojista_id?: string | null
           metodo_pagamento?: string | null
           numero_pedido?: number
           observacoes?: string | null
@@ -1408,6 +1468,7 @@ export type Database = {
           endereco_entrega?: Json | null
           historico?: Json | null
           id?: string
+          lojista_id?: string | null
           metodo_pagamento?: string | null
           numero_pedido?: number
           observacoes?: string | null
@@ -1424,6 +1485,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_lojista_id_fkey"
+            columns: ["lojista_id"]
+            isOneToOne: false
+            referencedRelation: "lojistas"
             referencedColumns: ["id"]
           },
           {
