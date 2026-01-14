@@ -141,7 +141,8 @@ export function useBarrisDisponiveis() {
         .from('barris')
         .select('*')
         .eq('localizacao', 'LOJA')
-        .eq('status_conteudo', 'CHEIO')
+        .is('cliente_id', null)
+        .is('lojista_id', null)
         .order('codigo');
       
       if (error) throw error;
