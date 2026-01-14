@@ -20,6 +20,10 @@ export interface ProdutoEstoque {
   imagemUrl?: string;
   createdAt: string;
   updatedAt: string;
+  // Campos para CHOPP
+  tipoProduto: 'PADRAO' | 'CHOPP';
+  estoqueLitros: number;
+  capacidadeBarril?: number;
 }
 
 export interface MovimentacaoEstoque {
@@ -80,6 +84,10 @@ export function useEstoque() {
         localizacao: produto.localizacao,
         ativo: produto.ativo ?? true,
         imagem_url: produto.imagemUrl,
+        // Campos para CHOPP
+        tipo_produto: produto.tipoProduto || 'PADRAO',
+        estoque_litros: produto.estoqueLitros || 0,
+        capacidade_barril: produto.capacidadeBarril,
       });
 
       if (error) throw error;
@@ -103,23 +111,29 @@ export function useEstoque() {
 
   const updateProduto = async (id: string, updates: Partial<ProdutoEstoque>) => {
     try {
+      const updateData: any = {};
+      
+      if (updates.nome !== undefined) updateData.nome = updates.nome;
+      if (updates.descricao !== undefined) updateData.descricao = updates.descricao;
+      if (updates.sku !== undefined) updateData.sku = updates.sku;
+      if (updates.categoria !== undefined) updateData.categoria = updates.categoria;
+      if (updates.estoque !== undefined) updateData.estoque = updates.estoque;
+      if (updates.estoqueMinimo !== undefined) updateData.estoque_minimo = updates.estoqueMinimo;
+      if (updates.preco !== undefined) updateData.preco = updates.preco;
+      if (updates.precoCusto !== undefined) updateData.preco_custo = updates.precoCusto;
+      if (updates.unidadeMedida !== undefined) updateData.unidade_medida = updates.unidadeMedida;
+      if (updates.fornecedor !== undefined) updateData.fornecedor = updates.fornecedor;
+      if (updates.localizacao !== undefined) updateData.localizacao = updates.localizacao;
+      if (updates.ativo !== undefined) updateData.ativo = updates.ativo;
+      if (updates.imagemUrl !== undefined) updateData.imagem_url = updates.imagemUrl;
+      // Campos para CHOPP
+      if (updates.tipoProduto !== undefined) updateData.tipo_produto = updates.tipoProduto;
+      if (updates.estoqueLitros !== undefined) updateData.estoque_litros = updates.estoqueLitros;
+      if (updates.capacidadeBarril !== undefined) updateData.capacidade_barril = updates.capacidadeBarril;
+
       const { error } = await supabase
         .from('produtos')
-        .update({
-          nome: updates.nome,
-          descricao: updates.descricao,
-          sku: updates.sku,
-          categoria: updates.categoria,
-          estoque: updates.estoque,
-          estoque_minimo: updates.estoqueMinimo,
-          preco: updates.preco,
-          preco_custo: updates.precoCusto,
-          unidade_medida: updates.unidadeMedida,
-          fornecedor: updates.fornecedor,
-          localizacao: updates.localizacao,
-          ativo: updates.ativo,
-          imagem_url: updates.imagemUrl,
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;
@@ -141,6 +155,100 @@ export function useEstoque() {
     }
   };
 
+  const registrarEntradaChopp = async (produtoId: string, litros: number, motivo?: string) => {
+    try {
+      // Buscar produto atual
+      const produto = produtos.find(p => p.id === produtoId);
+      if (!produto) throw new Error('Produto não encontrado');
+      
+      const novoEstoqueLitros = produto.estoqueLitros + litros;
+      
+      // Atualizar estoque de litros
+      const { error: updateError } = await supabase
+        .from('produtos')
+        .update({ estoque_litros: novoEstoqueLitros })
+        .eq('id', produtoId);
+
+      if (updateError) throw updateError;
+
+      // Registrar movimentação
+      const { error: movError } = await supabase.from('movimentacoes_estoque').insert({
+        produto_id: produtoId,
+        tipo: 'entrada',
+        quantidade: litros,
+        quantidade_anterior: produto.estoqueLitros,
+        quantidade_nova: novoEstoqueLitros,
+        motivo: motivo || 'Entrada de Chopp',
+        responsavel: 'Sistema',
+      });
+
+      if (movError) throw movError;
+
+      toast({
+        title: 'Entrada registrada',
+        description: `+${litros}L adicionados ao estoque`,
+      });
+
+      await fetchProdutos();
+    } catch (error) {
+      console.error('Erro ao registrar entrada:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível registrar a entrada',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const registrarSaidaChopp = async (produtoId: string, litros: number, motivo?: string) => {
+    try {
+      const produto = produtos.find(p => p.id === produtoId);
+      if (!produto) throw new Error('Produto não encontrado');
+      
+      const novoEstoqueLitros = produto.estoqueLitros - litros;
+      
+      if (novoEstoqueLitros < 0) {
+        toast({
+          title: 'Estoque insuficiente',
+          description: `Disponível: ${produto.estoqueLitros}L`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      const { error: updateError } = await supabase
+        .from('produtos')
+        .update({ estoque_litros: novoEstoqueLitros })
+        .eq('id', produtoId);
+
+      if (updateError) throw updateError;
+
+      const { error: movError } = await supabase.from('movimentacoes_estoque').insert({
+        produto_id: produtoId,
+        tipo: 'saida',
+        quantidade: litros,
+        quantidade_anterior: produto.estoqueLitros,
+        quantidade_nova: novoEstoqueLitros,
+        motivo: motivo || 'Venda de Chopp',
+        responsavel: 'Sistema',
+      });
+
+      if (movError) throw movError;
+
+      await fetchProdutos();
+      return true;
+    } catch (error) {
+      console.error('Erro ao registrar saída:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível registrar a saída',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   const createMovimentacao = async (movimentacao: Omit<MovimentacaoEstoque, 'id' | 'createdAt'>) => {
     try {
       const { error } = await supabase.from('movimentacoes_estoque').insert({
@@ -151,8 +259,6 @@ export function useEstoque() {
         quantidade_nova: movimentacao.quantidadeNova,
         responsavel: movimentacao.responsavel,
         motivo: movimentacao.motivo,
-        documento: movimentacao.documento,
-        valor_unitario: movimentacao.valorUnitario,
       });
 
       if (error) throw error;
@@ -211,6 +317,8 @@ export function useEstoque() {
     updateProduto,
     deleteProduto,
     createMovimentacao,
+    registrarEntradaChopp,
+    registrarSaidaChopp,
     refetch: fetchProdutos,
   };
 }
@@ -218,7 +326,6 @@ export function useEstoque() {
 function transformProduto(data: any): ProdutoEstoque {
   const preco = Number(data.preco || 0);
   const precoCusto = Number(data.preco_custo || 0);
-  // Calcula margem automaticamente: ((venda - custo) / venda) * 100
   const margemLucro = preco > 0 ? ((preco - precoCusto) / preco) * 100 : 0;
   
   return {
@@ -239,5 +346,9 @@ function transformProduto(data: any): ProdutoEstoque {
     imagemUrl: data.imagem_url,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
+    // Campos para CHOPP
+    tipoProduto: data.tipo_produto || 'PADRAO',
+    estoqueLitros: Number(data.estoque_litros || 0),
+    capacidadeBarril: data.capacidade_barril,
   };
 }

@@ -1506,10 +1506,12 @@ export type Database = {
       produtos: {
         Row: {
           ativo: boolean | null
+          capacidade_barril: number | null
           categoria: string | null
           created_at: string | null
           descricao: string | null
           estoque: number | null
+          estoque_litros: number | null
           estoque_minimo: number | null
           fornecedor: string | null
           id: string
@@ -1520,15 +1522,18 @@ export type Database = {
           preco: number
           preco_custo: number | null
           sku: string | null
+          tipo_produto: string | null
           unidade_medida: string | null
           updated_at: string | null
         }
         Insert: {
           ativo?: boolean | null
+          capacidade_barril?: number | null
           categoria?: string | null
           created_at?: string | null
           descricao?: string | null
           estoque?: number | null
+          estoque_litros?: number | null
           estoque_minimo?: number | null
           fornecedor?: string | null
           id?: string
@@ -1539,15 +1544,18 @@ export type Database = {
           preco?: number
           preco_custo?: number | null
           sku?: string | null
+          tipo_produto?: string | null
           unidade_medida?: string | null
           updated_at?: string | null
         }
         Update: {
           ativo?: boolean | null
+          capacidade_barril?: number | null
           categoria?: string | null
           created_at?: string | null
           descricao?: string | null
           estoque?: number | null
+          estoque_litros?: number | null
           estoque_minimo?: number | null
           fornecedor?: string | null
           id?: string
@@ -1558,6 +1566,7 @@ export type Database = {
           preco?: number
           preco_custo?: number | null
           sku?: string | null
+          tipo_produto?: string | null
           unidade_medida?: string | null
           updated_at?: string | null
         }
