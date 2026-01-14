@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Bot, Settings, MessageSquare, Trash2, TestTube, Sparkles, Target, Zap, MoreHorizontal } from "lucide-react";
+import { Bot, Settings, MessageSquare, Trash2, TestTube, Sparkles, Target, Zap, MoreHorizontal, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { CriarAgenteWizard } from "@/components/agentes/CriarAgenteWizard";
 import { ConfigurarAgenteDialog } from "@/components/agentes/ConfigurarAgenteDialog";
@@ -95,6 +95,23 @@ export default function AgenteIA() {
     onError: (error) => toast.error("Erro: " + error.message),
   });
 
+  const clearAllConversationsMutation = useMutation({
+    mutationFn: async () => {
+      // First delete all messages
+      const { error: msgError } = await supabase.from("ai_messages").delete().neq("id", "");
+      if (msgError) throw msgError;
+      // Then delete all conversations
+      const { error: convError } = await supabase.from("ai_conversations").delete().neq("id", "");
+      if (convError) throw convError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["ai-conversation-counts"] });
+      toast.success("Histórico de conversas zerado!");
+    },
+    onError: (error) => toast.error("Erro ao zerar: " + error.message),
+  });
+
   return (
     <PageLayout title="Agentes de IA" subtitle="Crie e gerencie agentes para qualificação automática de leads">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -104,10 +121,36 @@ export default function AgenteIA() {
         <Card><CardContent className="pt-4"><div className="flex items-center gap-3"><div className="p-2 rounded-lg bg-purple-500/10"><Target className="h-5 w-5 text-purple-600" /></div><div><p className="text-2xl font-bold">-</p><p className="text-xs text-muted-foreground">Qualificados</p></div></div></CardContent></Card>
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Button onClick={() => setCriarAgenteOpen(true)} size="lg" className="gap-2">
           <Sparkles className="h-4 w-4" />Criar Novo Agente
         </Button>
+        
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="lg" className="gap-2">
+              <RotateCcw className="h-4 w-4" />Zerar Histórico
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Zerar histórico de conversas?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Isso irá excluir TODAS as conversas e mensagens de todos os agentes. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => clearAllConversationsMutation.mutate()} 
+                className="bg-destructive text-destructive-foreground"
+                disabled={clearAllConversationsMutation.isPending}
+              >
+                {clearAllConversationsMutation.isPending ? "Zerando..." : "Zerar Tudo"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {isLoading ? (
