@@ -141,6 +141,129 @@ export type Database = {
           },
         ]
       }
+      barril_movimentacoes: {
+        Row: {
+          barril_id: string
+          cliente_id: string | null
+          created_at: string
+          data_movimento: string
+          id: string
+          localizacao_anterior:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          localizacao_nova:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          observacoes: string | null
+          pedido_id: string | null
+          status_conteudo: Database["public"]["Enums"]["barril_status_conteudo"]
+          tipo_movimento: Database["public"]["Enums"]["barril_tipo_movimento"]
+        }
+        Insert: {
+          barril_id: string
+          cliente_id?: string | null
+          created_at?: string
+          data_movimento?: string
+          id?: string
+          localizacao_anterior?:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          localizacao_nova?:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          observacoes?: string | null
+          pedido_id?: string | null
+          status_conteudo: Database["public"]["Enums"]["barril_status_conteudo"]
+          tipo_movimento: Database["public"]["Enums"]["barril_tipo_movimento"]
+        }
+        Update: {
+          barril_id?: string
+          cliente_id?: string | null
+          created_at?: string
+          data_movimento?: string
+          id?: string
+          localizacao_anterior?:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          localizacao_nova?:
+            | Database["public"]["Enums"]["barril_localizacao"]
+            | null
+          observacoes?: string | null
+          pedido_id?: string | null
+          status_conteudo?: Database["public"]["Enums"]["barril_status_conteudo"]
+          tipo_movimento?: Database["public"]["Enums"]["barril_tipo_movimento"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barril_movimentacoes_barril_id_fkey"
+            columns: ["barril_id"]
+            isOneToOne: false
+            referencedRelation: "barris"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barril_movimentacoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barril_movimentacoes_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      barris: {
+        Row: {
+          capacidade: number
+          cliente_id: string | null
+          codigo: string
+          created_at: string
+          data_ultima_movimentacao: string | null
+          id: string
+          localizacao: Database["public"]["Enums"]["barril_localizacao"]
+          observacoes: string | null
+          status_conteudo: Database["public"]["Enums"]["barril_status_conteudo"]
+          updated_at: string
+        }
+        Insert: {
+          capacidade?: number
+          cliente_id?: string | null
+          codigo: string
+          created_at?: string
+          data_ultima_movimentacao?: string | null
+          id?: string
+          localizacao?: Database["public"]["Enums"]["barril_localizacao"]
+          observacoes?: string | null
+          status_conteudo?: Database["public"]["Enums"]["barril_status_conteudo"]
+          updated_at?: string
+        }
+        Update: {
+          capacidade?: number
+          cliente_id?: string | null
+          codigo?: string
+          created_at?: string
+          data_ultima_movimentacao?: string | null
+          id?: string
+          localizacao?: Database["public"]["Enums"]["barril_localizacao"]
+          observacoes?: string | null
+          status_conteudo?: Database["public"]["Enums"]["barril_status_conteudo"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barris_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       boletos: {
         Row: {
           amount: number
@@ -1917,6 +2040,9 @@ export type Database = {
     Enums: {
       app_role: "admin" | "moderator" | "user"
       ashby_status: "PENDENTE" | "ENTREGUE" | "PAGO" | "CANCELADO"
+      barril_localizacao: "LOJA" | "CLIENTE"
+      barril_status_conteudo: "CHEIO" | "VAZIO"
+      barril_tipo_movimento: "SAIDA" | "RETORNO"
       boleto_status:
         | "PENDENTE"
         | "APROVADO"
@@ -2073,6 +2199,9 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       ashby_status: ["PENDENTE", "ENTREGUE", "PAGO", "CANCELADO"],
+      barril_localizacao: ["LOJA", "CLIENTE"],
+      barril_status_conteudo: ["CHEIO", "VAZIO"],
+      barril_tipo_movimento: ["SAIDA", "RETORNO"],
       boleto_status: ["PENDENTE", "APROVADO", "PAGO", "REJEITADO", "CANCELADO"],
       boleto_tipo_nota: ["COM_NOTA", "SEM_NOTA"],
       card_transaction_status: [

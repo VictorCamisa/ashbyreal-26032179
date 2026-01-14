@@ -28,9 +28,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Circle,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePedidosMutations, CartItem } from '@/hooks/usePedidosMutations';
+import { useBarrisMutations } from '@/hooks/useBarrisMutations';
+import { SelecionarBarrisStep } from '@/components/barris/SelecionarBarrisStep';
 import { cn } from '@/lib/utils';
 
 interface NovoPedidoCompletoDialogProps {
@@ -50,6 +53,7 @@ interface Cliente {
   id: string;
   nome: string;
   telefone: string;
+  cpf_cnpj: string | null;
 }
 
 const metodoPagamentoOptions = [
@@ -59,9 +63,18 @@ const metodoPagamentoOptions = [
   { value: 'boleto', label: 'Boleto', icon: Receipt },
 ];
 
+// Helper to check if it's a CNPJ (14 digits)
+const isCNPJ = (cpfCnpj: string | null): boolean => {
+  if (!cpfCnpj) return false;
+  const numbers = cpfCnpj.replace(/\D/g, '');
+  return numbers.length === 14;
+};
+
+type Step = 'cliente' | 'produtos' | 'barris' | 'pagamento';
+
 export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialogProps) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<'cliente' | 'produtos' | 'pagamento'>('cliente');
+  const [step, setStep] = useState<Step>('cliente');
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [searchProduto, setSearchProduto] = useState('');
@@ -72,8 +85,35 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [observacoes, setObservacoes] = useState('');
   const [dataEntrega, setDataEntrega] = useState('');
   const [valorSinal, setValorSinal] = useState<number>(0);
+  
+  // Barris state
+  const [selectedBarrisEntrega, setSelectedBarrisEntrega] = useState<string[]>([]);
+  const [selectedBarrisRetorno, setSelectedBarrisRetorno] = useState<string[]>([]);
 
   const { createPedido, isLoading } = usePedidosMutations();
+  const { movimentarBarris, isLoading: movingBarris } = useBarrisMutations();
+
+  // Check if cliente is CNPJ (requires barrel management)
+  const clienteIsCNPJ = useMemo(() => {
+    return selectedCliente ? isCNPJ(selectedCliente.cpf_cnpj) : false;
+  }, [selectedCliente]);
+
+  // Dynamic steps based on cliente type
+  const steps = useMemo(() => {
+    const baseSteps: Step[] = ['cliente', 'produtos'];
+    if (clienteIsCNPJ) {
+      baseSteps.push('barris');
+    }
+    baseSteps.push('pagamento');
+    return baseSteps;
+  }, [clienteIsCNPJ]);
+
+  const stepLabels: Record<Step, string> = {
+    cliente: 'Cliente',
+    produtos: 'Produtos',
+    barris: 'Barris',
+    pagamento: 'Pagamento',
+  };
 
   useEffect(() => {
     if (open) {
@@ -85,7 +125,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const fetchClientes = async () => {
     const { data } = await supabase
       .from('clientes')
-      .select('id, nome, telefone')
+      .select('id, nome, telefone, cpf_cnpj')
       .order('nome');
     setClientes(data || []);
   };
@@ -178,7 +218,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     if (!selectedCliente || cart.length === 0) return;
 
     try {
-      await createPedido({
+      const pedido = await createPedido({
         clienteId: selectedCliente.id,
         items: cart,
         metodoPagamento,
@@ -186,6 +226,26 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         dataEntrega,
         valorSinal: valorSinal > 0 ? valorSinal : undefined,
       });
+
+      // Se cliente é CNPJ e há barris selecionados, movimentar
+      if (clienteIsCNPJ && (selectedBarrisEntrega.length > 0 || selectedBarrisRetorno.length > 0)) {
+        const barrisEntregaData = selectedBarrisEntrega.map(id => ({
+          barrilId: id,
+          codigo: '' // Will be fetched in mutation if needed
+        }));
+        
+        const barrisRetornoData = selectedBarrisRetorno.map(id => ({
+          barrilId: id,
+          codigo: ''
+        }));
+
+        await movimentarBarris({
+          pedidoId: pedido.id,
+          clienteId: selectedCliente.id,
+          barrisEntrega: barrisEntregaData,
+          barrisRetorno: barrisRetornoData,
+        });
+      }
 
       resetDialog();
       setOpen(false);
@@ -205,9 +265,25 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setSearchProduto('');
     setSearchCliente('');
     setValorSinal(0);
+    setSelectedBarrisEntrega([]);
+    setSelectedBarrisRetorno([]);
   };
 
-  const stepIndex = ['cliente', 'produtos', 'pagamento'].indexOf(step);
+  const stepIndex = steps.indexOf(step);
+
+  const goToNextStep = () => {
+    const currentIndex = steps.indexOf(step);
+    if (currentIndex < steps.length - 1) {
+      setStep(steps[currentIndex + 1]);
+    }
+  };
+
+  const goToPrevStep = () => {
+    const currentIndex = steps.indexOf(step);
+    if (currentIndex > 0) {
+      setStep(steps[currentIndex - 1]);
+    }
+  };
 
   return (
     <Dialog
@@ -231,13 +307,20 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
               Nova Venda
             </DialogTitle>
             <div className="flex items-center gap-1">
-              {['Cliente', 'Produtos', 'Pagamento'].map((label, i) => (
-                <div key={label} className="flex items-center">
+              {steps.map((s, i) => (
+                <div key={s} className="flex items-center">
                   <button
                     onClick={() => {
-                      if (i === 0) setStep('cliente');
-                      else if (i === 1 && selectedCliente) setStep('produtos');
-                      else if (i === 2 && cart.length > 0) setStep('pagamento');
+                      // Navigation logic
+                      if (s === 'cliente') setStep('cliente');
+                      else if (s === 'produtos' && selectedCliente) setStep('produtos');
+                      else if (s === 'barris' && cart.length > 0) setStep('barris');
+                      else if (s === 'pagamento' && cart.length > 0) {
+                        // Skip barris step if not CNPJ
+                        if (!clienteIsCNPJ || steps.indexOf(step) >= steps.indexOf('barris')) {
+                          setStep('pagamento');
+                        }
+                      }
                     }}
                     className={cn(
                       'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors',
@@ -251,9 +334,12 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs font-medium">
                       {i < stepIndex ? <Check className="h-3 w-3" /> : i + 1}
                     </span>
-                    <span className="hidden sm:inline">{label}</span>
+                    <span className="hidden sm:inline">{stepLabels[s]}</span>
+                    {s === 'barris' && (
+                      <Circle className="h-3 w-3 fill-current" />
+                    )}
                   </button>
-                  {i < 2 && <div className="w-6 h-px bg-border mx-1" />}
+                  {i < steps.length - 1 && <div className="w-6 h-px bg-border mx-1" />}
                 </div>
               ))}
             </div>
@@ -294,12 +380,18 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                           <User className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium truncate">{cliente.nome}</p>
                           <p className="text-sm text-muted-foreground truncate">
                             {cliente.telefone}
                           </p>
                         </div>
+                        {isCNPJ(cliente.cpf_cnpj) && (
+                          <Badge variant="outline" className="shrink-0 text-xs">
+                            <Circle className="h-2 w-2 mr-1 fill-current" />
+                            CNPJ
+                          </Badge>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -380,9 +472,17 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     </h3>
                     <Badge variant="outline">{totalItems}</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedCliente?.nome}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm text-muted-foreground">
+                      {selectedCliente?.nome}
+                    </p>
+                    {clienteIsCNPJ && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Circle className="h-2 w-2 mr-1 fill-current" />
+                        CNPJ
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 <ScrollArea className="flex-1 p-4">
@@ -451,7 +551,19 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
             </div>
           )}
 
-          {/* Step 3: Pagamento */}
+          {/* Step 3: Barris (only for CNPJ clients) */}
+          {step === 'barris' && selectedCliente && (
+            <SelecionarBarrisStep
+              clienteId={selectedCliente.id}
+              clienteNome={selectedCliente.nome}
+              selectedEntrega={selectedBarrisEntrega}
+              selectedRetorno={selectedBarrisRetorno}
+              onEntregaChange={setSelectedBarrisEntrega}
+              onRetornoChange={setSelectedBarrisRetorno}
+            />
+          )}
+
+          {/* Step 4: Pagamento */}
           {step === 'pagamento' && (
             <ScrollArea className="h-full">
               <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -463,7 +575,12 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">{selectedCliente?.nome}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{selectedCliente?.nome}</p>
+                          {clienteIsCNPJ && (
+                            <Badge variant="outline" className="text-xs">CNPJ</Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {totalItems} {totalItems === 1 ? 'item' : 'itens'}
                         </p>
@@ -487,6 +604,27 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                       </div>
                     ))}
                   </div>
+                  
+                  {/* Barris Summary */}
+                  {clienteIsCNPJ && (selectedBarrisEntrega.length > 0 || selectedBarrisRetorno.length > 0) && (
+                    <>
+                      <Separator className="my-4" />
+                      <div className="text-sm">
+                        <p className="font-medium mb-2 flex items-center gap-2">
+                          <Circle className="h-3 w-3 fill-current text-amber-500" />
+                          Movimentação de Barris
+                        </p>
+                        <div className="space-y-1 text-muted-foreground">
+                          {selectedBarrisEntrega.length > 0 && (
+                            <p>→ {selectedBarrisEntrega.length} barril(s) a entregar (cheios)</p>
+                          )}
+                          {selectedBarrisRetorno.length > 0 && (
+                            <p>← {selectedBarrisRetorno.length} barril(s) a retirar (vazios)</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Payment Method */}
@@ -585,14 +723,16 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
           <Button
             variant="outline"
             onClick={() => {
-              if (step === 'produtos') setStep('cliente');
-              else if (step === 'pagamento') setStep('produtos');
-              else setOpen(false);
+              if (stepIndex === 0) {
+                setOpen(false);
+              } else {
+                goToPrevStep();
+              }
             }}
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            {step === 'cliente' ? 'Cancelar' : 'Voltar'}
+            {stepIndex === 0 ? 'Cancelar' : 'Voltar'}
           </Button>
 
           <div className="flex items-center gap-3">
@@ -611,8 +751,18 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
 
             {step === 'produtos' && (
               <Button
-                onClick={() => setStep('pagamento')}
+                onClick={goToNextStep}
                 disabled={cart.length === 0}
+                className="gap-2"
+              >
+                {clienteIsCNPJ ? 'Barris' : 'Pagamento'}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+
+            {step === 'barris' && (
+              <Button
+                onClick={() => setStep('pagamento')}
                 className="gap-2"
               >
                 Pagamento
@@ -623,11 +773,11 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
             {step === 'pagamento' && (
               <Button
                 onClick={handleSubmit}
-                disabled={isLoading || !metodoPagamento}
+                disabled={isLoading || movingBarris || !metodoPagamento}
                 size="lg"
                 className="gap-2 px-8"
               >
-                {isLoading ? (
+                {isLoading || movingBarris ? (
                   'Finalizando...'
                 ) : (
                   <>
