@@ -83,7 +83,9 @@ serve(async (req) => {
           email: u.email,
           nome: profile?.nome || u.email,
           cargo: profile?.cargo,
+          telefone: profile?.telefone,
           avatar_url: profile?.avatar_url,
+          is_owner: profile?.is_owner || false,
           roles: userRoles,
           created_at: u.created_at,
           email_confirmed_at: u.email_confirmed_at,
@@ -97,11 +99,11 @@ serve(async (req) => {
 
     // CREATE USER
     if (req.method === "POST" && action === "create") {
-      const { email, password, nome, cargo, role } = await req.json();
+      const { email, password, nome, telefone, cargo, role, is_owner } = await req.json();
       console.log("Creating user:", email);
 
-      if (!email || !password) {
-        return new Response(JSON.stringify({ error: "Email e senha são obrigatórios" }), {
+      if (!email || !password || !telefone) {
+        return new Response(JSON.stringify({ error: "Email, senha e WhatsApp são obrigatórios" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -123,11 +125,15 @@ serve(async (req) => {
         });
       }
 
-      // Update profile with cargo if provided
-      if (cargo && newUser.user) {
+      // Update profile with telefone, cargo and is_owner
+      if (newUser.user) {
         await supabaseAdmin
           .from("profiles")
-          .update({ cargo })
+          .update({ 
+            telefone: telefone || null,
+            cargo: cargo || null,
+            is_owner: is_owner || false
+          })
           .eq("id", newUser.user.id);
       }
 

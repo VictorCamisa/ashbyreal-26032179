@@ -1741,6 +1741,7 @@ export type Database = {
           cargo: string | null
           created_at: string | null
           id: string
+          is_owner: boolean | null
           nome: string | null
           telefone: string | null
           updated_at: string | null
@@ -1750,6 +1751,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string | null
           id: string
+          is_owner?: boolean | null
           nome?: string | null
           telefone?: string | null
           updated_at?: string | null
@@ -1759,6 +1761,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string | null
           id?: string
+          is_owner?: boolean | null
           nome?: string | null
           telefone?: string | null
           updated_at?: string | null
