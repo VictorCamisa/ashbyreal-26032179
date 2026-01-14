@@ -101,34 +101,59 @@ serve(async (req) => {
       }
     }
 
-    // Fetch products if needed
+    // Fetch products with REAL stock from system
     if (knowledgeTables.includes("produtos")) {
       const { data: produtos } = await supabase
         .from("produtos")
-        .select("nome, preco, categoria, tipo_produto, estoque_litros")
+        .select("nome, preco, categoria, tipo_produto, estoque, estoque_litros, estoque_minimo")
         .eq("ativo", true)
-        .eq("tipo_produto", "CHOPP")
         .order("nome");
 
       if (produtos && produtos.length > 0) {
-        contextData += `\n--- PRODUTOS DISPONÍVEIS (CHOPP) ---\n`;
-        produtos.forEach((p: any) => {
-          contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} (Estoque: ${p.estoque_litros || 0}L)\n`;
-        });
+        contextData += `\n--- ESTOQUE REAL DO SISTEMA ---\n`;
+        const chopps = produtos.filter((p: any) => p.tipo_produto === "CHOPP");
+        const outros = produtos.filter((p: any) => p.tipo_produto !== "CHOPP");
+        
+        if (chopps.length > 0) {
+          contextData += `\nCHOPPS:\n`;
+          chopps.forEach((p: any) => {
+            const estoque = p.estoque_litros || p.estoque || 0;
+            const disponivel = estoque > 0;
+            const status = disponivel ? `✓ DISPONÍVEL (${estoque}L em estoque)` : `✗ INDISPONÍVEL (sem estoque)`;
+            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)}/L - ${status}\n`;
+          });
+        }
+        
+        if (outros.length > 0) {
+          contextData += `\nOUTROS PRODUTOS:\n`;
+          outros.forEach((p: any) => {
+            const estoque = p.estoque || 0;
+            const disponivel = estoque > 0;
+            const status = disponivel ? `✓ DISPONÍVEL (${estoque} unid)` : `✗ INDISPONÍVEL`;
+            contextData += `- ${p.nome}: R$ ${p.preco?.toFixed(2)} - ${status}\n`;
+          });
+        }
       }
     }
 
-    // Build messages array for OpenAI
+    // Build messages array for OpenAI with multi-message instruction
     const systemPrompt = `${agent.system_prompt}
 
 ${contextData ? `\n\nCONTEXTO DO BANCO DE DADOS:\n${contextData}` : ""}
 
-INSTRUÇÕES ADICIONAIS:
-- Responda de forma natural e amigável, como se fosse um atendente humano
-- Use as informações do contexto para personalizar a conversa
-- Se o cliente perguntar sobre preços ou produtos, use as informações disponíveis
-- Se identificar interesse de compra, colete: data do evento, quantidade de pessoas, endereço de entrega
-- Sinalize para transferência quando o cliente estiver pronto para fechar o pedido`;
+INSTRUÇÕES CRÍTICAS DE FORMATO:
+- NUNCA responda em um único bloco de texto longo
+- SEMPRE divida sua resposta em mensagens curtas e naturais (como no WhatsApp real)
+- Use o delimitador "|||" para separar cada mensagem
+- Cada mensagem deve ter NO MÁXIMO 2-3 linhas
+- Envie entre 1 a 4 mensagens por vez, dependendo do contexto
+- Exemplo de formato: "Oi, tudo bem?|||Legal saber que tem evento chegando!|||Qual tipo de chopp você mais curte?"
+
+INSTRUÇÕES DE CONTEÚDO:
+- Use as informações de ESTOQUE REAL para informar disponibilidade
+- Se um produto está INDISPONÍVEL, informe ao cliente e sugira alternativas
+- Nunca ofereça produtos sem estoque
+- Responda de forma natural, como um amigo no WhatsApp`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -163,10 +188,19 @@ INSTRUÇÕES ADICIONAIS:
     }
 
     const openaiData = await openaiResponse.json();
-    const assistantMessage = openaiData.choices[0]?.message?.content || "Desculpe, não consegui processar sua mensagem.";
+    const rawResponse = openaiData.choices[0]?.message?.content || "Desculpe, não consegui processar sua mensagem.";
     const tokensUsed = openaiData.usage?.total_tokens || 0;
 
-    console.log(`[ai-chat] Response received, tokens: ${tokensUsed}`);
+    // Split response into multiple messages
+    const responseMessages = rawResponse
+      .split("|||")
+      .map((msg: string) => msg.trim())
+      .filter((msg: string) => msg.length > 0)
+      .slice(0, 4); // Max 4 messages
+
+    const assistantMessage = responseMessages.length > 0 ? responseMessages.join("\n\n") : rawResponse;
+
+    console.log(`[ai-chat] Response received, tokens: ${tokensUsed}, messages: ${responseMessages.length}`);
 
     // Check if should transfer
     const transferKeywords = agent.transfer_keywords || [];
@@ -245,6 +279,7 @@ INSTRUÇÕES ADICIONAIS:
     return new Response(
       JSON.stringify({
         response: assistantMessage,
+        messages: responseMessages, // Array of individual messages to send separately
         should_transfer: shouldTransfer,
         qualification_score: qualificationScore,
         tokens_used: tokensUsed,
