@@ -97,11 +97,11 @@ export default function AgenteIA() {
 
   const clearAllConversationsMutation = useMutation({
     mutationFn: async () => {
-      // First delete all messages
-      const { error: msgError } = await supabase.from("ai_messages").delete().neq("id", "");
+      // First delete all messages (using gte with a very old date to match all)
+      const { error: msgError } = await supabase.from("ai_messages").delete().gte("created_at", "1970-01-01");
       if (msgError) throw msgError;
       // Then delete all conversations
-      const { error: convError } = await supabase.from("ai_conversations").delete().neq("id", "");
+      const { error: convError } = await supabase.from("ai_conversations").delete().gte("created_at", "1970-01-01");
       if (convError) throw convError;
     },
     onSuccess: () => {
