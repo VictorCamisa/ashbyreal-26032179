@@ -426,7 +426,7 @@ export function LojistaDetailsSheet({ lojistaId, open, onOpenChange }: LojistaDe
               Vincular Barris
             </DialogTitle>
             <DialogDescription>
-              Selecione os barris cheios disponíveis na loja para vincular ao lojista
+              Selecione os barris disponíveis na loja para vincular ao lojista
             </DialogDescription>
           </DialogHeader>
 
