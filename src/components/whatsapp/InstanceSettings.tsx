@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut, Wrench, Download, List, Check, Settings, Eye, EyeOff, Server } from 'lucide-react';
+import { Plus, QrCode, Trash2, RefreshCw, Loader2, Wifi, WifiOff, LogOut, Wrench, Download, List, Check, Settings, Eye, EyeOff, Server, Webhook } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
 import { supabase } from '@/integrations/supabase/client';
@@ -72,6 +72,7 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
 
   // Existing states
   const [isResolvingLids, setIsResolvingLids] = useState(false);
+  const [isReconfiguringWebhook, setIsReconfiguringWebhook] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [evolutionInstances, setEvolutionInstances] = useState<EvolutionInstance[]>([]);
@@ -259,6 +260,37 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
       toast.error('Erro ao resolver contatos');
     } finally {
       setIsResolvingLids(false);
+    }
+  };
+
+  const handleReconfigureWebhook = async (instance: WhatsAppInstance) => {
+    const config = getStoredConfig();
+    if (!config) {
+      toast.error('Configure a Evolution API primeiro');
+      return;
+    }
+
+    setIsReconfiguringWebhook(instance.instance_name);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-evolution-instance', {
+        body: { 
+          action: 'reconfigure-webhook',
+          instanceName: instance.instance_name,
+          evolutionApiUrl: config.apiUrl,
+          evolutionApiKey: config.apiKey,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Webhook reconfigurado com sucesso!');
+      console.log('Webhook URL:', data?.webhookUrl);
+    } catch (err) {
+      console.error('Error reconfiguring webhook:', err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao reconfigurar webhook');
+    } finally {
+      setIsReconfiguringWebhook(null);
     }
   };
 
@@ -656,6 +688,18 @@ export function InstanceSettings({ onInstanceSelect, selectedInstance }: Instanc
                       title="Resolver contatos @lid"
                     >
                       <Wrench className={cn('h-4 w-4', isResolvingLids && 'animate-spin')} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReconfigureWebhook(instance);
+                      }}
+                      disabled={isReconfiguringWebhook === instance.instance_name}
+                      title="Reconfigurar Webhook"
+                    >
+                      <Webhook className={cn('h-4 w-4', isReconfiguringWebhook === instance.instance_name && 'animate-spin')} />
                     </Button>
                     <Button
                       variant="ghost"
