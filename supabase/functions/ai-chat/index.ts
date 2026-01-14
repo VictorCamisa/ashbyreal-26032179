@@ -45,6 +45,7 @@ serve(async (req) => {
     // If we have a remote_jid, try to find or create the client
     let clientInfo = null;
     let clientWasCreated = false;
+    let alreadyNotifiedOwner = false;
     
     if (remote_jid && !test_mode) {
       const phoneNumber = remote_jid.split("@")[0];
@@ -199,13 +200,16 @@ serve(async (req) => {
       // Count user messages in conversation to track engagement
       const { data: existingConv } = await supabase
         .from("ai_conversations")
-        .select("id")
+        .select("id, qualification_status")
         .eq("agent_id", agent_id)
         .eq("remote_jid", remote_jid)
         .eq("status", "active")
         .single();
 
       if (existingConv) {
+        // Check if owner was already notified (to avoid sending multiple times)
+        alreadyNotifiedOwner = existingConv.qualification_status === "notified" || existingConv.qualification_status === "qualified";
+        
         const { count } = await supabase
           .from("ai_messages")
           .select("*", { count: "exact", head: true })
@@ -213,7 +217,7 @@ serve(async (req) => {
           .eq("role", "user");
 
         userMessageCount = (count || 0) + 1; // +1 for current message
-        console.log(`[ai-chat] User message count: ${userMessageCount}`);
+        console.log(`[ai-chat] User message count: ${userMessageCount}, alreadyNotified: ${alreadyNotifiedOwner}`);
       } else {
         userMessageCount = 1; // First message
       }
@@ -603,11 +607,12 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
     }
 
     // Send qualification to owner when transfer is triggered OR fully qualified (IMMEDIATELY)
+    // BUT only if not already notified (to avoid sending multiple times)
     const isFullyQualifiedFinal = qualificationData.pessoas && qualificationData.data && qualificationData.endereco;
-    const shouldNotifyOwner = (shouldTransfer || isFullyQualifiedFinal) && !test_mode && remote_jid;
+    const shouldNotifyOwner = (shouldTransfer || isFullyQualifiedFinal) && !test_mode && remote_jid && !alreadyNotifiedOwner;
     
     if (shouldNotifyOwner) {
-      console.log(`[ai-chat] Transfer triggered - Notifying owner and sending full qualification sheet`);
+      console.log(`[ai-chat] Transfer triggered - Notifying owner and sending full qualification sheet (first time)`);
       
       try {
         // Find the owner
@@ -620,7 +625,7 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 
         if (owner?.telefone) {
           // Build COMPLETE qualification message
-          const fichaQualificacao = `🔔 *TRANSFERÊNCIA SOLICITADA - LARA IA*
+          const fichaQualificacao = `🔔 *LEAD QUALIFICADO - LARA IA*
 
 👤 *Cliente:* ${qualificationData.nome || "Não identificado"}
 📱 *Telefone:* ${qualificationData.telefone || "Não identificado"}
@@ -637,7 +642,7 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 💬 *Resumo da Conversa:*
 ${fullConversation.slice(-8).map((m: any) => `${m.role === 'user' ? '👤' : '🤖'} ${m.content?.substring(0, 150)}`).join('\n')}
 
-⚡ *Status:* Cliente solicitou atendimento humano - Lead movido para NEGOCIAÇÃO no CRM`;
+⚡ *Status:* Lead movido para NEGOCIAÇÃO no CRM`;
 
           // Get instance from agent
           const instanceId = agent.instance_id;
@@ -673,6 +678,18 @@ ${fullConversation.slice(-8).map((m: any) => `${m.role === 'user' ? '👤' : '�
                 });
 
                 console.log("[ai-chat] Qualification sent to owner:", ownerPhone, "Status:", sendResult.status);
+                
+                // Mark conversation as notified to avoid duplicate sends
+                if (sendResult.ok) {
+                  await supabase
+                    .from("ai_conversations")
+                    .update({ qualification_status: "notified" })
+                    .eq("agent_id", agent_id)
+                    .eq("remote_jid", remote_jid)
+                    .eq("status", "active");
+                  
+                  console.log("[ai-chat] Conversation marked as 'notified' to prevent duplicates");
+                }
               }
             }
           }
@@ -682,6 +699,8 @@ ${fullConversation.slice(-8).map((m: any) => `${m.role === 'user' ? '👤' : '�
       } catch (notifyError) {
         console.error("[ai-chat] Error during notification process:", notifyError);
       }
+    } else if (isFullyQualifiedFinal && alreadyNotifiedOwner) {
+      console.log("[ai-chat] Skipping owner notification - already sent previously");
     }
 
     // If not in test mode, save the conversation
