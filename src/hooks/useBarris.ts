@@ -12,6 +12,7 @@ export interface Barril {
   localizacao: BarrilLocalizacao;
   status_conteudo: BarrilStatusConteudo;
   cliente_id: string | null;
+  lojista_id: string | null;
   data_ultima_movimentacao: string | null;
   observacoes: string | null;
   created_at: string;
@@ -20,6 +21,10 @@ export interface Barril {
     id: string;
     nome: string;
     telefone: string;
+  };
+  lojista?: {
+    id: string;
+    nome: string;
   };
 }
 
@@ -162,6 +167,26 @@ export function useBarrisByCliente(clienteId: string | null) {
       return data as Barril[];
     },
     enabled: !!clienteId
+  });
+}
+
+export function useBarrisByLojista(lojistaId: string | null) {
+  return useQuery({
+    queryKey: ['barris', 'lojista', lojistaId],
+    queryFn: async () => {
+      if (!lojistaId) return [];
+      
+      const { data, error } = await supabase
+        .from('barris')
+        .select('*')
+        .eq('localizacao', 'CLIENTE')
+        .eq('lojista_id', lojistaId)
+        .order('codigo');
+      
+      if (error) throw error;
+      return data as Barril[];
+    },
+    enabled: !!lojistaId
   });
 }
 

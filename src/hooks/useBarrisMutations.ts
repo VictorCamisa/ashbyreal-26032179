@@ -16,8 +16,9 @@ export interface BarrilRetorno {
 export interface MovimentarBarrisData {
   pedidoId: string;
   clienteId: string;
-  barrisEntrega: BarrilEntrega[]; // Cheios saindo da loja para o cliente
-  barrisRetorno: BarrilRetorno[]; // Vazios voltando do cliente para a loja
+  lojistaId?: string | null;
+  barrisEntrega: BarrilEntrega[]; // Cheios saindo da loja para o cliente/lojista
+  barrisRetorno: BarrilRetorno[]; // Vazios voltando do cliente/lojista para a loja
 }
 
 export function useBarrisMutations() {
@@ -29,14 +30,15 @@ export function useBarrisMutations() {
     setIsLoading(true);
 
     try {
-      // 1. Atualizar barris de entrega (LOJA -> CLIENTE, CHEIO)
+      // 1. Atualizar barris de entrega (LOJA -> CLIENTE/LOJISTA, CHEIO)
       for (const barril of data.barrisEntrega) {
         // Atualizar o barril
         const { error: updateError } = await supabase
           .from('barris')
           .update({
             localizacao: 'CLIENTE',
-            cliente_id: data.clienteId,
+            cliente_id: data.lojistaId ? null : data.clienteId,
+            lojista_id: data.lojistaId || null,
             status_conteudo: 'CHEIO',
             data_ultima_movimentacao: new Date().toISOString()
           })
@@ -61,7 +63,7 @@ export function useBarrisMutations() {
         if (movError) throw movError;
       }
 
-      // 2. Atualizar barris de retorno (CLIENTE -> LOJA, VAZIO)
+      // 2. Atualizar barris de retorno (CLIENTE/LOJISTA -> LOJA, VAZIO)
       for (const barril of data.barrisRetorno) {
         // Atualizar o barril
         const { error: updateError } = await supabase
@@ -69,6 +71,7 @@ export function useBarrisMutations() {
           .update({
             localizacao: 'LOJA',
             cliente_id: null,
+            lojista_id: null,
             status_conteudo: 'VAZIO',
             data_ultima_movimentacao: new Date().toISOString()
           })

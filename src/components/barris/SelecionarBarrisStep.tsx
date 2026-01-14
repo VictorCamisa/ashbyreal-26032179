@@ -3,12 +3,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Package, ArrowDown, ArrowUp, Droplet, AlertCircle } from 'lucide-react';
-import { useBarrisDisponiveis, useBarrisByCliente, Barril } from '@/hooks/useBarris';
+import { Package, ArrowDown, ArrowUp, Droplet, AlertCircle, Store } from 'lucide-react';
+import { useBarrisDisponiveis, useBarrisByCliente, useBarrisByLojista, Barril } from '@/hooks/useBarris';
 import { cn } from '@/lib/utils';
 
 interface SelecionarBarrisStepProps {
-  clienteId: string;
+  clienteId?: string | null;
+  lojistaId?: string | null;
   clienteNome: string;
   selectedEntrega: string[]; // IDs dos barris a entregar
   selectedRetorno: string[]; // IDs dos barris a retirar
@@ -18,6 +19,7 @@ interface SelecionarBarrisStepProps {
 
 export function SelecionarBarrisStep({
   clienteId,
+  lojistaId,
   clienteNome,
   selectedEntrega,
   selectedRetorno,
@@ -25,7 +27,12 @@ export function SelecionarBarrisStep({
   onRetornoChange,
 }: SelecionarBarrisStepProps) {
   const { data: barrisDisponiveis = [], isLoading: loadingDisponiveis } = useBarrisDisponiveis();
-  const { data: barrisCliente = [], isLoading: loadingCliente } = useBarrisByCliente(clienteId);
+  const { data: barrisCliente = [], isLoading: loadingCliente } = useBarrisByCliente(lojistaId ? null : clienteId);
+  const { data: barrisLojista = [], isLoading: loadingLojista } = useBarrisByLojista(lojistaId);
+
+  const isLojista = !!lojistaId;
+  const barrisRetorno = isLojista ? barrisLojista : barrisCliente;
+  const loadingRetorno = isLojista ? loadingLojista : loadingCliente;
 
   const toggleEntrega = (barrilId: string) => {
     if (selectedEntrega.includes(barrilId)) {
@@ -80,9 +87,11 @@ export function SelecionarBarrisStep({
     <div className="h-full flex flex-col">
       <div className="px-6 py-4 bg-amber-500/10 border-b border-amber-500/20">
         <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-          <AlertCircle className="h-5 w-5" />
+          {isLojista ? <Store className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
           <div>
-            <p className="font-medium">Gestão de Barris - Cliente CNPJ</p>
+            <p className="font-medium">
+              Gestão de Barris - {isLojista ? 'Lojista' : 'Cliente CNPJ'}
+            </p>
             <p className="text-sm opacity-80">
               Selecione os barris que serão entregues e/ou retirados neste pedido
             </p>
@@ -99,7 +108,7 @@ export function SelecionarBarrisStep({
               <div>
                 <h3 className="font-semibold">Entregar (Cheios)</h3>
                 <p className="text-xs text-muted-foreground">
-                  Barris cheios da loja para o cliente
+                  Barris cheios da loja para {isLojista ? 'o lojista' : 'o cliente'}
                 </p>
               </div>
             </div>
@@ -140,7 +149,7 @@ export function SelecionarBarrisStep({
               <div>
                 <h3 className="font-semibold">Retirar (Vazios)</h3>
                 <p className="text-xs text-muted-foreground">
-                  Barris vazios do cliente para a loja
+                  Barris vazios {isLojista ? 'do lojista' : 'do cliente'} para a loja
                 </p>
               </div>
             </div>
@@ -150,13 +159,13 @@ export function SelecionarBarrisStep({
           </div>
 
           <ScrollArea className="flex-1 p-4">
-            {loadingCliente ? (
+            {loadingRetorno ? (
               <div className="text-center py-8 text-muted-foreground">
                 Carregando barris...
               </div>
-            ) : barrisCliente.length > 0 ? (
+            ) : barrisRetorno.length > 0 ? (
               <div className="space-y-2">
-                {barrisCliente.map((barril) => 
+                {barrisRetorno.map((barril) => 
                   renderBarrilItem(
                     barril, 
                     selectedRetorno.includes(barril.id),
@@ -167,7 +176,7 @@ export function SelecionarBarrisStep({
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>Cliente não possui barris</p>
+                <p>{isLojista ? 'Lojista' : 'Cliente'} não possui barris</p>
                 <p className="text-xs mt-1">Nenhum barril registrado com {clienteNome}</p>
               </div>
             )}

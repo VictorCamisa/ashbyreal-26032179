@@ -12,6 +12,7 @@ export interface CartItem {
 
 export interface CreatePedidoData {
   clienteId: string;
+  lojistaId?: string | null;
   items: CartItem[];
   metodoPagamento?: string;
   observacoes?: string;
@@ -45,6 +46,7 @@ export function usePedidosMutations() {
         .from('pedidos')
         .insert([{
           cliente_id: data.clienteId,
+          lojista_id: data.lojistaId || null,
           status: 'pendente',
           valor_total: valorTotal,
           valor_sinal: data.valorSinal || 0,
