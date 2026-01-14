@@ -48,9 +48,46 @@ serve(async (req) => {
       return null;
     };
 
+    // Helper to get decoded media from Evolution API
+    const getDecodedMediaFromEvolution = async (messageData: any, instanceName: string): Promise<string | null> => {
+      if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+        console.log("[webhook-evolution] Evolution API not configured");
+        return null;
+      }
+
+      try {
+        console.log("[webhook-evolution] Fetching decoded media from Evolution API...");
+        
+        const response = await fetch(`${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instanceName}`, {
+          method: "POST",
+          headers: {
+            apikey: EVOLUTION_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: messageData,
+            convertToMp4: false,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("[webhook-evolution] Evolution getBase64 error:", errText);
+          return null;
+        }
+
+        const result = await response.json();
+        console.log("[webhook-evolution] Got decoded media, base64 length:", result.base64?.length || 0);
+        return result.base64 || null;
+      } catch (error) {
+        console.error("[webhook-evolution] Failed to get decoded media:", error);
+        return null;
+      }
+    };
+
     // Helper to transcribe audio via OpenAI Whisper
-    // Supports both base64 data URI and HTTP URLs
-    const transcribeAudio = async (audioSource: string): Promise<string | null> => {
+    // Supports both base64 string and HTTP URLs
+    const transcribeAudio = async (audioSource: string, isBase64: boolean = false): Promise<string | null> => {
       const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
       if (!OPENAI_API_KEY || !audioSource) {
         console.log("[webhook-evolution] OpenAI not configured or no audio source");
@@ -60,19 +97,10 @@ serve(async (req) => {
       try {
         let audioBuffer: ArrayBuffer;
         
-        // Check if it's a base64 data URI
-        if (audioSource.startsWith("data:")) {
-          console.log("[webhook-evolution] Processing base64 audio data");
-          // Extract base64 content from data URI
-          const base64Match = audioSource.match(/^data:[^;]+;base64,(.+)$/);
-          if (!base64Match) {
-            console.error("[webhook-evolution] Invalid base64 data URI format");
-            return null;
-          }
-          const base64Data = base64Match[1];
-          
+        if (isBase64) {
+          console.log("[webhook-evolution] Processing base64 audio data, length:", audioSource.length);
           // Decode base64 to binary
-          const binaryString = atob(base64Data);
+          const binaryString = atob(audioSource);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
@@ -441,14 +469,24 @@ serve(async (req) => {
                 
                 // For audio messages, transcribe first
                 let messageToProcess = content;
-                if (isAudioMessage && mediaUrl) {
-                  console.log("[webhook-evolution] Transcribing audio message...");
-                  const transcription = await transcribeAudio(mediaUrl);
-                  if (transcription) {
-                    messageToProcess = transcription;
-                    console.log(`[webhook-evolution] Audio transcribed: ${transcription.substring(0, 100)}`);
+                if (isAudioMessage) {
+                  console.log("[webhook-evolution] Processing audio message for transcription...");
+                  
+                  // First try to get decoded base64 from Evolution API
+                  const decodedBase64 = await getDecodedMediaFromEvolution(msg, instanceName);
+                  
+                  if (decodedBase64) {
+                    console.log("[webhook-evolution] Got decoded audio, transcribing...");
+                    const transcription = await transcribeAudio(decodedBase64, true);
+                    if (transcription) {
+                      messageToProcess = transcription;
+                      console.log(`[webhook-evolution] Audio transcribed: ${transcription.substring(0, 100)}`);
+                    } else {
+                      messageToProcess = "[O usuário enviou um áudio que não pôde ser transcrito. Peça para ele repetir por texto]";
+                    }
                   } else {
-                    messageToProcess = "[O usuário enviou um áudio que não pôde ser transcrito. Peça para ele repetir por texto]";
+                    console.log("[webhook-evolution] Could not decode audio from Evolution API");
+                    messageToProcess = "[O usuário enviou um áudio que não pôde ser processado. Peça para ele repetir por texto]";
                   }
                 }
 
