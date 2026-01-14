@@ -177,7 +177,7 @@ INSTRUÇÕES DE CONTEÚDO:
         model: agent.model || "gpt-4o-mini",
         messages,
         temperature: agent.temperature || 0.7,
-        max_tokens: agent.max_tokens || 1000,
+        max_tokens: agent.max_tokens || 2000,
       }),
     });
 
