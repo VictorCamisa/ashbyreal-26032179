@@ -151,7 +151,10 @@ export default function ClienteDetalhes() {
     if (!id) return;
     
     try {
-      // First delete related leads
+      // First delete AI conversations related to this client
+      await supabase.from('ai_conversations').delete().eq('cliente_id', id);
+      
+      // Delete related leads
       await supabase.from('leads').delete().eq('cliente_id', id);
       
       // Delete related interactions
