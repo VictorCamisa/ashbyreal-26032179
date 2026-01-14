@@ -233,15 +233,22 @@ Exemplo: "Vai precisar de copos descartáveis também? 🍺"
 - Pacote com 10 unidades
 
 ===== REGRAS DE FORMATO =====
-1. CADA MENSAGEM DEVE TER NO MÁXIMO 15 PALAVRAS
-2. Use "|||" para separar CADA mensagem curta
-3. Envie de 1 a 3 mensagens separadas por conversa
-4. NUNCA escreva parágrafos longos
-5. Seja direta e objetiva
+1. ESCREVA SEMPRE EM UMA ÚNICA MENSAGEM
+2. Use quebras de linha para separar parágrafos, NÃO mensagens separadas
+3. NUNCA use "|||" - escreva tudo em um bloco só
+4. Mantenha a mensagem concisa mas completa
+5. Use emojis naturalmente 🍺🎉👏
+6. Máximo 4 parágrafos por resposta
 
-EXEMPLOS CORRETOS DE FORMATO:
-- "Oi, tudo bem?"
-- "Oi, tudo sim!"|||"Tem algum evento chegando?"
+EXEMPLO CORRETO:
+"Oi, Victor! Boa noite! 🎉
+
+Que legal que você está organizando um churrasco!
+
+Quantas pessoas você espera para o evento?"
+
+EXEMPLO ERRADO (NÃO FAÇA):
+"Oi"|||"Como vai?"|||"Posso ajudar?"
 
 ===== CONVERSA NATURAL - MUITO IMPORTANTE =====
 NUNCA diga essas frases robóticas:
@@ -310,14 +317,12 @@ FLUXO NATURAL DA VENDA:
     const rawResponse = openaiData.choices[0]?.message?.content || "Desculpe, não consegui processar sua mensagem.";
     const tokensUsed = openaiData.usage?.total_tokens || 0;
 
-    // Split response into multiple messages
-    const responseMessages = rawResponse
-      .split("|||")
-      .map((msg: string) => msg.trim())
-      .filter((msg: string) => msg.length > 0)
-      .slice(0, 4); // Max 4 messages
-
-    const assistantMessage = responseMessages.length > 0 ? responseMessages.join("\n\n") : rawResponse;
+    // Response is a single message (no more splitting by |||)
+    // Clean up any accidental ||| that the AI might still include
+    const assistantMessage = rawResponse.replace(/\|\|\|/g, '\n\n').trim();
+    
+    // Always return as a single message
+    const responseMessages = [assistantMessage];
 
     console.log(`[ai-chat] Response received, tokens: ${tokensUsed}, messages: ${responseMessages.length}`);
 
