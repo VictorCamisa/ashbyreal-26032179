@@ -156,11 +156,12 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const fetchProdutos = async () => {
     const { data } = await supabase
       .from('produtos')
-      .select('id, nome, preco, estoque, categoria, sku')
+      .select('id, nome, preco, estoque, categoria, sku, tipo_produto')
       .eq('ativo', true)
-      .gt('estoque', 0)
       .order('nome');
-    setProdutos(data || []);
+    // Include products with stock > 0 OR CHOPP products (always available)
+    const filtered = (data || []).filter(p => p.estoque > 0 || p.tipo_produto === 'CHOPP');
+    setProdutos(filtered);
   };
 
   const filteredProdutos = useMemo(() => {
