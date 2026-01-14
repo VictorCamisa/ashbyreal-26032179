@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, AlertTriangle, Package, Filter, Trash2, Box, DollarSign, TrendingUp, Store } from 'lucide-react';
+import { Search, AlertTriangle, Package, Filter, Trash2, Box, DollarSign, TrendingUp, Store, Beer, Droplets } from 'lucide-react';
 import { useEstoque, ProdutoEstoque } from '@/hooks/useEstoque';
 import { ImportarEstoqueDialog } from '@/components/estoque/ImportarEstoqueDialog';
 import { NovoProdutoDialog } from '@/components/estoque/NovoProdutoDialog';
 import { EditarProdutoDialog } from '@/components/estoque/EditarProdutoDialog';
+import { EntradaChoppDialog } from '@/components/estoque/EntradaChoppDialog';
 import { LojistasTab } from '@/components/lojistas/LojistasTab';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
@@ -41,6 +42,16 @@ const statusColors: Record<string, string> = {
 };
 
 const getStatusEstoque = (produto: ProdutoEstoque): 'disponivel' | 'baixo' | 'esgotado' => {
+  // Para produtos CHOPP, usar estoqueLitros
+  if (produto.tipoProduto === 'CHOPP') {
+    const capacidade = produto.capacidadeBarril || 30;
+    const estoqueEmBarris = produto.estoqueLitros / capacidade;
+    if (produto.estoqueLitros === 0) return 'esgotado';
+    if (estoqueEmBarris <= produto.estoqueMinimo) return 'baixo';
+    return 'disponivel';
+  }
+  
+  // Para produtos padrão, usar estoque normal
   if (produto.estoque === 0) return 'esgotado';
   if (produto.estoque <= produto.estoqueMinimo) return 'baixo';
   return 'disponivel';
@@ -58,6 +69,7 @@ const getStatusLabel = (status: string): string => {
 export default function Estoque() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('todas');
+  const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [activeTab, setActiveTab] = useState<'todos' | 'alerta'>('todos');
   const [mainTab, setMainTab] = useState<'produtos' | 'lojistas'>('produtos');
   const { produtos, isLoading, updateProduto, deleteProduto, refetch } = useEstoque();
@@ -69,13 +81,20 @@ export default function Estoque() {
       produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       produto.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCategoria = categoriaFilter === 'todas' || produto.categoria === categoriaFilter;
-    return matchSearch && matchCategoria && produto.ativo;
+    const matchTipo = tipoFilter === 'todos' || produto.tipoProduto === tipoFilter;
+    return matchSearch && matchCategoria && matchTipo && produto.ativo;
   });
 
   const produtosComAlerta = filteredProdutos.filter(p => getStatusEstoque(p) !== 'disponivel');
   const displayProdutos = activeTab === 'alerta' ? produtosComAlerta : filteredProdutos;
 
-  const totalValue = produtos.reduce((acc, p) => acc + (p.estoque * p.precoCusto), 0);
+  // Separar produtos por tipo para KPIs
+  const produtosChopp = produtos.filter(p => p.tipoProduto === 'CHOPP' && p.ativo);
+  const produtosPadrao = produtos.filter(p => p.tipoProduto !== 'CHOPP' && p.ativo);
+  
+  const totalLitrosChopp = produtosChopp.reduce((acc, p) => acc + p.estoqueLitros, 0);
+  const totalValue = produtosPadrao.reduce((acc, p) => acc + (p.estoque * p.precoCusto), 0) +
+                     produtosChopp.reduce((acc, p) => acc + (p.estoqueLitros * (p.precoCusto / (p.capacidadeBarril || 30))), 0);
   const avgMargin = produtos.length > 0 
     ? produtos.reduce((acc, p) => acc + p.margemLucro, 0) / produtos.length 
     : 0;
@@ -88,6 +107,7 @@ export default function Estoque() {
       actions={
         mainTab === 'produtos' ? (
           <div className="flex gap-2">
+            <EntradaChoppDialog onSuccess={refetch} />
             <ImportarEstoqueDialog onSuccess={refetch} />
             <NovoProdutoDialog onSuccess={refetch} />
           </div>
@@ -122,9 +142,13 @@ export default function Estoque() {
               {/* KPIs */}
               <KPIGrid>
                 <KPICard label="Total Produtos" value={produtos.filter(p => p.ativo).length} icon={Box} />
+                <KPICard 
+                  label="Chopp Disponível" 
+                  value={`${totalLitrosChopp.toLocaleString('pt-BR')}L`} 
+                  icon={Beer}
+                />
                 <KPICard label="Em Alerta" value={produtosComAlerta.length} icon={AlertTriangle} variant="warning" />
                 <KPICard label="Valor Estoque" value={`R$ ${(totalValue / 1000).toFixed(0)}k`} icon={DollarSign} />
-                <KPICard label="Margem Média" value={`${avgMargin.toFixed(0)}%`} icon={TrendingUp} variant="success" />
               </KPIGrid>
 
               {/* Alert Banner */}
@@ -173,6 +197,26 @@ export default function Estoque() {
                       className="pl-11 h-10 rounded-xl"
                     />
                   </div>
+                  <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                    <SelectTrigger className="w-[130px] h-10 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos</SelectItem>
+                      <SelectItem value="CHOPP">
+                        <span className="flex items-center gap-2">
+                          <Beer className="h-3.5 w-3.5" />
+                          Chopp
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="PADRAO">
+                        <span className="flex items-center gap-2">
+                          <Package className="h-3.5 w-3.5" />
+                          Padrão
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
                     <SelectTrigger className="w-[160px] h-10 rounded-xl">
                       <Filter className="h-4 w-4 mr-2" />
@@ -196,7 +240,7 @@ export default function Estoque() {
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-medium">Produto</TableHead>
-                        <TableHead className="font-medium">SKU</TableHead>
+                        <TableHead className="font-medium">Tipo</TableHead>
                         <TableHead className="font-medium">Estoque</TableHead>
                         <TableHead className="font-medium">Status</TableHead>
                         <TableHead className="font-medium">Custo</TableHead>
@@ -218,20 +262,49 @@ export default function Estoque() {
                       ) : (
                         displayProdutos.map((produto) => {
                           const status = getStatusEstoque(produto);
+                          const isChopp = produto.tipoProduto === 'CHOPP';
+                          const capacidade = produto.capacidadeBarril || 30;
+                          
                           return (
                             <TableRow key={produto.id} className="hover:bg-muted/30">
-                              <TableCell className="font-medium">{produto.nome}</TableCell>
-                              <TableCell className="font-mono text-xs text-muted-foreground">
-                                {produto.sku || '-'}
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{produto.nome}</p>
+                                  <p className="text-xs text-muted-foreground">{produto.sku || '-'}</p>
+                                </div>
                               </TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{produto.estoque}</span>
-                                  <span className="text-xs text-muted-foreground">/ {produto.estoqueMinimo}</span>
-                                  {status !== 'disponivel' && (
-                                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                                  )}
-                                </div>
+                                {isChopp ? (
+                                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                    <Beer className="h-3 w-3 mr-1" />
+                                    {capacidade}L
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground">
+                                    Padrão
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {isChopp ? (
+                                  <div className="flex flex-col">
+                                    <span className="font-medium flex items-center gap-1">
+                                      <Droplets className="h-3 w-3 text-blue-500" />
+                                      {produto.estoqueLitros.toLocaleString('pt-BR')}L
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      ≈ {Math.floor(produto.estoqueLitros / capacidade)} barris
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{produto.estoque}</span>
+                                    <span className="text-xs text-muted-foreground">/ {produto.estoqueMinimo}</span>
+                                    {status !== 'disponivel' && (
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                                    )}
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className={statusColors[status]}>
@@ -240,9 +313,19 @@ export default function Estoque() {
                               </TableCell>
                               <TableCell className="text-muted-foreground">
                                 R$ {produto.precoCusto.toFixed(2)}
+                                {isChopp && (
+                                  <span className="block text-xs">
+                                    R$ {(produto.precoCusto / capacidade).toFixed(2)}/L
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell className="font-medium">
                                 R$ {produto.preco.toFixed(2)}
+                                {isChopp && (
+                                  <span className="block text-xs text-muted-foreground font-normal">
+                                    R$ {(produto.preco / capacidade).toFixed(2)}/L
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="font-mono">
