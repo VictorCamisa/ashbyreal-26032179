@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -23,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Search, MoreVertical, Store, User, Droplet, History } from 'lucide-react';
+import { Search, MoreVertical, Store, User, Droplet, History, ExternalLink } from 'lucide-react';
 import { Barril } from '@/hooks/useBarris';
 import { useBarrisMutations } from '@/hooks/useBarrisMutations';
 import { format } from 'date-fns';
@@ -35,15 +36,17 @@ interface BarrisTableProps {
 }
 
 export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [filterLocalizacao, setFilterLocalizacao] = useState<string>('todos');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const { atualizarStatusBarril, isLoading } = useBarrisMutations();
 
   const filteredBarris = barris.filter(barril => {
+    const parceiroNome = barril.lojista?.nome || barril.lojista?.nome_fantasia || barril.cliente?.nome || '';
     const matchesSearch = 
       barril.codigo.toLowerCase().includes(search.toLowerCase()) ||
-      barril.cliente?.nome?.toLowerCase().includes(search.toLowerCase());
+      parceiroNome.toLowerCase().includes(search.toLowerCase());
     
     const matchesLocalizacao = 
       filterLocalizacao === 'todos' || barril.localizacao === filterLocalizacao;
@@ -53,6 +56,35 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
     
     return matchesSearch && matchesLocalizacao && matchesStatus;
   });
+
+  const getParceiroInfo = (barril: Barril) => {
+    if (barril.lojista_id && barril.lojista) {
+      return {
+        tipo: 'lojista' as const,
+        nome: barril.lojista.nome_fantasia || barril.lojista.nome,
+        id: barril.lojista.id
+      };
+    }
+    if (barril.cliente_id && barril.cliente) {
+      return {
+        tipo: 'cliente' as const,
+        nome: barril.cliente.nome,
+        id: barril.cliente.id
+      };
+    }
+    return null;
+  };
+
+  const handleParceiroClick = (barril: Barril) => {
+    const parceiro = getParceiroInfo(barril);
+    if (!parceiro) return;
+    
+    if (parceiro.tipo === 'lojista') {
+      navigate('/estoque?tab=lojistas&lojista=' + parceiro.id);
+    } else {
+      navigate('/clientes/' + parceiro.id);
+    }
+  };
 
   const toggleStatus = async (barril: Barril) => {
     const novoStatus = barril.status_conteudo === 'CHEIO' ? 'VAZIO' : 'CHEIO';
@@ -105,8 +137,8 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
               <TableHead>Capacidade</TableHead>
               <TableHead>Localização</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Última Movimentação</TableHead>
+              <TableHead>Parceiro</TableHead>
+              <TableHead>Última Mov.</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -138,8 +170,26 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
                     {barril.status_conteudo === 'CHEIO' ? 'Cheio' : 'Vazio'}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {barril.cliente?.nome || '—'}
+                <TableCell>
+                  {(() => {
+                    const parceiro = getParceiroInfo(barril);
+                    if (!parceiro) return <span className="text-muted-foreground">—</span>;
+                    return (
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-left font-normal gap-1"
+                        onClick={() => handleParceiroClick(barril)}
+                      >
+                        {parceiro.tipo === 'lojista' ? (
+                          <Store className="h-3 w-3" />
+                        ) : (
+                          <User className="h-3 w-3" />
+                        )}
+                        <span className="truncate max-w-[120px]">{parceiro.nome}</span>
+                        <ExternalLink className="h-3 w-3 opacity-50" />
+                      </Button>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {barril.data_ultima_movimentacao 
