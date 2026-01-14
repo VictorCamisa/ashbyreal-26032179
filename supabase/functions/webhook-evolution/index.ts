@@ -49,33 +49,52 @@ serve(async (req) => {
     };
 
     // Helper to transcribe audio via OpenAI Whisper
-    const transcribeAudio = async (audioUrl: string): Promise<string | null> => {
+    // Supports both base64 data URI and HTTP URLs
+    const transcribeAudio = async (audioSource: string): Promise<string | null> => {
       const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-      if (!OPENAI_API_KEY || !audioUrl) {
-        console.log("[webhook-evolution] OpenAI not configured or no audio URL");
+      if (!OPENAI_API_KEY || !audioSource) {
+        console.log("[webhook-evolution] OpenAI not configured or no audio source");
         return null;
       }
 
       try {
-        console.log("[webhook-evolution] Fetching audio from:", audioUrl.substring(0, 100));
+        let audioBuffer: ArrayBuffer;
         
-        // Fetch the audio file
-        const audioResponse = await fetch(audioUrl);
-        if (!audioResponse.ok) {
-          console.error("[webhook-evolution] Failed to fetch audio:", audioResponse.status);
-          return null;
+        // Check if it's a base64 data URI
+        if (audioSource.startsWith("data:")) {
+          console.log("[webhook-evolution] Processing base64 audio data");
+          // Extract base64 content from data URI
+          const base64Match = audioSource.match(/^data:[^;]+;base64,(.+)$/);
+          if (!base64Match) {
+            console.error("[webhook-evolution] Invalid base64 data URI format");
+            return null;
+          }
+          const base64Data = base64Match[1];
+          
+          // Decode base64 to binary
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          audioBuffer = bytes.buffer;
+          console.log("[webhook-evolution] Base64 audio decoded, size:", audioBuffer.byteLength);
+        } else {
+          // It's an HTTP URL
+          console.log("[webhook-evolution] Fetching audio from URL:", audioSource.substring(0, 100));
+          const audioResponse = await fetch(audioSource);
+          if (!audioResponse.ok) {
+            console.error("[webhook-evolution] Failed to fetch audio:", audioResponse.status);
+            return null;
+          }
+          audioBuffer = await audioResponse.arrayBuffer();
+          console.log("[webhook-evolution] Audio fetched from URL, size:", audioBuffer.byteLength);
         }
         
-        // Get the audio as ArrayBuffer first
-        const audioBuffer = await audioResponse.arrayBuffer();
-        console.log("[webhook-evolution] Audio fetched, size:", audioBuffer.byteLength);
-        
-        // Create a proper Blob with correct MIME type for OGG/Opus (WhatsApp format)
-        // Using .oga extension which is supported by Whisper
+        // Create a proper File object with OGG mime type
+        // WhatsApp audio is OGG Opus format
         const audioBlob = new Blob([audioBuffer], { type: "audio/ogg" });
-        
-        // Create a File object with .oga extension (OGG Audio, supported by Whisper)
-        const audioFile = new File([audioBlob], "audio.oga", { type: "audio/ogg" });
+        const audioFile = new File([audioBlob], "audio.ogg", { type: "audio/ogg" });
         
         // Create form data for Whisper API
         const formData = new FormData();
@@ -83,7 +102,7 @@ serve(async (req) => {
         formData.append("model", "whisper-1");
         formData.append("language", "pt");
         
-        console.log("[webhook-evolution] Sending to Whisper API...");
+        console.log("[webhook-evolution] Sending to Whisper API, file size:", audioFile.size);
         
         const whisperResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
           method: "POST",
