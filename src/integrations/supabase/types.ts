@@ -67,6 +67,166 @@ export type Database = {
           },
         ]
       }
+      ai_agents: {
+        Row: {
+          created_at: string
+          description: string | null
+          greeting_message: string | null
+          id: string
+          instance_id: string | null
+          is_active: boolean | null
+          knowledge_tables: string[] | null
+          max_tokens: number | null
+          model: string
+          name: string
+          qualification_criteria: Json | null
+          system_prompt: string
+          temperature: number | null
+          transfer_keywords: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          greeting_message?: string | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          knowledge_tables?: string[] | null
+          max_tokens?: number | null
+          model?: string
+          name: string
+          qualification_criteria?: Json | null
+          system_prompt: string
+          temperature?: number | null
+          transfer_keywords?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          greeting_message?: string | null
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          knowledge_tables?: string[] | null
+          max_tokens?: number | null
+          model?: string
+          name?: string
+          qualification_criteria?: Json | null
+          system_prompt?: string
+          temperature?: number | null
+          transfer_keywords?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversations: {
+        Row: {
+          agent_id: string
+          cliente_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          qualification_notes: string | null
+          qualification_score: number | null
+          qualification_status: string | null
+          remote_jid: string
+          status: string | null
+          transferred_at: string | null
+          transferred_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          qualification_notes?: string | null
+          qualification_score?: number | null
+          qualification_status?: string | null
+          remote_jid: string
+          status?: string | null
+          transferred_at?: string | null
+          transferred_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          cliente_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          qualification_notes?: string | null
+          qualification_score?: number | null
+          qualification_status?: string | null
+          remote_jid?: string
+          status?: string | null
+          transferred_at?: string | null
+          transferred_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_conversations_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          tokens_used: number | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+          tokens_used?: number | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ashby_orders: {
         Row: {
           amount: number | null
