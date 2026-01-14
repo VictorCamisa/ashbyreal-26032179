@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, UserPlus, Shield, Trash2, Crown, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Shield, Trash2, Crown, Loader2, Phone } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAdminUsers, useCurrentUserRole } from '@/hooks/useAdminUsers';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -18,14 +19,14 @@ export default function GestaoUsuarios() {
   const { users, isLoading, error, createUser, deleteUser, updateRole, bootstrapAdmin } = useAdminUsers();
   
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', password: '', nome: '', cargo: '', role: 'user' });
+  const [newUser, setNewUser] = useState({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
 
   const isAdmin = currentRoles?.includes('admin');
   const hasAnyAdmin = users?.some(u => u.roles.includes('admin'));
 
   const handleCreateUser = async () => {
     await createUser.mutateAsync(newUser);
-    setNewUser({ email: '', password: '', nome: '', cargo: '', role: 'user' });
+    setNewUser({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
     setDialogOpen(false);
   };
 
@@ -129,6 +130,16 @@ export default function GestaoUsuarios() {
                 />
               </div>
               <div>
+                <Label htmlFor="telefone">WhatsApp *</Label>
+                <Input
+                  id="telefone"
+                  type="tel"
+                  value={newUser.telefone}
+                  onChange={(e) => setNewUser({ ...newUser, telefone: e.target.value })}
+                  placeholder="(12) 99999-9999"
+                />
+              </div>
+              <div>
                 <Label htmlFor="cargo">Cargo</Label>
                 <Input
                   id="cargo"
@@ -150,9 +161,20 @@ export default function GestaoUsuarios() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_owner"
+                  checked={newUser.is_owner}
+                  onCheckedChange={(checked) => setNewUser({ ...newUser, is_owner: checked === true })}
+                />
+                <Label htmlFor="is_owner" className="flex items-center gap-2 cursor-pointer">
+                  <Crown className="h-4 w-4 text-amber-500" />
+                  Marcar como Dono
+                </Label>
+              </div>
               <Button 
                 onClick={handleCreateUser} 
-                disabled={createUser.isPending || !newUser.email || !newUser.password}
+                disabled={createUser.isPending || !newUser.email || !newUser.password || !newUser.telefone}
                 className="w-full"
               >
                 {createUser.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -176,7 +198,7 @@ export default function GestaoUsuarios() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
-                <TableHead>E-mail</TableHead>
+                <TableHead>WhatsApp</TableHead>
                 <TableHead>Cargo</TableHead>
                 <TableHead>Permissões</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -186,10 +208,28 @@ export default function GestaoUsuarios() {
               {users?.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">
-                    {u.nome}
-                    {u.id === user?.id && <Badge variant="outline" className="ml-2">Você</Badge>}
+                    <div className="flex items-center gap-2">
+                      {u.nome}
+                      {u.is_owner && (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                          <Crown className="h-3 w-3 mr-1" />
+                          Dono
+                        </Badge>
+                      )}
+                      {u.id === user?.id && <Badge variant="outline" className="ml-1">Você</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{u.email}</div>
                   </TableCell>
-                  <TableCell>{u.email}</TableCell>
+                  <TableCell>
+                    {u.telefone ? (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Phone className="h-3 w-3" />
+                        {u.telefone}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>{u.cargo || '-'}</TableCell>
                   <TableCell>
                     <div className="flex gap-1 flex-wrap">

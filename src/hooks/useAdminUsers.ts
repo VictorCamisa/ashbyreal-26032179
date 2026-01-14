@@ -7,7 +7,9 @@ export interface AdminUser {
   email: string;
   nome: string;
   cargo?: string;
+  telefone?: string;
   avatar_url?: string;
+  is_owner?: boolean;
   roles: string[];
   created_at: string;
   email_confirmed_at?: string;
@@ -50,7 +52,7 @@ export function useAdminUsers() {
   });
 
   const createUser = useMutation({
-    mutationFn: async (userData: { email: string; password: string; nome: string; cargo?: string; role?: string }) => {
+    mutationFn: async (userData: { email: string; password: string; nome: string; telefone: string; cargo?: string; role?: string; is_owner?: boolean }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
