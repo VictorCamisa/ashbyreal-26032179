@@ -512,6 +512,7 @@ serve(async (req) => {
                       message: messageToProcess,
                       conversation_history: conversationHistory,
                       test_mode: false,
+                      pushName: pushName, // Pass WhatsApp display name for auto-creating clients
                     }),
                   });
 
