@@ -822,14 +822,19 @@ serve(async (req) => {
       let shouldInclude = true;
       
       if (isOpenInvoice) {
-        // Open invoice: calculate competencia based on purchase date
+        // Open invoice: the bank shows ALL pending installments (current + future)
+        // But we only want to import transactions for the TARGET competencia
+        // The competencia of a transaction is determined by purchase_date + closing_day
         txCompetencia = calculateCompetencia(tx.date, closingDay);
-        // Include ONLY transactions for the EXACT target competência
-        // Future competências (parcelas futuras) should NOT be included
+        
+        // For open invoices, we include ALL transactions that will appear on the 
+        // target month's invoice. This includes installments from previous purchases
+        // that are scheduled to be charged in the target month.
+        // The txCompetencia represents when this specific installment will be charged.
         shouldInclude = txCompetencia === targetCompetencia;
         
         if (!shouldInclude) {
-          console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} != target ${targetCompetencia} (tipo=${tipoImportacao})`);
+          // Don't log every skip, just count them
           continue;
         }
       } else {
