@@ -151,24 +151,43 @@ export function ImportarFaturaCartaoDialog({
     return months;
   }, []);
 
-  // Auto-calculate competencia for "Fatura Aberta" based on card's closing day
+  // Auto-calculate competencia for "Fatura Aberta" based on card's due day
+  // The "open" invoice in bank apps is the one that hasn't been paid yet
   const calculatedOpenCompetencia = useMemo(() => {
-    if (!selectedCartaoData?.closing_day) return null;
+    if (!selectedCartaoData?.due_day) return null;
     
     const now = new Date();
     const currentDay = now.getDate();
-    const closingDay = selectedCartaoData.closing_day;
+    const dueDay = selectedCartaoData.due_day;
     
-    // If we're past the closing day, the "open" invoice is for next month
+    // Logic based on DUE DATE (not closing date):
+    // - If today >= due day: the current month's invoice was due, so the "open" one is NEXT month
+    // - If today < due day: current month's invoice is still pending payment
+    // 
+    // But the "open" invoice in bank terminology is the one currently accumulating charges,
+    // which is typically one month ahead of the due invoice
+    //
+    // Example: Due day = 4, today = Jan 16
+    // - January invoice was due on Jan 4 (already paid)
+    // - February invoice is "open" (accumulating charges until Jan 27)
     let competenciaDate: Date;
-    if (currentDay > closingDay) {
+    if (currentDay >= dueDay) {
+      // After or on due date - the "open" invoice is NEXT month
       competenciaDate = addMonths(now, 1);
     } else {
+      // Before due date - current month might still be pending, but charges go to current month
       competenciaDate = now;
     }
     
     return format(competenciaDate, 'yyyy-MM');
-  }, [selectedCartaoData?.closing_day]);
+  }, [selectedCartaoData?.due_day]);
+
+  // Auto-select the calculated competencia when switching to "Fatura Aberta"
+  React.useEffect(() => {
+    if (tipoImportacao === 'ABERTA' && calculatedOpenCompetencia) {
+      setCompetenciaAlvo(calculatedOpenCompetencia);
+    }
+  }, [tipoImportacao, calculatedOpenCompetencia]);
 
   // Get the effective competencia to use (always use user selection now)
   const effectiveCompetencia = useMemo(() => {
