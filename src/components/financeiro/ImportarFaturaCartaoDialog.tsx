@@ -109,11 +109,20 @@ export function ImportarFaturaCartaoDialog({
   const cardProvider = selectedCartaoData?.card_provider || 'GENERICO';
   const providerInfo = CARD_PROVIDERS[cardProvider] || CARD_PROVIDERS['GENERICO'];
 
-  // Generate available months for selection (current month + 3 previous)
+  // Generate available months for selection (2 future + current + 3 previous)
   const availableMonths = useMemo(() => {
     const now = new Date();
     const months: { value: string; label: string }[] = [];
     
+    // Add 2 future months first
+    for (let i = 2; i >= 1; i--) {
+      const monthDate = addMonths(now, i);
+      const value = format(monthDate, 'yyyy-MM');
+      const label = format(monthDate, 'MMMM yyyy', { locale: ptBR });
+      months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    }
+    
+    // Add current month + 3 previous months
     for (let i = 0; i <= 3; i++) {
       const monthDate = subMonths(now, i);
       const value = format(monthDate, 'yyyy-MM');
