@@ -320,6 +320,11 @@ export function ImportarFaturaCartaoDialog({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  // Valor total das transações já existentes
+  const existingTotal = useMemo(() => {
+    return existingTransactions.reduce((sum, t) => sum + t.amount, 0);
+  }, [existingTransactions]);
+
   // Estatísticas das transações selecionadas
   const selectedStats = useMemo(() => {
     const selected = parsedTransactions.filter(t => t.selected && t.status === 'NEW');
@@ -330,8 +335,10 @@ export function ImportarFaturaCartaoDialog({
       }
       return sum;
     }, 0);
-    return { count: selected.length, total, futureInstallments };
-  }, [parsedTransactions]);
+    // Valor total da fatura após importação = existentes + novas
+    const grandTotal = existingTotal + total;
+    return { count: selected.length, total, futureInstallments, grandTotal };
+  }, [parsedTransactions, existingTotal]);
 
   // Calcular resumo de parcelas futuras por mês
   const futureInstallmentsSummary = useMemo(() => {
@@ -512,20 +519,20 @@ export function ImportarFaturaCartaoDialog({
             {/* Comparison Summary Banner */}
             <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-muted-foreground">{existingTransactions.length}</p>
-                    <p className="text-xs text-muted-foreground">Já cadastradas</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-center px-3">
+                    <p className="text-xl font-bold text-muted-foreground">{formatCurrency(existingTotal)}</p>
+                    <p className="text-xs text-muted-foreground">{existingTransactions.length} já cadastradas</p>
                   </div>
-                  <span className="text-2xl text-muted-foreground">+</span>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-emerald-600">{importSummary?.new_items || 0}</p>
-                    <p className="text-xs text-emerald-600">Novas</p>
+                  <span className="text-xl text-muted-foreground">+</span>
+                  <div className="text-center px-3">
+                    <p className="text-xl font-bold text-emerald-600">{formatCurrency(selectedStats.total)}</p>
+                    <p className="text-xs text-emerald-600">{importSummary?.new_items || 0} novas</p>
                   </div>
-                  <span className="text-2xl text-muted-foreground">=</span>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-primary">{existingTransactions.length + (importSummary?.new_items || 0)}</p>
-                    <p className="text-xs text-primary">Total após importação</p>
+                  <span className="text-xl text-muted-foreground">=</span>
+                  <div className="text-center px-3 bg-primary/20 rounded-lg py-2">
+                    <p className="text-xl font-bold text-primary">{formatCurrency(selectedStats.grandTotal)}</p>
+                    <p className="text-xs text-primary">Fatura após importação</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -534,9 +541,6 @@ export function ImportarFaturaCartaoDialog({
                       Última importação: {new Date(previousImport.imported_at).toLocaleDateString('pt-BR')}
                     </Badge>
                   )}
-                  <span className="font-semibold text-lg text-primary">
-                    {formatCurrency(selectedStats.total)}
-                  </span>
                 </div>
               </div>
             </div>
