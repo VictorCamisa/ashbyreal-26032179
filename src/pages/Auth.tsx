@@ -13,8 +13,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useAuth } from '@/hooks/useAuth';
-import { Beer, Lock, Mail, ArrowRight, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { 
+  Beer, Lock, Mail, ArrowRight, TrendingUp, Users, 
+  ShoppingCart, DollarSign, Activity, Zap
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/integrations/supabase/client';
 
 const authSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -23,11 +27,34 @@ const authSchema = z.object({
 
 type AuthFormData = z.infer<typeof authSchema>;
 
+interface PublicStats {
+  totalClientes: number;
+  totalPedidos: number;
+  pedidosHoje: number;
+  faturamentoMes: number;
+}
+
+interface RecentActivity {
+  id: string;
+  type: 'pedido' | 'cliente' | 'lead';
+  message: string;
+  time: string;
+  icon: 'cart' | 'user' | 'zap';
+}
+
 export default function Auth() {
   const navigate = useNavigate();
   const { signIn, signUp, user, isLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [stats, setStats] = useState<PublicStats>({
+    totalClientes: 0,
+    totalPedidos: 0,
+    pedidosHoje: 0,
+    faturamentoMes: 0
+  });
+  const [activities, setActivities] = useState<RecentActivity[]>([]);
+  const [currentActivityIndex, setCurrentActivityIndex] = useState(0);
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
@@ -36,6 +63,110 @@ export default function Auth() {
       password: '',
     },
   });
+
+  // Fetch public stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // Get total clients
+        const { count: clientesCount } = await supabase
+          .from('clientes')
+          .select('*', { count: 'exact', head: true });
+
+        // Get total pedidos
+        const { count: pedidosCount } = await supabase
+          .from('pedidos')
+          .select('*', { count: 'exact', head: true });
+
+        // Get pedidos hoje
+        const today = new Date().toISOString().split('T')[0];
+        const { count: pedidosHoje } = await supabase
+          .from('pedidos')
+          .select('*', { count: 'exact', head: true })
+          .gte('data_pedido', today);
+
+        // Get faturamento do mês
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const { data: pedidosMes } = await supabase
+          .from('pedidos')
+          .select('valor_total')
+          .gte('data_pedido', startOfMonth)
+          .in('status', ['entregue', 'pago']);
+
+        const faturamento = pedidosMes?.reduce((acc, p) => acc + (p.valor_total || 0), 0) || 0;
+
+        setStats({
+          totalClientes: clientesCount || 0,
+          totalPedidos: pedidosCount || 0,
+          pedidosHoje: pedidosHoje || 0,
+          faturamentoMes: faturamento
+        });
+
+        // Fetch recent activities
+        const { data: recentPedidos } = await supabase
+          .from('pedidos')
+          .select('id, created_at, numero_pedido, valor_total')
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        const { data: recentClientes } = await supabase
+          .from('clientes')
+          .select('id, created_at, nome')
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        const activitiesList: RecentActivity[] = [];
+
+        recentPedidos?.forEach(p => {
+          activitiesList.push({
+            id: p.id,
+            type: 'pedido',
+            message: `Pedido #${p.numero_pedido} • R$ ${(p.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+            time: formatTimeAgo(new Date(p.created_at)),
+            icon: 'cart'
+          });
+        });
+
+        recentClientes?.forEach(c => {
+          activitiesList.push({
+            id: c.id,
+            type: 'cliente',
+            message: `Novo cliente: ${c.nome?.split(' ')[0] || 'Cliente'}***`,
+            time: formatTimeAgo(new Date(c.created_at)),
+            icon: 'user'
+          });
+        });
+
+        // Sort by time (most recent first)
+        activitiesList.sort((a, b) => {
+          const timeA = parseTimeAgo(a.time);
+          const timeB = parseTimeAgo(b.time);
+          return timeA - timeB;
+        });
+
+        setActivities(activitiesList.slice(0, 6));
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+
+    fetchStats();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Rotate through activities
+  useEffect(() => {
+    if (activities.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setCurrentActivityIndex(prev => (prev + 1) % activities.length);
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [activities.length]);
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -68,87 +199,226 @@ export default function Auth() {
     );
   }
 
+  const getActivityIcon = (icon: string) => {
+    switch (icon) {
+      case 'cart': return ShoppingCart;
+      case 'user': return Users;
+      case 'zap': return Zap;
+      default: return Activity;
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - Branding */}
+      {/* Left Panel - Live Stats */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-3/5 relative overflow-hidden">
         {/* Background with gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary to-primary/80" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-primary/80" />
         
-        {/* Animated pattern overlay */}
-        <div className="absolute inset-0 opacity-10">
+        {/* Animated grid pattern */}
+        <div className="absolute inset-0 opacity-5">
           <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundImage: `linear-gradient(hsl(var(--primary-foreground)) 1px, transparent 1px),
+                             linear-gradient(90deg, hsl(var(--primary-foreground)) 1px, transparent 1px)`,
+            backgroundSize: '50px 50px'
           }} />
         </div>
 
-        {/* Decorative circles */}
+        {/* Floating decorative elements */}
         <motion.div 
-          className="absolute -top-20 -left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"
+          className="absolute top-20 right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"
           animate={{ 
             scale: [1, 1.2, 1],
-            opacity: [0.1, 0.15, 0.1]
+            x: [0, 30, 0],
+            y: [0, -20, 0]
           }}
-          transition={{ duration: 8, repeat: Infinity }}
+          transition={{ duration: 10, repeat: Infinity }}
         />
         <motion.div 
-          className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl"
+          className="absolute bottom-20 left-10 w-96 h-96 bg-white/5 rounded-full blur-3xl"
           animate={{ 
             scale: [1.2, 1, 1.2],
-            opacity: [0.15, 0.1, 0.15]
+            x: [0, -20, 0]
           }}
-          transition={{ duration: 8, repeat: Infinity }}
+          transition={{ duration: 12, repeat: Infinity }}
         />
 
         {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-20">
+        <div className="relative z-10 flex flex-col justify-between p-8 xl:p-12 w-full">
+          {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            {/* Logo/Icon */}
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3">
               <div className="p-3 bg-white/20 backdrop-blur-sm rounded-2xl">
-                <Beer className="h-8 w-8 text-white" />
+                <Beer className="h-7 w-7 text-white" />
               </div>
-              <span className="text-white/90 text-2xl font-semibold tracking-tight">
+              <span className="text-white/90 text-xl font-semibold tracking-tight">
                 Taubate Chopp
               </span>
             </div>
+          </motion.div>
 
-            {/* Tagline */}
-            <h1 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-6">
-              Gestão completa<br />
-              <span className="text-white/80">para seu negócio</span>
-            </h1>
+          {/* Stats Grid */}
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex items-center gap-2 text-white/60 text-sm"
+            >
+              <Activity className="h-4 w-4" />
+              <span>Dados em tempo real</span>
+              <span className="relative flex h-2 w-2 ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+            </motion.div>
 
-            <p className="text-white/70 text-lg max-w-md mb-10">
-              Controle pedidos, clientes, estoque e finanças em uma única plataforma inteligente.
-            </p>
-
-            {/* Features list */}
-            <div className="space-y-4">
-              {[
-                'Dashboard com métricas em tempo real',
-                'Gestão completa de pedidos e entregas',
-                'Controle financeiro integrado',
-                'Agente de IA para WhatsApp'
-              ].map((feature, index) => (
-                <motion.div 
-                  key={feature}
-                  className="flex items-center gap-3 text-white/80"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.4, delay: 0.2 + index * 0.1 }}
-                >
-                  <div className="p-1 bg-white/20 rounded-full">
-                    <Sparkles className="h-3 w-3 text-white" />
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 gap-4">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <Users className="h-5 w-5 text-white" />
                   </div>
-                  <span className="text-sm">{feature}</span>
-                </motion.div>
-              ))}
+                  <span className="text-white/70 text-sm">Clientes</span>
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {stats.totalClientes.toLocaleString('pt-BR')}
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                    <ShoppingCart className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-white/70 text-sm">Pedidos Total</span>
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {stats.totalPedidos.toLocaleString('pt-BR')}
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-green-500/30 rounded-xl">
+                    <TrendingUp className="h-5 w-5 text-green-300" />
+                  </div>
+                  <span className="text-white/70 text-sm">Pedidos Hoje</span>
+                </div>
+                <p className="text-3xl font-bold text-white">
+                  {stats.pedidosHoje}
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7 }}
+                className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-amber-500/30 rounded-xl">
+                    <DollarSign className="h-5 w-5 text-amber-300" />
+                  </div>
+                  <span className="text-white/70 text-sm">Faturamento/Mês</span>
+                </div>
+                <p className="text-2xl xl:text-3xl font-bold text-white">
+                  R$ {(stats.faturamentoMes / 1000).toFixed(1)}k
+                </p>
+              </motion.div>
             </div>
+
+            {/* Live Activity Feed */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-white/80 text-sm font-medium">Atividade Recente</span>
+                <span className="text-white/50 text-xs">Atualização automática</span>
+              </div>
+
+              <div className="h-32 overflow-hidden relative">
+                <AnimatePresence mode="wait">
+                  {activities.length > 0 && (
+                    <motion.div
+                      key={currentActivityIndex}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.4 }}
+                      className="space-y-3"
+                    >
+                      {[0, 1, 2].map(offset => {
+                        const index = (currentActivityIndex + offset) % activities.length;
+                        const activity = activities[index];
+                        if (!activity) return null;
+                        const IconComponent = getActivityIcon(activity.icon);
+                        
+                        return (
+                          <div 
+                            key={`${activity.id}-${offset}`}
+                            className={`flex items-center gap-3 ${offset === 0 ? 'opacity-100' : offset === 1 ? 'opacity-60' : 'opacity-30'}`}
+                          >
+                            <div className={`p-2 rounded-lg ${
+                              activity.type === 'pedido' ? 'bg-blue-500/20' :
+                              activity.type === 'cliente' ? 'bg-purple-500/20' : 'bg-green-500/20'
+                            }`}>
+                              <IconComponent className={`h-4 w-4 ${
+                                activity.type === 'pedido' ? 'text-blue-300' :
+                                activity.type === 'cliente' ? 'text-purple-300' : 'text-green-300'
+                              }`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm truncate">{activity.message}</p>
+                              <p className="text-white/50 text-xs">{activity.time}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {activities.length === 0 && (
+                  <div className="flex items-center justify-center h-full text-white/50 text-sm">
+                    Carregando atividades...
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Footer */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1 }}
+            className="text-white/40 text-xs"
+          >
+            © {new Date().getFullYear()} Taubate Chopp • Gestão Inteligente
           </motion.div>
         </div>
       </div>
@@ -283,4 +553,27 @@ export default function Auth() {
       </div>
     </div>
   );
+}
+
+// Helper functions
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Agora';
+  if (diffMins < 60) return `${diffMins} min atrás`;
+  if (diffHours < 24) return `${diffHours}h atrás`;
+  if (diffDays === 1) return 'Ontem';
+  return `${diffDays} dias atrás`;
+}
+
+function parseTimeAgo(timeStr: string): number {
+  if (timeStr === 'Agora') return 0;
+  if (timeStr.includes('min')) return parseInt(timeStr);
+  if (timeStr.includes('h')) return parseInt(timeStr) * 60;
+  if (timeStr === 'Ontem') return 24 * 60;
+  return parseInt(timeStr) * 24 * 60;
 }
