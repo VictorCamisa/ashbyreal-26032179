@@ -773,12 +773,24 @@ serve(async (req) => {
     // Check for duplicates across ALL competencias for this card
     const { data: existingTransactions } = await supabase
       .from('credit_card_transactions')
-      .select('dedupe_key, competencia')
+      .select('dedupe_key, competencia, purchase_date, amount, description, installment_number, total_installments')
       .eq('credit_card_id', creditCardId)
       .not('dedupe_key', 'is', null);
 
     const existingDedupeKeys = new Set(existingTransactions?.map(t => t.dedupe_key) || []);
-    console.log(`Found ${existingDedupeKeys.size} existing dedupe keys`);
+    
+    // For open invoices, also create a set of "transaction signatures" that ignore competencia
+    // This prevents importing the same transaction again even if the competencia calculation differs
+    const existingSignatures = new Set(
+      existingTransactions?.map(t => {
+        // Create signature: date + amount + description + installment info
+        const desc = String(t.description || '').replace(/\s+/g, '').toUpperCase();
+        const amt = Math.round(Math.abs(t.amount) * 100);
+        return `${t.purchase_date}_${amt}_${desc}_${t.installment_number || 1}_${t.total_installments || 1}`;
+      }) || []
+    );
+    
+    console.log(`Found ${existingDedupeKeys.size} existing dedupe keys, ${existingSignatures.size} unique signatures`);
 
     // Process transactions and add idempotency fields
     const summary: ImportSummary = {
@@ -844,7 +856,24 @@ serve(async (req) => {
         tx.total_installments
       );
 
-      const isDuplicate = existingDedupeKeys.has(dedupeKey);
+      // For open invoices, check by signature (ignores competencia differences)
+      // For closed invoices, check by dedupe_key (includes competencia)
+      let isDuplicate: boolean;
+      
+      if (isOpenInvoice) {
+        // Signature-based deduplication for open invoices
+        const desc = String(tx.description || '').replace(/\s+/g, '').toUpperCase();
+        const amt = Math.round(Math.abs(tx.amount) * 100);
+        const signature = `${tx.date}_${amt}_${desc}_${tx.installment_number || 1}_${tx.total_installments || 1}`;
+        isDuplicate = existingSignatures.has(signature);
+        
+        if (isDuplicate) {
+          console.log(`  Duplicate (signature match): ${tx.description} | ${tx.date} | ${tx.amount}`);
+        }
+      } else {
+        // Key-based deduplication for closed invoices
+        isDuplicate = existingDedupeKeys.has(dedupeKey);
+      }
 
       const processedTx: ParsedTransaction = {
         ...tx,
