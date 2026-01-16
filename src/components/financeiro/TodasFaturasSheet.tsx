@@ -46,9 +46,16 @@ export function TodasFaturasSheet({ open, onOpenChange, faturas, cartoes }: Toda
     return fatura.due_date && isBefore(new Date(fatura.due_date), now) && fatura.status !== 'PAGA';
   };
 
-  const faturasAbertas = faturas?.filter(f => f.status === 'ABERTA' || f.status === 'FECHADA') || [];
-  const faturasPagas = faturas?.filter(f => f.status === 'PAGA') || [];
-  const faturasVencidas = faturas?.filter(f => isOverdue(f)) || [];
+  // Sort by due_date ascending (closest first)
+  const sortByDueDate = (a: any, b: any) => {
+    const dateA = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+    const dateB = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+    return dateA - dateB;
+  };
+
+  const faturasAbertas = (faturas?.filter(f => f.status === 'ABERTA' || f.status === 'FECHADA') || []).sort(sortByDueDate);
+  const faturasPagas = (faturas?.filter(f => f.status === 'PAGA') || []).sort((a, b) => sortByDueDate(b, a)); // Pagas: mais recente primeiro
+  const faturasVencidas = (faturas?.filter(f => isOverdue(f)) || []).sort(sortByDueDate);
 
   const handlePagar = (invoiceId: string) => {
     payInvoice({ invoiceId });
