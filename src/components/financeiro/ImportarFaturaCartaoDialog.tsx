@@ -152,7 +152,9 @@ export function ImportarFaturaCartaoDialog({
   }, []);
 
   // Auto-calculate competencia for "Fatura Aberta" based on card's CLOSING day
-  // The "open" invoice is the one currently accumulating charges (before closing)
+  // Banks name invoices by their DUE MONTH, not closing month
+  // Example: Closing day = 27, Due day = 4
+  // - Purchases from Dec 28 to Jan 27 → Invoice due Feb 4 → Bank calls this "February invoice"
   const calculatedOpenCompetencia = useMemo(() => {
     if (!selectedCartaoData?.closing_day) return null;
     
@@ -160,25 +162,25 @@ export function ImportarFaturaCartaoDialog({
     const currentDay = now.getDate();
     const closingDay = selectedCartaoData.closing_day;
     
-    // Logic based on CLOSING DATE:
-    // The "open" invoice is determined by when the billing cycle closes
+    // The "open" invoice is the one currently accumulating charges
+    // Banks name it by the VENCIMENTO (due) month, which is typically the month AFTER closing
     // 
     // Example: Closing day = 27, today = Jan 16
-    // - Current date (Jan 16) is BEFORE closing day (27)
-    // - So we're still in the January billing cycle
-    // - The "open" invoice competência is JANUARY 2026
+    // - We're before closing day (27), so still in this billing cycle
+    // - This cycle closes Jan 27 and is DUE in February
+    // - Bank calls this the "February invoice" = competência FEVEREIRO
     //
     // Example: Closing day = 27, today = Jan 28
-    // - Current date (Jan 28) is AFTER closing day (27)
-    // - January invoice already closed
-    // - The "open" invoice competência is FEBRUARY 2026
+    // - We're after closing day, so January's invoice already closed
+    // - New cycle started, will close Feb 27 and be DUE in March
+    // - Bank calls this the "March invoice" = competência MARÇO
     let competenciaDate: Date;
     if (currentDay <= closingDay) {
-      // Before or on closing day - we're in current month's billing cycle
-      competenciaDate = now;
-    } else {
-      // After closing day - current month closed, we're in next month's cycle
+      // Before or on closing day - current cycle, due NEXT month
       competenciaDate = addMonths(now, 1);
+    } else {
+      // After closing day - new cycle started, due in 2 months
+      competenciaDate = addMonths(now, 2);
     }
     
     return format(competenciaDate, 'yyyy-MM');
