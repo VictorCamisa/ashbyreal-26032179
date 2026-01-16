@@ -653,7 +653,8 @@ serve(async (req) => {
     
     console.log("File hash:", fileHash);
 
-    // Check for existing import
+    // Check for existing import - just log, don't block
+    // Allow incremental imports: same file can be re-imported to add missing transactions
     const { data: existingImport } = await supabase
       .from('credit_card_imports')
       .select('id, created_at, records_imported, status')
@@ -661,25 +662,30 @@ serve(async (req) => {
       .eq('file_hash', fileHash)
       .maybeSingle();
 
-    // Only block if we have a successful import (records_imported > 0).
-    // If a previous attempt produced 0 records (FAILED/PREVIEW empty), allow reimport.
+    let previousImportInfo = null;
     if (existingImport && (existingImport.records_imported ?? 0) > 0) {
-      console.log("File already imported:", existingImport.id);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Este arquivo já foi importado em ${new Date(existingImport.created_at).toLocaleDateString('pt-BR')} (${existingImport.records_imported} transações)`,
-          already_imported: true,
-          import_id: existingImport.id,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      console.log("File previously imported, allowing incremental import:", existingImport.id);
+      previousImportInfo = {
+        import_id: existingImport.id,
+        imported_at: existingImport.created_at,
+        records_imported: existingImport.records_imported
+      };
     }
 
-    if (existingImport) {
-      console.log("Previous empty/failed import found, allowing reimport. Deleting:", existingImport.id);
+    if (existingImport && (existingImport.records_imported ?? 0) === 0) {
+      console.log("Previous empty/failed import found, deleting:", existingImport.id);
       await supabase.from('credit_card_imports').delete().eq('id', existingImport.id);
     }
+    
+    // Fetch existing transactions for this card to show in preview
+    const { data: existingForCompetencia } = await supabase
+      .from('credit_card_transactions')
+      .select('id, description, amount, purchase_date, installment_number, total_installments, competencia')
+      .eq('credit_card_id', creditCardId)
+      .eq('competencia', `${competenciaAlvo.slice(0, 7)}-01`)
+      .order('purchase_date', { ascending: true });
+    
+    console.log(`Found ${existingForCompetencia?.length || 0} existing transactions for competencia ${competenciaAlvo}`);
 
     let transactions: ParsedTransaction[] = [];
     let errorMessage = "";
@@ -834,6 +840,9 @@ serve(async (req) => {
         competencia_alvo: competenciaBase,
         can_import: summary.new_items > 0,
         message: errorMessage || `${summary.new_items} novas transações, ${summary.duplicates} duplicatas ignoradas`,
+        // New fields for incremental import
+        existing_transactions: existingForCompetencia || [],
+        previous_import: previousImportInfo,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
