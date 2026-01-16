@@ -19,6 +19,7 @@ interface ParsedTransaction {
   dedupe_key?: string;
   purchase_fingerprint?: string;
   status?: 'NEW' | 'DUPLICATE' | 'FUTURE_INSTALLMENT';
+  competencia?: string;
 }
 
 interface ImportSummary {
@@ -620,7 +621,7 @@ serve(async (req) => {
       competenciaAlvo,
     } = await req.json();
 
-    console.log("=== IMPORT REQUEST (V3 - Provider-Specific Parsers) ===");
+    console.log("=== IMPORT REQUEST (V4 - Closing Day Aware) ===");
     console.log("creditCardId:", creditCardId);
     console.log("cardProvider:", cardProvider);
     console.log("fileType:", fileType);
@@ -644,6 +645,20 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch card info to get closing_day
+    const { data: cardInfo, error: cardError } = await supabase
+      .from('credit_cards')
+      .select('closing_day')
+      .eq('id', creditCardId)
+      .single();
+
+    if (cardError) {
+      console.error("Error fetching card info:", cardError);
+    }
+
+    const closingDay = cardInfo?.closing_day || 10;
+    console.log("Card closing day:", closingDay);
 
     // Calculate file hash
     const fileContent = fileBase64 
@@ -737,13 +752,26 @@ serve(async (req) => {
       });
     }
 
-    // Competência base formatada
-    const competenciaBase = `${competenciaAlvo.slice(0, 7)}-01`;
+    // Function to calculate correct competencia based on closing day
+    function calculateCompetencia(purchaseDate: string, closingDay: number): string {
+      const date = new Date(purchaseDate + 'T12:00:00Z');
+      const day = date.getUTCDate();
+      
+      if (day <= closingDay) {
+        // Belongs to current month
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      } else {
+        // Belongs to next month
+        const nextMonth = new Date(date);
+        nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+        return `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      }
+    }
 
-    // Check for duplicates
+    // Check for duplicates across ALL competencias for this card
     const { data: existingTransactions } = await supabase
       .from('credit_card_transactions')
-      .select('dedupe_key')
+      .select('dedupe_key, competencia')
       .eq('credit_card_id', creditCardId)
       .not('dedupe_key', 'is', null);
 
@@ -761,9 +789,12 @@ serve(async (req) => {
     const processedTransactions: ParsedTransaction[] = [];
 
     for (const tx of transactions) {
+      // Calculate correct competencia based on purchase date and closing day
+      const txCompetencia = calculateCompetencia(tx.date, closingDay);
+      
       const dedupeKey = generateDedupeKey(
         creditCardId,
-        competenciaBase,
+        txCompetencia,
         tx.date,
         tx.amount,
         tx.description,
@@ -784,6 +815,7 @@ serve(async (req) => {
 
       const processedTx: ParsedTransaction = {
         ...tx,
+        competencia: txCompetencia,
         dedupe_key: dedupeKey,
         purchase_fingerprint: purchaseFingerprint,
         status: isDuplicate ? 'DUPLICATE' : 'NEW',
@@ -805,6 +837,9 @@ serve(async (req) => {
 
     console.log("Import summary:", summary);
 
+    // Competência base formatada (from user selection)
+    const competenciaBase = `${competenciaAlvo.slice(0, 7)}-01`;
+
     // Save preview import record
     const { data: importRecord, error: importError } = await supabase
       .from("credit_card_imports")
@@ -821,6 +856,7 @@ serve(async (req) => {
           parsed_count: transactions.length,
           provider,
           file_type: type,
+          closing_day: closingDay,
         },
       })
       .select()
@@ -838,6 +874,7 @@ serve(async (req) => {
         import_id: importRecord?.id,
         file_hash: fileHash,
         competencia_alvo: competenciaBase,
+        closing_day: closingDay,
         can_import: summary.new_items > 0,
         message: errorMessage || `${summary.new_items} novas transações, ${summary.duplicates} duplicatas ignoradas`,
         // New fields for incremental import

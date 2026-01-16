@@ -36,6 +36,7 @@ interface ParsedTransaction {
   dedupe_key?: string;
   purchase_fingerprint?: string;
   status?: 'NEW' | 'DUPLICATE' | 'FUTURE_INSTALLMENT';
+  competencia?: string;
   selected?: boolean;
 }
 
@@ -276,6 +277,10 @@ export function ImportarFaturaCartaoDialog({
     for (let i = 0; i < toImport.length; i++) {
       const t = toImport[i];
       try {
+        // Use the competencia calculated by the backend (based on closing_day)
+        // If not available, fall back to competenciaAlvo
+        const txCompetencia = t.competencia || `${competenciaAlvo}-01`;
+        
         const result = await createGasto({
           credit_card_id: selectedCartao,
           description: t.description,
@@ -283,7 +288,7 @@ export function ImportarFaturaCartaoDialog({
           purchase_date: t.date,
           installment_number: t.installment_number,
           total_installments: t.total_installments,
-          force_competencia: competenciaAlvo,
+          force_competencia: txCompetencia,
           create_remaining_installments: true,
           dedupe_key: t.dedupe_key,
           purchase_fingerprint: t.purchase_fingerprint,
