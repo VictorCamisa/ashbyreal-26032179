@@ -2272,6 +2272,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_competencia_date: {
+        Args: { closing_day: number; purchase_date: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
