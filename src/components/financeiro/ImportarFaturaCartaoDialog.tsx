@@ -476,7 +476,7 @@ export function ImportarFaturaCartaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-y-auto">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
@@ -491,7 +491,7 @@ export function ImportarFaturaCartaoDialog({
 
         {/* Step 1: Select Card & Type */}
         {step === 'select' && (
-          <ScrollArea className="flex-1 max-h-[calc(90vh-8rem)]">
+          <ScrollArea className="flex-1 overflow-auto">
             <div className="space-y-6 py-4 pr-4">
               <div className="space-y-2">
                 <Label>Selecione o Cartão</Label>
