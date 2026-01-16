@@ -286,7 +286,24 @@ export function ImportarFaturaCartaoDialog({
         setStep('preview');
         toast.info('Nenhuma transação nova encontrada. Todas já estão cadastradas.');
       } else {
-        toast.warning('Nenhuma transação encontrada no arquivo.');
+        // No transactions found - show diagnostic info
+        const targetComp = result.competencia_alvo || effectiveCompetencia;
+        const totalParsed = result.total_parsed || 0;
+        const compsNoArquivo = result.competencias_no_arquivo || {};
+        const compsList = Object.entries(compsNoArquivo)
+          .map(([comp, count]) => `${comp.slice(0, 7)}: ${count} transações`)
+          .join(', ');
+        
+        if (totalParsed > 0 && Object.keys(compsNoArquivo).length > 0) {
+          toast.error(
+            `Nenhuma transação corresponde à competência ${targetComp.slice(0, 7)}. ` +
+            `Competências encontradas no arquivo: ${compsList}. ` +
+            `Verifique se selecionou o mês correto.`,
+            { duration: 10000 }
+          );
+        } else {
+          toast.warning('Nenhuma transação encontrada no arquivo.');
+        }
         setStep('select');
       }
     } catch (err: any) {
