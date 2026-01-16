@@ -824,11 +824,12 @@ serve(async (req) => {
       if (isOpenInvoice) {
         // Open invoice: calculate competencia based on purchase date
         txCompetencia = calculateCompetencia(tx.date, closingDay);
-        // Include transactions from target competência onwards (current + future)
-        shouldInclude = txCompetencia >= targetCompetencia;
+        // Include ONLY transactions for the EXACT target competência
+        // Future competências (parcelas futuras) should NOT be included
+        shouldInclude = txCompetencia === targetCompetencia;
         
         if (!shouldInclude) {
-          console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} < target ${targetCompetencia} (tipo=${tipoImportacao})`);
+          console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} != target ${targetCompetencia} (tipo=${tipoImportacao})`);
           continue;
         }
       } else {

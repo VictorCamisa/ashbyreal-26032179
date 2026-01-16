@@ -109,6 +109,24 @@ export function ImportarFaturaCartaoDialog({
   const cardProvider = selectedCartaoData?.card_provider || 'GENERICO';
   const providerInfo = CARD_PROVIDERS[cardProvider] || CARD_PROVIDERS['GENERICO'];
 
+  // Clear preview data when card, type or competencia changes
+  const clearPreviewData = useCallback(() => {
+    setParsedTransactions([]);
+    setExistingTransactions([]);
+    setPreviousImport(null);
+    setImportSummary(null);
+    setImportId(null);
+    setShowExisting(false);
+    setSelectedFile(null);
+  }, []);
+
+  // Reset preview when selection changes
+  React.useEffect(() => {
+    if (step === 'select') {
+      clearPreviewData();
+    }
+  }, [selectedCartao, tipoImportacao, competenciaAlvo, step, clearPreviewData]);
+
   // Generate available months for selection (2 future + current + 3 previous)
   const availableMonths = useMemo(() => {
     const now = new Date();
