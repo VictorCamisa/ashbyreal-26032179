@@ -59,36 +59,36 @@ function DraggableOportunidadeCard({
 
   const clienteId = oportunidade.clienteId;
 
+  const handleOpenCliente = () => {
+    if (clienteId) {
+      navigate(`/cliente/${clienteId}`);
+    }
+  };
+
   return (
     <div 
       ref={setNodeRef}
       style={style}
-      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative"
+      {...listeners}
+      {...attributes}
+      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative cursor-grab active:cursor-grabbing"
     >
-      {/* Drag handle area */}
-      <div 
-        {...listeners}
-        {...attributes}
-        className="cursor-grab active:cursor-grabbing"
+      {/* Clickable name link */}
+      <p 
+        className="text-sm font-medium mb-1 text-primary cursor-pointer hover:underline"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={handleOpenCliente}
       >
-        <p 
-          className="text-sm font-medium mb-1 group-hover:text-primary transition-colors cursor-pointer hover:underline"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/cliente/${clienteId}`);
-          }}
-        >
-          {oportunidade.nome}
-        </p>
-        <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
-            {oportunidade.origem}
-          </Badge>
-          <span className="text-xs font-medium">
-            R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
-          </span>
-        </div>
+        {oportunidade.nome}
+      </p>
+      <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
+      <div className="flex items-center justify-between">
+        <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
+          {oportunidade.origem}
+        </Badge>
+        <span className="text-xs font-medium">
+          R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
+        </span>
       </div>
       <AlertDialog>
         <AlertDialogTrigger asChild>
