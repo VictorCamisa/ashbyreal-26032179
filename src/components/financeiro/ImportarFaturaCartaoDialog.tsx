@@ -491,9 +491,10 @@ export function ImportarFaturaCartaoDialog({
 
         {/* Step 1: Select Card & Type */}
         {step === 'select' && (
-          <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label>Selecione o Cartão</Label>
+          <ScrollArea className="flex-1 max-h-[calc(90vh-8rem)]">
+            <div className="space-y-6 py-4 pr-4">
+              <div className="space-y-2">
+                <Label>Selecione o Cartão</Label>
               <Select value={selectedCartao} onValueChange={setSelectedCartao}>
                 <SelectTrigger>
                   <SelectValue placeholder="Escolha um cartão..." />
@@ -666,6 +667,7 @@ export function ImportarFaturaCartaoDialog({
               </ul>
             </div>
           </div>
+          </ScrollArea>
         )}
 
         {/* Step 2: Processing */}
