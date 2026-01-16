@@ -152,13 +152,10 @@ export function ImportarFaturaCartaoDialog({
     return format(competenciaDate, 'yyyy-MM');
   }, [selectedCartaoData?.closing_day]);
 
-  // Get the effective competencia to use
+  // Get the effective competencia to use (always use user selection now)
   const effectiveCompetencia = useMemo(() => {
-    if (tipoImportacao === 'ABERTA' && calculatedOpenCompetencia) {
-      return calculatedOpenCompetencia;
-    }
     return competenciaAlvo;
-  }, [tipoImportacao, calculatedOpenCompetencia, competenciaAlvo]);
+  }, [competenciaAlvo]);
 
   const resetDialog = () => {
     setStep('select');
@@ -598,51 +595,35 @@ export function ImportarFaturaCartaoDialog({
                   </RadioGroup>
                 </div>
 
-                {/* Month Selection - Only for Fatura Fechada */}
-                {tipoImportacao === 'FECHADA' && (
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Mês da Fatura
-                    </Label>
-                    <Select value={competenciaAlvo} onValueChange={setCompetenciaAlvo}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o mês da fatura" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableMonths.map((month) => (
-                          <SelectItem key={month.value} value={month.value}>
-                            {month.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedCartaoData?.closing_day && (
-                      <p className="text-xs text-muted-foreground">
-                        Este cartão fecha no dia {selectedCartaoData.closing_day}. 
-                        Compras após essa data entram na fatura do mês seguinte.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Auto-detected competência for Fatura Aberta */}
-                {tipoImportacao === 'ABERTA' && calculatedOpenCompetencia && (
-                  <div className="p-3 rounded-lg bg-muted/50 border">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span className="text-muted-foreground">Fatura atual:</span>
-                      <span className="font-medium">
-                        {formatCompetenciaLabel(calculatedOpenCompetencia)}
-                      </span>
-                    </div>
-                    {selectedCartaoData?.closing_day && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Fechamento no dia {selectedCartaoData.closing_day}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Month Selection - Available for both types */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Mês da Fatura
+                  </Label>
+                  <Select value={competenciaAlvo} onValueChange={setCompetenciaAlvo}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o mês da fatura" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableMonths.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedCartaoData?.closing_day && (
+                    <p className="text-xs text-muted-foreground">
+                      Este cartão fecha no dia {selectedCartaoData.closing_day}. 
+                      {tipoImportacao === 'ABERTA' && calculatedOpenCompetencia && (
+                        <span className="ml-1">
+                          Fatura aberta atual sugerida: <strong>{formatCompetenciaLabel(calculatedOpenCompetencia)}</strong>
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
 
                 <div className="bg-primary/10 rounded-lg p-4 flex items-start gap-3">
                   <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
