@@ -9,9 +9,11 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   Upload, FileSpreadsheet, CheckCircle2, XCircle, Loader2, CreditCard, 
-  AlertTriangle, Calendar, ChevronRight, Copy, AlertCircle, Sparkles
+  AlertTriangle, Calendar, ChevronRight, Copy, AlertCircle, Sparkles,
+  Lock, Unlock
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCartoes } from '@/hooks/useCartoes';
@@ -19,6 +21,8 @@ import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { format, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface ImportarFaturaCartaoDialogProps {
   open: boolean;
@@ -72,6 +76,8 @@ const CARD_PROVIDERS: Record<string, { label: string; formats: string[]; color: 
   'GENERICO': { label: 'Genérico', formats: ['CSV', 'XLSX'], color: 'bg-gray-500' },
 };
 
+type TipoImportacao = 'FECHADA' | 'ABERTA';
+
 export function ImportarFaturaCartaoDialog({ 
   open, 
   onOpenChange,
@@ -82,9 +88,12 @@ export function ImportarFaturaCartaoDialog({
   
   const [step, setStep] = useState<'select' | 'upload' | 'preview' | 'importing' | 'done'>('select');
   const [selectedCartao, setSelectedCartao] = useState<string>('');
+  const [tipoImportacao, setTipoImportacao] = useState<TipoImportacao>('FECHADA');
   const [competenciaAlvo, setCompetenciaAlvo] = useState<string>(() => {
+    // Default to previous month for closed invoices
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prevMonth = subMonths(now, 1);
+    return format(prevMonth, 'yyyy-MM');
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
@@ -100,12 +109,56 @@ export function ImportarFaturaCartaoDialog({
   const cardProvider = selectedCartaoData?.card_provider || 'GENERICO';
   const providerInfo = CARD_PROVIDERS[cardProvider] || CARD_PROVIDERS['GENERICO'];
 
+  // Generate available months for selection (current month + 3 previous)
+  const availableMonths = useMemo(() => {
+    const now = new Date();
+    const months: { value: string; label: string }[] = [];
+    
+    for (let i = 0; i <= 3; i++) {
+      const monthDate = subMonths(now, i);
+      const value = format(monthDate, 'yyyy-MM');
+      const label = format(monthDate, 'MMMM yyyy', { locale: ptBR });
+      months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+    }
+    
+    return months;
+  }, []);
+
+  // Auto-calculate competencia for "Fatura Aberta" based on card's closing day
+  const calculatedOpenCompetencia = useMemo(() => {
+    if (!selectedCartaoData?.closing_day) return null;
+    
+    const now = new Date();
+    const currentDay = now.getDate();
+    const closingDay = selectedCartaoData.closing_day;
+    
+    // If we're past the closing day, the "open" invoice is for next month
+    let competenciaDate: Date;
+    if (currentDay > closingDay) {
+      competenciaDate = addMonths(now, 1);
+    } else {
+      competenciaDate = now;
+    }
+    
+    return format(competenciaDate, 'yyyy-MM');
+  }, [selectedCartaoData?.closing_day]);
+
+  // Get the effective competencia to use
+  const effectiveCompetencia = useMemo(() => {
+    if (tipoImportacao === 'ABERTA' && calculatedOpenCompetencia) {
+      return calculatedOpenCompetencia;
+    }
+    return competenciaAlvo;
+  }, [tipoImportacao, calculatedOpenCompetencia, competenciaAlvo]);
+
   const resetDialog = () => {
     setStep('select');
     setSelectedCartao('');
+    setTipoImportacao('FECHADA');
     setCompetenciaAlvo(() => {
       const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const prevMonth = subMonths(now, 1);
+      return format(prevMonth, 'yyyy-MM');
     });
     setSelectedFile(null);
     setParsedTransactions([]);
@@ -184,7 +237,8 @@ export function ImportarFaturaCartaoDialog({
           fileName: file.name,
           content,
           fileBase64,
-          competenciaAlvo,
+          competenciaAlvo: effectiveCompetencia,
+          tipoImportacao,
         }
       });
 
@@ -240,7 +294,7 @@ export function ImportarFaturaCartaoDialog({
       toast.error('Erro ao processar arquivo: ' + (err.message || 'Erro desconhecido'));
       setStep('select');
     }
-  }, [selectedCartao, cardProvider, competenciaAlvo]);
+  }, [selectedCartao, cardProvider, effectiveCompetencia, tipoImportacao]);
 
   const toggleTransaction = (index: number) => {
     setParsedTransactions(prev => 
@@ -278,8 +332,8 @@ export function ImportarFaturaCartaoDialog({
       const t = toImport[i];
       try {
         // Use the competencia calculated by the backend (based on closing_day)
-        // If not available, fall back to competenciaAlvo
-        const txCompetencia = t.competencia || `${competenciaAlvo}-01`;
+        // If not available, fall back to effectiveCompetencia
+        const txCompetencia = t.competencia || `${effectiveCompetencia}-01`;
         
         const result = await createGasto({
           credit_card_id: selectedCartao,
@@ -327,13 +381,13 @@ export function ImportarFaturaCartaoDialog({
 
   // Valor da fatura atual no banco de dados
   const currentInvoiceValue = useMemo(() => {
-    if (!selectedCartao || !competenciaAlvo || !faturas) return 0;
-    const competenciaFormatted = `${competenciaAlvo}-01`;
+    if (!selectedCartao || !effectiveCompetencia || !faturas) return 0;
+    const competenciaFormatted = `${effectiveCompetencia}-01`;
     const invoice = faturas.find(
       f => f.credit_card_id === selectedCartao && f.competencia === competenciaFormatted
     );
     return invoice?.total_value || 0;
-  }, [selectedCartao, competenciaAlvo, faturas]);
+  }, [selectedCartao, effectiveCompetencia, faturas]);
 
   // Valor total das transações já existentes (calculado das transações individuais)
   const existingTotal = useMemo(() => {
@@ -360,7 +414,7 @@ export function ImportarFaturaCartaoDialog({
     const selected = parsedTransactions.filter(t => t.selected && t.status === 'NEW');
     const summary: Record<string, { count: number; total: number; items: { description: string; amount: number; installment: string }[] }> = {};
     
-    const baseDate = new Date(`${competenciaAlvo}-15`);
+    const baseDate = new Date(`${effectiveCompetencia}-15`);
     
     for (const t of selected) {
       const totalInst = t.total_installments || 1;
@@ -394,7 +448,7 @@ export function ImportarFaturaCartaoDialog({
         monthLabel: new Date(`${month}-15`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
         ...data
       }));
-  }, [parsedTransactions, competenciaAlvo]);
+  }, [parsedTransactions, effectiveCompetencia]);
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -406,6 +460,17 @@ export function ImportarFaturaCartaoDialog({
         return <Badge className="bg-blue-500 text-white">Futuro</Badge>;
       default:
         return null;
+    }
+  };
+
+  // Format competencia for display
+  const formatCompetenciaLabel = (comp: string) => {
+    try {
+      const date = new Date(`${comp}-15`);
+      const label = format(date, 'MMMM yyyy', { locale: ptBR });
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    } catch {
+      return comp;
     }
   };
 
@@ -424,7 +489,7 @@ export function ImportarFaturaCartaoDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Step 1: Select Card & Competência */}
+        {/* Step 1: Select Card & Type */}
         {step === 'select' && (
           <div className="space-y-6 py-4">
             <div className="space-y-2">
@@ -454,21 +519,103 @@ export function ImportarFaturaCartaoDialog({
 
             {selectedCartao && (
               <>
-                <div className="grid gap-2">
-                  <Label className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Competência da Fatura
-                  </Label>
-                  <Input
-                    type="month"
-                    value={competenciaAlvo}
-                    onChange={(e) => setCompetenciaAlvo(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Todas as transações serão lançadas na fatura deste mês.
-                    Parcelas futuras serão criadas automaticamente nos meses seguintes.
-                  </p>
+                {/* Tipo de Importação - Radio Selection */}
+                <div className="space-y-3">
+                  <Label>Tipo de Importação</Label>
+                  <RadioGroup 
+                    value={tipoImportacao} 
+                    onValueChange={(value) => setTipoImportacao(value as TipoImportacao)}
+                    className="grid grid-cols-1 gap-3"
+                  >
+                    <label 
+                      htmlFor="tipo-fechada" 
+                      className={cn(
+                        "flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
+                        tipoImportacao === 'FECHADA' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <RadioGroupItem value="FECHADA" id="tipo-fechada" className="mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-orange-500" />
+                          <span className="font-medium">Fatura Fechada</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Para faturas que já fecharam. Importe o extrato completo do mês.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label 
+                      htmlFor="tipo-aberta" 
+                      className={cn(
+                        "flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
+                        tipoImportacao === 'ABERTA' 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <RadioGroupItem value="ABERTA" id="tipo-aberta" className="mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Unlock className="h-4 w-4 text-green-500" />
+                          <span className="font-medium">Fatura Aberta (Atual)</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Para a fatura corrente. Só adiciona novos gastos que ainda não foram importados.
+                        </p>
+                      </div>
+                    </label>
+                  </RadioGroup>
                 </div>
+
+                {/* Month Selection - Only for Fatura Fechada */}
+                {tipoImportacao === 'FECHADA' && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Mês da Fatura
+                    </Label>
+                    <Select value={competenciaAlvo} onValueChange={setCompetenciaAlvo}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o mês da fatura" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableMonths.map((month) => (
+                          <SelectItem key={month.value} value={month.value}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedCartaoData?.closing_day && (
+                      <p className="text-xs text-muted-foreground">
+                        Este cartão fecha no dia {selectedCartaoData.closing_day}. 
+                        Compras após essa data entram na fatura do mês seguinte.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Auto-detected competência for Fatura Aberta */}
+                {tipoImportacao === 'ABERTA' && calculatedOpenCompetencia && (
+                  <div className="p-3 rounded-lg bg-muted/50 border">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      <span className="text-muted-foreground">Fatura atual:</span>
+                      <span className="font-medium">
+                        {formatCompetenciaLabel(calculatedOpenCompetencia)}
+                      </span>
+                    </div>
+                    {selectedCartaoData?.closing_day && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Fechamento no dia {selectedCartaoData.closing_day}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="bg-primary/10 rounded-lg p-4 flex items-start gap-3">
                   <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -480,7 +627,9 @@ export function ImportarFaturaCartaoDialog({
                       Arquivos aceitos: {providerInfo.formats.join(', ')}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Sistema de idempotência ativo - duplicatas serão detectadas automaticamente
+                      {tipoImportacao === 'ABERTA' 
+                        ? 'Foco em adicionar apenas novos gastos - duplicatas serão ignoradas'
+                        : 'Sistema de idempotência ativo - duplicatas serão detectadas automaticamente'}
                     </p>
                   </div>
                 </div>
@@ -510,10 +659,10 @@ export function ImportarFaturaCartaoDialog({
                 Instruções
               </h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Exporte a fatura do site do seu banco no formato correto</li>
+                <li>• <strong>Fatura Fechada:</strong> Use para faturas já fechadas (meses anteriores)</li>
+                <li>• <strong>Fatura Aberta:</strong> Use para acompanhar gastos da fatura atual</li>
                 <li>• Duplicatas são detectadas automaticamente e ignoradas</li>
                 <li>• Parcelas futuras são criadas automaticamente</li>
-                <li>• Você pode reimportar a mesma fatura sem criar duplicatas</li>
               </ul>
             </div>
           </div>
@@ -561,6 +710,9 @@ export function ImportarFaturaCartaoDialog({
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
+                  <Badge variant="outline" className="text-xs">
+                    {tipoImportacao === 'ABERTA' ? 'Fatura Aberta' : 'Fatura Fechada'}
+                  </Badge>
                   {previousImport && (
                     <Badge variant="outline" className="text-xs">
                       Última importação: {new Date(previousImport.imported_at).toLocaleDateString('pt-BR')}
@@ -598,7 +750,7 @@ export function ImportarFaturaCartaoDialog({
                                 : '-'
                               }
                             </TableCell>
-                            <TableCell className="py-2 text-xs text-right font-medium">
+                            <TableCell className="py-2 text-xs text-right font-mono">
                               {formatCurrency(t.amount)}
                             </TableCell>
                           </TableRow>
@@ -610,176 +762,160 @@ export function ImportarFaturaCartaoDialog({
               </Collapsible>
             )}
 
-            {/* Summary Header */}
-            <div className="flex items-center justify-between mb-3 pb-3 border-b">
-              <div className="flex items-center gap-4">
-                {importSummary && (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                      <span className="text-sm">{importSummary.new_items} novas</span>
-                    </div>
-                    {importSummary.duplicates > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-muted" />
-                        <span className="text-sm text-muted-foreground">{importSummary.duplicates} duplicadas</span>
-                      </div>
-                    )}
-                    {selectedStats.futureInstallments > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-500" />
-                        <span className="text-sm">{selectedStats.futureInstallments} parcelas futuras</span>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <Button variant="outline" size="sm" onClick={toggleAllNew} disabled={!parsedTransactions.some(t => t.status === 'NEW')}>
-                {parsedTransactions.filter(t => t.status === 'NEW').every(t => t.selected) 
-                  ? 'Desmarcar Novas' 
-                  : 'Selecionar Novas'}
-              </Button>
-            </div>
-
-            {/* Transaction Table */}
-            <ScrollArea className="flex-1 border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead className="w-20">Status</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Parcela</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsedTransactions.map((t, index) => (
-                    <TableRow 
-                      key={index} 
-                      className={cn(
-                        "cursor-pointer transition-colors",
-                        t.status === 'DUPLICATE' && "opacity-50 bg-muted/30",
-                        t.selected && t.status === 'NEW' && "bg-emerald-50 dark:bg-emerald-950/20"
-                      )}
-                      onClick={() => toggleTransaction(index)}
-                    >
-                      <TableCell>
-                        <Checkbox 
-                          checked={t.selected} 
-                          disabled={t.status === 'DUPLICATE'}
-                          onCheckedChange={() => toggleTransaction(index)}
-                        />
-                      </TableCell>
-                      <TableCell>{getStatusBadge(t.status)}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {new Date(t.date).toLocaleDateString('pt-BR')}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">{t.description}</TableCell>
-                      <TableCell>
-                        {t.total_installments > 1 
-                          ? <Badge variant="outline">{t.installment_number}/{t.total_installments}</Badge>
-                          : <span className="text-muted-foreground">-</span>
-                        }
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(t.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-
-            {/* Future Installments Summary */}
-            {futureInstallmentsSummary.length > 0 && (
-              <div className="mt-4 border rounded-lg bg-blue-50 dark:bg-blue-950/30 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-100">
-                    Parcelas Futuras a Criar
+            {/* New Transactions Table */}
+            {parsedTransactions.length > 0 ? (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-sm">
+                    Transações Novas ({importSummary?.new_items || 0})
                   </h4>
-                  <Badge variant="secondary" className="ml-auto">
-                    {selectedStats.futureInstallments} parcelas
-                  </Badge>
+                  <Button variant="ghost" size="sm" onClick={toggleAllNew}>
+                    {parsedTransactions.filter(t => t.status === 'NEW').every(t => t.selected) 
+                      ? 'Desmarcar Todos' 
+                      : 'Selecionar Todos'}
+                  </Button>
                 </div>
-                
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {futureInstallmentsSummary.slice(0, 6).map((monthData) => (
-                    <div key={monthData.month} className="flex items-center justify-between p-2 rounded bg-blue-100/50 dark:bg-blue-900/30">
-                      <span className="font-medium capitalize">{monthData.monthLabel}</span>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="text-xs">
-                          {monthData.count} {monthData.count === 1 ? 'parcela' : 'parcelas'}
-                        </Badge>
-                        <span className="font-semibold text-sm">{formatCurrency(monthData.total)}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {futureInstallmentsSummary.length > 6 && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      + {futureInstallmentsSummary.length - 6} meses...
-                    </p>
-                  )}
+                <ScrollArea className="flex-1 border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10"></TableHead>
+                        <TableHead className="w-24">Data</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className="w-20">Parc.</TableHead>
+                        <TableHead className="w-24 text-right">Valor</TableHead>
+                        <TableHead className="w-24">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedTransactions.map((t, idx) => (
+                        <TableRow 
+                          key={idx} 
+                          className={cn(
+                            t.status === 'DUPLICATE' && "opacity-50 bg-muted/30",
+                            t.selected && t.status === 'NEW' && "bg-emerald-50 dark:bg-emerald-950/20"
+                          )}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={t.selected}
+                              onCheckedChange={() => toggleTransaction(idx)}
+                              disabled={t.status === 'DUPLICATE'}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {new Date(t.date).toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate text-sm">{t.description}</TableCell>
+                          <TableCell className="text-xs">
+                            {t.total_installments > 1 
+                              ? `${t.installment_number}/${t.total_installments}` 
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatCurrency(t.amount)}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(t.status)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center py-8">
+                <div className="text-center">
+                  <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+                  <p className="text-lg font-medium">Nenhuma transação nova</p>
+                  <p className="text-sm text-muted-foreground">
+                    Todas as transações do arquivo já estão cadastradas.
+                  </p>
                 </div>
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
+            {/* Future Installments Preview */}
+            {futureInstallmentsSummary.length > 0 && (
+              <Collapsible className="mt-4">
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full justify-between gap-2 mb-2">
+                    <span className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      {selectedStats.futureInstallments} parcelas futuras serão criadas
+                    </span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/20 space-y-3">
+                    {futureInstallmentsSummary.map((month) => (
+                      <div key={month.month} className="flex items-center justify-between">
+                        <span className="text-sm capitalize">{month.monthLabel}</span>
+                        <span className="text-sm font-medium">
+                          {month.count} parcelas • {formatCurrency(month.total)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-between items-center mt-4 pt-4 border-t">
               <Button variant="outline" onClick={() => setStep('select')}>
                 Voltar
               </Button>
-              <Button 
-                onClick={handleImport} 
-                disabled={selectedStats.count === 0}
-                className="gap-2"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Importar {selectedStats.count} Transações
-                {selectedStats.futureInstallments > 0 && ` + ${selectedStats.futureInstallments} futuras`}
-              </Button>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {selectedStats.count} selecionadas • {formatCurrency(selectedStats.total)}
+                </span>
+                <Button 
+                  onClick={handleImport} 
+                  disabled={selectedStats.count === 0}
+                  className="gap-2"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Importar Selecionadas
+                </Button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Step 4: Importing */}
         {step === 'importing' && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-lg font-medium">Importando transações...</p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg mb-2">Importando transações...</p>
             <Progress value={importProgress} className="w-64" />
-            <p className="text-sm text-muted-foreground">{importProgress}%</p>
+            <p className="text-sm text-muted-foreground mt-2">{importProgress}%</p>
           </div>
         )}
 
         {/* Step 5: Done */}
         {step === 'done' && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <CheckCircle2 className="h-16 w-16 text-emerald-500" />
-            <p className="text-xl font-semibold">Importação Concluída!</p>
-            <div className="flex gap-6 text-center">
-              <div>
-                <p className="text-3xl font-bold text-emerald-600">{importResults.success}</p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-4" />
+            <p className="text-xl font-medium mb-4">Importação Concluída!</p>
+            
+            <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-emerald-600">{importResults.success}</p>
                 <p className="text-sm text-muted-foreground">Importadas</p>
               </div>
-              {importResults.skipped > 0 && (
-                <div>
-                  <p className="text-3xl font-bold text-muted-foreground">{importResults.skipped}</p>
-                  <p className="text-sm text-muted-foreground">Ignoradas</p>
-                </div>
-              )}
-              {importResults.failed > 0 && (
-                <div>
-                  <p className="text-3xl font-bold text-destructive">{importResults.failed}</p>
-                  <p className="text-sm text-muted-foreground">Falhas</p>
-                </div>
-              )}
+              <div className="text-center">
+                <p className="text-2xl font-bold text-amber-600">{importResults.skipped}</p>
+                <p className="text-sm text-muted-foreground">Ignoradas</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-red-600">{importResults.failed}</p>
+                <p className="text-sm text-muted-foreground">Erros</p>
+              </div>
             </div>
-            <Button onClick={handleClose} className="mt-4">
-              Fechar
-            </Button>
+
+            <Button onClick={handleClose}>Fechar</Button>
           </div>
         )}
       </DialogContent>

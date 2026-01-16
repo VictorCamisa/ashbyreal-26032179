@@ -619,14 +619,16 @@ serve(async (req) => {
       fileBase64,
       fileName,
       competenciaAlvo,
+      tipoImportacao = 'FECHADA', // Default to FECHADA for backward compatibility
     } = await req.json();
 
-    console.log("=== IMPORT REQUEST (V4 - Closing Day Aware) ===");
+    console.log("=== IMPORT REQUEST (V5 - Tipo Importacao) ===");
     console.log("creditCardId:", creditCardId);
     console.log("cardProvider:", cardProvider);
     console.log("fileType:", fileType);
     console.log("fileName:", fileName);
     console.log("competenciaAlvo:", competenciaAlvo);
+    console.log("tipoImportacao:", tipoImportacao);
 
     if (!creditCardId || !cardProvider) {
       return new Response(
@@ -787,11 +789,32 @@ serve(async (req) => {
     };
 
     const processedTransactions: ParsedTransaction[] = [];
+    const targetCompetencia = `${competenciaAlvo.slice(0, 7)}-01`;
+    const isOpenInvoice = tipoImportacao === 'ABERTA';
+
+    console.log(`Filtering for tipo=${tipoImportacao}, targetCompetencia=${targetCompetencia}`);
 
     for (const tx of transactions) {
       // Calculate correct competencia based on purchase date and closing day
       const txCompetencia = calculateCompetencia(tx.date, closingDay);
       
+      // For FECHADA: only include transactions matching the target competência
+      // For ABERTA: include transactions from target competência onwards (current + future)
+      let shouldInclude = false;
+      
+      if (isOpenInvoice) {
+        // Open invoice: include current and future transactions
+        shouldInclude = txCompetencia >= targetCompetencia;
+      } else {
+        // Closed invoice: exact match only
+        shouldInclude = txCompetencia === targetCompetencia;
+      }
+
+      if (!shouldInclude) {
+        console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} doesn't match filter (tipo=${tipoImportacao})`);
+        continue;
+      }
+
       const dedupeKey = generateDedupeKey(
         creditCardId,
         txCompetencia,
@@ -835,10 +858,7 @@ serve(async (req) => {
       processedTransactions.push(processedTx);
     }
 
-    console.log("Import summary:", summary);
-
-    // Competência base formatada (from user selection)
-    const competenciaBase = `${competenciaAlvo.slice(0, 7)}-01`;
+    console.log(`Import summary (tipo=${tipoImportacao}):`, summary);
 
     // Save preview import record
     const { data: importRecord, error: importError } = await supabase
@@ -847,7 +867,7 @@ serve(async (req) => {
         credit_card_id: creditCardId,
         file_name: fileName || "import",
         file_hash: fileHash,
-        competencia: competenciaBase,
+        competencia: targetCompetencia,
         status: processedTransactions.length > 0 ? "PREVIEW" : "FAILED",
         records_imported: 0,
         notes: errorMessage || null,
@@ -857,6 +877,7 @@ serve(async (req) => {
           provider,
           file_type: type,
           closing_day: closingDay,
+          tipo_importacao: tipoImportacao,
         },
       })
       .select()
@@ -873,8 +894,9 @@ serve(async (req) => {
         summary,
         import_id: importRecord?.id,
         file_hash: fileHash,
-        competencia_alvo: competenciaBase,
+        competencia_alvo: targetCompetencia,
         closing_day: closingDay,
+        tipo_importacao: tipoImportacao,
         can_import: summary.new_items > 0,
         message: errorMessage || `${summary.new_items} novas transações, ${summary.duplicates} duplicatas ignoradas`,
         // New fields for incremental import
