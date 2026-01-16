@@ -151,36 +151,38 @@ export function ImportarFaturaCartaoDialog({
     return months;
   }, []);
 
-  // Auto-calculate competencia for "Fatura Aberta" based on card's due day
-  // The "open" invoice in bank apps is the one that hasn't been paid yet
+  // Auto-calculate competencia for "Fatura Aberta" based on card's CLOSING day
+  // The "open" invoice is the one currently accumulating charges (before closing)
   const calculatedOpenCompetencia = useMemo(() => {
-    if (!selectedCartaoData?.due_day) return null;
+    if (!selectedCartaoData?.closing_day) return null;
     
     const now = new Date();
     const currentDay = now.getDate();
-    const dueDay = selectedCartaoData.due_day;
+    const closingDay = selectedCartaoData.closing_day;
     
-    // Logic based on DUE DATE (not closing date):
-    // - If today >= due day: the current month's invoice was due, so the "open" one is NEXT month
-    // - If today < due day: current month's invoice is still pending payment
+    // Logic based on CLOSING DATE:
+    // The "open" invoice is determined by when the billing cycle closes
     // 
-    // But the "open" invoice in bank terminology is the one currently accumulating charges,
-    // which is typically one month ahead of the due invoice
+    // Example: Closing day = 27, today = Jan 16
+    // - Current date (Jan 16) is BEFORE closing day (27)
+    // - So we're still in the January billing cycle
+    // - The "open" invoice competência is JANUARY 2026
     //
-    // Example: Due day = 4, today = Jan 16
-    // - January invoice was due on Jan 4 (already paid)
-    // - February invoice is "open" (accumulating charges until Jan 27)
+    // Example: Closing day = 27, today = Jan 28
+    // - Current date (Jan 28) is AFTER closing day (27)
+    // - January invoice already closed
+    // - The "open" invoice competência is FEBRUARY 2026
     let competenciaDate: Date;
-    if (currentDay >= dueDay) {
-      // After or on due date - the "open" invoice is NEXT month
-      competenciaDate = addMonths(now, 1);
-    } else {
-      // Before due date - current month might still be pending, but charges go to current month
+    if (currentDay <= closingDay) {
+      // Before or on closing day - we're in current month's billing cycle
       competenciaDate = now;
+    } else {
+      // After closing day - current month closed, we're in next month's cycle
+      competenciaDate = addMonths(now, 1);
     }
     
     return format(competenciaDate, 'yyyy-MM');
-  }, [selectedCartaoData?.due_day]);
+  }, [selectedCartaoData?.closing_day]);
 
   // Auto-select the calculated competencia when switching to "Fatura Aberta"
   React.useEffect(() => {
