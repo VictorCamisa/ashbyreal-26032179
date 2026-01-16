@@ -153,8 +153,22 @@ export function ImportarFaturaCartaoDialog({
 
   // Auto-calculate competencia for "Fatura Aberta" based on card's CLOSING day
   // Banks name invoices by their DUE MONTH, not closing month
-  // Example: Closing day = 27, Due day = 4
-  // - Purchases from Dec 28 to Jan 27 → Invoice due Feb 4 → Bank calls this "February invoice"
+  // 
+  // The billing cycle works like this:
+  // - Purchases from day (closingDay+1) of month M-1 to closingDay of month M
+  //   are billed in the invoice that CLOSES on day closingDay of month M
+  //   and is DUE in month M+1 (around day dueDay)
+  // - Banks call this the "Month M+1 invoice" (by due date)
+  //
+  // Example: Closing day = 27, today = Jan 16
+  // - We're before closing day (27), so still in January's billing cycle
+  // - This cycle closes Jan 27 and is DUE in February
+  // - Bank calls this the "February invoice" = competência FEVEREIRO
+  //
+  // Example: Closing day = 27, today = Jan 28
+  // - We're after closing day, so January's invoice already closed
+  // - New cycle started (will close Feb 27), DUE in March
+  // - Bank calls this the "March invoice" = competência MARÇO
   const calculatedOpenCompetencia = useMemo(() => {
     if (!selectedCartaoData?.closing_day) return null;
     
@@ -162,18 +176,6 @@ export function ImportarFaturaCartaoDialog({
     const currentDay = now.getDate();
     const closingDay = selectedCartaoData.closing_day;
     
-    // The "open" invoice is the one currently accumulating charges
-    // Banks name it by the VENCIMENTO (due) month, which is typically the month AFTER closing
-    // 
-    // Example: Closing day = 27, today = Jan 16
-    // - We're before closing day (27), so still in this billing cycle
-    // - This cycle closes Jan 27 and is DUE in February
-    // - Bank calls this the "February invoice" = competência FEVEREIRO
-    //
-    // Example: Closing day = 27, today = Jan 28
-    // - We're after closing day, so January's invoice already closed
-    // - New cycle started, will close Feb 27 and be DUE in March
-    // - Bank calls this the "March invoice" = competência MARÇO
     let competenciaDate: Date;
     if (currentDay <= closingDay) {
       // Before or on closing day - current cycle, due NEXT month
