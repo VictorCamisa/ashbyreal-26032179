@@ -76,7 +76,7 @@ export function ImportarFaturaCartaoDialog({
   onOpenChange,
   onSuccess 
 }: ImportarFaturaCartaoDialogProps) {
-  const { cartoes } = useCartoes();
+  const { cartoes, faturas } = useCartoes();
   const { createGasto, isCreating, confirmImport } = useGastosCartaoMutations();
   
   const [step, setStep] = useState<'select' | 'upload' | 'preview' | 'importing' | 'done'>('select');
@@ -320,7 +320,17 @@ export function ImportarFaturaCartaoDialog({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  // Valor total das transações já existentes
+  // Valor da fatura atual no banco de dados
+  const currentInvoiceValue = useMemo(() => {
+    if (!selectedCartao || !competenciaAlvo || !faturas) return 0;
+    const competenciaFormatted = `${competenciaAlvo}-01`;
+    const invoice = faturas.find(
+      f => f.credit_card_id === selectedCartao && f.competencia === competenciaFormatted
+    );
+    return invoice?.total_value || 0;
+  }, [selectedCartao, competenciaAlvo, faturas]);
+
+  // Valor total das transações já existentes (calculado das transações individuais)
   const existingTotal = useMemo(() => {
     return existingTransactions.reduce((sum, t) => sum + t.amount, 0);
   }, [existingTransactions]);
@@ -516,6 +526,16 @@ export function ImportarFaturaCartaoDialog({
         {/* Step 3: Preview */}
         {step === 'preview' && (
           <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Current Invoice Value */}
+            {currentInvoiceValue > 0 && (
+              <div className="mb-3 p-3 rounded-lg bg-muted/50 border">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Fatura atual no sistema:</span>
+                  <span className="font-bold text-lg">{formatCurrency(currentInvoiceValue)}</span>
+                </div>
+              </div>
+            )}
+
             {/* Comparison Summary Banner */}
             <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20">
               <div className="flex items-center justify-between">
