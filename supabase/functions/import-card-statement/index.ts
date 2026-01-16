@@ -794,6 +794,14 @@ serve(async (req) => {
 
     console.log(`Filtering for tipo=${tipoImportacao}, targetCompetencia=${targetCompetencia}`);
 
+    // Collect unique competencias found in file for debugging
+    const competenciasNoArquivo = new Map<string, number>();
+    for (const tx of transactions) {
+      const txComp = calculateCompetencia(tx.date, closingDay);
+      competenciasNoArquivo.set(txComp, (competenciasNoArquivo.get(txComp) || 0) + 1);
+    }
+    console.log("Competências encontradas no arquivo:", Object.fromEntries(competenciasNoArquivo));
+
     for (const tx of transactions) {
       // Calculate correct competencia based on purchase date and closing day
       const txCompetencia = calculateCompetencia(tx.date, closingDay);
@@ -811,7 +819,7 @@ serve(async (req) => {
       }
 
       if (!shouldInclude) {
-        console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} doesn't match filter (tipo=${tipoImportacao})`);
+        console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} doesn't match target ${targetCompetencia} (tipo=${tipoImportacao})`);
         continue;
       }
 
@@ -902,6 +910,9 @@ serve(async (req) => {
         // New fields for incremental import
         existing_transactions: existingForCompetencia || [],
         previous_import: previousImportInfo,
+        // Debug info - competencias found in file
+        competencias_no_arquivo: Object.fromEntries(competenciasNoArquivo),
+        total_parsed: transactions.length,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
