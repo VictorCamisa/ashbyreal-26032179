@@ -755,18 +755,25 @@ serve(async (req) => {
     }
 
     // Function to calculate correct competencia based on closing day
+    // IMPORTANT: Banks name invoices by their DUE MONTH (vencimento), not closing month
+    // Example: Closing day = 27, purchase on Jan 15
+    // - Purchase is before closing (15 <= 27), so it's in the Jan 27 closing cycle
+    // - That invoice is DUE in February (Feb 4)
+    // - Bank calls this the "February invoice" → competencia = FEBRUARY
     function calculateCompetencia(purchaseDate: string, closingDay: number): string {
       const date = new Date(purchaseDate + 'T12:00:00Z');
       const day = date.getUTCDate();
       
       if (day <= closingDay) {
-        // Belongs to current month
-        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-01`;
-      } else {
-        // Belongs to next month
+        // Purchase before closing day → invoice closes this month, DUE NEXT month
         const nextMonth = new Date(date);
         nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
         return `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      } else {
+        // Purchase after closing day → new cycle, closes next month, DUE in 2 months
+        const twoMonthsLater = new Date(date);
+        twoMonthsLater.setUTCMonth(twoMonthsLater.getUTCMonth() + 2);
+        return `${twoMonthsLater.getUTCFullYear()}-${String(twoMonthsLater.getUTCMonth() + 1).padStart(2, '0')}-01`;
       }
     }
 
