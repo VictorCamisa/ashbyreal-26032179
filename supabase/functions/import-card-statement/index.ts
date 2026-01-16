@@ -803,24 +803,26 @@ serve(async (req) => {
     console.log("Competências encontradas no arquivo:", Object.fromEntries(competenciasNoArquivo));
 
     for (const tx of transactions) {
-      // Calculate correct competencia based on purchase date and closing day
-      const txCompetencia = calculateCompetencia(tx.date, closingDay);
-      
-      // For FECHADA: only include transactions matching the target competência
-      // For ABERTA: include transactions from target competência onwards (current + future)
-      let shouldInclude = false;
+      // For FECHADA (closed invoice): use the target competencia directly
+      // because the bank statement already contains only transactions for that billing cycle
+      // For ABERTA (open invoice): calculate based on purchase date and closing day
+      let txCompetencia: string;
+      let shouldInclude = true;
       
       if (isOpenInvoice) {
-        // Open invoice: include current and future transactions
+        // Open invoice: calculate competencia based on purchase date
+        txCompetencia = calculateCompetencia(tx.date, closingDay);
+        // Include transactions from target competência onwards (current + future)
         shouldInclude = txCompetencia >= targetCompetencia;
+        
+        if (!shouldInclude) {
+          console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} < target ${targetCompetencia} (tipo=${tipoImportacao})`);
+          continue;
+        }
       } else {
-        // Closed invoice: exact match only
-        shouldInclude = txCompetencia === targetCompetencia;
-      }
-
-      if (!shouldInclude) {
-        console.log(`  Skipping ${tx.description}: competencia ${txCompetencia} doesn't match target ${targetCompetencia} (tipo=${tipoImportacao})`);
-        continue;
+        // Closed invoice: ALL transactions in the file belong to the selected competencia
+        // This is because bank statements only include transactions for that billing period
+        txCompetencia = targetCompetencia;
       }
 
       const dedupeKey = generateDedupeKey(
