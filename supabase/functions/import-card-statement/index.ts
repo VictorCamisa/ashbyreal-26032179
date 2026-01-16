@@ -756,25 +756,45 @@ serve(async (req) => {
 
     // Function to calculate correct competencia based on closing day
     // IMPORTANT: Banks name invoices by their DUE MONTH (vencimento), not closing month
-    // Example: Closing day = 27, purchase on Jan 15
-    // - Purchase is before closing (15 <= 27), so it's in the Jan 27 closing cycle
-    // - That invoice is DUE in February (Feb 4)
-    // - Bank calls this the "February invoice" → competencia = FEBRUARY
+    // 
+    // The billing cycle works like this:
+    // - Purchases from day (closingDay+1) of month M-1 to closingDay of month M
+    //   are billed in the invoice that CLOSES on day closingDay of month M
+    //   and is DUE in month M+1 (around day dueDay)
+    // - Banks call this the "Month M+1 invoice" (by due date)
+    //
+    // Example: Closing day = 27
+    // - Purchase on Dec 28 (after closing) → Goes to Jan 27 closing → Due Feb 4 → "February invoice"
+    // - Purchase on Jan 15 (before closing) → Goes to Jan 27 closing → Due Feb 4 → "February invoice"  
+    // - Purchase on Jan 28 (after closing) → Goes to Feb 27 closing → Due Mar 4 → "March invoice"
     function calculateCompetencia(purchaseDate: string, closingDay: number): string {
       const date = new Date(purchaseDate + 'T12:00:00Z');
       const day = date.getUTCDate();
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth(); // 0-indexed
+      
+      let competenciaMonth: number;
+      let competenciaYear: number;
       
       if (day <= closingDay) {
-        // Purchase before closing day → invoice closes this month, DUE NEXT month
-        const nextMonth = new Date(date);
-        nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
-        return `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
+        // Purchase on or before closing day → invoice closes THIS month, DUE NEXT month
+        // Example: Jan 15 with closing 27 → closes Jan 27 → due Feb → competencia = Feb
+        competenciaMonth = month + 1; // +1 for due month
+        competenciaYear = year;
       } else {
-        // Purchase after closing day → new cycle, closes next month, DUE in 2 months
-        const twoMonthsLater = new Date(date);
-        twoMonthsLater.setUTCMonth(twoMonthsLater.getUTCMonth() + 2);
-        return `${twoMonthsLater.getUTCFullYear()}-${String(twoMonthsLater.getUTCMonth() + 1).padStart(2, '0')}-01`;
+        // Purchase after closing day → invoice closes NEXT month, DUE in 2 months
+        // Example: Jan 28 with closing 27 → closes Feb 27 → due Mar → competencia = Mar
+        competenciaMonth = month + 2; // +2 for due month (next month's closing + 1)
+        competenciaYear = year;
       }
+      
+      // Handle year overflow
+      if (competenciaMonth > 11) {
+        competenciaYear += Math.floor(competenciaMonth / 12);
+        competenciaMonth = competenciaMonth % 12;
+      }
+      
+      return `${competenciaYear}-${String(competenciaMonth + 1).padStart(2, '0')}-01`;
     }
 
     // Check for duplicates across ALL competencias for this card
