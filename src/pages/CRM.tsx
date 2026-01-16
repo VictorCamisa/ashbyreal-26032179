@@ -57,19 +57,26 @@ function DraggableOportunidadeCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const clienteId = oportunidade.clienteId || oportunidade.id;
+  const clienteId = oportunidade.clienteId;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Only navigate if not dragging
+    if (!isDragging) {
+      navigate(`/cliente/${clienteId}`);
+    }
+  };
 
   return (
     <div 
       ref={setNodeRef}
       style={style}
-      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative"
+      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative cursor-pointer"
+      onClick={handleCardClick}
     >
       <div 
         {...listeners}
         {...attributes}
         className="cursor-grab active:cursor-grabbing"
-        onClick={() => navigate(`/cliente/${clienteId}`)}
       >
         <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{oportunidade.nome}</p>
         <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
