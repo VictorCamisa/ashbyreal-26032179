@@ -46,6 +46,22 @@ interface ImportSummary {
   total_value: number;
 }
 
+interface ExistingTransaction {
+  id: string;
+  description: string;
+  amount: number;
+  purchase_date: string;
+  installment_number: number | null;
+  total_installments: number | null;
+  competencia: string;
+}
+
+interface PreviousImportInfo {
+  import_id: string;
+  imported_at: string;
+  records_imported: number;
+}
+
 const CARD_PROVIDERS: Record<string, { label: string; formats: string[]; color: string }> = {
   'LATAM': { label: 'LATAM Pass', formats: ['CSV'], color: 'bg-red-500' },
   'AZUL': { label: 'Azul Itaucard', formats: ['CSV'], color: 'bg-blue-500' },
@@ -71,8 +87,11 @@ export function ImportarFaturaCartaoDialog({
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
+  const [existingTransactions, setExistingTransactions] = useState<ExistingTransaction[]>([]);
+  const [previousImport, setPreviousImport] = useState<PreviousImportInfo | null>(null);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importId, setImportId] = useState<string | null>(null);
+  const [showExisting, setShowExisting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0, skipped: 0 });
 
@@ -89,10 +108,13 @@ export function ImportarFaturaCartaoDialog({
     });
     setSelectedFile(null);
     setParsedTransactions([]);
+    setExistingTransactions([]);
+    setPreviousImport(null);
     setImportSummary(null);
     setImportId(null);
     setImportProgress(0);
     setImportResults({ success: 0, failed: 0, skipped: 0 });
+    setShowExisting(false);
   };
 
   const handleClose = () => {
@@ -167,17 +189,24 @@ export function ImportarFaturaCartaoDialog({
 
       if (error) throw error;
 
-      // Verificar se arquivo já foi importado
-      if (result.already_imported) {
-        toast.error(result.error);
-        setStep('select');
-        return;
+      // Allow incremental imports - just warn if previously imported
+      if (result.previous_import) {
+        toast.info(`Arquivo já importado anteriormente (${result.previous_import.records_imported} transações). Verificando novas transações...`);
       }
 
       if (result.error && !result.transactions?.length) {
         toast.error(result.error);
         setStep('select');
         return;
+      }
+
+      // Store existing transactions for display
+      if (result.existing_transactions) {
+        setExistingTransactions(result.existing_transactions);
+      }
+      
+      if (result.previous_import) {
+        setPreviousImport(result.previous_import);
       }
 
       if (result.transactions && result.transactions.length > 0) {
@@ -195,6 +224,12 @@ export function ImportarFaturaCartaoDialog({
         if (result.summary.duplicates > 0) {
           toast.info(`${result.summary.duplicates} transações duplicadas serão ignoradas`);
         }
+      } else if (result.existing_transactions?.length > 0) {
+        // No new transactions but has existing - show preview anyway
+        setParsedTransactions([]);
+        setImportSummary({ new_items: 0, duplicates: 0, future_installments: 0, total_value: 0 });
+        setStep('preview');
+        toast.info('Nenhuma transação nova encontrada. Todas já estão cadastradas.');
       } else {
         toast.warning('Nenhuma transação encontrada no arquivo.');
         setStep('select');
@@ -474,8 +509,80 @@ export function ImportarFaturaCartaoDialog({
         {/* Step 3: Preview */}
         {step === 'preview' && (
           <div className="flex flex-col flex-1 overflow-hidden">
+            {/* Comparison Summary Banner */}
+            <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-muted-foreground">{existingTransactions.length}</p>
+                    <p className="text-xs text-muted-foreground">Já cadastradas</p>
+                  </div>
+                  <span className="text-2xl text-muted-foreground">+</span>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-emerald-600">{importSummary?.new_items || 0}</p>
+                    <p className="text-xs text-emerald-600">Novas</p>
+                  </div>
+                  <span className="text-2xl text-muted-foreground">=</span>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary">{existingTransactions.length + (importSummary?.new_items || 0)}</p>
+                    <p className="text-xs text-primary">Total após importação</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {previousImport && (
+                    <Badge variant="outline" className="text-xs">
+                      Última importação: {new Date(previousImport.imported_at).toLocaleDateString('pt-BR')}
+                    </Badge>
+                  )}
+                  <span className="font-semibold text-lg text-primary">
+                    {formatCurrency(selectedStats.total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Existing Transactions Collapsible */}
+            {existingTransactions.length > 0 && (
+              <Collapsible open={showExisting} onOpenChange={setShowExisting} className="mb-4">
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full justify-between gap-2 mb-2">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                      {existingTransactions.length} transações já cadastradas nesta competência
+                    </span>
+                    <ChevronRight className={cn("h-4 w-4 transition-transform", showExisting && "rotate-90")} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="border rounded-lg max-h-40 overflow-y-auto bg-muted/30">
+                    <Table>
+                      <TableBody>
+                        {existingTransactions.map((t) => (
+                          <TableRow key={t.id} className="text-muted-foreground">
+                            <TableCell className="py-2 text-xs font-mono">
+                              {new Date(t.purchase_date).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="py-2 text-xs max-w-xs truncate">{t.description}</TableCell>
+                            <TableCell className="py-2 text-xs">
+                              {t.total_installments && t.total_installments > 1 
+                                ? `${t.installment_number}/${t.total_installments}` 
+                                : '-'
+                              }
+                            </TableCell>
+                            <TableCell className="py-2 text-xs text-right font-medium">
+                              {formatCurrency(t.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
             {/* Summary Header */}
-            <div className="flex items-center justify-between mb-4 pb-4 border-b">
+            <div className="flex items-center justify-between mb-3 pb-3 border-b">
               <div className="flex items-center gap-4">
                 {importSummary && (
                   <>
@@ -498,16 +605,11 @@ export function ImportarFaturaCartaoDialog({
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="font-semibold text-lg">
-                  {formatCurrency(selectedStats.total)}
-                </span>
-                <Button variant="outline" size="sm" onClick={toggleAllNew}>
-                  {parsedTransactions.filter(t => t.status === 'NEW').every(t => t.selected) 
-                    ? 'Desmarcar Novas' 
-                    : 'Selecionar Novas'}
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={toggleAllNew} disabled={!parsedTransactions.some(t => t.status === 'NEW')}>
+                {parsedTransactions.filter(t => t.status === 'NEW').every(t => t.selected) 
+                  ? 'Desmarcar Novas' 
+                  : 'Selecionar Novas'}
+              </Button>
             </div>
 
             {/* Transaction Table */}
