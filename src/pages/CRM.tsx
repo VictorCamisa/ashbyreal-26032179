@@ -59,26 +59,27 @@ function DraggableOportunidadeCard({
 
   const clienteId = oportunidade.clienteId;
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Only navigate if not dragging
-    if (!isDragging) {
-      navigate(`/cliente/${clienteId}`);
-    }
-  };
-
   return (
     <div 
       ref={setNodeRef}
       style={style}
-      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative cursor-pointer"
-      onClick={handleCardClick}
+      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative"
     >
+      {/* Drag handle area */}
       <div 
         {...listeners}
         {...attributes}
         className="cursor-grab active:cursor-grabbing"
       >
-        <p className="text-sm font-medium mb-1 group-hover:text-primary transition-colors">{oportunidade.nome}</p>
+        <p 
+          className="text-sm font-medium mb-1 group-hover:text-primary transition-colors cursor-pointer hover:underline"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/cliente/${clienteId}`);
+          }}
+        >
+          {oportunidade.nome}
+        </p>
         <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
         <div className="flex items-center justify-between">
           <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
