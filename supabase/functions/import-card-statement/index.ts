@@ -695,70 +695,18 @@ serve(async (req) => {
     }
     
     // Fetch existing transactions for this card to show in preview
-    // For open invoices, we need to show only transactions from the CURRENT billing cycle
-    // (purchases made between closing day of previous month and today)
-    // For closed invoices, show all transactions with that competencia
+    // For BOTH open and closed invoices, we need to show ALL transactions with this competencia
+    // because the bank includes both new purchases AND installments from previous purchases
     const competenciaFormatted = `${competenciaAlvo.slice(0, 7)}-01`;
-    const isOpenInvoiceMode = tipoImportacao === 'ABERTA';
     
-    let existingForCompetencia: any[] = [];
+    const { data: existingForCompetencia } = await supabase
+      .from('credit_card_transactions')
+      .select('id, description, amount, purchase_date, installment_number, total_installments, competencia')
+      .eq('credit_card_id', creditCardId)
+      .eq('competencia', competenciaFormatted)
+      .order('purchase_date', { ascending: true });
     
-    if (isOpenInvoiceMode) {
-      // For OPEN invoices: only show purchases from current billing cycle
-      // Current cycle = purchases that will be in this competencia based on their purchase date
-      // i.e., purchases where calculateCompetencia(purchase_date) == targetCompetencia
-      
-      // Calculate the date range for this billing cycle
-      // Competencia Feb = purchases from Dec 28 to Jan 27 (if closing day = 27)
-      const competenciaDate = new Date(competenciaFormatted + 'T12:00:00Z');
-      const dueMonth = competenciaDate.getUTCMonth(); // 0-indexed (Feb = 1)
-      const dueYear = competenciaDate.getUTCFullYear();
-      
-      // Closing month is 1 month before due month
-      let closingMonth = dueMonth - 1;
-      let closingYear = dueYear;
-      if (closingMonth < 0) {
-        closingMonth = 11;
-        closingYear--;
-      }
-      
-      // Start date: day after closing of previous month
-      let startMonth = closingMonth - 1;
-      let startYear = closingYear;
-      if (startMonth < 0) {
-        startMonth = 11;
-        startYear--;
-      }
-      
-      const cycleStartDate = `${startYear}-${String(startMonth + 1).padStart(2, '0')}-${String(closingDay + 1).padStart(2, '0')}`;
-      const cycleEndDate = `${closingYear}-${String(closingMonth + 1).padStart(2, '0')}-${String(closingDay).padStart(2, '0')}`;
-      
-      console.log(`Open invoice cycle: ${cycleStartDate} to ${cycleEndDate}`);
-      
-      // Fetch only transactions with purchases in this cycle
-      const { data: cycleTransactions } = await supabase
-        .from('credit_card_transactions')
-        .select('id, description, amount, purchase_date, installment_number, total_installments, competencia')
-        .eq('credit_card_id', creditCardId)
-        .eq('competencia', competenciaFormatted)
-        .gte('purchase_date', cycleStartDate)
-        .lte('purchase_date', cycleEndDate)
-        .order('purchase_date', { ascending: true });
-      
-      existingForCompetencia = cycleTransactions || [];
-      console.log(`Found ${existingForCompetencia.length} transactions in current billing cycle (open invoice)`);
-    } else {
-      // For CLOSED invoices: show all transactions with that competencia
-      const { data: allTransactions } = await supabase
-        .from('credit_card_transactions')
-        .select('id, description, amount, purchase_date, installment_number, total_installments, competencia')
-        .eq('credit_card_id', creditCardId)
-        .eq('competencia', competenciaFormatted)
-        .order('purchase_date', { ascending: true });
-      
-      existingForCompetencia = allTransactions || [];
-      console.log(`Found ${existingForCompetencia.length} existing transactions for competencia ${competenciaAlvo} (closed invoice)`);
-    }
+    console.log(`Found ${existingForCompetencia?.length || 0} existing transactions for competencia ${competenciaAlvo}`);
 
     let transactions: ParsedTransaction[] = [];
     let errorMessage = "";
