@@ -746,20 +746,37 @@ export function ImportarFaturaCartaoDialog({
             <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="text-center px-3">
-                    <p className="text-xl font-bold text-muted-foreground">{formatCurrency(existingTotal)}</p>
-                    <p className="text-xs text-muted-foreground">{existingTransactions.length} já cadastradas</p>
-                  </div>
-                  <span className="text-xl text-muted-foreground">+</span>
-                  <div className="text-center px-3">
-                    <p className="text-xl font-bold text-emerald-600">{formatCurrency(selectedStats.total)}</p>
-                    <p className="text-xs text-emerald-600">{importSummary?.new_items || 0} novas</p>
-                  </div>
-                  <span className="text-xl text-muted-foreground">=</span>
-                  <div className="text-center px-3 bg-primary/20 rounded-lg py-2">
-                    <p className="text-xl font-bold text-primary">{formatCurrency(selectedStats.grandTotal)}</p>
-                    <p className="text-xs text-primary">Fatura após importação</p>
-                  </div>
+                  {tipoImportacao === 'ABERTA' ? (
+                    // For open invoices, show only new transactions to be imported
+                    <>
+                      <div className="text-center px-3">
+                        <p className="text-xl font-bold text-emerald-600">{formatCurrency(selectedStats.total)}</p>
+                        <p className="text-xs text-emerald-600">{importSummary?.new_items || 0} compras do ciclo atual</p>
+                      </div>
+                      <div className="text-center px-3 text-muted-foreground">
+                        <p className="text-sm">+</p>
+                        <p className="text-xs">{existingTransactions.length} parcelas futuras já cadastradas</p>
+                      </div>
+                    </>
+                  ) : (
+                    // For closed invoices, show the sum calculation
+                    <>
+                      <div className="text-center px-3">
+                        <p className="text-xl font-bold text-muted-foreground">{formatCurrency(existingTotal)}</p>
+                        <p className="text-xs text-muted-foreground">{existingTransactions.length} já cadastradas</p>
+                      </div>
+                      <span className="text-xl text-muted-foreground">+</span>
+                      <div className="text-center px-3">
+                        <p className="text-xl font-bold text-emerald-600">{formatCurrency(selectedStats.total)}</p>
+                        <p className="text-xs text-emerald-600">{importSummary?.new_items || 0} novas</p>
+                      </div>
+                      <span className="text-xl text-muted-foreground">=</span>
+                      <div className="text-center px-3 bg-primary/20 rounded-lg py-2">
+                        <p className="text-xl font-bold text-primary">{formatCurrency(selectedStats.grandTotal)}</p>
+                        <p className="text-xs text-primary">Fatura após importação</p>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge variant="outline" className="text-xs">
