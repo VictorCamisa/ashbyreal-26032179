@@ -804,7 +804,7 @@ serve(async (req) => {
     // Check for duplicates across ALL competencias for this card
     const { data: existingTransactions } = await supabase
       .from('credit_card_transactions')
-      .select('dedupe_key, competencia, purchase_date, amount, description, installment_number, total_installments')
+      .select('dedupe_key, competencia, purchase_date, amount, description, installment_number, total_installments, parent_purchase_id')
       .eq('credit_card_id', creditCardId)
       .not('dedupe_key', 'is', null);
 
@@ -821,7 +821,17 @@ serve(async (req) => {
       }) || []
     );
     
-    console.log(`Found ${existingDedupeKeys.size} existing dedupe keys, ${existingSignatures.size} unique signatures`);
+    // Get existing purchase fingerprints to detect if a purchase (any installment) already exists
+    // This is crucial for open invoices where the file shows installment 1 but we already have installment 2+
+    const { data: existingPurchases } = await supabase
+      .from('card_purchases')
+      .select('purchase_fingerprint')
+      .eq('credit_card_id', creditCardId)
+      .not('purchase_fingerprint', 'is', null);
+    
+    const existingPurchaseFingerprints = new Set(existingPurchases?.map(p => p.purchase_fingerprint) || []);
+    
+    console.log(`Found ${existingDedupeKeys.size} existing dedupe keys, ${existingSignatures.size} unique signatures, ${existingPurchaseFingerprints.size} purchase fingerprints`);
 
     // Process transactions and add idempotency fields
     const summary: ImportSummary = {
@@ -893,19 +903,34 @@ serve(async (req) => {
         tx.total_installments
       );
 
-      // For open invoices, check by signature (ignores competencia differences)
+      // For open invoices, check by multiple methods:
+      // 1. Signature (exact match including installment number)
+      // 2. Purchase fingerprint (to detect if ANY installment of this purchase exists)
       // For closed invoices, check by dedupe_key (includes competencia)
       let isDuplicate: boolean;
+      let duplicateReason = '';
       
       if (isOpenInvoice) {
-        // Signature-based deduplication for open invoices
+        // First check by exact signature
         const desc = String(tx.description || '').replace(/\s+/g, '').toUpperCase();
         const amt = Math.round(Math.abs(tx.amount) * 100);
         const signature = `${tx.date}_${amt}_${desc}_${tx.installment_number || 1}_${tx.total_installments || 1}`;
-        isDuplicate = existingSignatures.has(signature);
+        
+        if (existingSignatures.has(signature)) {
+          isDuplicate = true;
+          duplicateReason = 'signature';
+        } 
+        // Then check by purchase fingerprint (for installment purchases that already have other installments)
+        else if (tx.total_installments > 1 && existingPurchaseFingerprints.has(purchaseFingerprint)) {
+          isDuplicate = true;
+          duplicateReason = 'purchase_fingerprint';
+        }
+        else {
+          isDuplicate = false;
+        }
         
         if (isDuplicate) {
-          console.log(`  Duplicate (signature match): ${tx.description} | ${tx.date} | ${tx.amount}`);
+          console.log(`  Duplicate (${duplicateReason}): ${tx.description} | ${tx.date} | ${tx.amount} | ${tx.installment_number}/${tx.total_installments}`);
         }
       } else {
         // Key-based deduplication for closed invoices
