@@ -101,6 +101,7 @@ interface UnifiedTransaction {
   total_installments?: number;
   isCardTransaction?: boolean;
   isFaturaCartao?: boolean;
+  recurrence_id?: string | null;
 }
 
 export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: TransacoesUnificadasProps) {
@@ -111,6 +112,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   
   const [tagFilter, setTagFilter] = useState<string>('');
+  const [recorrenteFilter, setRecorrenteFilter] = useState<string>('todos');
   const [showImport, setShowImport] = useState(false);
   const [showNovaTransacao, setShowNovaTransacao] = useState(false);
   const [tipoTransacao, setTipoTransacao] = useState<'PAGAR' | 'RECEBER'>('PAGAR');
@@ -252,6 +254,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           tags: t.tags as string[] | null,
           isCardTransaction: false,
           isFaturaCartao: t.origin === 'FATURA_CARTAO',
+          recurrence_id: t.recurrence_id,
         });
       });
     }
@@ -542,9 +545,14 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       const tags = t.tags as string[] | null;
       const matchesTag = tagFilter === '' || (tags && tags.includes(tagFilter));
       
-      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesTag;
+      // Recorrente filter
+      const matchesRecorrente = recorrenteFilter === 'todos' || 
+        (recorrenteFilter === 'recorrente' && t.recurrence_id) ||
+        (recorrenteFilter === 'avulsa' && !t.recurrence_id);
+      
+      return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesTag && matchesRecorrente;
     });
-  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, tagFilter]);
+  }, [transactions, searchTerm, tipoFilter, entityFilter, statusFilter, tagFilter, recorrenteFilter]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -775,6 +783,19 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
               <SelectItem value="PAGO">Pago</SelectItem>
               <SelectItem value="PREVISTO">Pendente</SelectItem>
               <SelectItem value="ATRASADO">Atrasado</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Recorrente filter */}
+          <Select value={recorrenteFilter} onValueChange={setRecorrenteFilter}>
+            <SelectTrigger className="w-[130px]">
+              <Repeat className="h-3.5 w-3.5 mr-1" />
+              <SelectValue placeholder="Recorrência" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas</SelectItem>
+              <SelectItem value="recorrente">Recorrentes</SelectItem>
+              <SelectItem value="avulsa">Avulsas</SelectItem>
             </SelectContent>
           </Select>
 
