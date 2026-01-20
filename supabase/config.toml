@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.elevenlabs-tts]
 verify_jwt = false
+
+[functions.elevenlabs-voices]
+verify_jwt = false
+
+[functions.extract-leads]
+verify_jwt = false

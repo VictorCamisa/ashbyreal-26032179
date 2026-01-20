@@ -10,11 +10,13 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Users, TrendingUp, UserPlus, Activity } from 'lucide-react';
+import { Search, Users, TrendingUp, UserPlus, Activity, Download } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
 import { ImportarClientesDialog } from '@/components/clientes/ImportarClientesDialog';
+import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 
@@ -26,6 +28,7 @@ const statusColors: Record<string, string> = {
 
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showExtrairLeads, setShowExtrairLeads] = useState(false);
   const navigate = useNavigate();
   const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
 
@@ -51,6 +54,14 @@ export default function Clientes() {
       icon={Users}
       actions={
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowExtrairLeads(true)}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Extrair Leads
+          </Button>
           <ImportarClientesDialog onImport={bulkImportClientes} isImporting={isImporting} />
           <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
         </div>
@@ -145,6 +156,11 @@ export default function Clientes() {
           </p>
         )}
       </div>
+
+      <ExtrairLeadsDialog 
+        open={showExtrairLeads} 
+        onOpenChange={setShowExtrairLeads} 
+      />
     </PageLayout>
   );
 }
