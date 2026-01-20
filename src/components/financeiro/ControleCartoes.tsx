@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils';
 export function ControleCartoes() {
   const { cartoes, faturas, transacoesPorCartao, isLoading } = useCartoes();
   const { createCartao, isCreating } = useCartoesMutations();
-  const { createFatura, isCreating: isCreatingFatura } = useFaturasMutations();
+  const { createFatura, isCreating: isCreatingFatura, syncMissingTransactions } = useFaturasMutations();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
   const { expenses, createExpense, toggleActive, deleteExpense, isCreating: isCreatingExpense } = useRecurringExpenses();
   
@@ -56,6 +56,23 @@ export function ControleCartoes() {
   const [selectedCard, setSelectedCard] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'analytics' | 'cards' | 'despesas'>('analytics');
 
+  // Flag para evitar múltiplas sincronizações
+  const hasSyncedRef = useRef(false);
+
+  // Sincronizar faturas pendentes automaticamente na inicialização
+  useEffect(() => {
+    if (!isLoading && faturas && !hasSyncedRef.current) {
+      const faturasNaoSincronizadas = faturas.filter(
+        f => (f.status === 'FECHADA' || f.status === 'PAGA') && !f.transaction_id
+      );
+      
+      if (faturasNaoSincronizadas.length > 0) {
+        console.log(`Sincronizando ${faturasNaoSincronizadas.length} faturas pendentes...`);
+        hasSyncedRef.current = true;
+        syncMissingTransactions();
+      }
+    }
+  }, [isLoading, faturas, syncMissingTransactions]);
 
   if (isLoading) {
     return (

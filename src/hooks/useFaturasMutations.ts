@@ -126,6 +126,60 @@ export function useFaturasMutations() {
     }
   });
 
+  // Mutation para ressincronizar faturas que não têm transaction_id
+  const syncMissingTransactions = useMutation({
+    mutationFn: async () => {
+      // Buscar faturas FECHADA ou PAGA sem transaction_id
+      const { data: invoices, error: fetchError } = await supabase
+        .from('credit_card_invoices')
+        .select('id, status')
+        .in('status', ['FECHADA', 'PAGA'])
+        .is('transaction_id', null);
+
+      if (fetchError) throw fetchError;
+      if (!invoices || invoices.length === 0) {
+        return { synced: 0 };
+      }
+
+      let synced = 0;
+      const errors: string[] = [];
+
+      // Sincronizar cada fatura
+      for (const invoice of invoices) {
+        const { error: syncError } = await supabase
+          .rpc('sync_invoice_to_transaction', { invoice_id: invoice.id });
+        
+        if (syncError) {
+          errors.push(`Fatura ${invoice.id}: ${syncError.message}`);
+        } else {
+          synced++;
+        }
+      }
+
+      if (errors.length > 0) {
+        console.error('Erros na sincronização:', errors);
+      }
+
+      return { synced, total: invoices.length, errors };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['card-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      
+      if (result.synced > 0) {
+        toast.success(`${result.synced} fatura(s) sincronizada(s) com transações!`);
+      } else {
+        toast.info('Nenhuma fatura pendente de sincronização.');
+      }
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao sincronizar faturas: ' + error.message);
+    }
+  });
+
   return {
     createFatura: createFatura.mutate,
     isCreating: createFatura.isPending,
@@ -135,5 +189,7 @@ export function useFaturasMutations() {
     isUpdating: updateInvoiceStatus.isPending,
     recalculateInvoiceTotal: recalculateInvoiceTotal.mutate,
     isRecalculating: recalculateInvoiceTotal.isPending,
+    syncMissingTransactions: syncMissingTransactions.mutate,
+    isSyncing: syncMissingTransactions.isPending,
   };
 }
