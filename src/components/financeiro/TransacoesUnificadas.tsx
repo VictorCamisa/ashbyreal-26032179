@@ -24,7 +24,9 @@ import {
   CheckSquare,
   Square,
   MoreHorizontal,
-  Repeat
+  Repeat,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -51,6 +53,7 @@ import { EditarTransacaoDialog } from './EditarTransacaoDialog';
 import { TornarRecorrenteDialog } from './TornarRecorrenteDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
 import { TransacoesDRE } from './TransacoesDRE';
+import { TransactionRow } from './TransactionRow';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +89,7 @@ interface UnifiedTransaction {
   status: string;
   tipo: 'PAGAR' | 'RECEBER';
   origin: string;
+  origin_reference_id?: string | null;
   entity_id: string;
   categories?: { name: string; group: string | null } | null;
   subcategories?: { name: string } | null;
@@ -96,6 +100,7 @@ interface UnifiedTransaction {
   installment_number?: number;
   total_installments?: number;
   isCardTransaction?: boolean;
+  isFaturaCartao?: boolean;
 }
 
 export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: TransacoesUnificadasProps) {
@@ -118,6 +123,9 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const [recurringTransaction, setRecurringTransaction] = useState<any>(null);
+  
+  // Expanded invoice state - to show credit card transactions
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   // Apply initial filter when component mounts or filter changes
   useEffect(() => {
@@ -183,27 +191,6 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
-  // Fetch credit card transactions for the month (future invoices)
-  const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
-    queryKey: ['transacoes-cartao', monthStr],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          *,
-          credit_cards(name, entity_id, entities(name, type)),
-          categories(name, group),
-          subcategories(name)
-        `)
-        .gte('competencia', `${monthStr}-01`)
-        .lte('competencia', lastDayOfMonth)
-        .order('purchase_date', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    }
-  });
-
   // Auto-correct status: mark overdue transactions as ATRASADO
   const autoCorrectStatusMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -238,9 +225,9 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   }, [bankTransactions]);
 
-  const isLoading = isLoadingBank || isLoadingCards;
+  const isLoading = isLoadingBank;
 
-  // Map bank transactions to unified format
+  // Map bank transactions to unified format (without individual card transactions)
   const transactions: UnifiedTransaction[] = useMemo(() => {
     const unified: UnifiedTransaction[] = [];
 
@@ -256,6 +243,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           status: t.status,
           tipo: t.tipo as 'PAGAR' | 'RECEBER',
           origin: t.origin || 'MANUAL',
+          origin_reference_id: t.origin_reference_id,
           entity_id: t.entity_id,
           categories: t.categories,
           subcategories: t.subcategories,
@@ -263,48 +251,14 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           entities: t.entities,
           tags: t.tags as string[] | null,
           isCardTransaction: false,
-        });
-      });
-    }
-
-    // Add credit card transactions (future invoices)
-    if (cardTransactions) {
-      cardTransactions.forEach((t) => {
-        const cardData = t.credit_cards as any;
-        const entityData = cardData?.entities;
-        
-        // Build description with installment info
-        let description = t.description;
-        if (t.installment_number && t.total_installments && t.total_installments > 1) {
-          description = `${t.description} (${t.installment_number}/${t.total_installments})`;
-        }
-
-        unified.push({
-          id: `card-${t.id}`,
-          description,
-          amount: Math.abs(Number(t.amount)),
-          due_date: t.competencia, // Use competencia as due date
-          payment_date: null,
-          status: t.item_status === 'POSTADO' ? 'PAGO' : 'PREVISTO',
-          tipo: 'PAGAR',
-          origin: 'CARTAO',
-          entity_id: cardData?.entity_id || '',
-          categories: t.categories,
-          subcategories: t.subcategories,
-          accounts: null,
-          entities: entityData ? { name: entityData.name, type: entityData.type } : null,
-          credit_cards: cardData ? { name: cardData.name } : null,
-          tags: null,
-          isCardTransaction: true,
-          installment_number: t.installment_number || undefined,
-          total_installments: t.total_installments || undefined,
+          isFaturaCartao: t.origin === 'FATURA_CARTAO',
         });
       });
     }
 
     // Sort by due_date descending
     return unified.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
-  }, [bankTransactions, cardTransactions]);
+  }, [bankTransactions]);
 
   // Category color mapping based on group
   const getCategoryColor = (group: string | null) => {
@@ -1012,181 +966,26 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                   </span>
                 </div>
 
-                {filteredTransactions.map((t) => {
-                  const isReceita = t.tipo === 'RECEBER';
-                  const isOverdue = t.status === 'ATRASADO' || 
-                    (t.status === 'PREVISTO' && new Date(t.due_date) < new Date());
-                  const isPaid = t.status === 'PAGO';
-                  const tags = t.tags as string[] | null;
-                  const isSelected = selectedIds.has(t.id);
-                  
-                  return (
-                    <div 
-                      key={t.id}
-                      className={cn(
-                        "flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors",
-                        isOverdue && !isPaid && "bg-destructive/5",
-                        isSelected && "bg-primary/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelection(t.id)}
-                        />
-                        <div className={cn(
-                          "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                          isReceita ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"
-                        )}>
-                          {isReceita 
-                            ? <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
-                            : <ArrowDownCircle className="h-4 w-4 text-destructive" />
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(t.due_date), 'dd/MM/yyyy')}
-                            </span>
-                            {/* Installment badge */}
-                            {t.total_installments && t.total_installments > 1 && (
-                              <Badge variant="outline" className="text-xs py-0 h-5 bg-amber-500/10 text-amber-700 border-amber-500/30">
-                                {t.installment_number}/{t.total_installments}
-                              </Badge>
-                            )}
-                            {/* Card name badge */}
-                            {t.isCardTransaction && t.credit_cards?.name && (
-                              <Badge variant="secondary" className="text-xs py-0 h-5 gap-1">
-                                <CreditCard className="h-3 w-3" />
-                                {t.credit_cards.name}
-                              </Badge>
-                            )}
-                            {t.categories?.name && (
-                              <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
-                                {t.categories.name}
-                              </Badge>
-                            )}
-                            {!t.isCardTransaction && (
-                              <Badge variant="secondary" className="text-xs py-0 h-5 gap-1">
-                                {t.entities?.type === 'LOJA' ? (
-                                  <><Building2 className="h-3 w-3" /> Loja</>
-                                ) : (
-                                  <><User className="h-3 w-3" /> Part.</>
-                                )}
-                              </Badge>
-                            )}
-                            {/* Recurring badge */}
-                            {t.origin === 'RECORRENTE' && (
-                              <Badge variant="outline" className="text-xs py-0 h-5 gap-1 bg-blue-500/10 text-blue-700 border-blue-500/30">
-                                <Repeat className="h-3 w-3" />
-                                Recorrente
-                              </Badge>
-                            )}
-                            {/* Tags */}
-                            {tags && tags.map(tag => (
-                              <Badge 
-                                key={tag} 
-                                variant="secondary" 
-                                className="text-xs py-0 h-5 gap-1 bg-primary/10 text-primary"
-                              >
-                                <Tag className="h-2.5 w-2.5" />
-                                {tag}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRemoveTag(t.id, tags, tag);
-                                  }}
-                                  className="ml-0.5 hover:text-destructive"
-                                >
-                                  <X className="h-2.5 w-2.5" />
-                                </button>
-                              </Badge>
-                            ))}
-                            {/* Add tag input */}
-                            <TagInput 
-                              onAdd={(newTag) => handleAddTag(t.id, tags, newTag)}
-                              suggestions={allTags}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <Badge className={cn("text-xs", getStatusStyle(t.status, isOverdue))}>
-                          {getStatusLabel(t.status, isOverdue)}
-                        </Badge>
-                        <span className={cn(
-                          "text-sm font-semibold tabular-nums min-w-[100px] text-right",
-                          isReceita ? "text-emerald-600" : "text-destructive"
-                        )}>
-                          {isReceita ? '+' : '-'}{formatCurrency(Math.abs(Number(t.amount)))}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          {/* Mark as paid button - only for bank transactions */}
-                          {!isPaid && !t.isCardTransaction && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
-                                    onClick={() => markAsPaidMutation.mutate(t.id)}
-                                    disabled={markAsPaidMutation.isPending}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Marcar como pago</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {/* Edit/Delete/Recurring - only for bank transactions */}
-                          {!t.isCardTransaction && (
-                            <>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                      onClick={() => setRecurringTransaction(t)}
-                                    >
-                                      <Repeat className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Tornar recorrente</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setEditingTransaction(t)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => setDeletingId(t.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {filteredTransactions.map((t) => (
+                  <TransactionRow
+                    key={t.id}
+                    transaction={t}
+                    isSelected={selectedIds.has(t.id)}
+                    onToggleSelection={() => toggleSelection(t.id)}
+                    onMarkAsPaid={() => markAsPaidMutation.mutate(t.id)}
+                    onEdit={() => setEditingTransaction(t)}
+                    onDelete={() => setDeletingId(t.id)}
+                    onRecurring={() => setRecurringTransaction(t)}
+                    onAddTag={(tag) => handleAddTag(t.id, t.tags as string[] | null, tag)}
+                    onRemoveTag={(tag) => handleRemoveTag(t.id, t.tags as string[] | null, tag)}
+                    allTags={allTags}
+                    isMarkingPaid={markAsPaidMutation.isPending}
+                    formatCurrency={formatCurrency}
+                    getCategoryColor={getCategoryColor}
+                    getStatusStyle={getStatusStyle}
+                    getStatusLabel={getStatusLabel}
+                  />
+                ))}
               </div>
             )}
           </CardContent>
@@ -1280,78 +1079,3 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   );
 }
 
-// Tag input component
-function TagInput({ 
-  onAdd, 
-  suggestions 
-}: { 
-  onAdd: (tag: string) => void; 
-  suggestions: string[];
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [value, setValue] = useState('');
-
-  const handleSubmit = () => {
-    if (value.trim()) {
-      onAdd(value.trim());
-      setValue('');
-      setIsOpen(false);
-    }
-  };
-
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <Tag className="h-3 w-3" />
-        <span>+</span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-1">
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSubmit();
-          }
-          if (e.key === 'Escape') {
-            setIsOpen(false);
-            setValue('');
-          }
-        }}
-        placeholder="Nova tag..."
-        className="h-5 w-20 text-xs py-0 px-1"
-        autoFocus
-        list="tag-suggestions"
-      />
-      <datalist id="tag-suggestions">
-        {suggestions.map(s => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
-      <Button 
-        size="icon" 
-        variant="ghost" 
-        className="h-5 w-5" 
-        onClick={handleSubmit}
-      >
-        <Check className="h-3 w-3" />
-      </Button>
-      <Button 
-        size="icon" 
-        variant="ghost" 
-        className="h-5 w-5" 
-        onClick={() => { setIsOpen(false); setValue(''); }}
-      >
-        <X className="h-3 w-3" />
-      </Button>
-    </div>
-  );
-}
