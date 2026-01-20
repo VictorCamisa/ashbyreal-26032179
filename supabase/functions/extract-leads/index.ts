@@ -115,7 +115,7 @@ serve(async (req) => {
         const ddd = cleanPhone.slice(2, 4);
         const part1 = cleanPhone.slice(4, 9);
         const part2 = cleanPhone.slice(9);
-        return `(${ddd}) ${part1}-${part2}`;
+        return `+55 (${ddd}) ${part1}-${part2}`;
       }
       
       // Format Brazilian phone with 8 digits: +55 (11) 9999-9999
@@ -123,18 +123,34 @@ serve(async (req) => {
         const ddd = cleanPhone.slice(2, 4);
         const part1 = cleanPhone.slice(4, 8);
         const part2 = cleanPhone.slice(8);
-        return `(${ddd}) ${part1}-${part2}`;
+        return `+55 (${ddd}) ${part1}-${part2}`;
       }
       
-      // For any other format, just return with basic formatting
-      if (cleanPhone.length >= 10) {
-        const ddd = cleanPhone.slice(-10, -8);
-        const rest = cleanPhone.slice(-8);
-        if (rest.length === 8) {
-          return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
-        } else if (rest.length === 9) {
-          return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+      // For any other format with country code, add +
+      if (cleanPhone.length >= 12) {
+        const countryCode = cleanPhone.slice(0, 2);
+        const ddd = cleanPhone.slice(2, 4);
+        const rest = cleanPhone.slice(4);
+        if (rest.length === 9) {
+          return `+${countryCode} (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+        } else if (rest.length === 8) {
+          return `+${countryCode} (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
         }
+      }
+      
+      // For 10-11 digit phones (without country code), add +55
+      if (cleanPhone.length === 11) {
+        const ddd = cleanPhone.slice(0, 2);
+        const part1 = cleanPhone.slice(2, 7);
+        const part2 = cleanPhone.slice(7);
+        return `+55 (${ddd}) ${part1}-${part2}`;
+      }
+      
+      if (cleanPhone.length === 10) {
+        const ddd = cleanPhone.slice(0, 2);
+        const part1 = cleanPhone.slice(2, 6);
+        const part2 = cleanPhone.slice(6);
+        return `+55 (${ddd}) ${part1}-${part2}`;
       }
       
       return cleanPhone;
