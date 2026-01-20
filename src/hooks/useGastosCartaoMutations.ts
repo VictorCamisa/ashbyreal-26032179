@@ -263,16 +263,17 @@ export function useGastosCartaoMutations() {
 
 /**
  * Atualiza ou cria faturas para as transações criadas
+ * IMPORTANTE: O total_value é RECALCULADO a partir das transações, não incrementado
  */
 async function updateInvoicesForTransactions(
   transactions: any[],
   closingDay: number,
   dueDay: number
 ) {
+  // Agrupar transações por cartão/competência para otimizar queries
   const groupedTransactions: Record<string, { 
     cardId: string; 
     competencia: string; 
-    total: number; 
     transactionIds: string[] 
   }> = {};
 
@@ -284,11 +285,9 @@ async function updateInvoicesForTransactions(
       groupedTransactions[key] = {
         cardId: transaction.credit_card_id,
         competencia,
-        total: 0,
         transactionIds: []
       };
     }
-    groupedTransactions[key].total += transaction.amount;
     groupedTransactions[key].transactionIds.push(transaction.id);
   }
 
@@ -305,17 +304,27 @@ async function updateInvoicesForTransactions(
     let invoiceId: string;
 
     if (existingInvoice) {
-      const { error } = await supabase
-        .from('credit_card_invoices')
-        .update({ 
-          total_value: existingInvoice.total_value + group.total,
-          imported_at: existingInvoice.imported_at || new Date().toISOString(),
-        })
-        .eq('id', existingInvoice.id);
-      
-      if (error) console.error('Erro ao atualizar fatura:', error);
       invoiceId = existingInvoice.id;
+      
+      // RECALCULAR o total ao invés de somar incrementalmente
+      const { data: recalculatedTotal, error: recalcError } = await supabase
+        .rpc('recalculate_invoice_total', { invoice_id: invoiceId });
+      
+      if (recalcError) {
+        console.error('Erro ao recalcular total da fatura:', recalcError);
+      } else {
+        console.log(`Fatura ${invoiceId} recalculada: R$ ${recalculatedTotal}`);
+      }
+      
+      // Atualizar imported_at se necessário
+      if (!existingInvoice.imported_at) {
+        await supabase
+          .from('credit_card_invoices')
+          .update({ imported_at: new Date().toISOString() })
+          .eq('id', invoiceId);
+      }
     } else {
+      // Criar nova fatura - calcular datas corretamente
       const competenciaDate = new Date(group.competencia);
       const compYear = competenciaDate.getFullYear();
       const compMonth = competenciaDate.getMonth();
@@ -335,6 +344,15 @@ async function updateInvoicesForTransactions(
       
       const dueDateObj = new Date(dueDateYear, dueDateMonth, dueDay);
       
+      // Calcular total das transações deste grupo
+      const { data: totalData } = await supabase
+        .from('credit_card_transactions')
+        .select('amount')
+        .eq('credit_card_id', group.cardId)
+        .eq('competencia', group.competencia);
+      
+      const calculatedTotal = totalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      
       const { data: newInvoice, error } = await supabase
         .from('credit_card_invoices')
         .insert({
@@ -342,7 +360,7 @@ async function updateInvoicesForTransactions(
           competencia: group.competencia,
           closing_date: closingDate.toISOString().split('T')[0],
           due_date: dueDateObj.toISOString().split('T')[0],
-          total_value: group.total,
+          total_value: calculatedTotal,
           status: 'ABERTA',
           imported_at: new Date().toISOString(),
         })
@@ -356,6 +374,7 @@ async function updateInvoicesForTransactions(
       invoiceId = newInvoice.id;
     }
 
+    // Vincular transações à fatura
     const { error: updateError } = await supabase
       .from('credit_card_transactions')
       .update({ invoice_id: invoiceId })

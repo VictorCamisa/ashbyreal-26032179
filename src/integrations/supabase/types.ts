@@ -2283,6 +2283,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      recalculate_all_invoices_for_card: {
+        Args: { card_id: string }
+        Returns: number
+      }
+      recalculate_invoice_total: {
+        Args: { invoice_id: string }
+        Returns: number
+      }
+      sync_boleto_to_transaction: {
+        Args: { boleto_id: string }
+        Returns: string
+      }
+      sync_invoice_to_transaction: {
+        Args: { invoice_id: string }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
@@ -2315,6 +2331,7 @@ export type Database = {
         | "HORAS_EXTRAS"
         | "PEDIDO"
         | "BOLETO"
+        | "FATURA_CARTAO"
       transaction_status: "PREVISTO" | "PAGO" | "ATRASADO" | "CANCELADO"
       transaction_type: "PAGAR" | "RECEBER"
     }
@@ -2470,6 +2487,7 @@ export const Constants = {
         "HORAS_EXTRAS",
         "PEDIDO",
         "BOLETO",
+        "FATURA_CARTAO",
       ],
       transaction_status: ["PREVISTO", "PAGO", "ATRASADO", "CANCELADO"],
       transaction_type: ["PAGAR", "RECEBER"],
