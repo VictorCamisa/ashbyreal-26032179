@@ -23,7 +23,7 @@ export function useCartoes() {
       const { data, error } = await supabase
         .from('credit_card_invoices')
         .select('*')
-        .order('competencia', { ascending: false });
+        .order('competencia', { ascending: true });
 
       if (error) throw error;
       
@@ -53,7 +53,7 @@ export function useCartoes() {
         .from('card_purchases')
         .select('*')
         .eq('status', 'ATIVA')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       return data;
