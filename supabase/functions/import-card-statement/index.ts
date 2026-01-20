@@ -189,9 +189,20 @@ function extractInstallments(description: string): { num: number; total: number 
 
 function cleanDescription(description: string): string {
   let cleaned = String(description ?? "").trim();
-  cleaned = cleaned.replace(/\s+\d{1,2}\/\d{1,2}$/, "");
+  
+  // Remove installment patterns at end: "01/02", "02/12", "1/5"
+  cleaned = cleaned.replace(/\s*\d{1,2}\/\d{1,2}$/, "");
+  
+  // Remove installment patterns in middle: "PARCELA 1 DE 12", "PARC 2/12", "P 3 DE 10"
   cleaned = cleaned.replace(/\s*(?:PARCELA|PARC\.?|P)\s*\d{1,2}\s*(?:\/|DE)\s*\d{1,2}/gi, "");
-  cleaned = cleaned.replace(/\s+\d{1,2}\s*[xX]\s*\d{1,2}$/, "");
+  
+  // Remove multiplier patterns: "3x12", "3 x 12"
+  cleaned = cleaned.replace(/\s*\d{1,2}\s*[xX]\s*\d{1,2}$/, "");
+  
+  // Remove installment suffix patterns without space: "SHIBA01/02" -> "SHIBA"
+  cleaned = cleaned.replace(/(\d{1,2})\/(\d{1,2})$/, "");
+  
+  // Clean up spaces
   cleaned = cleaned.replace(/\s+/g, " ").trim();
   return cleaned;
 }
@@ -242,7 +253,9 @@ function isSummaryLine(description: string): boolean {
 }
 
 function normalizeMerchant(description: string): string {
-  return String(description ?? "")
+  // IMPORTANT: First clean installment patterns, then normalize
+  const cleaned = cleanDescription(description);
+  return cleaned
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -259,6 +272,7 @@ function generateDedupeKey(
   installmentNum: number,
   installmentTotal: number
 ): string {
+  // normalizeMerchant already cleans installment patterns
   const normalized = normalizeMerchant(description);
   const amountStr = Math.round(amount * 100).toString();
   return `${cardId}_${competencia}_${date}_${amountStr}_${normalized}_${installmentNum}_${installmentTotal}`;

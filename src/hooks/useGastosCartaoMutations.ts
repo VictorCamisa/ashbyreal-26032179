@@ -19,9 +19,31 @@ function addMonthsToCompetencia(baseCompetencia: string, monthsToAdd: number): s
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-// Normalizar merchant para fingerprint
+// Limpar padrões de parcela da descrição
+function cleanDescription(description: string): string {
+  let cleaned = String(description ?? "").trim();
+  
+  // Remove installment patterns at end: "01/02", "02/12", "1/5"
+  cleaned = cleaned.replace(/\s*\d{1,2}\/\d{1,2}$/, "");
+  
+  // Remove installment patterns in middle: "PARCELA 1 DE 12", "PARC 2/12", "P 3 DE 10"
+  cleaned = cleaned.replace(/\s*(?:PARCELA|PARC\.?|P)\s*\d{1,2}\s*(?:\/|DE)\s*\d{1,2}/gi, "");
+  
+  // Remove multiplier patterns: "3x12", "3 x 12"
+  cleaned = cleaned.replace(/\s*\d{1,2}\s*[xX]\s*\d{1,2}$/, "");
+  
+  // Remove installment suffix patterns without space: "SHIBA01/02" -> "SHIBA"
+  cleaned = cleaned.replace(/(\d{1,2})\/(\d{1,2})$/, "");
+  
+  // Clean up spaces
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  return cleaned;
+}
+
+// Normalizar merchant para fingerprint (aplica cleanDescription primeiro)
 function normalizeMerchant(description: string): string {
-  return String(description ?? "")
+  const cleaned = cleanDescription(description);
+  return cleaned
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
