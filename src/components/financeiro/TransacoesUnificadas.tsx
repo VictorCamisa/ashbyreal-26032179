@@ -184,7 +184,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         `)
         .gte('due_date', `${monthStr}-01`)
         .lte('due_date', lastDayOfMonth)
-        .order('due_date', { ascending: false });
+        .order('due_date', { ascending: true });
 
       if (error) throw error;
       return data;

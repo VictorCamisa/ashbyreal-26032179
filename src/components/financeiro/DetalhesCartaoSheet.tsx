@@ -110,7 +110,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
         .from('credit_card_invoices')
         .select('*')
         .eq('credit_card_id', cartao.id)
-        .order('competencia', { ascending: false })
+        .order('competencia', { ascending: true })
         .limit(24);
 
       if (error) throw error;
@@ -139,7 +139,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
             subcategories(name)
           `)
           .eq('invoice_id', currentInvoice.id)
-          .order('purchase_date', { ascending: false });
+          .order('purchase_date', { ascending: true });
 
         if (error) throw error;
         return data || [];
