@@ -146,15 +146,15 @@ serve(async (req) => {
         return { jid: item.key.remoteJidAlt, isLid: false };
       }
       
-      // Priority 4: Regular JID fields
-      const jid = item.id || item.remoteJid || item.jid || item.key?.remoteJid;
+      // Priority 4: Regular JID fields - check remoteJid first (most common field from Evolution API)
+      const jid = item.remoteJid || item.id || item.jid || item.key?.remoteJid;
       
-      if (jid && jid.includes('@s.whatsapp.net')) {
+      if (jid && typeof jid === 'string' && jid.includes('@s.whatsapp.net')) {
         return { jid, isLid: false };
       }
       
       // Priority 5: Accept @lid JIDs (we'll try to resolve them)
-      if (jid && jid.includes('@lid')) {
+      if (jid && typeof jid === 'string' && jid.includes('@lid')) {
         return { jid, isLid: true };
       }
       
