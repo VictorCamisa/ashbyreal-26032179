@@ -545,10 +545,11 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       const tags = t.tags as string[] | null;
       const matchesTag = tagFilter === '' || (tags && tags.includes(tagFilter));
       
-      // Recorrente filter
+      // Recorrente filter - uses origin field which determines if transaction is recurring
+      const isRecorrente = t.origin === 'RECORRENTE' || !!t.recurrence_id;
       const matchesRecorrente = recorrenteFilter === 'todos' || 
-        (recorrenteFilter === 'recorrente' && t.recurrence_id) ||
-        (recorrenteFilter === 'avulsa' && !t.recurrence_id);
+        (recorrenteFilter === 'recorrente' && isRecorrente) ||
+        (recorrenteFilter === 'avulsa' && !isRecorrente);
       
       return matchesSearch && matchesTipo && matchesEntity && matchesStatus && matchesTag && matchesRecorrente;
     });
