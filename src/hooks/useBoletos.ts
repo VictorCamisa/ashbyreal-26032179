@@ -84,12 +84,19 @@ export function useBoletos(status?: string) {
         .single();
 
       if (error) throw error;
+
+      // Sync with transactions if boleto has a transaction_id
+      if (data.transaction_id) {
+        await supabase.rpc('sync_boleto_to_transaction', { boleto_id: id });
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
     },
     onError: (error: any) => {
       toast.error('Erro ao atualizar boleto: ' + error.message);
@@ -98,20 +105,37 @@ export function useBoletos(status?: string) {
 
   const aprovarBoleto = useMutation({
     mutationFn: async (id: string) => {
+      // First update the boleto status
       const { data, error } = await supabase
         .from('boletos')
-        .update({ status: 'APROVADO' })
+        .update({ 
+          status: 'APROVADO',
+          approved_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
+
+      // Sync with transactions table using database function
+      const { data: transactionId, error: syncError } = await supabase
+        .rpc('sync_boleto_to_transaction', { boleto_id: id });
+      
+      if (syncError) {
+        console.error('Erro ao sincronizar boleto com transactions:', syncError);
+        // Don't throw - the boleto was already approved
+      } else {
+        console.log('Boleto sincronizado com transaction:', transactionId);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Boleto aprovado! Transação criada.');
     },
     onError: (error: any) => {
@@ -121,20 +145,36 @@ export function useBoletos(status?: string) {
 
   const pagarBoleto = useMutation({
     mutationFn: async (id: string) => {
+      // First update the boleto status
       const { data, error } = await supabase
         .from('boletos')
-        .update({ status: 'PAGO' })
+        .update({ 
+          status: 'PAGO',
+          paid_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
+
+      // Sync with transactions table using database function
+      const { data: transactionId, error: syncError } = await supabase
+        .rpc('sync_boleto_to_transaction', { boleto_id: id });
+      
+      if (syncError) {
+        console.error('Erro ao sincronizar boleto com transactions:', syncError);
+      } else {
+        console.log('Boleto sincronizado com transaction:', transactionId);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Boleto marcado como pago!');
     },
     onError: (error: any) => {
@@ -152,10 +192,17 @@ export function useBoletos(status?: string) {
         .single();
 
       if (error) throw error;
+
+      // Sync with transactions - will update status to CANCELADO
+      await supabase.rpc('sync_boleto_to_transaction', { boleto_id: id });
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Boleto rejeitado.');
     },
     onError: (error: any) => {
@@ -173,12 +220,17 @@ export function useBoletos(status?: string) {
         .single();
 
       if (error) throw error;
+
+      // Sync with transactions - will update status to CANCELADO
+      await supabase.rpc('sync_boleto_to_transaction', { boleto_id: id });
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Boleto cancelado.');
     },
     onError: (error: any) => {
@@ -188,6 +240,21 @@ export function useBoletos(status?: string) {
 
   const deleteBoleto = useMutation({
     mutationFn: async (id: string) => {
+      // First get the boleto to check if it has a transaction
+      const { data: boleto } = await supabase
+        .from('boletos')
+        .select('transaction_id')
+        .eq('id', id)
+        .single();
+
+      // Delete associated transaction if exists
+      if (boleto?.transaction_id) {
+        await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', boleto.transaction_id);
+      }
+
       const { error } = await supabase
         .from('boletos')
         .delete()
@@ -197,6 +264,9 @@ export function useBoletos(status?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['boletos'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes-unificadas'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Boleto excluído.');
     },
     onError: (error: any) => {
