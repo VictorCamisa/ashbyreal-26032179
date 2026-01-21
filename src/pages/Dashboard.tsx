@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDashboardEnhanced } from '@/hooks/useDashboardEnhanced';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { DashboardKPIsEnhanced } from '@/components/dashboard/DashboardKPIsEnhanced';
@@ -14,19 +14,35 @@ import { EvolutionChart } from '@/components/financeiro/EvolutionChart';
 import { ComparisonChart } from '@/components/dashboard/ComparisonChart';
 import { CategoryDonutChart } from '@/components/dashboard/CategoryDonutChart';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
+import { TestarAgenteDialog } from '@/components/agentes/TestarAgenteDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Bot,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+
+interface AIAgent {
+  id: string;
+  name: string;
+  system_prompt: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  greeting_message: string | null;
+  knowledge_tables: string[];
+}
 
 export default function Dashboard() {
   const [mesReferencia, setMesReferencia] = useState(new Date());
   const [entityFilter, setEntityFilter] = useState<'all' | 'LOJA' | 'PARTICULAR'>('all');
+  const [showTestarAgente, setShowTestarAgente] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<AIAgent | null>(null);
   
   const {
     dashboardData,
@@ -37,6 +53,22 @@ export default function Dashboard() {
   } = useDashboardEnhanced(mesReferencia, entityFilter);
 
   const { evolutionData, alertStats } = useFinanceiroStats(mesReferencia);
+
+  // Fetch active agent
+  useEffect(() => {
+    const fetchActiveAgent = async () => {
+      const { data } = await supabase
+        .from('ai_agents')
+        .select('*')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (data) {
+        setActiveAgent(data as AIAgent);
+      }
+    };
+    fetchActiveAgent();
+  }, []);
 
   const handlePrevMonth = () => {
     setMesReferencia(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -83,6 +115,19 @@ export default function Dashboard() {
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
+
+          {/* Test Agent Button */}
+          {activeAgent && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-2"
+              onClick={() => setShowTestarAgente(true)}
+            >
+              <Bot className="h-4 w-4" />
+              Testar Agente
+            </Button>
+          )}
 
           {/* Quick Actions */}
           <QuickActions />
@@ -177,6 +222,15 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Test Agent Dialog */}
+      {activeAgent && (
+        <TestarAgenteDialog
+          agent={activeAgent}
+          open={showTestarAgente}
+          onOpenChange={setShowTestarAgente}
+        />
+      )}
     </PageLayout>
   );
 }
