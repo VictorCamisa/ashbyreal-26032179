@@ -13,7 +13,7 @@ interface BarrilDisponivel {
   codigo: string;
   capacidade: number;
   status_conteudo: 'CHEIO' | 'VAZIO';
-  localizacao: 'LOJA' | 'CLIENTE';
+  localizacao: 'FABRICA' | 'LOJA' | 'CLIENTE';
   cliente_id: string | null;
 }
 

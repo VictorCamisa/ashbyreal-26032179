@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Search, MoreVertical, Store, User, Droplet, History, ExternalLink } from 'lucide-react';
+import { Search, MoreVertical, Store, User, Droplet, History, ExternalLink, Factory } from 'lucide-react';
 import { Barril } from '@/hooks/useBarris';
 import { useBarrisMutations } from '@/hooks/useBarrisMutations';
 import { format } from 'date-fns';
@@ -111,6 +111,7 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas</SelectItem>
+            <SelectItem value="FABRICA">Na Fábrica</SelectItem>
             <SelectItem value="LOJA">Na Loja</SelectItem>
             <SelectItem value="CLIENTE">Com Cliente</SelectItem>
           </SelectContent>
@@ -150,8 +151,10 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
                 </TableCell>
                 <TableCell>{barril.capacidade}L</TableCell>
                 <TableCell>
-                  <Badge variant={barril.localizacao === 'LOJA' ? 'secondary' : 'default'}>
-                    {barril.localizacao === 'LOJA' ? (
+                  <Badge variant={barril.localizacao === 'CLIENTE' ? 'default' : 'secondary'}>
+                    {barril.localizacao === 'FABRICA' ? (
+                      <><Factory className="h-3 w-3 mr-1" /> Fábrica</>
+                    ) : barril.localizacao === 'LOJA' ? (
                       <><Store className="h-3 w-3 mr-1" /> Loja</>
                     ) : (
                       <><User className="h-3 w-3 mr-1" /> Cliente</>
