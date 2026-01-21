@@ -21,168 +21,161 @@ serve(async (req) => {
       );
     }
 
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) {
-      throw new Error('OPENAI_API_KEY não configurada');
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableKey) {
+      throw new Error('LOVABLE_API_KEY não configurada');
     }
 
     console.log('[process-boleto] Processando boleto, tipo:', tipoNota);
 
-    // PROMPT OTIMIZADO COM EXEMPLOS E REGRAS ESPECÍFICAS
-    const prompt = `Você é um especialista em OCR de documentos financeiros brasileiros.
-Analise esta imagem de boleto/nota fiscal com MÁXIMA PRECISÃO.
+    // PROMPT EXTREMAMENTE DETALHADO PARA MÁXIMA PRECISÃO
+    const systemPrompt = `Você é um especialista em OCR de documentos financeiros brasileiros com 20 anos de experiência.
+Sua tarefa é extrair dados de boletos bancários e notas fiscais com MÁXIMA PRECISÃO.
 
-═══════════════════════════════════════════
-📍 LOCAIS TÍPICOS DE CADA CAMPO
-═══════════════════════════════════════════
+IMPORTANTE: Analise a imagem INTEIRA antes de responder. Não faça suposições.`;
 
-1. **BENEFICIÁRIO/CEDENTE** (quem RECEBE o dinheiro):
-   - Geralmente no TOPO do documento, logo abaixo do logo do banco
-   - Campos: "CEDENTE", "BENEFICIÁRIO", "RAZÃO SOCIAL", "FORNECEDOR"
-   - Em notas fiscais: aparece como emissor da NF
-   - EXEMPLOS: "CERVEJARIA ASHBY LTDA", "AMBEV S/A", "HEINEKEN BRASIL"
-   - ⚠️ NÃO é quem paga (sacado/pagador)
+    const userPrompt = `Analise esta imagem de documento financeiro (${tipoNota === 'COM_NOTA' ? 'BOLETO COM NOTA FISCAL' : 'BOLETO SEM NOTA FISCAL'}) e extraia os dados.
 
-2. **VALOR** (CRÍTICO - máxima atenção):
-   - Campos: "VALOR DO DOCUMENTO", "TOTAL A PAGAR", "VALOR TOTAL", "(=) VALOR TOTAL"
-   - Geralmente em destaque, negrito ou maior
-   - Formato brasileiro: 1.234,56 (ponto = milhar, vírgula = decimal)
-   - Em notas: procure "TOTAL DA NOTA" ou soma no rodapé
-   - ⚠️ CONFIRA: some os itens para validar o total
+═══════════════════════════════════════════════════════════════
+🔍 INSTRUÇÕES DE EXTRAÇÃO - LEIA COM ATENÇÃO
+═══════════════════════════════════════════════════════════════
 
-3. **DATA DE VENCIMENTO**:
-   - Campos: "VENCIMENTO", "DATA VENC.", "VENC."
-   - ${tipoNota === 'SEM_NOTA' ? 'Se não houver, calcule: DATA EMISSÃO + 15 dias' : 'Deve estar explícita no documento'}
+1. **VALOR TOTAL** (PRIORIDADE MÁXIMA):
+   - Procure por: "VALOR DO DOCUMENTO", "TOTAL A PAGAR", "(=) VALOR TOTAL", "VALOR TOTAL DA NOTA"
+   - Geralmente está em DESTAQUE (negrito, maior, ou em caixa)
+   - Formato brasileiro: 1.234,56 (ponto separa milhar, vírgula separa decimal)
+   - NÃO confunda com valores parciais, descontos ou impostos
+   - Se houver uma tabela de itens, o valor total geralmente está NO FINAL
 
-4. **NÚM. MOV / DOCUMENTO**:
-   - Campos: "NÚM.MOV", "Nº MOV", "NÚMERO DO DOCUMENTO", "DOC Nº"
-   - Geralmente no cabeçalho ou próximo à data
-   - Pode ter letras e números
+2. **DATA DE VENCIMENTO**:
+   - Procure por: "VENCIMENTO", "VENC.", "DATA VENCIMENTO", "DT VENC"
+   - Formato: DD/MM/AAAA ou AAAA-MM-DD
+   - ${tipoNota === 'SEM_NOTA' ? 'Se não encontrar, procure DATA DE EMISSÃO e adicione 15 dias' : 'Deve estar no documento'}
 
-5. **DATA DE EMISSÃO**:
-   - Campos: "EMISSÃO", "DATA", "EMITIDO EM"
-   - Importante para documentos SEM NOTA
+3. **BENEFICIÁRIO/CEDENTE** (quem RECEBE o pagamento):
+   - Procure por: "CEDENTE", "BENEFICIÁRIO", "RAZÃO SOCIAL DO CEDENTE"
+   - Geralmente está no TOPO do boleto, abaixo do logo do banco
+   - É a empresa que EMITIU o boleto/nota
+   - NÃO confunda com SACADO/PAGADOR (quem paga)
+   - Exemplos: "CERVEJARIA ASHBY LTDA", "AMBEV S.A.", "HEINEKEN BRASIL"
 
-6. **ITENS/PRODUTOS** (se houver):
-   - Cada linha com: descrição, quantidade, valor unitário, valor total
-   - A SOMA dos valores totais deve ser igual ao VALOR TOTAL
+4. **NÚMERO DO DOCUMENTO / NÚM. MOV**:
+   - Procure por: "NÚM. MOV", "Nº MOV", "NÚMERO DOCUMENTO", "DOC Nº", "NF Nº"
+   - Pode estar no cabeçalho ou próximo à data
+   - Geralmente são números, mas pode ter letras
 
-═══════════════════════════════════════════
-📊 FORMATO DE RESPOSTA (JSON)
-═══════════════════════════════════════════
+5. **DESCRIÇÃO**:
+   - Crie uma descrição útil baseada no conteúdo
+   - Inclua: tipo de documento, beneficiário resumido, referência
+   - Exemplo: "NF 12345 - Ashby - Compra de chopp"
+
+6. **ITENS/PRODUTOS** (se houver tabela):
+   - Extraia cada linha com: descrição, quantidade, valor unitário, valor total
+   - A SOMA dos valores totais deve ser próxima ao VALOR TOTAL (diferença pode ser frete/impostos)
+
+═══════════════════════════════════════════════════════════════
+📊 FORMATO DE RESPOSTA (JSON ESTRITO)
+═══════════════════════════════════════════════════════════════
+
+Responda APENAS com um JSON válido, sem markdown, sem explicações:
 
 {
   "amount": {
-    "value": "2.108,00",
+    "value": "1.234,56",
     "confidence": 95,
-    "source": "Campo 'VALOR TOTAL' no rodapé"
+    "source": "Campo VALOR TOTAL no rodapé"
   },
   "due_date": {
     "value": "2025-01-20",
     "confidence": 90,
-    "source": "Campo 'VENCIMENTO' no cabeçalho"
+    "source": "Campo VENCIMENTO"
   },
   "emission_date": {
     "value": "2025-01-05",
     "confidence": 85,
-    "source": "Campo 'DATA EMISSÃO'"
+    "source": "Campo DATA EMISSÃO"
   },
   "beneficiario": {
-    "value": "CERVEJARIA ASHBY LTDA",
+    "value": "NOME DA EMPRESA",
     "confidence": 95,
-    "source": "Campo 'CEDENTE' no topo"
-  },
-  "sacado": {
-    "value": "TAUBATE CHOPP COMERCIO",
-    "confidence": 80,
-    "source": "Campo 'SACADO'"
+    "source": "Campo CEDENTE no topo"
   },
   "description": {
-    "value": "NF 12345 - Compra de chopp",
+    "value": "NF 12345 - Descrição resumida",
     "confidence": 90,
-    "source": "Inferido dos itens"
+    "source": "Inferido do documento"
   },
   "numero_movimento": {
-    "value": "122653",
+    "value": "123456",
     "confidence": 85,
-    "source": "Campo 'NÚM.MOV'"
-  },
-  "cnpj_beneficiario": {
-    "value": "12.345.678/0001-99",
-    "confidence": 90,
-    "source": "Abaixo do nome do cedente"
-  },
-  "numero_nf": {
-    "value": "12345",
-    "confidence": 95,
-    "source": "Campo 'NOTA FISCAL Nº'"
-  },
-  "numero_pedido": {
-    "value": "PED-001",
-    "confidence": 70,
-    "source": "Campo 'PEDIDO'"
+    "source": "Campo NÚM. MOV"
   },
   "itens": [
     {
-      "descricao": "CHOPP PILSEN BARRIL 30L",
+      "descricao": "PRODUTO EXEMPLO",
       "quantidade": "10",
-      "valor_unitario": "200,00",
-      "valor_total": "2.000,00",
+      "valor_unitario": "100,00",
+      "valor_total": "1.000,00",
       "confidence": 90
     }
-  ],
-  "validacao": {
-    "soma_itens": "2.000,00",
-    "valor_documento": "2.108,00",
-    "diferenca": "108,00",
-    "observacao": "Diferença pode ser frete ou impostos"
-  }
+  ]
 }
 
-═══════════════════════════════════════════
-⚠️ REGRAS CRÍTICAS
-═══════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+⚠️ REGRAS DE CONFIANÇA (confidence)
+═══════════════════════════════════════════════════════════════
 
-1. CONFIDENCE (0-100):
-   - 95-100: Leitura clara, campo identificado
-   - 80-94: Leitura boa, alta certeza
-   - 60-79: Leitura parcial, precisa revisão
-   - <60: Incerto, destacar para revisão manual
+- 95-100: Texto perfeitamente legível, campo claramente identificado
+- 80-94: Boa legibilidade, alta certeza da interpretação
+- 60-79: Legibilidade parcial, pode precisar de correção
+- 40-59: Texto difícil de ler, baixa certeza
+- 0-39: Não encontrado ou ilegível
 
-2. Se não encontrar um campo: { "value": "", "confidence": 0, "source": "Não encontrado" }
+Se não encontrar um campo, retorne: { "value": "", "confidence": 0, "source": "Não encontrado" }
 
-3. NUNCA inverta beneficiário (recebe) com sacado (paga)
+ATENÇÃO: Valores monetários SEMPRE no formato brasileiro (1.234,56). Datas em AAAA-MM-DD.`;
 
-4. Para valores, SEMPRE use formato brasileiro (1.234,56)
-
-5. Responda APENAS o JSON, sem markdown ou explicações`;
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiKey}`,
+        'Authorization': `Bearer ${lovableKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'google/gemini-2.5-pro',
         messages: [
+          { role: 'system', content: systemPrompt },
           {
             role: 'user',
             content: [
-              { type: 'text', text: prompt },
+              { type: 'text', text: userPrompt },
               { type: 'image_url', image_url: { url: image, detail: 'high' } },
             ],
           },
         ],
-        max_tokens: 3000,
-        temperature: 0.1, // Baixa temperatura para maior precisão
+        max_tokens: 4000,
+        temperature: 0.1,
       }),
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        console.error('[process-boleto] Rate limit exceeded');
+        return new Response(
+          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns segundos.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (response.status === 402) {
+        console.error('[process-boleto] Payment required');
+        return new Response(
+          JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos no workspace Lovable.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const errorText = await response.text();
-      console.error('[process-boleto] Erro OpenAI:', response.status, errorText);
-      throw new Error(`Erro na API OpenAI: ${response.status}`);
+      console.error('[process-boleto] Erro Lovable AI:', response.status, errorText);
+      throw new Error(`Erro na API: ${response.status}`);
     }
 
     const data = await response.json();
@@ -195,24 +188,30 @@ Analise esta imagem de boleto/nota fiscal com MÁXIMA PRECISÃO.
       due_date: { value: '', confidence: 0, source: '' },
       emission_date: { value: '', confidence: 0, source: '' },
       beneficiario: { value: '', confidence: 0, source: '' },
-      sacado: { value: '', confidence: 0, source: '' },
       description: { value: '', confidence: 0, source: '' },
       numero_movimento: { value: '', confidence: 0, source: '' },
-      cnpj_beneficiario: { value: '', confidence: 0, source: '' },
-      numero_nf: { value: '', confidence: 0, source: '' },
-      numero_pedido: { value: '', confidence: 0, source: '' },
       itens: [],
-      validacao: null
     };
 
     try {
-      const jsonStr = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      // Clean up the response - remove markdown if present
+      let jsonStr = content
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      
+      // Try to find JSON object in response
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      
       const parsed = JSON.parse(jsonStr);
       
       // Merge parsed data
       extracted = { ...extracted, ...parsed };
       
-      // Format amount if needed
+      // Clean up amount value
       if (extracted.amount?.value) {
         extracted.amount.value = extracted.amount.value.toString()
           .replace('R$', '')
@@ -224,25 +223,28 @@ Analise esta imagem de boleto/nota fiscal com MÁXIMA PRECISÃO.
       if (tipoNota === 'SEM_NOTA' && !extracted.due_date?.value && extracted.emission_date?.value) {
         try {
           const emission = new Date(extracted.emission_date.value);
-          emission.setDate(emission.getDate() + 15);
-          extracted.due_date = {
-            value: emission.toISOString().split('T')[0],
-            confidence: 70,
-            source: 'Calculado: emissão + 15 dias'
-          };
-          console.log('[process-boleto] Vencimento calculado:', extracted.due_date.value);
+          if (!isNaN(emission.getTime())) {
+            emission.setDate(emission.getDate() + 15);
+            extracted.due_date = {
+              value: emission.toISOString().split('T')[0],
+              confidence: 70,
+              source: 'Calculado: emissão + 15 dias'
+            };
+            console.log('[process-boleto] Vencimento calculado:', extracted.due_date.value);
+          }
         } catch (e) {
           console.error('[process-boleto] Erro ao calcular vencimento:', e);
         }
       }
 
-      // Calculate overall confidence
-      const fields = ['amount', 'due_date', 'beneficiario', 'description'];
-      const confidences = fields.map(f => extracted[f]?.confidence || 0);
-      const overallConfidence = Math.round(confidences.reduce((a, b) => a + b, 0) / fields.length);
+      // Calculate overall confidence from critical fields
+      const criticalFields = ['amount', 'due_date', 'beneficiario'];
+      const confidences = criticalFields.map(f => extracted[f]?.confidence || 0);
+      const overallConfidence = Math.round(confidences.reduce((a, b) => a + b, 0) / criticalFields.length);
 
-      // Flag low confidence fields
-      const lowConfidenceFields = fields.filter(f => (extracted[f]?.confidence || 0) < 80);
+      // Flag low confidence fields (below 80%)
+      const allFields = ['amount', 'due_date', 'beneficiario', 'description', 'numero_movimento'];
+      const lowConfidenceFields = allFields.filter(f => (extracted[f]?.confidence || 0) < 80);
 
       console.log('[process-boleto] Extração completa. Confiança geral:', overallConfidence, '%. Campos baixa confiança:', lowConfidenceFields);
 
@@ -253,20 +255,22 @@ Analise esta imagem de boleto/nota fiscal com MÁXIMA PRECISÃO.
           overallConfidence,
           lowConfidenceFields,
           needsReview: overallConfidence < 80 || lowConfidenceFields.length > 0,
-          raw: content 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
     } catch (parseError) {
-      console.error('[process-boleto] Erro ao parsear JSON:', parseError, 'Content:', content);
+      console.error('[process-boleto] Erro ao parsear JSON:', parseError, 'Content:', content.substring(0, 500));
       
+      // Return with empty extraction but flag for manual review
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Erro ao interpretar resposta da IA',
-          raw: content,
-          extracted 
+          error: 'Erro ao interpretar resposta da IA. Preencha manualmente.',
+          extracted,
+          overallConfidence: 0,
+          lowConfidenceFields: ['amount', 'due_date', 'beneficiario', 'description', 'numero_movimento'],
+          needsReview: true,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
