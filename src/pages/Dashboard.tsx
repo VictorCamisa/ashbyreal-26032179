@@ -85,52 +85,49 @@ export default function Dashboard() {
       title="Dashboard"
       subtitle="Visão geral completa do seu negócio"
       actions={
-        <>
-          {/* Row 1: Month navigation and filter - always visible */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-xs sm:text-sm font-medium capitalize px-1.5 sm:px-2 min-w-[80px] sm:min-w-[100px] text-center">
-                {monthLabel}
-              </span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
-              <SelectTrigger className="w-[80px] sm:w-[100px] h-8 text-xs sm:text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                <SelectItem value="LOJA">Loja</SelectItem>
-                <SelectItem value="PARTICULAR">Particular</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+          {/* Month navigation */}
+          <div className="flex items-center bg-secondary rounded-lg p-0.5">
+            <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={handlePrevMonth}>
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
-
-            {/* Test Agent - icon only on mobile */}
-            {activeAgent && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2 h-8 px-2 sm:px-3"
-                onClick={() => setShowTestarAgente(true)}
-              >
-                <Bot className="h-4 w-4" />
-                <span className="hidden sm:inline">Testar Agente</span>
-              </Button>
-            )}
-
-            <QuickActions />
+            <span className="text-[11px] sm:text-sm font-medium capitalize px-1 sm:px-2 whitespace-nowrap">
+              {monthLabel}
+            </span>
+            <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7" onClick={handleNextMonth}>
+              <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
           </div>
-        </>
+
+          <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
+            <SelectTrigger className="w-[70px] sm:w-[100px] h-7 sm:h-8 text-[11px] sm:text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="LOJA">Loja</SelectItem>
+              <SelectItem value="PARTICULAR">Particular</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => refetch()}>
+            <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          </Button>
+
+          {activeAgent && (
+            <Button 
+              variant="outline" 
+              size="icon"
+              className="h-7 w-7 sm:h-8 sm:w-auto sm:px-3 sm:gap-2"
+              onClick={() => setShowTestarAgente(true)}
+            >
+              <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline text-sm">Testar Agente</span>
+            </Button>
+          )}
+
+          <QuickActions />
+        </div>
       }
     >
       <div className="space-y-4 sm:space-y-6">

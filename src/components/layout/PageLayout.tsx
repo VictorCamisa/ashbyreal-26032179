@@ -33,18 +33,18 @@ export function PageLayout({
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-4 sm:mb-6">
+      <div className="mb-3 sm:mb-6">
         {/* Title and actions - stack on mobile */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-3 sm:mb-4">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">{title}</h1>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-2 sm:mb-4">
+          <div className="min-w-0 flex-shrink-0">
+            <h1 className="text-base sm:text-xl font-semibold tracking-tight">{title}</h1>
             {subtitle && (
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">{subtitle}</p>
+              <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
           
           {actions && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none">
+            <div className="w-full sm:w-auto overflow-x-auto scrollbar-none">
               {actions}
             </div>
           )}

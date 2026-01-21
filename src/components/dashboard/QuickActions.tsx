@@ -53,9 +53,9 @@ export function QuickActions() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Ação Rápida
+        <Button size="icon" className="h-7 w-7 sm:h-8 sm:w-auto sm:px-3 sm:gap-2">
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <span className="hidden sm:inline text-sm">Ação Rápida</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
