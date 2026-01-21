@@ -33,30 +33,31 @@ export function PageLayout({
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <div className="mb-4 sm:mb-6">
+        {/* Title and actions - stack on mobile */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-3 sm:mb-4">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">{title}</h1>
             {subtitle && (
-              <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">{subtitle}</p>
             )}
           </div>
           
           {actions && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none">
               {actions}
             </div>
           )}
         </div>
 
         {tabs && tabs.length > 0 && (
-          <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg w-fit">
+          <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto scrollbar-none -mx-1 px-1">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onTabChange?.(tab.id)}
                 className={cn(
-                  "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                  "px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap flex-shrink-0",
                   activeTab === tab.id 
                     ? "bg-background text-foreground shadow-sm" 
                     : "text-muted-foreground hover:text-foreground"
@@ -70,7 +71,7 @@ export function PageLayout({
       </div>
 
       {/* Content */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {children}
       </div>
     </div>

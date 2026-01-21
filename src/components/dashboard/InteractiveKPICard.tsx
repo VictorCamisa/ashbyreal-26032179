@@ -86,57 +86,57 @@ export function InteractiveKPICard({
       transition={{ duration: 0.4, delay: animationDelay / 1000 }}
       onClick={handleClick}
       className={cn(
-        "rounded-xl bg-card border p-5 shadow-sm transition-all duration-300",
-        "hover:shadow-lg hover:-translate-y-0.5",
+        "rounded-xl bg-card border p-3 sm:p-5 shadow-sm transition-all duration-300",
+        "hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98]",
         href && "cursor-pointer group",
         variantStyles[variant],
         className
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
             {Icon && (
               <div className={cn(
-                "h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                "h-6 w-6 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
                 variant === 'success' && "bg-success/20 text-success",
                 variant === 'warning' && "bg-amber-500/20 text-amber-500",
                 variant === 'danger' && "bg-destructive/20 text-destructive",
                 variant === 'default' && "bg-primary/10 text-primary"
               )}>
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
               </div>
             )}
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
               {label}
             </span>
             {href && (
-              <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
             )}
           </div>
           
           <div className="flex items-end justify-between gap-2">
-            <p className="text-2xl font-bold tabular-nums tracking-tight">
+            <p className="text-lg sm:text-2xl font-bold tabular-nums tracking-tight truncate">
               {value}
             </p>
             {renderSparkline()}
           </div>
           
           {(trend || subtitle) && (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-2 flex-wrap">
               {trend && (
                 <span className={cn(
-                  "inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full",
+                  "inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium px-1 sm:px-1.5 py-0.5 rounded-full flex-shrink-0",
                   trend.isPositive 
                     ? "text-success bg-success/10" 
                     : "text-destructive bg-destructive/10"
                 )}>
-                  <TrendIcon className="h-3 w-3" />
+                  <TrendIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   {trend.value.toFixed(1)}%
                 </span>
               )}
               {subtitle && (
-                <span className="text-xs text-muted-foreground">{subtitle}</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</span>
               )}
             </div>
           )}
