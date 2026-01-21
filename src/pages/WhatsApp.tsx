@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Settings, ArrowLeft, Send, Wifi, WifiOff, ChevronDown, Home } from 'lucide-react';
+import { Settings, ArrowLeft, Send, Wifi, WifiOff, ChevronDown, LayoutDashboard, Bot } from 'lucide-react';
 import { InstanceSettings } from '@/components/whatsapp/InstanceSettings';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
 import { ChatPanel } from '@/components/whatsapp/ChatPanel';
 import { DisparoPanel } from '@/components/whatsapp/DisparoPanel';
+import { TestarAgenteDialog } from '@/components/agentes/TestarAgenteDialog';
 import { useWhatsAppInstances, type WhatsAppInstance } from '@/hooks/useWhatsAppInstances';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -30,6 +32,8 @@ export default function WhatsApp() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const [showDisparo, setShowDisparo] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTestarAgente, setShowTestarAgente] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<any>(null);
 
   const { instances } = useWhatsAppInstances();
   const { conversations, loadingConversations, getMessages, sendMessage } = useWhatsAppMessages(
@@ -45,6 +49,27 @@ export default function WhatsApp() {
       }
     }
   }, [instances, selectedInstance]);
+
+  // Fetch active agent for connected instance
+  useEffect(() => {
+    const fetchActiveAgent = async () => {
+      if (!selectedInstance?.id) {
+        setActiveAgent(null);
+        return;
+      }
+
+      const { data } = await supabase
+        .from('ai_agents')
+        .select('*')
+        .eq('instance_id', selectedInstance.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      setActiveAgent(data);
+    };
+
+    fetchActiveAgent();
+  }, [selectedInstance?.id]);
 
   const selectedConversation = conversations.find((c) => c.remote_jid === selectedJid) || null;
 
@@ -85,10 +110,10 @@ export default function WhatsApp() {
         {/* Left - Logo & Back */}
         <div className="flex items-center gap-3">
           <Link 
-            to="/" 
+            to="/dashboard" 
             className="flex items-center gap-2 text-[#AEBAC1] hover:text-white transition-colors"
           >
-            <Home className="h-5 w-5" />
+            <LayoutDashboard className="h-5 w-5" />
             <span className="hidden sm:inline text-sm font-medium">Voltar</span>
           </Link>
           <div className="h-6 w-px bg-[#2A3942] hidden sm:block" />
@@ -154,6 +179,17 @@ export default function WhatsApp() {
 
         {/* Right - Actions */}
         <div className="flex items-center gap-2">
+          {activeAgent && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setShowTestarAgente(true)}
+              className="h-9 px-3 gap-2 text-[#8696A0] hover:text-white hover:bg-[#2A3942]"
+            >
+              <Bot className="h-4 w-4" />
+              <span className="hidden sm:inline">Testar</span>
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             size="sm"
@@ -258,6 +294,15 @@ export default function WhatsApp() {
         <div className="fixed inset-0 z-50 bg-[#111B21]">
           <DisparoPanel onClose={() => setShowDisparo(false)} />
         </div>
+      )}
+
+      {/* Testar Agente Dialog */}
+      {activeAgent && (
+        <TestarAgenteDialog
+          agent={activeAgent}
+          open={showTestarAgente}
+          onOpenChange={setShowTestarAgente}
+        />
       )}
     </div>
   );
