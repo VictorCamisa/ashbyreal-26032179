@@ -263,8 +263,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       });
     }
 
-    // Sort by due_date descending (newest first)
-    return unified.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
+    // Sort by due_date ascending (oldest first - chronological order)
+    return unified.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   }, [bankTransactions]);
 
   // Category color mapping based on group
