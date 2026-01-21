@@ -50,6 +50,7 @@ import {
 import { ImportarTransacoesDialog } from './ImportarTransacoesDialog';
 import { NovaTransacaoDialog } from './NovaTransacaoDialog';
 import { EditarTransacaoDialog } from './EditarTransacaoDialog';
+import { EditarRecorrenteConfirmDialog } from './EditarRecorrenteConfirmDialog';
 import { TornarRecorrenteDialog } from './TornarRecorrenteDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
 import { TransacoesDRE } from './TransacoesDRE';
@@ -109,7 +110,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [searchTerm, setSearchTerm] = useState('');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [entityFilter, setEntityFilter] = useState<string>('todos');
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [statusFilter, setStatusFilter] = useState<string>('pendentes');
   
   const [tagFilter, setTagFilter] = useState<string>('');
   const [recorrenteFilter, setRecorrenteFilter] = useState<string>('todos');
@@ -126,6 +127,10 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const [recurringTransaction, setRecurringTransaction] = useState<any>(null);
   
+  // State for recurring edit confirmation
+  const [pendingEditTransaction, setPendingEditTransaction] = useState<any>(null);
+  const [editFutureMode, setEditFutureMode] = useState<boolean>(false);
+  
   // Expanded invoice state - to show credit card transactions
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
@@ -135,9 +140,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       setStatusFilter('ATRASADO');
     } else if (initialFilter === 'pending') {
       setStatusFilter('PREVISTO');
-    } else {
-      setStatusFilter('todos');
     }
+    // If initialFilter is 'all', keep the default 'pendentes'
   }, [initialFilter]);
 
   // Notify parent when filter changes
@@ -259,8 +263,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       });
     }
 
-    // Sort by due_date ascending (oldest first)
-    return unified.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    // Sort by due_date descending (newest first)
+    return unified.sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime());
   }, [bankTransactions]);
 
   // Category color mapping based on group
@@ -512,11 +516,82 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
       toast.success('Transação atualizada com sucesso!');
       setEditingTransaction(null);
+      setEditFutureMode(false);
     },
     onError: (error: any) => {
       toast.error('Erro ao atualizar transação: ' + error.message);
     }
   });
+
+  // Update future recurring transactions mutation
+  const updateFutureMutation = useMutation({
+    mutationFn: async ({ baseTransaction, updates }: { baseTransaction: any; updates: any }) => {
+      const { id, ...updateFields } = updates;
+      
+      // Update the current transaction
+      const { error: currentError } = await supabase
+        .from('transactions')
+        .update(updateFields)
+        .eq('id', id);
+      if (currentError) throw currentError;
+
+      // Find and update all future transactions with the same recurrence_id
+      if (baseTransaction.recurrence_id) {
+        const { error: futureError } = await supabase
+          .from('transactions')
+          .update({
+            description: updateFields.description,
+            amount: updateFields.amount,
+            category_id: updateFields.category_id,
+            subcategory_id: updateFields.subcategory_id,
+            account_id: updateFields.account_id,
+            notes: updateFields.notes,
+          })
+          .eq('recurrence_id', baseTransaction.recurrence_id)
+          .gt('due_date', baseTransaction.due_date);
+        if (futureError) throw futureError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
+      toast.success('Transação e ocorrências futuras atualizadas!');
+      setEditingTransaction(null);
+      setEditFutureMode(false);
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao atualizar transações: ' + error.message);
+    }
+  });
+
+  // Handle edit click - check if recurring
+  const handleEditClick = useCallback((transaction: any) => {
+    const isRecorrente = transaction.origin === 'RECORRENTE' || !!transaction.recurrence_id;
+    if (isRecorrente) {
+      setPendingEditTransaction(transaction);
+    } else {
+      setEditingTransaction(transaction);
+    }
+  }, []);
+
+  // Handle edit single (only this occurrence)
+  const handleEditSingle = useCallback(() => {
+    if (pendingEditTransaction) {
+      setEditingTransaction(pendingEditTransaction);
+      setEditFutureMode(false);
+      setPendingEditTransaction(null);
+    }
+  }, [pendingEditTransaction]);
+
+  // Handle edit future (this and all future occurrences)
+  const handleEditFuture = useCallback(() => {
+    if (pendingEditTransaction) {
+      setEditingTransaction(pendingEditTransaction);
+      setEditFutureMode(true);
+      setPendingEditTransaction(null);
+    }
+  }, [pendingEditTransaction]);
 
   // Navigate months
   const handlePrevMonth = () => {
@@ -539,7 +614,10 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       
       const matchesTipo = tipoFilter === 'todos' || t.tipo === tipoFilter;
       const matchesEntity = entityFilter === 'todos' || t.entities?.type === entityFilter;
-      const matchesStatus = statusFilter === 'todos' || t.status === statusFilter;
+      // Status filter with special 'pendentes' option
+      const matchesStatus = statusFilter === 'todos' || 
+        (statusFilter === 'pendentes' && (t.status === 'PREVISTO' || t.status === 'ATRASADO')) ||
+        t.status === statusFilter;
       
       // Tag filter
       const tags = t.tags as string[] | null;
@@ -776,11 +854,12 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           </Select>
 
           <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger className="w-[130px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pendentes">A Pagar/Atrasado</SelectItem>
               <SelectItem value="PAGO">Pago</SelectItem>
               <SelectItem value="PREVISTO">Pendente</SelectItem>
               <SelectItem value="ATRASADO">Atrasado</SelectItem>
@@ -946,7 +1025,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           transactions={filteredTransactions}
           referenceMonth={referenceMonth}
           onMonthChange={setReferenceMonth}
-          onTransactionClick={(t) => setEditingTransaction(t)}
+          onTransactionClick={(t) => handleEditClick(t)}
         />
       )}
 
@@ -955,7 +1034,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         <TransacoesDRE
           transactions={filteredTransactions}
           isLoading={isLoading}
-          onEdit={(t) => setEditingTransaction(t)}
+          onEdit={(t) => handleEditClick(t)}
           onDelete={(id) => setDeletingId(id)}
           onMarkAsPaid={(id) => markAsPaidMutation.mutate(id)}
           onRemoveTag={handleRemoveTag}
@@ -995,7 +1074,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                     isSelected={selectedIds.has(t.id)}
                     onToggleSelection={() => toggleSelection(t.id)}
                     onMarkAsPaid={() => markAsPaidMutation.mutate(t.id)}
-                    onEdit={() => setEditingTransaction(t)}
+                    onEdit={() => handleEditClick(t)}
                     onDelete={() => setDeletingId(t.id)}
                     onRecurring={() => setRecurringTransaction(t)}
                     onAddTag={(tag) => handleAddTag(t.id, t.tags as string[] | null, tag)}
@@ -1030,12 +1109,35 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         defaultEntityId={entityFilter !== 'todos' ? entities?.find(e => e.type === entityFilter)?.id : undefined}
       />
 
+      {/* Recurring edit confirmation modal */}
+      <EditarRecorrenteConfirmDialog
+        open={!!pendingEditTransaction}
+        onOpenChange={(open) => !open && setPendingEditTransaction(null)}
+        transactionDescription={pendingEditTransaction?.description}
+        onEditSingle={handleEditSingle}
+        onEditFuture={handleEditFuture}
+      />
+
       <EditarTransacaoDialog
         open={!!editingTransaction}
-        onOpenChange={(open) => !open && setEditingTransaction(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingTransaction(null);
+            setEditFutureMode(false);
+          }
+        }}
         transaction={editingTransaction}
-        onSave={(updates) => updateMutation.mutate(updates)}
-        isLoading={updateMutation.isPending}
+        onSave={(updates) => {
+          if (editFutureMode && editingTransaction) {
+            updateFutureMutation.mutate({ 
+              baseTransaction: editingTransaction, 
+              updates 
+            });
+          } else {
+            updateMutation.mutate(updates);
+          }
+        }}
+        isLoading={updateMutation.isPending || updateFutureMutation.isPending}
       />
 
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
