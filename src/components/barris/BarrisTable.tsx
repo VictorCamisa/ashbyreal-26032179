@@ -40,7 +40,7 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
   const [search, setSearch] = useState('');
   const [filterLocalizacao, setFilterLocalizacao] = useState<string>('todos');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
-  const { atualizarStatusBarril, isLoading } = useBarrisMutations();
+  const { atualizarStatusBarril, transferirBarrilManual, isLoading } = useBarrisMutations();
 
   const filteredBarris = barris.filter(barril => {
     const parceiroNome = barril.lojista?.nome || barril.lojista?.nome_fantasia || barril.cliente?.nome || '';
@@ -89,6 +89,20 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
   const toggleStatus = async (barril: Barril) => {
     const novoStatus = barril.status_conteudo === 'CHEIO' ? 'VAZIO' : 'CHEIO';
     await atualizarStatusBarril(barril.id, novoStatus);
+  };
+
+  const handleLocalizacaoChange = async (barril: Barril, novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE') => {
+    if (barril.localizacao === novaLocalizacao) return;
+    
+    // Se for para cliente, mantém o cliente_id atual (se houver)
+    const clienteId = novaLocalizacao === 'CLIENTE' ? barril.cliente_id : null;
+    
+    await transferirBarrilManual(
+      barril.id, 
+      novaLocalizacao, 
+      clienteId,
+      'Alteração manual de localização'
+    );
   };
 
   return (
@@ -151,15 +165,44 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
                 </TableCell>
                 <TableCell>{barril.capacidade}L</TableCell>
                 <TableCell>
-                  <Badge variant={barril.localizacao === 'CLIENTE' ? 'default' : 'secondary'}>
-                    {barril.localizacao === 'FABRICA' ? (
-                      <><Factory className="h-3 w-3 mr-1" /> Fábrica</>
-                    ) : barril.localizacao === 'LOJA' ? (
-                      <><Store className="h-3 w-3 mr-1" /> Loja</>
-                    ) : (
-                      <><User className="h-3 w-3 mr-1" /> Cliente</>
-                    )}
-                  </Badge>
+                  <Select
+                    value={barril.localizacao}
+                    onValueChange={(value: 'FABRICA' | 'LOJA' | 'CLIENTE') => 
+                      handleLocalizacaoChange(barril, value)
+                    }
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className="w-[130px] h-8">
+                      <SelectValue>
+                        <span className="flex items-center gap-1.5">
+                          {barril.localizacao === 'FABRICA' ? (
+                            <><Factory className="h-3 w-3" /> Fábrica</>
+                          ) : barril.localizacao === 'LOJA' ? (
+                            <><Store className="h-3 w-3" /> Loja</>
+                          ) : (
+                            <><User className="h-3 w-3" /> Cliente</>
+                          )}
+                        </span>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FABRICA">
+                        <span className="flex items-center gap-2">
+                          <Factory className="h-4 w-4" /> Fábrica
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="LOJA">
+                        <span className="flex items-center gap-2">
+                          <Store className="h-4 w-4" /> Loja
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="CLIENTE">
+                        <span className="flex items-center gap-2">
+                          <User className="h-4 w-4" /> Cliente
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell>
                   <Badge 
