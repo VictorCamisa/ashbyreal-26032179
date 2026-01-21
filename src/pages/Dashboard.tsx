@@ -85,62 +85,61 @@ export default function Dashboard() {
       title="Dashboard"
       subtitle="Visão geral completa do seu negócio"
       actions={
-        <div className="flex items-center gap-2">
-          {/* Month Navigation */}
-          <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
+        <>
+          {/* Row 1: Month navigation and filter - always visible */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs sm:text-sm font-medium capitalize px-1.5 sm:px-2 min-w-[80px] sm:min-w-[100px] text-center">
+                {monthLabel}
+              </span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
+              <SelectTrigger className="w-[80px] sm:w-[100px] h-8 text-xs sm:text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="LOJA">Loja</SelectItem>
+                <SelectItem value="PARTICULAR">Particular</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium capitalize px-2 min-w-[100px] text-center">
-              {monthLabel}
-            </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+
+            {/* Test Agent - icon only on mobile */}
+            {activeAgent && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 h-8 px-2 sm:px-3"
+                onClick={() => setShowTestarAgente(true)}
+              >
+                <Bot className="h-4 w-4" />
+                <span className="hidden sm:inline">Testar Agente</span>
+              </Button>
+            )}
+
+            <QuickActions />
           </div>
-
-          {/* Entity Filter */}
-          <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v as any)}>
-            <SelectTrigger className="w-[100px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="LOJA">Loja</SelectItem>
-              <SelectItem value="PARTICULAR">Particular</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Refresh */}
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-
-          {/* Test Agent Button */}
-          {activeAgent && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-2"
-              onClick={() => setShowTestarAgente(true)}
-            >
-              <Bot className="h-4 w-4" />
-              Testar Agente
-            </Button>
-          )}
-
-          {/* Quick Actions */}
-          <QuickActions />
-        </div>
+        </>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Enhanced KPIs Grid - 3 rows of interactive cards */}
         <DashboardKPIsEnhanced data={dashboardData} isLoading={isLoading} />
 
         {/* Alerts + WhatsApp Row */}
         {dashboardData && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
             <div className="lg:col-span-2">
               <AlertsPanel
                 atrasadas={dashboardData.financeiro.atrasadas}
@@ -163,7 +162,7 @@ export default function Dashboard() {
 
         {/* Charts Row - Comparison + Category Distribution */}
         {dashboardData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             <ComparisonChart
               receitas={dashboardData.financeiro.receitas}
               despesas={dashboardData.financeiro.despesas}
@@ -178,7 +177,7 @@ export default function Dashboard() {
         )}
 
         {/* Financial Health + Evolution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           {dashboardData && (
             <HealthGauge
               receitas={dashboardData.financeiro.receitas}
@@ -191,7 +190,7 @@ export default function Dashboard() {
         </div>
 
         {/* Cash Flow + Lead Funnel */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           <CashFlowChart data={cashFlowForecast} />
           {dashboardData && (
             <LeadFunnelChart
@@ -203,7 +202,7 @@ export default function Dashboard() {
         </div>
 
         {/* Rankings + Pedidos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           {dashboardData && (
             <>
               <RankingsPanel

@@ -25,14 +25,14 @@ interface DashboardKPIsEnhancedProps {
 export function DashboardKPIsEnhanced({ data, isLoading }: DashboardKPIsEnhancedProps) {
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="rounded-xl bg-card border border-border/60 p-5">
-              <div className="space-y-3">
-                <div className="h-3 w-20 bg-muted rounded animate-pulse" />
-                <div className="h-7 w-28 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+            <div key={i} className="rounded-xl bg-card border border-border/60 p-3 sm:p-5">
+              <div className="space-y-2 sm:space-y-3">
+                <div className="h-3 w-16 sm:w-20 bg-muted rounded animate-pulse" />
+                <div className="h-5 sm:h-7 w-20 sm:w-28 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-12 sm:w-16 bg-muted rounded animate-pulse" />
               </div>
             </div>
           ))}
@@ -68,9 +68,9 @@ export function DashboardKPIsEnhanced({ data, isLoading }: DashboardKPIsEnhanced
     : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Row 1 - Financial Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         <InteractiveKPICard
           label="Receitas"
           value={formatCurrency(data.financeiro.receitas)}
@@ -125,7 +125,7 @@ export function DashboardKPIsEnhanced({ data, isLoading }: DashboardKPIsEnhanced
       </div>
 
       {/* Row 2 - Sales & Operations */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
         <InteractiveKPICard
           label="Vendas"
           value={formatCurrency(data.vendas.total)}
@@ -177,7 +177,7 @@ export function DashboardKPIsEnhanced({ data, isLoading }: DashboardKPIsEnhanced
       </div>
 
       {/* Row 3 - Alerts & Pending Items */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         <InteractiveKPICard
           label="Contas Atrasadas"
           value={data.financeiro.atrasadas.toString()}
