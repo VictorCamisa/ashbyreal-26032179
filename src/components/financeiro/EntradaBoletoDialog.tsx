@@ -523,10 +523,19 @@ export function EntradaBoletoDialog({ open, onOpenChange }: EntradaBoletoDialogP
 
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label>Entidade</Label>
-                  <div className="flex items-center h-10 px-3 rounded-md border bg-muted/50 text-sm">
-                    LOJA
-                  </div>
+                  <Label htmlFor="entity">Entidade</Label>
+                  <Select value={entityId} onValueChange={setEntityId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a entidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entities.map((entity) => (
+                        <SelectItem key={entity.id} value={entity.id}>
+                          {entity.name} ({entity.type})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <TooltipProvider>
