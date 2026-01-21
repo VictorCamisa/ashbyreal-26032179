@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export type BarrilLocalizacao = 'LOJA' | 'CLIENTE';
+export type BarrilLocalizacao = 'FABRICA' | 'LOJA' | 'CLIENTE';
 export type BarrilStatusConteudo = 'CHEIO' | 'VAZIO';
-export type BarrilTipoMovimento = 'SAIDA' | 'RETORNO';
+export type BarrilTipoMovimento = 'ENTRADA' | 'SAIDA' | 'RETORNO' | 'ENCHIMENTO';
 
 export interface Barril {
   id: string;
@@ -55,6 +55,9 @@ export interface BarrilMovimentacao {
 
 export interface BarrisStats {
   total: number;
+  naFabrica: number;
+  naFabricaCheia: number;
+  naFabricaVazia: number;
   naLoja: number;
   naLojaCheia: number;
   naLojaVazia: number;
@@ -98,6 +101,9 @@ export function useBarrisStats() {
       
       const stats: BarrisStats = {
         total: data.length,
+        naFabrica: data.filter(b => b.localizacao === 'FABRICA').length,
+        naFabricaCheia: data.filter(b => b.localizacao === 'FABRICA' && b.status_conteudo === 'CHEIO').length,
+        naFabricaVazia: data.filter(b => b.localizacao === 'FABRICA' && b.status_conteudo === 'VAZIO').length,
         naLoja: data.filter(b => b.localizacao === 'LOJA').length,
         naLojaCheia: data.filter(b => b.localizacao === 'LOJA' && b.status_conteudo === 'CHEIO').length,
         naLojaVazia: data.filter(b => b.localizacao === 'LOJA' && b.status_conteudo === 'VAZIO').length,
@@ -143,9 +149,27 @@ export function useBarrisDisponiveis() {
         .from('barris')
         .select('*')
         .eq('localizacao', 'LOJA')
+        .eq('status_conteudo', 'CHEIO')
         .is('cliente_id', null)
         .is('lojista_id', null)
         .order('codigo');
+      
+      if (error) throw error;
+      return data as Barril[];
+    }
+  });
+}
+
+export function useBarrisVaziosNaLoja() {
+  return useQuery({
+    queryKey: ['barris', 'vazios-loja'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('barris')
+        .select('*')
+        .eq('localizacao', 'LOJA')
+        .eq('status_conteudo', 'VAZIO')
+        .order('data_ultima_movimentacao', { ascending: true, nullsFirst: true });
       
       if (error) throw error;
       return data as Barril[];
