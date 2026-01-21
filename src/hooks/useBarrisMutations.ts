@@ -159,7 +159,7 @@ export function useBarrisMutations() {
 
   const transferirBarrilManual = async (
     barrilId: string,
-    novaLocalizacao: 'LOJA' | 'CLIENTE',
+    novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE',
     clienteId?: string | null,
     observacoes?: string
   ) => {
@@ -211,7 +211,7 @@ export function useBarrisMutations() {
 
       toast({
         title: 'Barril transferido',
-        description: `Barril movido para ${novaLocalizacao === 'LOJA' ? 'loja' : 'cliente'}`
+        description: `Barril movido para ${novaLocalizacao === 'LOJA' ? 'loja' : novaLocalizacao === 'FABRICA' ? 'fábrica' : 'cliente'}`
       });
 
       return true;
@@ -228,10 +228,189 @@ export function useBarrisMutations() {
     }
   };
 
+  // Criar novos barris vindos da fábrica (ENTRADA)
+  const criarBarrisDaFabrica = async (
+    quantidade: number,
+    capacidade: number,
+    prefixoCodigo: string = 'BR'
+  ) => {
+    setIsLoading(true);
+
+    try {
+      // Buscar próximo número disponível
+      const { data: ultimoBarril } = await supabase
+        .from('barris')
+        .select('codigo')
+        .like('codigo', `${prefixoCodigo}%`)
+        .order('codigo', { ascending: false })
+        .limit(1);
+
+      let proximoNumero = 1;
+      if (ultimoBarril && ultimoBarril.length > 0) {
+        const numeroStr = ultimoBarril[0].codigo.replace(prefixoCodigo, '');
+        proximoNumero = parseInt(numeroStr, 10) + 1 || 1;
+      }
+
+      const barrisCriados: string[] = [];
+
+      for (let i = 0; i < quantidade; i++) {
+        const codigo = `${prefixoCodigo}${String(proximoNumero + i).padStart(3, '0')}`;
+        
+        // Criar barril
+        const { data: novoBarril, error: insertError } = await supabase
+          .from('barris')
+          .insert({
+            codigo,
+            capacidade,
+            localizacao: 'LOJA',
+            status_conteudo: 'CHEIO',
+            data_ultima_movimentacao: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Registrar movimentação de entrada
+        const { error: movError } = await supabase
+          .from('barril_movimentacoes')
+          .insert({
+            barril_id: novoBarril.id,
+            tipo_movimento: 'ENTRADA',
+            status_conteudo: 'CHEIO',
+            localizacao_anterior: 'FABRICA',
+            localizacao_nova: 'LOJA',
+            data_movimento: new Date().toISOString(),
+            observacoes: 'Entrada da fábrica - barril novo'
+          });
+
+        if (movError) throw movError;
+        barrisCriados.push(codigo);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['barris'] });
+      queryClient.invalidateQueries({ queryKey: ['barril-movimentacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['barris-stats'] });
+
+      toast({
+        title: 'Barris criados',
+        description: `${quantidade} barril(is) de ${capacidade}L criado(s) da fábrica`
+      });
+
+      return barrisCriados;
+    } catch (error) {
+      console.error('Erro ao criar barris:', error);
+      toast({
+        title: 'Erro ao criar barris',
+        description: 'Não foi possível criar os barris.',
+        variant: 'destructive'
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Encher barris vazios existentes na loja (ENCHIMENTO)
+  const encherBarrisVazios = async (quantidade: number, capacidade: number) => {
+    setIsLoading(true);
+
+    try {
+      // Buscar barris vazios na loja com a capacidade especificada (FIFO - mais antigos primeiro)
+      const { data: barrisVazios, error: fetchError } = await supabase
+        .from('barris')
+        .select('id, codigo, capacidade')
+        .eq('localizacao', 'LOJA')
+        .eq('status_conteudo', 'VAZIO')
+        .eq('capacidade', capacidade)
+        .order('data_ultima_movimentacao', { ascending: true, nullsFirst: true })
+        .limit(quantidade);
+
+      if (fetchError) throw fetchError;
+
+      if (!barrisVazios || barrisVazios.length === 0) {
+        toast({
+          title: 'Nenhum barril vazio',
+          description: `Não há barris vazios de ${capacidade}L na loja para encher.`,
+          variant: 'destructive'
+        });
+        return [];
+      }
+
+      const barrisEnchidos: string[] = [];
+
+      for (const barril of barrisVazios) {
+        // Atualizar status para CHEIO
+        const { error: updateError } = await supabase
+          .from('barris')
+          .update({
+            status_conteudo: 'CHEIO',
+            data_ultima_movimentacao: new Date().toISOString()
+          })
+          .eq('id', barril.id);
+
+        if (updateError) throw updateError;
+
+        // Registrar movimentação de enchimento
+        const { error: movError } = await supabase
+          .from('barril_movimentacoes')
+          .insert({
+            barril_id: barril.id,
+            tipo_movimento: 'ENCHIMENTO',
+            status_conteudo: 'CHEIO',
+            localizacao_anterior: 'LOJA',
+            localizacao_nova: 'LOJA',
+            data_movimento: new Date().toISOString(),
+            observacoes: 'Barril enchido - entrada da fábrica'
+          });
+
+        if (movError) throw movError;
+        barrisEnchidos.push(barril.codigo);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['barris'] });
+      queryClient.invalidateQueries({ queryKey: ['barril-movimentacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['barris-stats'] });
+
+      toast({
+        title: 'Barris enchidos',
+        description: `${barrisEnchidos.length} barril(is) de ${capacidade}L enchido(s)`
+      });
+
+      return barrisEnchidos;
+    } catch (error) {
+      console.error('Erro ao encher barris:', error);
+      toast({
+        title: 'Erro ao encher barris',
+        description: 'Não foi possível encher os barris.',
+        variant: 'destructive'
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Processar entrada de chopp do boleto (pergunta se cria novos ou enche existentes)
+  const processarEntradaChopp = async (
+    quantidade: number,
+    capacidade: number,
+    modo: 'criar' | 'encher'
+  ) => {
+    if (modo === 'criar') {
+      return await criarBarrisDaFabrica(quantidade, capacidade);
+    } else {
+      return await encherBarrisVazios(quantidade, capacidade);
+    }
+  };
+
   return {
     isLoading,
     movimentarBarris,
     atualizarStatusBarril,
-    transferirBarrilManual
+    transferirBarrilManual,
+    criarBarrisDaFabrica,
+    encherBarrisVazios,
+    processarEntradaChopp
   };
 }

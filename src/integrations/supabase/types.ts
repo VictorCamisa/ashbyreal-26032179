@@ -2305,7 +2305,7 @@ export type Database = {
       ashby_status: "PENDENTE" | "ENTREGUE" | "PAGO" | "CANCELADO"
       barril_localizacao: "LOJA" | "CLIENTE" | "FABRICA"
       barril_status_conteudo: "CHEIO" | "VAZIO"
-      barril_tipo_movimento: "SAIDA" | "RETORNO"
+      barril_tipo_movimento: "SAIDA" | "RETORNO" | "ENTRADA" | "ENCHIMENTO"
       boleto_status:
         | "PENDENTE"
         | "APROVADO"
@@ -2465,7 +2465,7 @@ export const Constants = {
       ashby_status: ["PENDENTE", "ENTREGUE", "PAGO", "CANCELADO"],
       barril_localizacao: ["LOJA", "CLIENTE", "FABRICA"],
       barril_status_conteudo: ["CHEIO", "VAZIO"],
-      barril_tipo_movimento: ["SAIDA", "RETORNO"],
+      barril_tipo_movimento: ["SAIDA", "RETORNO", "ENTRADA", "ENCHIMENTO"],
       boleto_status: ["PENDENTE", "APROVADO", "PAGO", "REJEITADO", "CANCELADO"],
       boleto_tipo_nota: ["COM_NOTA", "SEM_NOTA"],
       card_transaction_status: [
