@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDashboardEnhanced } from '@/hooks/useDashboardEnhanced';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { DashboardKPIsEnhanced } from '@/components/dashboard/DashboardKPIsEnhanced';
+import { DashboardMobile } from '@/components/dashboard/DashboardMobile';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { CashFlowChart } from '@/components/dashboard/CashFlowChart';
 import { LeadFunnelChart } from '@/components/dashboard/LeadFunnelChart';
@@ -17,6 +18,7 @@ import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { TestarAgenteDialog } from '@/components/agentes/TestarAgenteDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -39,6 +41,7 @@ interface AIAgent {
 }
 
 export default function Dashboard() {
+  const isMobile = useIsMobile();
   const [mesReferencia, setMesReferencia] = useState(new Date());
   const [entityFilter, setEntityFilter] = useState<'all' | 'LOJA' | 'PARTICULAR'>('all');
   const [showTestarAgente, setShowTestarAgente] = useState(false);
@@ -130,94 +133,103 @@ export default function Dashboard() {
         </div>
       }
     >
-      <div className="space-y-4 sm:space-y-6">
-        {/* Enhanced KPIs Grid - 3 rows of interactive cards */}
-        <DashboardKPIsEnhanced data={dashboardData} isLoading={isLoading} />
+      {/* Mobile View */}
+      {isMobile ? (
+        <DashboardMobile 
+          dashboardData={dashboardData} 
+          isLoading={isLoading}
+        />
+      ) : (
+        /* Desktop View */
+        <div className="space-y-6">
+          {/* Enhanced KPIs Grid - 3 rows of interactive cards */}
+          <DashboardKPIsEnhanced data={dashboardData} isLoading={isLoading} />
 
-        {/* Alerts + WhatsApp Row */}
-        {dashboardData && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div className="lg:col-span-2">
-              <AlertsPanel
-                atrasadas={dashboardData.financeiro.atrasadas}
-                valorAtrasado={dashboardData.financeiro.valorAtrasado}
-                pendentes={dashboardData.financeiro.pendentes7dias}
-                valorPendente={dashboardData.financeiro.valorPendente}
-                faturasAbertas={dashboardData.financeiro.faturasAbertas}
-                valorFaturas={dashboardData.financeiro.valorFaturas}
-                alertasEstoque={dashboardData.estoque.alertas}
-                produtosEmAlerta={dashboardData.estoque.produtosEmAlerta}
+          {/* Alerts + WhatsApp Row */}
+          {dashboardData && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <AlertsPanel
+                  atrasadas={dashboardData.financeiro.atrasadas}
+                  valorAtrasado={dashboardData.financeiro.valorAtrasado}
+                  pendentes={dashboardData.financeiro.pendentes7dias}
+                  valorPendente={dashboardData.financeiro.valorPendente}
+                  faturasAbertas={dashboardData.financeiro.faturasAbertas}
+                  valorFaturas={dashboardData.financeiro.valorFaturas}
+                  alertasEstoque={dashboardData.estoque.alertas}
+                  produtosEmAlerta={dashboardData.estoque.produtosEmAlerta}
+                />
+              </div>
+              <WhatsAppStatus
+                isConnected={dashboardData.whatsapp.isConnected}
+                conversasAtivas={dashboardData.whatsapp.conversasAtivas}
+                naoLidas={dashboardData.whatsapp.naoLidas}
               />
             </div>
-            <WhatsAppStatus
-              isConnected={dashboardData.whatsapp.isConnected}
-              conversasAtivas={dashboardData.whatsapp.conversasAtivas}
-              naoLidas={dashboardData.whatsapp.naoLidas}
-            />
-          </div>
-        )}
-
-        {/* Charts Row - Comparison + Category Distribution */}
-        {dashboardData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            <ComparisonChart
-              receitas={dashboardData.financeiro.receitas}
-              despesas={dashboardData.financeiro.despesas}
-              receitasAnterior={dashboardData.vendas.mesAnterior}
-              despesasAnterior={dashboardData.vendas.mesAnterior * 0.7}
-            />
-            <CategoryDonutChart
-              data={dashboardData.topCategoriasDespesa}
-              title="Top Categorias de Despesa"
-            />
-          </div>
-        )}
-
-        {/* Financial Health + Evolution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          {dashboardData && (
-            <HealthGauge
-              receitas={dashboardData.financeiro.receitas}
-              despesas={dashboardData.financeiro.despesas}
-              transacoesAtrasadas={dashboardData.financeiro.atrasadas}
-              faturasAbertas={dashboardData.financeiro.faturasAbertas}
-            />
           )}
-          <EvolutionChart data={evolutionData} />
-        </div>
 
-        {/* Cash Flow + Lead Funnel */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          <CashFlowChart data={cashFlowForecast} />
+          {/* Charts Row - Comparison + Category Distribution */}
           {dashboardData && (
-            <LeadFunnelChart
-              data={leadFunnel}
-              totalLeads={dashboardData.leads.total}
-              taxaConversao={dashboardData.leads.conversao}
-            />
-          )}
-        </div>
-
-        {/* Rankings + Pedidos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          {dashboardData && (
-            <>
-              <RankingsPanel
-                topClientes={dashboardData.topClientes}
-                topProdutos={dashboardData.topProdutos}
-                topCategorias={dashboardData.topCategoriasDespesa}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ComparisonChart
+                receitas={dashboardData.financeiro.receitas}
+                despesas={dashboardData.financeiro.despesas}
+                receitasAnterior={dashboardData.vendas.mesAnterior}
+                despesasAnterior={dashboardData.vendas.mesAnterior * 0.7}
               />
-              <PedidosTimeline
-                total={dashboardData.pedidos.total}
-                pendentes={dashboardData.pedidos.pendentes}
-                emAndamento={dashboardData.pedidos.emAndamento}
-                valorPendente={dashboardData.pedidos.valorPendente}
-                byStatus={dashboardData.pedidos.byStatus}
+              <CategoryDonutChart
+                data={dashboardData.topCategoriasDespesa}
+                title="Top Categorias de Despesa"
               />
-            </>
+            </div>
           )}
+
+          {/* Financial Health + Evolution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {dashboardData && (
+              <HealthGauge
+                receitas={dashboardData.financeiro.receitas}
+                despesas={dashboardData.financeiro.despesas}
+                transacoesAtrasadas={dashboardData.financeiro.atrasadas}
+                faturasAbertas={dashboardData.financeiro.faturasAbertas}
+              />
+            )}
+            <EvolutionChart data={evolutionData} />
+          </div>
+
+          {/* Cash Flow + Lead Funnel */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <CashFlowChart data={cashFlowForecast} />
+            {dashboardData && (
+              <LeadFunnelChart
+                data={leadFunnel}
+                totalLeads={dashboardData.leads.total}
+                taxaConversao={dashboardData.leads.conversao}
+              />
+            )}
+          </div>
+
+          {/* Rankings + Pedidos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {dashboardData && (
+              <>
+                <RankingsPanel
+                  topClientes={dashboardData.topClientes}
+                  topProdutos={dashboardData.topProdutos}
+                  topCategorias={dashboardData.topCategoriasDespesa}
+                />
+                <PedidosTimeline
+                  total={dashboardData.pedidos.total}
+                  pendentes={dashboardData.pedidos.pendentes}
+                  emAndamento={dashboardData.pedidos.emAndamento}
+                  valorPendente={dashboardData.pedidos.valorPendente}
+                  byStatus={dashboardData.pedidos.byStatus}
+                />
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Test Agent Dialog */}
       {activeAgent && (
