@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,10 @@ import {
   BarChart3,
   PieChart,
   Activity,
+  Camera,
+  UserPlus,
+  Truck,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -127,6 +132,8 @@ function CollapsibleSection({
 }
 
 export function DashboardMobile({ dashboardData, isLoading, children }: DashboardMobileProps) {
+  const navigate = useNavigate();
+
   if (isLoading || !dashboardData) {
     return (
       <div className="space-y-3">
@@ -137,40 +144,57 @@ export function DashboardMobile({ dashboardData, isLoading, children }: Dashboar
     );
   }
 
-  const formatCurrency = (value: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(value);
+  const formatCurrency = (value: number | undefined | null) => {
+    const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(safeValue);
+  };
+
+  const saldo = dashboardData.financeiro?.saldo ?? 0;
+  const ticketMedio = dashboardData.vendas?.ticketMedio ?? 0;
+
+  const quickActions = [
+    { 
+      label: 'Escanear Boleto', 
+      icon: Camera, 
+      onClick: () => navigate('/financeiro'),
+      color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    },
+    { 
+      label: 'Novo Lead', 
+      icon: UserPlus, 
+      onClick: () => navigate('/crm'),
+      color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+    },
+    { 
+      label: 'Entregas', 
+      icon: Truck, 
+      onClick: () => navigate('/pedidos'),
+      color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    },
+    { 
+      label: 'Novo Pedido', 
+      icon: Receipt, 
+      onClick: () => navigate('/pedidos'),
+      color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    },
+  ];
 
   return (
     <div className="space-y-3">
-      {/* Main KPIs - Always visible */}
-      <div className="grid grid-cols-2 gap-2">
-        <MobileKPICard
-          icon={DollarSign}
-          label="Receitas"
-          value={formatCurrency(dashboardData.financeiro.receitas)}
-          trend={dashboardData.vendas.tendencia}
-          color="success"
-        />
-        <MobileKPICard
-          icon={DollarSign}
-          label="Despesas"
-          value={formatCurrency(dashboardData.financeiro.despesas)}
-          color="destructive"
-        />
-        <MobileKPICard
-          icon={ShoppingCart}
-          label="Pedidos"
-          value={dashboardData.pedidos.total}
-          subValue={`${dashboardData.pedidos.pendentes} pendentes`}
-          color="primary"
-        />
-        <MobileKPICard
-          icon={Users}
-          label="Clientes"
-          value={dashboardData.clientes.total}
-          subValue={`${dashboardData.clientes.novos} novos`}
-          color="primary"
-        />
+      {/* Quick Actions - Prominent at top */}
+      <div className="grid grid-cols-4 gap-2">
+        {quickActions.map((action) => (
+          <button
+            key={action.label}
+            onClick={action.onClick}
+            className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border hover:bg-muted/50 transition-colors active:scale-95"
+          >
+            <div className={cn("p-2 rounded-lg", action.color)}>
+              <action.icon className="h-4 w-4" />
+            </div>
+            <span className="text-[10px] font-medium text-center leading-tight">{action.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Quick balance card */}
@@ -181,45 +205,76 @@ export function DashboardMobile({ dashboardData, isLoading, children }: Dashboar
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Saldo do Mês</p>
               <p className={cn(
                 "text-xl font-bold",
-                dashboardData.financeiro.saldo >= 0 ? "text-emerald-600" : "text-red-500"
+                saldo >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
               )}>
-                {formatCurrency(dashboardData.financeiro.saldo)}
+                {formatCurrency(saldo)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-muted-foreground">Ticket Médio</p>
-              <p className="text-sm font-semibold">{formatCurrency(dashboardData.vendas.ticketMedio)}</p>
+              <p className="text-sm font-semibold">{formatCurrency(ticketMedio)}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Main KPIs - Always visible */}
+      <div className="grid grid-cols-2 gap-2">
+        <MobileKPICard
+          icon={DollarSign}
+          label="Receitas"
+          value={formatCurrency(dashboardData.financeiro?.receitas)}
+          trend={dashboardData.vendas?.tendencia}
+          color="success"
+        />
+        <MobileKPICard
+          icon={DollarSign}
+          label="Despesas"
+          value={formatCurrency(dashboardData.financeiro?.despesas)}
+          color="destructive"
+        />
+        <MobileKPICard
+          icon={ShoppingCart}
+          label="Pedidos"
+          value={dashboardData.pedidos?.total ?? 0}
+          subValue={`${dashboardData.pedidos?.pendentes ?? 0} pendentes`}
+          color="primary"
+        />
+        <MobileKPICard
+          icon={Users}
+          label="Clientes"
+          value={dashboardData.clientes?.total ?? 0}
+          subValue={`${dashboardData.clientes?.novos ?? 0} novos`}
+          color="primary"
+        />
+      </div>
+
       {/* Alerts Section - Open by default if there are alerts */}
       <CollapsibleSection 
         title="Alertas" 
         icon={AlertTriangle}
-        defaultOpen={dashboardData.financeiro.atrasadas > 0 || dashboardData.estoque.alertas > 0}
-        badge={dashboardData.financeiro.atrasadas + dashboardData.estoque.alertas}
+        defaultOpen={(dashboardData.financeiro?.atrasadas ?? 0) > 0 || (dashboardData.estoque?.alertas ?? 0) > 0}
+        badge={(dashboardData.financeiro?.atrasadas ?? 0) + (dashboardData.estoque?.alertas ?? 0)}
       >
         {children?.alerts || (
           <div className="space-y-2">
-            {dashboardData.financeiro.atrasadas > 0 && (
-              <div className="flex items-center justify-between p-2 bg-red-500/10 rounded-lg">
+            {(dashboardData.financeiro?.atrasadas ?? 0) > 0 && (
+              <div className="flex items-center justify-between p-2 bg-destructive/10 rounded-lg">
                 <span className="text-xs">Transações atrasadas</span>
                 <Badge variant="destructive" className="text-[10px]">
-                  {dashboardData.financeiro.atrasadas}
+                  {dashboardData.financeiro?.atrasadas}
                 </Badge>
               </div>
             )}
-            {dashboardData.estoque.alertas > 0 && (
+            {(dashboardData.estoque?.alertas ?? 0) > 0 && (
               <div className="flex items-center justify-between p-2 bg-amber-500/10 rounded-lg">
                 <span className="text-xs">Produtos em alerta</span>
-                <Badge variant="secondary" className="text-[10px] bg-amber-500/20 text-amber-700">
-                  {dashboardData.estoque.alertas}
+                <Badge variant="secondary" className="text-[10px]">
+                  {dashboardData.estoque?.alertas}
                 </Badge>
               </div>
             )}
-            {dashboardData.financeiro.atrasadas === 0 && dashboardData.estoque.alertas === 0 && (
+            {(dashboardData.financeiro?.atrasadas ?? 0) === 0 && (dashboardData.estoque?.alertas ?? 0) === 0 && (
               <p className="text-xs text-muted-foreground text-center py-2">
                 Nenhum alerta no momento 🎉
               </p>
@@ -232,25 +287,25 @@ export function DashboardMobile({ dashboardData, isLoading, children }: Dashboar
       <CollapsibleSection 
         title="WhatsApp" 
         icon={MessageCircle}
-        badge={dashboardData.whatsapp.naoLidas || undefined}
+        badge={dashboardData.whatsapp?.naoLidas || undefined}
       >
         {children?.whatsapp || (
           <div className="flex items-center gap-3">
             <div className={cn(
               "h-2 w-2 rounded-full",
-              dashboardData.whatsapp.isConnected ? "bg-emerald-500" : "bg-red-500"
+              dashboardData.whatsapp?.isConnected ? "bg-emerald-500" : "bg-destructive"
             )} />
             <div className="flex-1">
               <p className="text-xs">
-                {dashboardData.whatsapp.isConnected ? 'Conectado' : 'Desconectado'}
+                {dashboardData.whatsapp?.isConnected ? 'Conectado' : 'Desconectado'}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                {dashboardData.whatsapp.conversasAtivas} conversas ativas
+                {dashboardData.whatsapp?.conversasAtivas ?? 0} conversas ativas
               </p>
             </div>
-            {dashboardData.whatsapp.naoLidas > 0 && (
+            {(dashboardData.whatsapp?.naoLidas ?? 0) > 0 && (
               <Badge variant="destructive" className="text-[10px]">
-                {dashboardData.whatsapp.naoLidas} não lidas
+                {dashboardData.whatsapp?.naoLidas} não lidas
               </Badge>
             )}
           </div>
@@ -283,11 +338,11 @@ export function DashboardMobile({ dashboardData, isLoading, children }: Dashboar
       <CollapsibleSection 
         title="Pedidos" 
         icon={ShoppingCart}
-        badge={dashboardData.pedidos.pendentes || undefined}
+        badge={dashboardData.pedidos?.pendentes || undefined}
       >
         {children?.pedidos || (
           <div className="space-y-2">
-            {Object.entries(dashboardData.pedidos.byStatus || {}).map(([status, count]) => (
+            {Object.entries(dashboardData.pedidos?.byStatus || {}).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between">
                 <span className="text-xs capitalize">{status.toLowerCase().replace('_', ' ')}</span>
                 <Badge variant="secondary" className="text-[10px]">{count as number}</Badge>
