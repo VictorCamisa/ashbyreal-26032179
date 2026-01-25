@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { format, addMonths, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMonthYear, formatCompetencia } from '@/lib/dateUtils';
 
 interface ImportarFaturaCartaoDialogProps {
   open: boolean;
@@ -136,16 +136,16 @@ export function ImportarFaturaCartaoDialog({
     for (let i = 2; i >= 1; i--) {
       const monthDate = addMonths(now, i);
       const value = format(monthDate, 'yyyy-MM');
-      const label = format(monthDate, 'MMMM yyyy', { locale: ptBR });
-      months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      const label = formatMonthYear(monthDate);
+      months.push({ value, label });
     }
     
     // Add current month + 3 previous months
     for (let i = 0; i <= 3; i++) {
       const monthDate = subMonths(now, i);
       const value = format(monthDate, 'yyyy-MM');
-      const label = format(monthDate, 'MMMM yyyy', { locale: ptBR });
-      months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      const label = formatMonthYear(monthDate);
+      months.push({ value, label });
     }
     
     return months;
@@ -531,13 +531,7 @@ export function ImportarFaturaCartaoDialog({
 
   // Format competencia for display
   const formatCompetenciaLabel = (comp: string) => {
-    try {
-      const date = new Date(`${comp}-15`);
-      const label = format(date, 'MMMM yyyy', { locale: ptBR });
-      return label.charAt(0).toUpperCase() + label.slice(1);
-    } catch {
-      return comp;
-    }
+    return formatCompetencia(comp);
   };
 
   return (

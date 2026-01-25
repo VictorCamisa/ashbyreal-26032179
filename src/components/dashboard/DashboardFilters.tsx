@@ -3,7 +3,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, addMonths, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMonthYear } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface DashboardFiltersProps {
@@ -35,7 +35,7 @@ export function DashboardFilters({ mesReferencia, onMesChange }: DashboardFilter
           <PopoverTrigger asChild>
             <Button variant="outline" className="min-w-[200px] justify-start text-left font-normal">
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {format(mesReferencia, 'MMMM yyyy', { locale: ptBR })}
+              {formatMonthYear(mesReferencia)}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">

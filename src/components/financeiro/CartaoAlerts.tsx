@@ -3,7 +3,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock, Calendar, X, Check } from 'lucide-react';
 import { format, differenceInDays, isAfter, isBefore, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatCompetencia } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import {
@@ -47,7 +47,7 @@ export function CartaoAlerts({ cartoes, faturas, onDismiss }: CartaoAlertsProps)
 
       const dueDate = fatura.due_date ? new Date(fatura.due_date) : null;
       const closingDate = fatura.closing_date ? new Date(fatura.closing_date) : null;
-      const competencia = format(new Date(fatura.competencia), 'MMMM/yyyy', { locale: ptBR });
+      const competencia = formatCompetencia(fatura.competencia);
 
       // Fatura vencida
       if (dueDate && isBefore(dueDate, now)) {

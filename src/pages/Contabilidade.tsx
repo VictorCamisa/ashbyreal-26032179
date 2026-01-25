@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { format, subMonths, addMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Calculator, Settings, LayoutDashboard, FileText } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,7 @@ import { FluxoCaixaFiscal } from '@/components/contabilidade/FluxoCaixaFiscal';
 import { PendenciasDetalhadas } from '@/components/contabilidade/PendenciasDetalhadas';
 import { DocumentosFiscaisTable } from '@/components/contabilidade/DocumentosFiscaisTable';
 import { useFiscalMetrics } from '@/hooks/useFiscalMetrics';
+import { formatMonthYear } from '@/lib/dateUtils';
 
 export default function Contabilidade() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -21,8 +21,7 @@ export default function Contabilidade() {
   
   const monthStr = format(currentMonth, 'yyyy-MM');
   const { data: metrics, isLoading } = useFiscalMetrics(monthStr);
-
-  const monthLabel = format(currentMonth, 'MMMM yyyy', { locale: ptBR });
+  const monthLabel = formatMonthYear(currentMonth);
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
