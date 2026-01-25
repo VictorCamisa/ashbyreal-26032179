@@ -180,8 +180,11 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
 
   // Fetch all transactions with related data
   const { data: bankTransactions, isLoading: isLoadingBank } = useQuery({
-    queryKey: ['transacoes-banco', monthStr],
+    queryKey: ['transacoes-banco', monthStr, lastDayOfMonth],
     queryFn: async () => {
+      const startDate = `${monthStr}-01`;
+      const endDate = format(endOfMonth(new Date(`${monthStr}-15`)), 'yyyy-MM-dd');
+      
       const { data, error } = await supabase
         .from('transactions')
         .select(`
@@ -191,8 +194,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           accounts(name),
           entities(name, type)
         `)
-        .gte('due_date', `${monthStr}-01`)
-        .lte('due_date', lastDayOfMonth)
+        .gte('due_date', startDate)
+        .lte('due_date', endDate)
         .order('due_date', { ascending: true });
 
       if (error) throw error;
