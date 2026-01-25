@@ -511,7 +511,7 @@ export function ImportarFaturaCartaoDialog({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, data]) => ({
         month,
-        monthLabel: new Date(`${month}-15`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        monthLabel: formatCompetencia(month),
         ...data
       }));
   }, [parsedTransactions, effectiveCompetencia]);
