@@ -16,6 +16,7 @@ import {
   Circle,
   Maximize,
   Minimize,
+  Calculator,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -39,6 +40,7 @@ const navItems = [
   { label: 'Barris', href: '/barris', icon: Circle },
   { label: 'Estoque', href: '/estoque', icon: Package },
   { label: 'Financeiro', href: '/financeiro', icon: Wallet },
+  { label: 'Contabilidade', href: '/contabilidade', icon: Calculator },
   { label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
 ];
