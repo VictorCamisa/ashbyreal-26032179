@@ -807,6 +807,178 @@ export type Database = {
         }
         Relationships: []
       }
+      contabilidade_alertas: {
+        Row: {
+          boleto_id: string | null
+          created_at: string
+          descricao: string | null
+          diferenca: number | null
+          documento_id: string | null
+          id: string
+          pedido_id: string | null
+          prioridade: string
+          resolucao_notas: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          status: string
+          tipo: string
+          titulo: string
+          transaction_id: string | null
+          updated_at: string
+          valor_encontrado: number | null
+          valor_esperado: number | null
+        }
+        Insert: {
+          boleto_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          diferenca?: number | null
+          documento_id?: string | null
+          id?: string
+          pedido_id?: string | null
+          prioridade?: string
+          resolucao_notas?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo: string
+          titulo: string
+          transaction_id?: string | null
+          updated_at?: string
+          valor_encontrado?: number | null
+          valor_esperado?: number | null
+        }
+        Update: {
+          boleto_id?: string | null
+          created_at?: string
+          descricao?: string | null
+          diferenca?: number | null
+          documento_id?: string | null
+          id?: string
+          pedido_id?: string | null
+          prioridade?: string
+          resolucao_notas?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo?: string
+          titulo?: string
+          transaction_id?: string | null
+          updated_at?: string
+          valor_encontrado?: number | null
+          valor_esperado?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contabilidade_alertas_boleto_id_fkey"
+            columns: ["boleto_id"]
+            isOneToOne: false
+            referencedRelation: "boletos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilidade_alertas_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_fiscais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilidade_alertas_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contabilidade_alertas_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contabilidade_config: {
+        Row: {
+          alerta_divergencia_valor: boolean | null
+          alerta_entrada_sem_nf: boolean | null
+          alerta_saida_sem_nf: boolean | null
+          ambiente: string | null
+          api_key: string | null
+          api_provider: string | null
+          cnpj: string | null
+          created_at: string
+          entity_id: string | null
+          id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
+          regime_tributario: string | null
+          serie_nfce: string | null
+          serie_nfe: string | null
+          serie_nfse: string | null
+          tolerancia_divergencia: number | null
+          ultimo_numero_nfce: number | null
+          ultimo_numero_nfe: number | null
+          ultimo_numero_nfse: number | null
+          updated_at: string
+        }
+        Insert: {
+          alerta_divergencia_valor?: boolean | null
+          alerta_entrada_sem_nf?: boolean | null
+          alerta_saida_sem_nf?: boolean | null
+          ambiente?: string | null
+          api_key?: string | null
+          api_provider?: string | null
+          cnpj?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          regime_tributario?: string | null
+          serie_nfce?: string | null
+          serie_nfe?: string | null
+          serie_nfse?: string | null
+          tolerancia_divergencia?: number | null
+          ultimo_numero_nfce?: number | null
+          ultimo_numero_nfe?: number | null
+          ultimo_numero_nfse?: number | null
+          updated_at?: string
+        }
+        Update: {
+          alerta_divergencia_valor?: boolean | null
+          alerta_entrada_sem_nf?: boolean | null
+          alerta_saida_sem_nf?: boolean | null
+          ambiente?: string | null
+          api_key?: string | null
+          api_provider?: string | null
+          cnpj?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          regime_tributario?: string | null
+          serie_nfce?: string | null
+          serie_nfe?: string | null
+          serie_nfse?: string | null
+          tolerancia_divergencia?: number | null
+          ultimo_numero_nfce?: number | null
+          ultimo_numero_nfe?: number | null
+          ultimo_numero_nfse?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contabilidade_config_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_imports: {
         Row: {
           competencia: string | null
@@ -1184,6 +1356,252 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "delivery_receipts_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documento_fiscal_itens: {
+        Row: {
+          cfop: string | null
+          codigo: string | null
+          cofins_aliquota: number | null
+          cofins_valor: number | null
+          created_at: string
+          descricao: string
+          documento_id: string
+          icms_aliquota: number | null
+          icms_valor: number | null
+          id: string
+          ipi_aliquota: number | null
+          ipi_valor: number | null
+          ncm: string | null
+          pis_aliquota: number | null
+          pis_valor: number | null
+          produto_id: string | null
+          quantidade: number
+          unidade: string | null
+          valor_desconto: number | null
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          cfop?: string | null
+          codigo?: string | null
+          cofins_aliquota?: number | null
+          cofins_valor?: number | null
+          created_at?: string
+          descricao: string
+          documento_id: string
+          icms_aliquota?: number | null
+          icms_valor?: number | null
+          id?: string
+          ipi_aliquota?: number | null
+          ipi_valor?: number | null
+          ncm?: string | null
+          pis_aliquota?: number | null
+          pis_valor?: number | null
+          produto_id?: string | null
+          quantidade?: number
+          unidade?: string | null
+          valor_desconto?: number | null
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Update: {
+          cfop?: string | null
+          codigo?: string | null
+          cofins_aliquota?: number | null
+          cofins_valor?: number | null
+          created_at?: string
+          descricao?: string
+          documento_id?: string
+          icms_aliquota?: number | null
+          icms_valor?: number | null
+          id?: string
+          ipi_aliquota?: number | null
+          ipi_valor?: number | null
+          ncm?: string | null
+          pis_aliquota?: number | null
+          pis_valor?: number | null
+          produto_id?: string | null
+          quantidade?: number
+          unidade?: string | null
+          valor_desconto?: number | null
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documento_fiscal_itens_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_fiscais"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documento_fiscal_itens_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documentos_fiscais: {
+        Row: {
+          boleto_id: string | null
+          cancelada_por: string | null
+          chave_acesso: string | null
+          cliente_id: string | null
+          cnpj_cpf: string | null
+          created_at: string
+          data_competencia: string
+          data_emissao: string | null
+          direcao: Database["public"]["Enums"]["documento_fiscal_direcao"]
+          emitida_por: string | null
+          endereco: Json | null
+          entity_id: string | null
+          id: string
+          informacoes_adicionais: string | null
+          inscricao_estadual: string | null
+          lojista_id: string | null
+          motivo_cancelamento: string | null
+          natureza_operacao: string | null
+          numero: string | null
+          pdf_url: string | null
+          pedido_id: string | null
+          razao_social: string | null
+          serie: string | null
+          status: Database["public"]["Enums"]["documento_fiscal_status"]
+          tipo: Database["public"]["Enums"]["documento_fiscal_tipo"]
+          updated_at: string
+          valor_cofins: number | null
+          valor_desconto: number
+          valor_frete: number
+          valor_icms: number | null
+          valor_ipi: number | null
+          valor_iss: number | null
+          valor_outras: number
+          valor_pis: number | null
+          valor_produtos: number
+          valor_servicos: number
+          valor_total: number
+          xml_content: string | null
+        }
+        Insert: {
+          boleto_id?: string | null
+          cancelada_por?: string | null
+          chave_acesso?: string | null
+          cliente_id?: string | null
+          cnpj_cpf?: string | null
+          created_at?: string
+          data_competencia?: string
+          data_emissao?: string | null
+          direcao?: Database["public"]["Enums"]["documento_fiscal_direcao"]
+          emitida_por?: string | null
+          endereco?: Json | null
+          entity_id?: string | null
+          id?: string
+          informacoes_adicionais?: string | null
+          inscricao_estadual?: string | null
+          lojista_id?: string | null
+          motivo_cancelamento?: string | null
+          natureza_operacao?: string | null
+          numero?: string | null
+          pdf_url?: string | null
+          pedido_id?: string | null
+          razao_social?: string | null
+          serie?: string | null
+          status?: Database["public"]["Enums"]["documento_fiscal_status"]
+          tipo: Database["public"]["Enums"]["documento_fiscal_tipo"]
+          updated_at?: string
+          valor_cofins?: number | null
+          valor_desconto?: number
+          valor_frete?: number
+          valor_icms?: number | null
+          valor_ipi?: number | null
+          valor_iss?: number | null
+          valor_outras?: number
+          valor_pis?: number | null
+          valor_produtos?: number
+          valor_servicos?: number
+          valor_total?: number
+          xml_content?: string | null
+        }
+        Update: {
+          boleto_id?: string | null
+          cancelada_por?: string | null
+          chave_acesso?: string | null
+          cliente_id?: string | null
+          cnpj_cpf?: string | null
+          created_at?: string
+          data_competencia?: string
+          data_emissao?: string | null
+          direcao?: Database["public"]["Enums"]["documento_fiscal_direcao"]
+          emitida_por?: string | null
+          endereco?: Json | null
+          entity_id?: string | null
+          id?: string
+          informacoes_adicionais?: string | null
+          inscricao_estadual?: string | null
+          lojista_id?: string | null
+          motivo_cancelamento?: string | null
+          natureza_operacao?: string | null
+          numero?: string | null
+          pdf_url?: string | null
+          pedido_id?: string | null
+          razao_social?: string | null
+          serie?: string | null
+          status?: Database["public"]["Enums"]["documento_fiscal_status"]
+          tipo?: Database["public"]["Enums"]["documento_fiscal_tipo"]
+          updated_at?: string
+          valor_cofins?: number | null
+          valor_desconto?: number
+          valor_frete?: number
+          valor_icms?: number | null
+          valor_ipi?: number | null
+          valor_iss?: number | null
+          valor_outras?: number
+          valor_pis?: number | null
+          valor_produtos?: number
+          valor_servicos?: number
+          valor_total?: number
+          xml_content?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_fiscais_boleto_id_fkey"
+            columns: ["boleto_id"]
+            isOneToOne: false
+            referencedRelation: "boletos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_fiscais_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_fiscais_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_fiscais_lojista_id_fkey"
+            columns: ["lojista_id"]
+            isOneToOne: false
+            referencedRelation: "lojistas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_fiscais_pedido_id_fkey"
             columns: ["pedido_id"]
             isOneToOne: false
             referencedRelation: "pedidos"
@@ -2320,6 +2738,15 @@ export type Database = {
         | "POSTADO"
       category_group: "FIXO" | "VARIAVEL" | "INVESTIMENTO"
       category_type: "DESPESA" | "RECEITA"
+      documento_fiscal_direcao: "ENTRADA" | "SAIDA"
+      documento_fiscal_status:
+        | "RASCUNHO"
+        | "PENDENTE_EMISSAO"
+        | "EMITIDA"
+        | "CANCELADA"
+        | "REJEITADA"
+        | "INUTILIZADA"
+      documento_fiscal_tipo: "NFE" | "NFSE" | "CFE_SAT" | "NFCE"
       entity_type: "LOJA" | "PARTICULAR"
       invoice_status: "ABERTA" | "FECHADA" | "PAGA"
       recurrence_frequency: "MENSAL" | "SEMANAL" | "QUINZENAL" | "ANUAL"
@@ -2476,6 +2903,16 @@ export const Constants = {
       ],
       category_group: ["FIXO", "VARIAVEL", "INVESTIMENTO"],
       category_type: ["DESPESA", "RECEITA"],
+      documento_fiscal_direcao: ["ENTRADA", "SAIDA"],
+      documento_fiscal_status: [
+        "RASCUNHO",
+        "PENDENTE_EMISSAO",
+        "EMITIDA",
+        "CANCELADA",
+        "REJEITADA",
+        "INUTILIZADA",
+      ],
+      documento_fiscal_tipo: ["NFE", "NFSE", "CFE_SAT", "NFCE"],
       entity_type: ["LOJA", "PARTICULAR"],
       invoice_status: ["ABERTA", "FECHADA", "PAGA"],
       recurrence_frequency: ["MENSAL", "SEMANAL", "QUINZENAL", "ANUAL"],
