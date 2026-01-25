@@ -2,6 +2,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Available modules in the system
+export const ALL_MODULES = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
+  { key: 'clientes', label: 'Clientes', icon: 'Users' },
+  { key: 'crm', label: 'CRM', icon: 'Target' },
+  { key: 'pedidos', label: 'Pedidos', icon: 'ShoppingCart' },
+  { key: 'barris', label: 'Barris', icon: 'Circle' },
+  { key: 'estoque', label: 'Estoque', icon: 'Package' },
+  { key: 'financeiro', label: 'Financeiro', icon: 'Wallet' },
+  { key: 'contabilidade', label: 'Contabilidade', icon: 'Calculator' },
+  { key: 'whatsapp', label: 'WhatsApp', icon: 'MessageCircle' },
+  { key: 'suporte', label: 'Suporte', icon: 'HeadphonesIcon' },
+  { key: 'agente-ia', label: 'Agente IA', icon: 'Bot' },
+] as const;
+
+export type ModuleKey = typeof ALL_MODULES[number]['key'];
+
 // Hook for managing admin users
 export interface AdminUser {
   id: string;
@@ -12,6 +29,7 @@ export interface AdminUser {
   avatar_url?: string;
   is_owner?: boolean;
   roles: string[];
+  modules?: string[];
   created_at: string;
   email_confirmed_at?: string;
 }
@@ -53,7 +71,7 @@ export function useAdminUsers() {
   });
 
   const createUser = useMutation({
-    mutationFn: async (userData: { email: string; password: string; nome: string; telefone: string; cargo?: string; role?: string; is_owner?: boolean }) => {
+    mutationFn: async (userData: { email: string; password: string; nome: string; telefone: string; cargo?: string; role?: string; is_owner?: boolean; modules?: string[] }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
@@ -146,7 +164,7 @@ export function useAdminUsers() {
   });
 
   const updateProfile = useMutation({
-    mutationFn: async (profileData: { userId: string; nome?: string; telefone?: string; cargo?: string; is_owner?: boolean }) => {
+    mutationFn: async (profileData: { userId: string; nome?: string; telefone?: string; cargo?: string; is_owner?: boolean; modules?: string[] }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
@@ -234,6 +252,42 @@ export function useCurrentUserRole() {
         .eq('user_id', user.id);
 
       return data?.map(r => r.role) || [];
+    },
+  });
+}
+
+// Hook to get current user's visible modules
+export function useUserModules() {
+  return useQuery({
+    queryKey: ['current-user-modules'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      // Check if user is admin - admins see all modules
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+
+      const isAdmin = roles?.some(r => r.role === 'admin');
+      if (isAdmin) {
+        return ALL_MODULES.map(m => m.key);
+      }
+
+      // Get user's specific module permissions
+      const { data: modules } = await supabase
+        .from('user_module_permissions')
+        .select('module_key')
+        .eq('user_id', user.id)
+        .eq('is_visible', true);
+
+      // If no permissions set, show all modules (backwards compatible)
+      if (!modules || modules.length === 0) {
+        return ALL_MODULES.map(m => m.key);
+      }
+
+      return modules.map(m => m.module_key);
     },
   });
 }

@@ -71,13 +71,16 @@ serve(async (req) => {
         throw listError;
       }
 
-      // Get profiles and roles
+      // Get profiles, roles and module permissions
       const { data: profiles } = await supabaseAdmin.from("profiles").select("*");
       const { data: roles } = await supabaseAdmin.from("user_roles").select("*");
+      const { data: modulePermissions } = await supabaseAdmin.from("user_module_permissions").select("*");
 
       const usersWithDetails = users.map((u) => {
         const profile = profiles?.find((p) => p.id === u.id);
         const userRoles = roles?.filter((r) => r.user_id === u.id).map((r) => r.role) || [];
+        const userModules = modulePermissions?.filter((m) => m.user_id === u.id) || [];
+        const visibleModules = userModules.filter((m) => m.is_visible).map((m) => m.module_key);
         return {
           id: u.id,
           email: u.email,
@@ -87,6 +90,7 @@ serve(async (req) => {
           avatar_url: profile?.avatar_url,
           is_owner: profile?.is_owner || false,
           roles: userRoles,
+          modules: visibleModules,
           created_at: u.created_at,
           email_confirmed_at: u.email_confirmed_at,
         };
@@ -99,8 +103,8 @@ serve(async (req) => {
 
     // CREATE USER
     if (req.method === "POST" && action === "create") {
-      const { email, password, nome, telefone, cargo, role, is_owner } = await req.json();
-      console.log("Creating user:", email);
+      const { email, password, nome, telefone, cargo, role, is_owner, modules } = await req.json();
+      console.log("Creating user:", email, "with modules:", modules);
 
       if (!email || !password || !telefone) {
         return new Response(JSON.stringify({ error: "Email, senha e WhatsApp são obrigatórios" }), {
@@ -142,6 +146,19 @@ serve(async (req) => {
         await supabaseAdmin
           .from("user_roles")
           .insert({ user_id: newUser.user.id, role });
+      }
+
+      // Add module permissions if provided
+      if (modules && Array.isArray(modules) && newUser.user) {
+        const moduleRecords = modules.map((moduleKey: string) => ({
+          user_id: newUser.user!.id,
+          module_key: moduleKey,
+          is_visible: true,
+        }));
+        
+        if (moduleRecords.length > 0) {
+          await supabaseAdmin.from("user_module_permissions").insert(moduleRecords);
+        }
       }
 
       console.log("User created successfully:", newUser.user?.id);
@@ -225,8 +242,8 @@ serve(async (req) => {
 
     // UPDATE PROFILE
     if (req.method === "POST" && action === "update") {
-      const { userId, nome, telefone, cargo, is_owner } = await req.json();
-      console.log("Updating profile:", userId);
+      const { userId, nome, telefone, cargo, is_owner, modules } = await req.json();
+      console.log("Updating profile:", userId, "with modules:", modules);
 
       if (!userId) {
         return new Response(JSON.stringify({ error: "userId é obrigatório" }), {
@@ -249,6 +266,25 @@ serve(async (req) => {
       if (updateError) {
         console.error("Update profile error:", updateError);
         throw updateError;
+      }
+
+      // Update module permissions if provided
+      if (modules !== undefined && Array.isArray(modules)) {
+        // Delete existing permissions
+        await supabaseAdmin
+          .from("user_module_permissions")
+          .delete()
+          .eq("user_id", userId);
+
+        // Insert new permissions
+        if (modules.length > 0) {
+          const moduleRecords = modules.map((moduleKey: string) => ({
+            user_id: userId,
+            module_key: moduleKey,
+            is_visible: true,
+          }));
+          await supabaseAdmin.from("user_module_permissions").insert(moduleRecords);
+        }
       }
 
       console.log("Profile updated successfully");
