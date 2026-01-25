@@ -8,10 +8,12 @@ import { ContabilidadeKPIs } from '@/components/contabilidade/ContabilidadeKPIs'
 import { ContabilidadeAlertas } from '@/components/contabilidade/ContabilidadeAlertas';
 import { DocumentosFiscaisTable } from '@/components/contabilidade/DocumentosFiscaisTable';
 import { PendenciasPanel } from '@/components/contabilidade/PendenciasPanel';
+import { ConfiguracoesContabilidadeDialog } from '@/components/contabilidade/ConfiguracoesContabilidadeDialog';
 import { useContabilidadeStats } from '@/hooks/useContabilidade';
 
 export default function Contabilidade() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [configOpen, setConfigOpen] = useState(false);
   
   const monthStr = format(currentMonth, 'yyyy-MM');
   const { data: stats, isLoading } = useContabilidadeStats(monthStr);
@@ -51,7 +53,7 @@ export default function Contabilidade() {
             </Button>
           </div>
 
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
             <Settings className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Configurações</span>
           </Button>
@@ -71,6 +73,11 @@ export default function Contabilidade() {
         {/* Tabela de Documentos */}
         <DocumentosFiscaisTable />
       </div>
+
+      <ConfiguracoesContabilidadeDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+      />
     </PageLayout>
   );
 }
