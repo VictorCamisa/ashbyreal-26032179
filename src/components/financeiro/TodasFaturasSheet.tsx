@@ -12,7 +12,7 @@ import {
   Check
 } from 'lucide-react';
 import { format, isBefore } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatCompetencia } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import {
@@ -94,7 +94,7 @@ export function TodasFaturasSheet({ open, onOpenChange, faturas, cartoes }: Toda
           <div>
             <p className="font-medium">{getCartaoName(fatura.credit_card_id)}</p>
             <p className="text-sm text-muted-foreground">
-              {format(new Date(fatura.competencia), 'MMMM yyyy', { locale: ptBR })}
+              {formatCompetencia(fatura.competencia)}
             </p>
             {fatura.due_date && (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">

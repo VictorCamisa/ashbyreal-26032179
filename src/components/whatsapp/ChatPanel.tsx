@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/dateUtils';
 import { toast } from 'sonner';
 import type { WhatsAppMessage, Conversation } from '@/hooks/useWhatsAppMessages';
 import { MediaRenderer } from '@/components/whatsapp/MediaRenderer';
@@ -191,7 +191,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
     const date = new Date(dateStr);
     if (isToday(date)) return 'Hoje';
     if (isYesterday(date)) return 'Ontem';
-    return format(date, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+    return formatDateShort(date);
   };
 
   const getInitials = (name: string) => {

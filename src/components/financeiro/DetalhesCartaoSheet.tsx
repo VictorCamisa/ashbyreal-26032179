@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, isBefore, isAfter, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMonthYear, formatCompetencia, formatDayMonthShort } from '@/lib/dateUtils';
 import {
   Sheet,
   SheetContent,
@@ -98,7 +98,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   const { cartoes } = useCartoes();
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
-  const monthLabel = format(referenceMonth, 'MMMM yyyy', { locale: ptBR });
+  const monthLabel = formatMonthYear(referenceMonth);
 
   // Fetch invoices for this card
   const { data: invoices, isLoading: isLoadingInvoices, refetch: refetchInvoices } = useQuery({
@@ -557,7 +557,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-muted-foreground">
-                              {format(new Date(t.purchase_date), 'dd MMM', { locale: ptBR })}
+                              {formatDayMonthShort(new Date(t.purchase_date))}
                             </span>
                             {t.total_installments > 1 && (
                               <Badge variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
@@ -624,8 +624,8 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                               </div>
 
                               <div>
-                                <p className="font-semibold capitalize">
-                                  {format(new Date(inv.competencia), 'MMMM yyyy', { locale: ptBR })}
+                              <p className="font-semibold">
+                                {formatCompetencia(inv.competencia)}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {inv.due_date 
@@ -728,7 +728,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                       </p>
                       {stats?.maxInvoice && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(stats.maxInvoice.competencia), 'MMM yyyy', { locale: ptBR })}
+                          {formatCompetencia(stats.maxInvoice.competencia)}
                         </p>
                       )}
                     </div>
@@ -824,7 +824,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
             <AlertDialogDescription>
               Tem certeza que deseja marcar a fatura de{' '}
               <strong>
-                {invoiceToPay && format(new Date(invoiceToPay.competencia), 'MMMM yyyy', { locale: ptBR })}
+                {invoiceToPay && formatCompetencia(invoiceToPay.competencia)}
               </strong>{' '}
               no valor de{' '}
               <strong>{invoiceToPay && formatCurrency(invoiceToPay.total_value)}</strong>{' '}
@@ -855,7 +855,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
             <AlertDialogDescription>
               Isso irá <strong>excluir todas as transações</strong> da fatura de{' '}
               <strong>
-                {invoiceToDelete && format(new Date(invoiceToDelete.competencia), 'MMMM yyyy', { locale: ptBR })}
+                {invoiceToDelete && formatCompetencia(invoiceToDelete.competencia)}
               </strong>{' '}
               do cartão <strong>{cartao?.name}</strong>.
               <br /><br />

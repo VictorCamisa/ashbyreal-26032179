@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, endOfMonth } from 'date-fns';
+import { formatMonthYear } from '@/lib/dateUtils';
 import { 
   Search, 
   Upload, 
@@ -55,6 +56,7 @@ import { TornarRecorrenteDialog } from './TornarRecorrenteDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
 import { TransacoesDRE } from './TransacoesDRE';
 import { TransactionRow } from './TransactionRow';
+import { GerenciarCategoriasDialog } from './GerenciarCategoriasDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,8 +135,9 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   
   // Expanded invoice state - to show credit card transactions
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
-
-  // Apply initial filter when component mounts or filter changes
+  
+  // Category management dialog
+  const [showCategoriesDialog, setShowCategoriesDialog] = useState(false);
   useEffect(() => {
     if (initialFilter === 'overdue') {
       setStatusFilter('ATRASADO');
@@ -160,7 +163,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
 
   const monthStr = referenceMonth.toISOString().slice(0, 7);
   const lastDayOfMonth = format(endOfMonth(referenceMonth), 'yyyy-MM-dd');
-  const monthLabel = referenceMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const monthLabel = formatMonthYear(referenceMonth);
 
   // Fetch entities for creating transactions
   const { data: entities } = useQuery({
@@ -804,12 +807,24 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
               </TooltipProvider>
             </div>
 
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => setShowCategoriesDialog(true)} className="gap-2">
+                    <Tag className="h-4 w-4" />
+                    <span className="hidden sm:inline">Categorias</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Gerenciar Categorias</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="gap-2">
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Importar</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={handleNovaReceita} className="gap-2">
-              <Plus className="h-4 w-4 text-emerald-600" />
+            <Button variant="outline" size="sm" onClick={handleNovaReceita} className="gap-2 text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50">
+              <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Receita</span>
             </Button>
             <Button size="sm" onClick={handleNovaDespesa} className="gap-2">
@@ -1198,6 +1213,12 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           setRecurringTransaction(null);
         }}
         isLoading={createMultipleMutation.isPending}
+      />
+
+      {/* Gerenciar Categorias Dialog */}
+      <GerenciarCategoriasDialog
+        open={showCategoriesDialog}
+        onOpenChange={setShowCategoriesDialog}
       />
     </div>
   );

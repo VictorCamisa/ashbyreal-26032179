@@ -26,7 +26,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMonthYear } from '@/lib/dateUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AIAgent {
@@ -81,7 +81,7 @@ export default function Dashboard() {
     setMesReferencia(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const monthLabel = format(mesReferencia, 'MMMM yyyy', { locale: ptBR });
+  const monthLabel = formatMonthYear(mesReferencia);
 
   return (
     <PageLayout

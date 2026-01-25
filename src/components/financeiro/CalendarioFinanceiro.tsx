@@ -19,7 +19,7 @@ import {
   addMonths,
   subMonths
 } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMonthYear, formatDayMonth } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -114,8 +114,8 @@ export function CalendarioFinanceiro({
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handlePrevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium capitalize min-w-[120px] text-center">
-              {format(referenceMonth, 'MMMM yyyy', { locale: ptBR })}
+            <span className="text-sm font-medium min-w-[120px] text-center">
+              {formatMonthYear(referenceMonth)}
             </span>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleNextMonth}>
               <ChevronRight className="h-4 w-4" />
@@ -185,7 +185,7 @@ export function CalendarioFinanceiro({
                   <PopoverContent className="w-72 p-0" align="start">
                     <div className="p-3 border-b">
                       <p className="font-medium text-sm">
-                        {format(day, "d 'de' MMMM", { locale: ptBR })}
+                        {formatDayMonth(day)}
                       </p>
                       <div className="flex items-center gap-4 mt-1 text-xs">
                         {receitas > 0 && (

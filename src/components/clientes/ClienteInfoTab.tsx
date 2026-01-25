@@ -22,8 +22,7 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateShort } from '@/lib/dateUtils';
 import type { Cliente } from '@/types/cliente';
 
 interface ClienteInfoTabProps {
@@ -95,7 +94,7 @@ export function ClienteInfoTab({ cliente, onUpdate, isUpdating }: ClienteInfoTab
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Não informado';
     try {
-      return format(new Date(dateString), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+      return formatDateShort(new Date(dateString));
     } catch {
       return 'Data inválida';
     }
