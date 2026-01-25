@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -17,6 +17,7 @@ import {
   Maximize,
   Minimize,
   Calculator,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -29,26 +30,35 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserModules } from '@/hooks/useAdminUsers';
 import { cn } from '@/lib/utils';
 import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
-const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Clientes', href: '/clientes', icon: Users },
-  { label: 'CRM', href: '/crm', icon: Target },
-  { label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
-  { label: 'Barris', href: '/barris', icon: Circle },
-  { label: 'Estoque', href: '/estoque', icon: Package },
-  { label: 'Financeiro', href: '/financeiro', icon: Wallet },
-  { label: 'Contabilidade', href: '/contabilidade', icon: Calculator },
-  { label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-  { label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
+const allNavItems = [
+  { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users },
+  { key: 'crm', label: 'CRM', href: '/crm', icon: Target },
+  { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
+  { key: 'barris', label: 'Barris', href: '/barris', icon: Circle },
+  { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Package },
+  { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet },
+  { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator },
+  { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
+  { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot },
 ];
 
 export function TopNavbar() {
   const { user, signOut } = useAuth();
+  const { data: visibleModules } = useUserModules();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Filter nav items based on user's visible modules
+  const navItems = useMemo(() => {
+    if (!visibleModules) return allNavItems;
+    return allNavItems.filter(item => visibleModules.includes(item.key));
+  }, [visibleModules]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {

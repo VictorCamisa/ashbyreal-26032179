@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, UserPlus, Shield, Trash2, Crown, Loader2, Phone, Pencil } from 'lucide-react';
+import { Users, UserPlus, Shield, Trash2, Crown, Loader2, Phone, Pencil, Boxes } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useAdminUsers, useCurrentUserRole, AdminUser } from '@/hooks/useAdminUsers';
+import { useAdminUsers, useCurrentUserRole, AdminUser, ALL_MODULES } from '@/hooks/useAdminUsers';
 import { useAuth } from '@/hooks/useAuth';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function GestaoUsuarios() {
   const { user } = useAuth();
@@ -21,19 +22,39 @@ export default function GestaoUsuarios() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  const [newUser, setNewUser] = useState({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
+  const [editingModules, setEditingModules] = useState<string[]>([]);
+  const [newUser, setNewUser] = useState({ 
+    email: '', 
+    password: '', 
+    nome: '', 
+    telefone: '', 
+    cargo: '', 
+    role: 'user', 
+    is_owner: false,
+    modules: ALL_MODULES.map(m => m.key) as string[] // Default all modules
+  });
 
   const isAdmin = currentRoles?.includes('admin');
   const hasAnyAdmin = users?.some(u => u.roles.includes('admin'));
 
   const handleCreateUser = async () => {
     await createUser.mutateAsync(newUser);
-    setNewUser({ email: '', password: '', nome: '', telefone: '', cargo: '', role: 'user', is_owner: false });
+    setNewUser({ 
+      email: '', 
+      password: '', 
+      nome: '', 
+      telefone: '', 
+      cargo: '', 
+      role: 'user', 
+      is_owner: false,
+      modules: ALL_MODULES.map(m => m.key) as string[]
+    });
     setDialogOpen(false);
   };
 
   const handleEditUser = (u: AdminUser) => {
     setEditingUser({ ...u });
+    setEditingModules(u.modules || ALL_MODULES.map(m => m.key));
     setEditDialogOpen(true);
   };
 
@@ -44,14 +65,50 @@ export default function GestaoUsuarios() {
       nome: editingUser.nome,
       telefone: editingUser.telefone,
       cargo: editingUser.cargo,
-      is_owner: editingUser.is_owner
+      is_owner: editingUser.is_owner,
+      modules: editingModules
     });
     setEditDialogOpen(false);
     setEditingUser(null);
+    setEditingModules([]);
   };
 
   const handleBootstrap = async () => {
     await bootstrapAdmin.mutateAsync();
+  };
+
+  const toggleModule = (moduleKey: string, isNew: boolean = false) => {
+    if (isNew) {
+      setNewUser(prev => ({
+        ...prev,
+        modules: prev.modules.includes(moduleKey)
+          ? prev.modules.filter(m => m !== moduleKey)
+          : [...prev.modules, moduleKey]
+      }));
+    } else {
+      setEditingModules(prev => 
+        prev.includes(moduleKey)
+          ? prev.filter(m => m !== moduleKey)
+          : [...prev, moduleKey]
+      );
+    }
+  };
+
+  const selectAllModules = (isNew: boolean = false) => {
+    const allKeys = ALL_MODULES.map(m => m.key) as string[];
+    if (isNew) {
+      setNewUser(prev => ({ ...prev, modules: allKeys }));
+    } else {
+      setEditingModules(allKeys);
+    }
+  };
+
+  const deselectAllModules = (isNew: boolean = false) => {
+    if (isNew) {
+      setNewUser(prev => ({ ...prev, modules: [] }));
+    } else {
+      setEditingModules([]);
+    }
   };
 
   if (rolesLoading) {
@@ -101,6 +158,60 @@ export default function GestaoUsuarios() {
     );
   }
 
+  const ModuleSelector = ({ selectedModules, isNew }: { selectedModules: string[], isNew: boolean }) => (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <Boxes className="h-4 w-4" />
+          Módulos Visíveis
+        </Label>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm" 
+            onClick={() => selectAllModules(isNew)}
+          >
+            Todos
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm" 
+            onClick={() => deselectAllModules(isNew)}
+          >
+            Nenhum
+          </Button>
+        </div>
+      </div>
+      <ScrollArea className="h-[200px] rounded-md border p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_MODULES.map((module) => (
+            <div 
+              key={module.key}
+              className="flex items-center space-x-2"
+            >
+              <Checkbox
+                id={`${isNew ? 'new' : 'edit'}-module-${module.key}`}
+                checked={selectedModules.includes(module.key)}
+                onCheckedChange={() => toggleModule(module.key, isNew)}
+              />
+              <Label 
+                htmlFor={`${isNew ? 'new' : 'edit'}-module-${module.key}`}
+                className="text-sm cursor-pointer"
+              >
+                {module.label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+      <p className="text-xs text-muted-foreground">
+        {selectedModules.length} de {ALL_MODULES.length} módulos selecionados
+      </p>
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -115,7 +226,7 @@ export default function GestaoUsuarios() {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Novo Usuário</DialogTitle>
             </DialogHeader>
@@ -180,7 +291,13 @@ export default function GestaoUsuarios() {
                     <SelectItem value="admin">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Administradores têm acesso a todos os módulos
+                </p>
               </div>
+              
+              <ModuleSelector selectedModules={newUser.modules} isNew={true} />
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="is_owner"
@@ -221,6 +338,7 @@ export default function GestaoUsuarios() {
                 <TableHead>WhatsApp</TableHead>
                 <TableHead>Cargo</TableHead>
                 <TableHead>Permissões</TableHead>
+                <TableHead>Módulos</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -280,6 +398,21 @@ export default function GestaoUsuarios() {
                       )}
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {u.roles.includes('admin') ? (
+                        <Badge variant="outline" className="text-xs">
+                          <Boxes className="h-3 w-3 mr-1" />
+                          Todos
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          <Boxes className="h-3 w-3 mr-1" />
+                          {u.modules?.length || ALL_MODULES.length}/{ALL_MODULES.length}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button 
@@ -322,7 +455,7 @@ export default function GestaoUsuarios() {
 
         {/* Edit User Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
             </DialogHeader>
@@ -356,6 +489,20 @@ export default function GestaoUsuarios() {
                     placeholder="Ex: Gerente, Vendedor"
                   />
                 </div>
+
+                {!editingUser.roles.includes('admin') && (
+                  <ModuleSelector selectedModules={editingModules} isNew={false} />
+                )}
+                
+                {editingUser.roles.includes('admin') && (
+                  <div className="rounded-lg border border-border bg-muted/50 p-3">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Administradores têm acesso a todos os módulos automaticamente.
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="edit-is_owner"
