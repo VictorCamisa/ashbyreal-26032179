@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -19,6 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Loader2, Tag, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -73,7 +80,6 @@ export function GerenciarCategoriasDialog({ open, onOpenChange }: GerenciarCateg
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   
   // Form state
   const [formName, setFormName] = useState('');
@@ -94,26 +100,11 @@ export function GerenciarCategoriasDialog({ open, onOpenChange }: GerenciarCateg
     enabled: open,
   });
 
-  // Filter categories by type and search term
+  // Filter categories by type
   const filteredCategories = useMemo(() => {
     if (!categories) return [];
-    return categories
-      .filter(c => c.type === activeTab)
-      .filter(c => 
-        searchTerm === '' || 
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.description && c.description.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-  }, [categories, activeTab, searchTerm]);
-
-  // Count by type
-  const counts = useMemo(() => {
-    if (!categories) return { DESPESA: 0, RECEITA: 0 };
-    return {
-      DESPESA: categories.filter(c => c.type === 'DESPESA').length,
-      RECEITA: categories.filter(c => c.type === 'RECEITA').length,
-    };
-  }, [categories]);
+    return categories.filter(c => c.type === activeTab);
+  }, [categories, activeTab]);
 
   // Create mutation
   const createMutation = useMutation({
@@ -234,120 +225,98 @@ export function GerenciarCategoriasDialog({ open, onOpenChange }: GerenciarCateg
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl h-[85vh] sm:h-[80vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-4 border-b">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Tag className="h-5 w-5" />
               Gerenciar Categorias
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 flex flex-col overflow-hidden px-4 sm:px-6 py-4">
-            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'DESPESA' | 'RECEITA'); resetForm(); setSearchTerm(''); }} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <TabsList className="w-full sm:w-auto">
-                  <TabsTrigger value="DESPESA" className="flex-1 sm:flex-none">
-                    Despesas ({counts.DESPESA})
-                  </TabsTrigger>
-                  <TabsTrigger value="RECEITA" className="flex-1 sm:flex-none">
-                    Receitas ({counts.RECEITA})
-                  </TabsTrigger>
-                </TabsList>
-                <Button size="sm" onClick={handleCreate} disabled={isCreating || !!editingCategory}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nova
-                </Button>
-              </div>
+          <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'DESPESA' | 'RECEITA'); resetForm(); }}>
+            <div className="flex items-center justify-between mb-4">
+              <TabsList>
+                <TabsTrigger value="DESPESA">Despesas</TabsTrigger>
+                <TabsTrigger value="RECEITA">Receitas</TabsTrigger>
+              </TabsList>
+              <Button size="sm" onClick={handleCreate} disabled={isCreating || !!editingCategory}>
+                <Plus className="h-4 w-4 mr-1" />
+                Nova Categoria
+              </Button>
+            </div>
 
-              {/* Search */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar categorias..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-
-              {/* Form for create/edit */}
-              {(isCreating || editingCategory) && (
-                <div className="border rounded-lg p-4 mb-4 bg-muted/30 shrink-0">
-                  <h4 className="font-medium mb-3">
-                    {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nome *</Label>
-                      <Input
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="Nome da categoria"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Grupo</Label>
-                      <Select value={formGroup} onValueChange={(v) => setFormGroup(v as CategoryGroup)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATEGORY_GROUPS.map((g) => (
-                            <SelectItem key={g.value} value={g.value}>
-                              <div className="flex items-center gap-2">
-                                <div className={cn('w-3 h-3 rounded-full', g.color)} />
-                                {g.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Descrição</Label>
-                      <Input
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                        placeholder="Descrição opcional"
-                      />
-                    </div>
+            {/* Form for create/edit */}
+            {(isCreating || editingCategory) && (
+              <div className="border rounded-lg p-4 mb-4 bg-muted/30">
+                <h4 className="font-medium mb-3">
+                  {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+                </h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome *</Label>
+                    <Input
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="Nome da categoria"
+                    />
                   </div>
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button variant="outline" size="sm" onClick={resetForm}>
-                      Cancelar
-                    </Button>
-                    <Button size="sm" onClick={handleSave} disabled={!isFormValid || isSaving}>
-                      {isSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                      {editingCategory ? 'Salvar' : 'Criar'}
-                    </Button>
+                  <div className="space-y-2">
+                    <Label>Grupo</Label>
+                    <Select value={formGroup} onValueChange={(v) => setFormGroup(v as CategoryGroup)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CATEGORY_GROUPS.map((g) => (
+                          <SelectItem key={g.value} value={g.value}>
+                            <div className="flex items-center gap-2">
+                              <div className={cn('w-3 h-3 rounded-full', g.color)} />
+                              {g.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descrição</Label>
+                    <Input
+                      value={formDescription}
+                      onChange={(e) => setFormDescription(e.target.value)}
+                      placeholder="Descrição opcional"
+                    />
                   </div>
                 </div>
-              )}
-
-              {/* Scrollable category list */}
-              <div className="flex-1 overflow-hidden">
-                <ScrollArea className="h-full">
-                  <TabsContent value="DESPESA" className="mt-0">
-                    <CategoryList
-                      categories={filteredCategories}
-                      isLoading={isLoading}
-                      onEdit={handleEdit}
-                      onDelete={setDeletingCategory}
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="RECEITA" className="mt-0">
-                    <CategoryList
-                      categories={filteredCategories}
-                      isLoading={isLoading}
-                      onEdit={handleEdit}
-                      onDelete={setDeletingCategory}
-                    />
-                  </TabsContent>
-                </ScrollArea>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" size="sm" onClick={resetForm}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleSave} disabled={!isFormValid || isSaving}>
+                    {isSaving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    {editingCategory ? 'Salvar' : 'Criar'}
+                  </Button>
+                </div>
               </div>
-            </Tabs>
-          </div>
+            )}
+
+            <TabsContent value="DESPESA" className="flex-1 overflow-auto">
+              <CategoryTable
+                categories={filteredCategories}
+                isLoading={isLoading}
+                onEdit={handleEdit}
+                onDelete={setDeletingCategory}
+              />
+            </TabsContent>
+
+            <TabsContent value="RECEITA" className="flex-1 overflow-auto">
+              <CategoryTable
+                categories={filteredCategories}
+                isLoading={isLoading}
+                onEdit={handleEdit}
+                onDelete={setDeletingCategory}
+              />
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -377,14 +346,14 @@ export function GerenciarCategoriasDialog({ open, onOpenChange }: GerenciarCateg
   );
 }
 
-interface CategoryListProps {
+interface CategoryTableProps {
   categories: Category[];
   isLoading: boolean;
   onEdit: (category: Category) => void;
   onDelete: (category: Category) => void;
 }
 
-function CategoryList({ categories, isLoading, onEdit, onDelete }: CategoryListProps) {
+function CategoryTable({ categories, isLoading, onEdit, onDelete }: CategoryTableProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -396,42 +365,47 @@ function CategoryList({ categories, isLoading, onEdit, onDelete }: CategoryListP
   if (categories.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        Nenhuma categoria encontrada
+        Nenhuma categoria cadastrada
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      {categories.map((category) => (
-        <div
-          key={category.id}
-          className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{category.name}</span>
-              <Badge variant="outline" className="gap-1.5 shrink-0">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Nome</TableHead>
+          <TableHead>Grupo</TableHead>
+          <TableHead>Descrição</TableHead>
+          <TableHead className="w-[100px]">Ações</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {categories.map((category) => (
+          <TableRow key={category.id}>
+            <TableCell className="font-medium">{category.name}</TableCell>
+            <TableCell>
+              <Badge variant="outline" className="gap-1.5">
                 <div className={cn('w-2 h-2 rounded-full', getGroupColor(category.category_group))} />
                 {getGroupLabel(category.category_group)}
               </Badge>
-            </div>
-            {category.description && (
-              <p className="text-sm text-muted-foreground truncate mt-0.5">
-                {category.description}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-1 ml-2 shrink-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(category)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(category)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
+            </TableCell>
+            <TableCell className="text-muted-foreground">
+              {category.description || '-'}
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(category)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(category)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

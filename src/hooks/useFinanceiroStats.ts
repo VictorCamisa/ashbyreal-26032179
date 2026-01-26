@@ -11,25 +11,22 @@ export function useFinanceiroStats(referenceMonth: Date = new Date()) {
       const months = [];
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(referenceMonth, i);
-        const monthStart = format(startOfMonth(monthDate), 'yyyy-MM-dd');
-        const monthEnd = format(endOfMonth(monthDate), 'yyyy-MM-dd');
+        const monthStr = format(monthDate, 'yyyy-MM');
         const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
         
-        // Fetch receitas for this month using proper date range
+        // Fetch receitas for this month
         const { data: receitas } = await supabase
           .from('transactions')
           .select('amount')
           .eq('tipo', 'RECEBER')
-          .gte('due_date', monthStart)
-          .lte('due_date', monthEnd);
+          .like('due_date', `${monthStr}%`);
 
-        // Fetch despesas for this month using proper date range
+        // Fetch despesas for this month
         const { data: despesas } = await supabase
           .from('transactions')
           .select('amount')
           .eq('tipo', 'PAGAR')
-          .gte('due_date', monthStart)
-          .lte('due_date', monthEnd);
+          .like('due_date', `${monthStr}%`);
 
         const totalReceitas = receitas?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
         const totalDespesas = despesas?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;

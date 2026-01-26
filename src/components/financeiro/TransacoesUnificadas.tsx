@@ -161,8 +161,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   };
 
-  // Use format() to avoid timezone issues with toISOString()
-  const monthStr = format(referenceMonth, 'yyyy-MM');
+  const monthStr = referenceMonth.toISOString().slice(0, 7);
   const lastDayOfMonth = format(endOfMonth(referenceMonth), 'yyyy-MM-dd');
   const monthLabel = formatMonthYear(referenceMonth);
 
@@ -181,13 +180,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
 
   // Fetch all transactions with related data
   const { data: bankTransactions, isLoading: isLoadingBank } = useQuery({
-    queryKey: ['transacoes-banco', monthStr, lastDayOfMonth],
+    queryKey: ['transacoes-banco', monthStr],
     queryFn: async () => {
-      const startDate = `${monthStr}-01`;
-      const endDate = lastDayOfMonth;
-      
-      console.log('[TransacoesUnificadas] Fetching transactions:', { startDate, endDate, monthStr, lastDayOfMonth });
-      
       const { data, error } = await supabase
         .from('transactions')
         .select(`
@@ -197,8 +191,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           accounts(name),
           entities(name, type)
         `)
-        .gte('due_date', startDate)
-        .lte('due_date', endDate)
+        .gte('due_date', `${monthStr}-01`)
+        .lte('due_date', lastDayOfMonth)
         .order('due_date', { ascending: true });
 
       if (error) throw error;

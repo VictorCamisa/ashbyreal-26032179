@@ -8,7 +8,6 @@ import { useCartoes } from '@/hooks/useCartoes';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { HealthGauge } from './HealthGauge';
 import { EvolutionChart } from './EvolutionChart';
-import { formatMonthYear } from '@/lib/dateUtils';
 import type { TransactionFilter } from '@/pages/Financeiro';
 import { 
   ChevronLeft, 
@@ -126,7 +125,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
     .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
     .slice(0, 6);
 
-  const monthLabel = formatMonthYear(referenceMonth);
+  const monthLabel = referenceMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   const hasAlerts = alertStats.overdueCount > 0 || alertStats.pendingCount > 0 || alertStats.invoicesCount > 0;
 
