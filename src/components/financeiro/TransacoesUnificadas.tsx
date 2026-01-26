@@ -161,7 +161,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   };
 
-  const monthStr = referenceMonth.toISOString().slice(0, 7);
+  // Use format() to avoid timezone issues with toISOString()
+  const monthStr = format(referenceMonth, 'yyyy-MM');
   const lastDayOfMonth = format(endOfMonth(referenceMonth), 'yyyy-MM-dd');
   const monthLabel = formatMonthYear(referenceMonth);
 
