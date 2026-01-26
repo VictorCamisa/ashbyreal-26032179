@@ -184,8 +184,9 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     queryKey: ['transacoes-banco', monthStr, lastDayOfMonth],
     queryFn: async () => {
       const startDate = `${monthStr}-01`;
-      // Use lastDayOfMonth directly - it's already calculated correctly from referenceMonth
       const endDate = lastDayOfMonth;
+      
+      console.log('[TransacoesUnificadas] Fetching transactions:', { startDate, endDate, monthStr, lastDayOfMonth });
       
       const { data, error } = await supabase
         .from('transactions')
