@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subMonths, format, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { subMonths, format, startOfMonth, endOfMonth, addDays, lastDayOfMonth as getLastDayOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function useFinanceiroStats(referenceMonth: Date = new Date()) {
@@ -11,22 +11,25 @@ export function useFinanceiroStats(referenceMonth: Date = new Date()) {
       const months = [];
       for (let i = 5; i >= 0; i--) {
         const monthDate = subMonths(referenceMonth, i);
-        const monthStr = format(monthDate, 'yyyy-MM');
+        const firstDay = format(startOfMonth(monthDate), 'yyyy-MM-dd');
+        const lastDay = format(getLastDayOfMonth(monthDate), 'yyyy-MM-dd');
         const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
         
-        // Fetch receitas for this month
+        // Fetch receitas for this month using date range
         const { data: receitas } = await supabase
           .from('transactions')
           .select('amount')
           .eq('tipo', 'RECEBER')
-          .like('due_date', `${monthStr}%`);
+          .gte('due_date', firstDay)
+          .lte('due_date', lastDay);
 
-        // Fetch despesas for this month
+        // Fetch despesas for this month using date range
         const { data: despesas } = await supabase
           .from('transactions')
           .select('amount')
           .eq('tipo', 'PAGAR')
-          .like('due_date', `${monthStr}%`);
+          .gte('due_date', firstDay)
+          .lte('due_date', lastDay);
 
         const totalReceitas = receitas?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
         const totalDespesas = despesas?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
