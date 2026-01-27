@@ -54,12 +54,13 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
   
   // Fetch ALL transactions (not filtered by entity)
   const { data: allTransactions, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['all-transactions', monthStr],
+    queryKey: ['all-transactions', monthStr, lastDayOfMonth],
     queryFn: async () => {
+      const firstDay = `${monthStr}-01`;
       const { data, error } = await supabase
         .from('transactions')
         .select('*, categories(name, group)')
-        .gte('due_date', `${monthStr}-01`)
+        .gte('due_date', firstDay)
         .lte('due_date', lastDayOfMonth);
       if (error) throw error;
       return data;
@@ -68,12 +69,13 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
 
   // Fetch credit card transactions for the month
   const { data: cardTransactions, isLoading: isLoadingCards } = useQuery({
-    queryKey: ['card-transactions-dashboard', monthStr],
+    queryKey: ['card-transactions-dashboard', monthStr, lastDayOfMonth],
     queryFn: async () => {
+      const firstDay = `${monthStr}-01`;
       const { data, error } = await supabase
         .from('credit_card_transactions')
         .select('*')
-        .gte('competencia', `${monthStr}-01`)
+        .gte('competencia', firstDay)
         .lte('competencia', lastDayOfMonth);
       if (error) throw error;
       return data;
