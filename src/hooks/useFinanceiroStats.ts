@@ -1,7 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subMonths, format, startOfMonth, endOfMonth, addDays, lastDayOfMonth as getLastDayOfMonth } from 'date-fns';
+import { subMonths, format, startOfMonth, addDays, lastDayOfMonth as getLastDayOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Helper to format month with abbreviated year: "Dez. 25" or "Jan. 26"
+function formatMonthShort(date: Date): string {
+  const month = format(date, 'MMM', { locale: ptBR });
+  const year = format(date, 'yy'); // Short year: 25, 26
+  const capitalizedMonth = month.charAt(0).toUpperCase() + month.slice(1);
+  const monthWithPeriod = capitalizedMonth.endsWith('.') ? capitalizedMonth : capitalizedMonth + '.';
+  return `${monthWithPeriod} ${year}`;
+}
 
 export function useFinanceiroStats(referenceMonth: Date = new Date()) {
   // Fetch last 6 months evolution data
@@ -13,7 +22,7 @@ export function useFinanceiroStats(referenceMonth: Date = new Date()) {
         const monthDate = subMonths(referenceMonth, i);
         const firstDay = format(startOfMonth(monthDate), 'yyyy-MM-dd');
         const lastDay = format(getLastDayOfMonth(monthDate), 'yyyy-MM-dd');
-        const monthLabel = format(monthDate, 'MMM', { locale: ptBR });
+        const monthLabel = formatMonthShort(monthDate);
         
         // Fetch receitas for this month using date range
         const { data: receitas } = await supabase
@@ -35,7 +44,7 @@ export function useFinanceiroStats(referenceMonth: Date = new Date()) {
         const totalDespesas = despesas?.reduce((acc, t) => acc + Math.abs(Number(t.amount)), 0) || 0;
 
         months.push({
-          month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+          month: monthLabel,
           receitas: totalReceitas,
           despesas: totalDespesas,
           saldo: totalReceitas - totalDespesas,
