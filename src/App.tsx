@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AssistantProvider } from "@/contexts/AssistantContext";
 import { Layout } from "./components/layout/Layout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -37,32 +38,34 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <Routes>
-              {/* Public Institutional Pages */}
-              <Route path="/" element={<InstitucionalHome />} />
-              <Route path="/produtos" element={<InstitucionalProdutos />} />
-              
-              <Route path="/auth" element={<Auth />} />
-              {/* Public route for client signature */}
-              <Route path="/assinar" element={<AssinarComprovante />} />
-              {/* WhatsApp has its own fullscreen layout */}
-              <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
-              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/crm" element={<CRM />} />
-                <Route path="/clientes" element={<Clientes />} />
-                <Route path="/cliente/:id" element={<ClienteDetalhes />} />
-                <Route path="/pedidos" element={<Pedidos />} />
-                <Route path="/barris" element={<Barris />} />
-                <Route path="/estoque" element={<Estoque />} />
-                <Route path="/suporte" element={<Suporte />} />
-                <Route path="/financeiro" element={<Financeiro />} />
-                <Route path="/contabilidade" element={<Contabilidade />} />
-                <Route path="/agente-ia" element={<AgenteIA />} />
-                <Route path="/configuracoes" element={<Configuracoes />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AssistantProvider>
+              <Routes>
+                {/* Public Institutional Pages */}
+                <Route path="/" element={<InstitucionalHome />} />
+                <Route path="/produtos" element={<InstitucionalProdutos />} />
+                
+                <Route path="/auth" element={<Auth />} />
+                {/* Public route for client signature */}
+                <Route path="/assinar" element={<AssinarComprovante />} />
+                {/* WhatsApp has its own fullscreen layout */}
+                <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
+                <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/crm" element={<CRM />} />
+                  <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/cliente/:id" element={<ClienteDetalhes />} />
+                  <Route path="/pedidos" element={<Pedidos />} />
+                  <Route path="/barris" element={<Barris />} />
+                  <Route path="/estoque" element={<Estoque />} />
+                  <Route path="/suporte" element={<Suporte />} />
+                  <Route path="/financeiro" element={<Financeiro />} />
+                  <Route path="/contabilidade" element={<Contabilidade />} />
+                  <Route path="/agente-ia" element={<AgenteIA />} />
+                  <Route path="/configuracoes" element={<Configuracoes />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AssistantProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
