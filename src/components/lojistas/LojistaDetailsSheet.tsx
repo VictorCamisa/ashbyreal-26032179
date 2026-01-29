@@ -34,6 +34,7 @@ import {
   Plus,
   Droplet,
   Unlink,
+  Pencil,
 } from 'lucide-react';
 import { useLojistaDetails } from '@/hooks/useLojistas';
 import { useBarrisDisponiveis, Barril } from '@/hooks/useBarris';
@@ -42,6 +43,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { EditarLojistaDialog } from './EditarLojistaDialog';
 
 interface LojistaDetailsSheetProps {
   lojistaId: string | null;
@@ -56,6 +58,7 @@ export function LojistaDetailsSheet({ lojistaId, open, onOpenChange }: LojistaDe
   const queryClient = useQueryClient();
   
   const [vincularDialogOpen, setVincularDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBarris, setSelectedBarris] = useState<string[]>([]);
   const [isVinculando, setIsVinculando] = useState(false);
 
@@ -184,10 +187,23 @@ export function LojistaDetailsSheet({ lojistaId, open, onOpenChange }: LojistaDe
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
           <SheetHeader className="px-6 py-4 border-b shrink-0">
-            <SheetTitle className="flex items-center gap-2">
-              <Store className="h-5 w-5 text-primary" />
-              {isLoading ? <Skeleton className="h-6 w-48" /> : data?.lojista?.nome}
-            </SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5 text-primary" />
+                {isLoading ? <Skeleton className="h-6 w-48" /> : data?.lojista?.nome}
+              </SheetTitle>
+              {!isLoading && data?.lojista && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setEditDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar
+                </Button>
+              )}
+            </div>
           </SheetHeader>
 
           {isLoading ? (
@@ -482,6 +498,17 @@ export function LojistaDetailsSheet({ lojistaId, open, onOpenChange }: LojistaDe
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de edição */}
+      <EditarLojistaDialog
+        lojista={data?.lojista || null}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['lojistas'] });
+        }}
+      />
     </>
   );
 }
