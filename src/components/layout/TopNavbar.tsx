@@ -93,26 +93,28 @@ export function TopNavbar() {
             <span className="font-semibold hidden sm:block">Taubaté Chopp</span>
           </NavLink>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center bg-secondary/50 rounded-full px-1 py-1">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.href}
-                to={item.href}
-                end={item.href === '/dashboard'}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )
-                }
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+          {/* Desktop Navigation - scrollable */}
+          <nav className="hidden lg:flex items-center bg-secondary/50 rounded-full px-1 py-1 max-w-[calc(100vw-400px)] overflow-x-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+            <div className="flex items-center gap-0.5 min-w-max">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.href}
+                  to={item.href}
+                  end={item.href === '/dashboard'}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap shrink-0",
+                      isActive
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )
+                  }
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           </nav>
 
           {/* Right side */}
