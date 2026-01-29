@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -10,8 +10,6 @@ import {
   MessageCircle,
   HeadphonesIcon,
   Settings,
-  Menu,
-  X,
   LogOut,
   Circle,
   Maximize,
@@ -51,7 +49,6 @@ const allNavItems = [
 export function TopNavbar() {
   const { user, signOut } = useAuth();
   const { data: visibleModules } = useUserModules();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Filter nav items based on user's visible modules
@@ -122,7 +119,7 @@ export function TopNavbar() {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8"
+              className="h-8 w-8 hidden sm:flex"
               onClick={toggleFullscreen}
               title={isFullscreen ? 'Sair do fullscreen' : 'Fullscreen'}
             >
@@ -165,47 +162,9 @@ export function TopNavbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="lg:hidden h-8 w-8"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </Button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Navigation */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border bg-background animate-fade-in">
-          <div className="mx-auto max-w-7xl px-4 py-3">
-            <nav className="grid grid-cols-2 gap-1">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.href}
-                  to={item.href}
-                  end={item.href === '/dashboard'}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                      isActive
-                        ? "bg-secondary text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                    )
-                  }
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
