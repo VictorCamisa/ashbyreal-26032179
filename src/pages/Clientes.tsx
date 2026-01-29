@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Table,
@@ -21,6 +21,7 @@ import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
 import { LojistasTab } from '@/components/lojistas/LojistasTab';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
+import { DataPagination } from '@/components/ui/data-pagination';
 
 const statusColors: Record<string, string> = {
   ativo: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
@@ -28,17 +29,31 @@ const statusColors: Record<string, string> = {
   lead: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800'
 };
 
+const ITEMS_PER_PAGE = 15;
+
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExtrairLeads, setShowExtrairLeads] = useState(false);
   const [mainTab, setMainTab] = useState<'clientes' | 'lojistas'>('clientes');
+  const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
   const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
 
-  const filteredClientes = clientes.filter(cliente =>
-    cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.telefone.includes(searchTerm)
+  const filteredClientes = useMemo(() => 
+    clientes.filter(cliente =>
+      cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cliente.telefone.includes(searchTerm)
+    ), [clientes, searchTerm]
+  );
+
+  // Reset to page 1 when search changes
+  useMemo(() => setCurrentPage(1), [searchTerm]);
+
+  const totalPages = Math.ceil(filteredClientes.length / ITEMS_PER_PAGE);
+  const paginatedClientes = filteredClientes.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
   const stats = {
@@ -73,16 +88,18 @@ export default function Clientes() {
       }
     >
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'clientes' | 'lojistas')} className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="clientes" className="gap-2">
-            <Users className="h-4 w-4" />
-            Clientes
-          </TabsTrigger>
-          <TabsTrigger value="lojistas" className="gap-2">
-            <Store className="h-4 w-4" />
-            Lojistas
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="grid w-full min-w-[280px] max-w-md grid-cols-2">
+            <TabsTrigger value="clientes" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Clientes
+            </TabsTrigger>
+            <TabsTrigger value="lojistas" className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+              <Store className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Lojistas
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="clientes">
           <div className="space-y-6">
@@ -119,8 +136,9 @@ export default function Clientes() {
                     ))}
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[600px]">
+                      <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-medium">Nome</TableHead>
                         <TableHead className="font-medium">Telefone</TableHead>
@@ -143,7 +161,7 @@ export default function Clientes() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredClientes.map((cliente) => (
+                        paginatedClientes.map((cliente) => (
                           <TableRow
                             key={cliente.id}
                             className="cursor-pointer hover:bg-muted/30"
@@ -164,14 +182,19 @@ export default function Clientes() {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
 
             {filteredClientes.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {filteredClientes.length} de {clientes.length} clientes
-              </p>
+              <DataPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredClientes.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
             )}
           </div>
         </TabsContent>

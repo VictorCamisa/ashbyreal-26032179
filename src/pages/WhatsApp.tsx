@@ -254,11 +254,11 @@ export default function WhatsApp() {
           "md:flex",
           mobileShowChat ? "flex" : "hidden"
         )}>
-          {/* Mobile back button */}
+          {/* Mobile back button - positioned safely below notch */}
           {mobileShowChat && selectedConversation && (
             <button
               onClick={handleBackToList}
-              className="md:hidden absolute top-16 left-4 z-50 p-2 bg-[#202C33] rounded-full text-[#AEBAC1] hover:text-white hover:bg-[#2A3942] transition-colors"
+              className="md:hidden absolute top-2 left-2 z-50 p-2.5 bg-[#202C33] rounded-full text-[#AEBAC1] hover:text-white hover:bg-[#2A3942] transition-colors shadow-lg"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
