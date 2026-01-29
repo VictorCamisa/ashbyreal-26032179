@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   TableBody,
@@ -30,6 +30,7 @@ import { RankingClientes } from '@/components/pedidos/RankingClientes';
 import { TopProdutos } from '@/components/pedidos/TopProdutos';
 import { supabase } from '@/integrations/supabase/client';
 import { PageLayout } from '@/components/layout/PageLayout';
+import { DataPagination } from '@/components/ui/data-pagination';
 import { cn } from '@/lib/utils';
 
 interface PedidoItemWithProduto {
@@ -49,6 +50,8 @@ const tabs = [
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
+const ITEMS_PER_PAGE = 15;
+
 export default function Pedidos() {
   const [activeTab, setActiveTab] = useState('lista');
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +61,7 @@ export default function Pedidos() {
   const [selectedPedido, setSelectedPedido] = useState<any>(null);
   const [showDetalhes, setShowDetalhes] = useState(false);
   const [detalhesPedidoId, setDetalhesPedidoId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const { pedidos, isLoading, refetch } = usePedidos();
 
   useEffect(() => {
@@ -102,13 +106,22 @@ export default function Pedidos() {
     }
   };
 
-  const filteredPedidos = pedidos.filter((pedido) => {
+  const filteredPedidos = useMemo(() => pedidos.filter((pedido) => {
     const matchesSearch =
       clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pedido.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }), [pedidos, clientesMap, searchTerm, statusFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => setCurrentPage(1), [searchTerm, statusFilter]);
+
+  const totalPages = Math.ceil(filteredPedidos.length / ITEMS_PER_PAGE);
+  const paginatedPedidos = filteredPedidos.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleViewDetails = (pedido: any) => {
     setDetalhesPedidoId(pedido.id);
@@ -168,7 +181,7 @@ export default function Pedidos() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">Lista de Pedidos</CardTitle>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 {isLoading ? (
                   <div className="p-6 space-y-3">
                     {[...Array(5)].map((_, i) => (
@@ -176,7 +189,7 @@ export default function Pedidos() {
                     ))}
                   </div>
                 ) : (
-                  <Table>
+                  <Table className="min-w-[700px]">
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-medium">Pedido</TableHead>
@@ -188,7 +201,7 @@ export default function Pedidos() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredPedidos.length === 0 ? (
+                      {paginatedPedidos.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-12">
                             <div className="flex flex-col items-center gap-2">
@@ -198,16 +211,17 @@ export default function Pedidos() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredPedidos.map((pedido) => (
+                        paginatedPedidos.map((pedido) => (
                           <TableRow
                             key={pedido.id}
                             className="hover:bg-muted/30 cursor-pointer"
                             onClick={() => handleViewDetails(pedido)}
+                            title={`ID: ${pedido.id}`}
                           >
                             <TableCell className="font-mono text-sm">
-                              #{pedido.id.slice(0, 8)}
+                              <span title={pedido.id}>#{pedido.id.slice(0, 8)}</span>
                             </TableCell>
-                            <TableCell className="font-medium">
+                            <TableCell className="font-medium max-w-[150px] truncate">
                               {clientesMap[pedido.clienteId] || '-'}
                             </TableCell>
                             <TableCell className="font-semibold text-primary">
@@ -250,8 +264,14 @@ export default function Pedidos() {
             </Card>
 
             {/* Footer */}
-            <div className="flex items-center justify-between text-sm">
-              <p className="text-muted-foreground">{filteredPedidos.length} pedidos</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
+              <DataPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredPedidos.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
               <p className="font-medium">
                 Total: R${' '}
                 {filteredPedidos

@@ -336,32 +336,35 @@ export default function CRM() {
           </div>
         ) : (
           <DndContext onDragEnd={handleDragEnd}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {pipelineColumns.map((column) => {
-                const columnOportunidades = getOportunidadesByStatus(column.id);
-                return (
-                  <Card key={column.id} className="bg-muted/30 overflow-hidden">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-3 px-1">
-                        <div className={`w-2.5 h-2.5 rounded-full ${column.color}`} />
-                        <span className="text-xs font-medium">{column.title}</span>
-                        <span className="text-xs text-muted-foreground ml-auto bg-muted px-1.5 py-0.5 rounded-full">{columnOportunidades.length}</span>
-                      </div>
-                      <DroppableColumn column={column}>
-                        {columnOportunidades.length === 0 ? (
-                          <div className="p-4 text-center text-xs text-muted-foreground border border-dashed border-border/50 rounded-xl">
-                            Nenhuma oportunidade
-                          </div>
-                        ) : (
-                          columnOportunidades.map((op) => (
-                            <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} onDelete={deleteOportunidade} />
-                          ))
-                        )}
-                      </DroppableColumn>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            {/* Horizontal scroll container for mobile */}
+            <div className="overflow-x-auto pb-4 -mx-3 px-3 sm:mx-0 sm:px-0">
+              <div className="flex gap-4 min-w-max lg:min-w-0 lg:grid lg:grid-cols-5">
+                {pipelineColumns.map((column) => {
+                  const columnOportunidades = getOportunidadesByStatus(column.id);
+                  return (
+                    <Card key={column.id} className="bg-muted/30 overflow-hidden w-[280px] shrink-0 lg:w-auto">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                          <div className={`w-2.5 h-2.5 rounded-full ${column.color}`} />
+                          <span className="text-xs font-medium">{column.title}</span>
+                          <span className="text-xs text-muted-foreground ml-auto bg-muted px-1.5 py-0.5 rounded-full">{columnOportunidades.length}</span>
+                        </div>
+                        <DroppableColumn column={column}>
+                          {columnOportunidades.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-muted-foreground border border-dashed border-border/50 rounded-xl">
+                              Nenhuma oportunidade
+                            </div>
+                          ) : (
+                            columnOportunidades.map((op) => (
+                              <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} onDelete={deleteOportunidade} />
+                            ))
+                          )}
+                        </DroppableColumn>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           </DndContext>
         )}

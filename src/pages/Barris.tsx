@@ -138,20 +138,22 @@ export default function Barris() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="todos" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="todos">
-                Todos ({barris?.length || 0})
-              </TabsTrigger>
-              <TabsTrigger value="fabrica">
-                Fábrica ({naFabricaCheios + naFabricaVazios})
-              </TabsTrigger>
-              <TabsTrigger value="loja">
-                Loja ({naLojaCheios + naLojaVazios})
-              </TabsTrigger>
-              <TabsTrigger value="clientes">
-                Clientes ({comClientesCheios + comClientesVazios})
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <TabsList className="mb-4 w-max sm:w-auto">
+                <TabsTrigger value="todos" className="text-xs sm:text-sm">
+                  Todos ({barris?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="fabrica" className="text-xs sm:text-sm">
+                  Fábrica ({naFabricaCheios + naFabricaVazios})
+                </TabsTrigger>
+                <TabsTrigger value="loja" className="text-xs sm:text-sm">
+                  Loja ({naLojaCheios + naLojaVazios})
+                </TabsTrigger>
+                <TabsTrigger value="clientes" className="text-xs sm:text-sm">
+                  Clientes ({comClientesCheios + comClientesVazios})
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="todos">
               <BarrisTable 

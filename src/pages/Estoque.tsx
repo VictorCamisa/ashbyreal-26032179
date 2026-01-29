@@ -207,8 +207,8 @@ export default function Estoque() {
 
           {/* Table */}
           <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="font-medium">Produto</TableHead>
