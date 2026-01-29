@@ -170,7 +170,11 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !isLoading) {
-      navigate('/dashboard');
+      // Small delay to allow animations to settle before navigation
+      const timeout = setTimeout(() => {
+        navigate('/dashboard');
+      }, 100);
+      return () => clearTimeout(timeout);
     }
   }, [user, isLoading, navigate]);
 
