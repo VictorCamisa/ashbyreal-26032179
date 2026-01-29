@@ -40,16 +40,34 @@ export function SystemAssistant({ moduleName, moduleContext }: SystemAssistantPr
     }
   }, [isOpen, isMinimized]);
 
+  // Generate contextual greeting based on module
+  const getGreeting = useCallback(() => {
+    const greetings: Record<string, string> = {
+      "Dashboard": "Olá! 👋 Estou aqui para te ajudar a entender os indicadores e métricas do seu negócio. Pode me perguntar sobre vendas, faturamento ou qualquer KPI que apareça aqui!",
+      "Clientes": "Olá! 👋 Posso te ajudar a gerenciar sua base de clientes e lojistas. Quer saber como cadastrar um novo cliente, importar uma lista ou entender os status?",
+      "CRM": "Olá! 👋 Aqui você gerencia suas oportunidades de venda. Posso explicar como funciona o pipeline, como mover leads entre etapas ou criar novas oportunidades!",
+      "Pedidos": "Olá! 👋 Estou aqui para ajudar com a gestão de pedidos. Pode me perguntar como criar um pedido, acompanhar entregas ou gerar comprovantes!",
+      "Barris": "Olá! 👋 Posso te ajudar no controle de barris. Quer saber como registrar saídas, devoluções ou verificar onde estão seus barris?",
+      "Estoque": "Olá! 👋 Aqui você controla seu estoque de produtos. Posso explicar como dar entrada em chopp, ajustar quantidades ou cadastrar novos produtos!",
+      "Financeiro": "Olá! 👋 Posso te ajudar com o módulo financeiro. Pergunte sobre lançamentos, boletos, cartões, DRE ou qualquer controle de fluxo de caixa!",
+      "Contabilidade": "Olá! 👋 Estou aqui para ajudar com documentos fiscais e contabilidade. Posso explicar como emitir notas, reconciliar pagamentos ou resolver pendências!",
+      "WhatsApp": "Olá! 👋 Posso te ajudar com o módulo de WhatsApp. Quer saber como enviar mensagens, criar campanhas ou configurar instâncias?",
+      "Agente IA": "Olá! 👋 Aqui você configura agentes de IA para atendimento. Posso explicar como criar um agente, definir prompts ou ativar em uma instância!",
+      "Configurações": "Olá! 👋 Posso te ajudar com as configurações do sistema. Pergunte sobre usuários, permissões ou qualquer ajuste do sistema!"
+    };
+    return greetings[moduleName] || `Olá! 👋 Estou aqui para te ajudar com o módulo de **${moduleName}**. O que você gostaria de saber?`;
+  }, [moduleName]);
+
   // Add greeting when chat opens for first time
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([{
         role: "assistant",
-        content: `Olá! Sou o assistente do módulo **${moduleName}**. Posso ajudar você com dúvidas sobre o sistema ou sobre esta área específica. O que você gostaria de saber?`,
+        content: getGreeting(),
         timestamp: new Date()
       }]);
     }
-  }, [isOpen, messages.length, moduleName]);
+  }, [isOpen, messages.length, getGreeting]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
