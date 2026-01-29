@@ -3,13 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 };
 
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -60,6 +61,8 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
+    
+    console.log(`Processing action: ${action}, method: ${req.method}`);
 
     // LIST USERS
     if (req.method === "GET" && action === "list") {
@@ -226,15 +229,22 @@ serve(async (req) => {
           .eq("user_id", userId)
           .eq("role", role);
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error removing role:", error);
+          throw error;
+        }
       } else {
         const { error } = await supabaseAdmin
           .from("user_roles")
           .upsert({ user_id: userId, role }, { onConflict: "user_id,role" });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error adding role:", error);
+          throw error;
+        }
       }
 
+      console.log("Role updated successfully");
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
