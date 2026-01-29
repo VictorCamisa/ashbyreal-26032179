@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { AlertCircle, Receipt, Truck, FileText, Plus, ChevronRight } from 'lucide-react';
+import { formatDayMonthShort } from '@/lib/dateUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -107,7 +107,7 @@ export function PendenciasPanel() {
                             {boleto.paid_at && (
                               <>
                                 <span>•</span>
-                                <span>Pago em {format(new Date(boleto.paid_at), 'dd/MM', { locale: ptBR })}</span>
+                                <span>Pago em {formatDayMonthShort(new Date(boleto.paid_at))}</span>
                               </>
                             )}
                             {boleto.tipo_nota && (

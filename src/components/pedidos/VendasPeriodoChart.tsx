@@ -10,8 +10,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { formatMonthOnly } from '@/lib/dateUtils';
 
 interface Pedido {
   id: string;
@@ -34,7 +34,7 @@ export function VendasPeriodoChart({ pedidos }: VendasPeriodoChartProps) {
       const month = subMonths(now, i);
       months.push({
         month,
-        label: format(month, 'MMM', { locale: ptBR }),
+        label: formatMonthOnly(month),
       });
     }
 

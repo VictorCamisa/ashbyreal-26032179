@@ -30,7 +30,7 @@ import {
   User
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDayMonth } from '@/lib/dateUtils';
 import type { Interacao } from '@/types/cliente';
 
 interface ClienteInteracoesTabProps {
@@ -99,9 +99,9 @@ export function ClienteInteracoesTab({
     });
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDateDisplay = (dateString: string) => {
     try {
-      return format(new Date(dateString), "dd 'de' MMM", { locale: ptBR });
+      return formatDayMonth(new Date(dateString));
     } catch {
       return 'Data inválida';
     }
@@ -109,7 +109,7 @@ export function ClienteInteracoesTab({
 
   const formatTime = (dateString: string) => {
     try {
-      return format(new Date(dateString), 'HH:mm', { locale: ptBR });
+      return format(new Date(dateString), 'HH:mm');
     } catch {
       return '';
     }
@@ -219,7 +219,7 @@ export function ClienteInteracoesTab({
                           {tipoLabels[interacao.tipo] || interacao.tipo}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatDate(interacao.data)} {formatTime(interacao.data)}
+                          {formatDateDisplay(interacao.data)} {formatTime(interacao.data)}
                         </span>
                       </div>
 
