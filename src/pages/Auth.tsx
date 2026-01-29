@@ -170,10 +170,60 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !isLoading) {
+      // Fetch user's visible modules to determine redirect
+      const determineRedirect = async () => {
+        try {
+          // Check if user is admin
+          const { data: roles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id);
+
+          const isAdmin = roles?.some(r => r.role === 'admin');
+          
+          if (isAdmin) {
+            navigate('/dashboard');
+            return;
+          }
+
+          // Get user's specific module permissions
+          const { data: modules } = await supabase
+            .from('user_module_permissions')
+            .select('module_key')
+            .eq('user_id', user.id)
+            .eq('is_visible', true);
+
+          // If no permissions set or has dashboard, go to dashboard
+          if (!modules || modules.length === 0 || modules.some(m => m.module_key === 'dashboard')) {
+            navigate('/dashboard');
+            return;
+          }
+
+          // Navigate to first available module
+          const moduleRouteMap: Record<string, string> = {
+            'pedidos': '/pedidos',
+            'clientes': '/clientes',
+            'crm': '/crm',
+            'barris': '/barris',
+            'estoque': '/estoque',
+            'financeiro': '/financeiro',
+            'contabilidade': '/contabilidade',
+            'whatsapp': '/whatsapp',
+            'suporte': '/suporte',
+            'agente-ia': '/agente-ia',
+          };
+
+          const firstModule = modules[0]?.module_key;
+          const redirectPath = moduleRouteMap[firstModule] || '/dashboard';
+          navigate(redirectPath);
+        } catch (error) {
+          console.error('Error determining redirect:', error);
+          navigate('/dashboard');
+        }
+      };
+
       // Small delay to allow animations to settle before navigation
-      const timeout = setTimeout(() => {
-        navigate('/dashboard');
-      }, 100);
+      const timeout = setTimeout(determineRedirect, 100);
       return () => clearTimeout(timeout);
     }
   }, [user, isLoading, navigate]);
