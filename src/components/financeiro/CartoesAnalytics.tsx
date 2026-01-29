@@ -26,6 +26,7 @@ import { Calendar, CreditCard, TrendingUp, Wallet } from 'lucide-react';
 import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { formatCompetenciaShort } from '@/lib/dateUtils';
 
 interface CartoesAnalyticsProps {
   cartoes: any[];
@@ -77,8 +78,7 @@ export function CartoesAnalytics({ cartoes, faturas, onSelectCard }: CartoesAnal
   const currentMonthStr = format(now, 'yyyy-MM');
 
   const monthLabel = (monthStr: string) => {
-    const [y, m] = monthStr.split('-').map(Number);
-    return format(new Date(y, m - 1, 1), 'MMM/yy', { locale: ptBR });
+    return formatCompetenciaShort(monthStr);
   };
 
   const monthsFromNow = useMemo(() => {
@@ -201,7 +201,7 @@ export function CartoesAnalytics({ cartoes, faturas, onSelectCard }: CartoesAnal
 
       const point: any = {
         month,
-        label: format(date, 'MMM/yy', { locale: ptBR }),
+        label: formatCompetenciaShort(month),
         total,
       };
 
