@@ -1,9 +1,15 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { TopNavbar } from './TopNavbar';
 import { MobileNavBar } from './MobileNavBar';
 import { PageBreadcrumbs } from './PageBreadcrumbs';
+import { SystemAssistant } from '@/components/assistant/SystemAssistant';
+import { useAssistant } from '@/contexts/AssistantContext';
 
 export function Layout() {
+  const location = useLocation();
+  const { getModuleInfo } = useAssistant();
+  const moduleInfo = getModuleInfo(location.pathname);
+
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <TopNavbar />
@@ -14,6 +20,10 @@ export function Layout() {
         </div>
       </main>
       <MobileNavBar />
+      <SystemAssistant 
+        moduleName={moduleInfo.name} 
+        moduleContext={moduleInfo.context} 
+      />
     </div>
   );
 }

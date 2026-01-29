@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Settings, ArrowLeft, Send, Wifi, WifiOff, ChevronDown, LayoutDashboard, Bot } from 'lucide-react';
 import { InstanceSettings } from '@/components/whatsapp/InstanceSettings';
+import { SystemAssistant } from '@/components/assistant/SystemAssistant';
+import { useAssistant } from '@/contexts/AssistantContext';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
 import { ChatPanel } from '@/components/whatsapp/ChatPanel';
 import { DisparoPanel } from '@/components/whatsapp/DisparoPanel';
@@ -34,6 +36,9 @@ export default function WhatsApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [showTestarAgente, setShowTestarAgente] = useState(false);
   const [activeAgent, setActiveAgent] = useState<any>(null);
+
+  const { getModuleInfo } = useAssistant();
+  const moduleInfo = getModuleInfo('/whatsapp');
 
   const { instances } = useWhatsAppInstances();
   const { conversations, loadingConversations, getMessages, sendMessage } = useWhatsAppMessages(
@@ -304,6 +309,12 @@ export default function WhatsApp() {
           onOpenChange={setShowTestarAgente}
         />
       )}
+
+      {/* System Assistant */}
+      <SystemAssistant 
+        moduleName={moduleInfo.name} 
+        moduleContext={moduleInfo.context} 
+      />
     </div>
   );
 }
