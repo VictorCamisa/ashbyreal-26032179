@@ -40,7 +40,7 @@ serve(async (req) => {
 
     console.log('Sending image to OpenAI for analysis...');
 
-    // Call OpenAI Vision API with tool calling
+    // Call OpenAI Vision API with tool calling - PROMPT OTIMIZADO PARA MÁXIMA PRECISÃO
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -52,82 +52,107 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um assistente especializado em extrair dados de pedidos de venda da TAUBATÉ CHOPP.
-Analise a imagem do formulário de pedido e extraia TODOS os dados com precisão.
+            content: `Você é um sistema de OCR de ALTA PRECISÃO (99%+) para pedidos da TAUBATÉ CHOPP.
+Analise CADA DETALHE da imagem com extremo cuidado. Não invente dados.
 
-## FORMATO DO FORMULÁRIO TAUBATÉ CHOPP
+## LAYOUT DO FORMULÁRIO TAUBATÉ CHOPP
 
-O formulário tem a seguinte estrutura:
-- **Cabeçalho**: Logo ASHBY/TAUBATÉ CHOPP, Nº do pedido, Data, Vendedor
-- **Cliente**: Nome no campo "Cliente:", pode ter empresa, CNPJ/CPF, Endereço, Bairro, Cidade, Estado, Fone
-- **Tabela de Produtos**: Colunas = DESCRIÇÃO | QUANT. | BARRIS | VALOR UNIT. | TOTAL
-  - "Chopp Claro" (Pilsen) - barris de 10L, 20L, 30L ou 50L
-  - "Chopp Vinho/Vino" - barris de 10L, 20L, 30L ou 50L
-  - "Chopp IPA" - barris de 10L, 20L, 30L ou 50L
-  - "Chopp Escuro" - barris de 10L, 20L, 30L ou 50L
-  - "Chopperia Elétrica" - equipamento (unidades)
-  - "Cilindro CO²" - equipamento (unidades)
-  - "Frete" - valor do frete
-  - "Copos descartáveis" - pacotes de copos
-- **Seção ENTREGA**: DATA de entrega, Período (Manhã/Tarde/Integral)
-- **Seção PAGAMENTO**: Checkboxes para Dinheiro, Cartão, PIX, Boleto
+### CABEÇALHO (topo do formulário):
+- Logo ASHBY/TAUBATÉ CHOPP à esquerda
+- Campo "Nº" = número do pedido (geralmente manuscrito)
+- Campo "Data:" = data do pedido (DD/MM/AAAA)
+- Campo "Vendedor:" = nome do vendedor
 
-## REGRA CRÍTICA - COMO INTERPRETAR A COLUNA "BARRIS":
+### SEÇÃO CLIENTE (abaixo do cabeçalho):
+- "Cliente:" = Nome completo ou razão social
+- "CNPJ/CPF:" = documento (pode estar em branco)
+- "Endereço:" = rua/avenida
+- "Nº:" = número do endereço
+- "Bairro:" 
+- "Cidade:" / "Estado:" / "CEP:"
+- "Fone:" = telefone com DDD
 
-A coluna BARRIS contém a notação NxTAMANHO onde:
-- N = QUANTIDADE de barris (1, 2, 3, 4...)
-- TAMANHO = capacidade em litros (10, 20, 30 ou 50)
+### TABELA DE PRODUTOS (corpo principal):
+| DESCRIÇÃO | QUANT. | BARRIS | VALOR UNIT. | TOTAL |
 
-EXEMPLOS CORRETOS:
-| BARRIS escrito | Quantidade | Tamanho barril |
-|----------------|------------|----------------|
-| 1x50           | 1          | 50             |
-| 2x50           | 2          | 50             |
-| 1x30           | 1          | 30             |
-| 2x30           | 2          | 30             |
-| 3x20           | 3          | 20             |
-| 4x10           | 4          | 10             |
-| 1x50 + 1x30    | 2 (separar em 2 itens!) | 50 e 30 |
+PRODUTOS TÍPICOS:
+- Chopp Claro/Pilsen
+- Chopp Vinho (ou Vino)
+- Chopp IPA/Nirvana
+- Chopp Escuro
+- Chopp Weiss
+- Choppeira Elétrica
+- Cilindro CO² 
+- Frete
+- Copos Descartáveis
 
-A coluna "QUANT." às vezes mostra litros totais (ex: 50, 100), mas você deve IGNORAR isso para chopp e usar a notação de barris.
+### REGRA CRÍTICA - COLUNA "BARRIS":
+A notação NxTAMANHO significa:
+- N = quantidade de barris
+- TAMANHO = litros (10, 20, 30, 50)
 
-## MÚLTIPLOS TAMANHOS DO MESMO TIPO:
-Se um produto tem "1x50 + 1x30", crie DOIS itens separados:
-1. Chopp X - quantidade: 1, tamanhoBarril: 50
-2. Chopp X - quantidade: 1, tamanhoBarril: 30
+EXEMPLOS:
+| Escrito    | Quantidade | Tamanho |
+|------------|------------|---------|
+| 1x50       | 1          | 50L     |
+| 2x50       | 2          | 50L     |
+| 1x30       | 1          | 30L     |
+| 2x30       | 2          | 30L     |
+| 3x20       | 3          | 20L     |
+| 1x50+1x30  | SEPARAR EM 2 ITENS! |
 
-## PRODUTOS DISPONÍVEIS NO SISTEMA (para matching):
+IMPORTANTE: Se houver "1x50 + 1x30", criar DOIS itens separados!
+
+### SEÇÃO ENTREGA (abaixo da tabela):
+- "DATA:" = data de entrega (diferente da data do pedido!)
+- "Período:" checkboxes □ Manhã □ Tarde □ Integral
+
+### SEÇÃO PAGAMENTO:
+Checkboxes (procure por ☑ X ou preenchido):
+□ Dinheiro □ Cartão □ PIX □ Boleto
+
+### SINAIS VISUAIS:
+- Carimbo "LANÇADO" = pedido já processado
+- "M" antes de valores = "R$" (ex: "M 590,00" = R$ 590,00)
+- Campos riscados = ignorar
+- Letra manuscrita pode ser difícil - se incerto, indique
+
+## PRODUTOS DISPONÍVEIS NO SISTEMA:
 ${productList}
 
-## DATAS - ATENÇÃO:
-- Data do pedido: no cabeçalho, campo "Data:" 
-- Data de entrega: na seção ENTREGA, campo "DATA:"
-- Converta para formato YYYY-MM-DD (ex: 12/12/2025 → 2025-12-12)
-
-## DICAS DE LEITURA:
-- "M" antes de valores = "R$" (ex: "M 590,00" = R$ 590,00)
-- Verifique carimbo "LANÇADO" = pedido já processado
-- O preço unitário na foto é de referência - usaremos o preço do produto cadastrado no sistema
-- Leia TODOS os campos do formulário: nome do vendedor, telefone, endereço, bairro, cidade, estado, CEP
-
 ## INSTRUÇÕES FINAIS:
-1. Extraia o número do pedido do campo "Nº" no canto superior
-2. Para cada tipo de chopp com anotação de barris, crie um item
-3. Se tiver múltiplos tamanhos do mesmo chopp, crie itens separados
-4. Para copos, frete, equipamentos: quantidade em unidades normais
-5. Identifique qual forma de pagamento está marcada (X ou ✓)`
+1. Leia TODA a imagem antes de responder
+2. Para datas: converta para YYYY-MM-DD
+3. Para telefones: mantenha formatação original
+4. Se campo ilegível/ausente: use null (NÃO invente!)
+5. Marque confiança baixa para campos incertos`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Analise esta imagem de pedido da Taubaté Chopp e extraia todos os dados. Preste atenção especial: 1) notação de barris NxTAMANHO, 2) datas, 3) dados do cliente completos, 4) forma de pagamento marcada.'
+                text: `Analise esta imagem de pedido da Taubaté Chopp com MÁXIMA PRECISÃO.
+
+CHECKLIST OBRIGATÓRIO:
+☐ Número do pedido (campo Nº no canto superior)
+☐ Data do pedido (cabeçalho)
+☐ Nome do vendedor
+☐ TODOS os dados do cliente (nome, telefone, endereço completo)
+☐ TODOS os itens com notação de barris correta
+☐ Data de ENTREGA (seção Entrega - diferente da data do pedido!)
+☐ Período de entrega marcado
+☐ Forma de pagamento marcada
+☐ Valor total
+☐ Observações manuscritas
+
+Se algo estiver ilegível ou ausente, use null. Não invente dados.`
               },
               {
                 type: 'image_url',
                 image_url: {
-                  url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
+                  url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`,
+                  detail: 'high' // Máxima qualidade de análise
                 }
               }
             ]
@@ -209,7 +234,8 @@ ${productList}
           }
         ],
         tool_choice: { type: 'function', function: { name: 'extract_order_data' } },
-        max_tokens: 4000
+        max_tokens: 4000,
+        temperature: 0 // Zero para máxima precisão e consistência
       }),
     });
 
