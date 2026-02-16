@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format, subMonths, addMonths } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calculator, Settings, LayoutDashboard, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calculator, Settings, LayoutDashboard, FileText, ShieldCheck } from 'lucide-react';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,10 +13,12 @@ import { PendenciasDetalhadas } from '@/components/contabilidade/PendenciasDetal
 import { DocumentosFiscaisTable } from '@/components/contabilidade/DocumentosFiscaisTable';
 import { useFiscalMetrics } from '@/hooks/useFiscalMetrics';
 import { formatMonthYear } from '@/lib/dateUtils';
+import { ValidacaoAPIDialog } from '@/components/contabilidade/ValidacaoAPIDialog';
 
 export default function Contabilidade() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [configOpen, setConfigOpen] = useState(false);
+  const [validacaoOpen, setValidacaoOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   
   const monthStr = format(currentMonth, 'yyyy-MM');
@@ -55,6 +57,11 @@ export default function Contabilidade() {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+
+          <Button variant="outline" size="sm" onClick={() => setValidacaoOpen(true)} className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10">
+            <ShieldCheck className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Validação de API</span>
+          </Button>
 
           <Button variant="outline" size="sm" onClick={() => setConfigOpen(true)}>
             <Settings className="h-4 w-4 mr-2" />
@@ -131,6 +138,11 @@ export default function Contabilidade() {
       <ConfiguracoesContabilidadeDialog
         open={configOpen}
         onOpenChange={setConfigOpen}
+      />
+
+      <ValidacaoAPIDialog
+        open={validacaoOpen}
+        onOpenChange={setValidacaoOpen}
       />
     </PageLayout>
   );
