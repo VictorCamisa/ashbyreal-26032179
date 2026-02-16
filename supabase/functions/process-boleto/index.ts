@@ -13,7 +13,6 @@ serve(async (req) => {
   try {
     const { image, imageBase64, tipoNota } = await req.json();
 
-    // Support both image and imageBase64 parameters
     const imageData = image || imageBase64;
     
     if (!imageData) {
@@ -23,16 +22,16 @@ serve(async (req) => {
       );
     }
 
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY não configurada');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY não configurada');
       return new Response(
-        JSON.stringify({ error: 'Chave da API OpenAI não configurada' }),
+        JSON.stringify({ error: 'Chave da API Lovable AI não configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[process-boleto] Processando boleto com OpenAI GPT-4o, tipo:', tipoNota);
+    console.log('[process-boleto] Processando boleto com Lovable AI, tipo:', tipoNota);
 
     // PROMPT OTIMIZADO PARA MÁXIMA PRECISÃO
     const systemPrompt = `Você é um sistema de OCR de alta precisão especializado em documentos financeiros brasileiros.
@@ -123,7 +122,6 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
         base64Data = matches[2];
       }
     } else {
-      // Detect image type from base64
       if (base64Data.startsWith('/9j/')) {
         mediaType = 'image/jpeg';
       } else if (base64Data.startsWith('iVBOR')) {
@@ -135,15 +133,14 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
 
     const imageUrl = imageData.startsWith('data:') ? imageData : `data:${mediaType};base64,${base64Data}`;
 
-    // Usar configurações otimizadas para OCR
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           {
@@ -154,30 +151,37 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
                 type: 'image_url',
                 image_url: {
                   url: imageUrl,
-                  detail: 'high' // Máxima qualidade de análise
+                  detail: 'high'
                 }
               }
             ]
           }
         ],
         max_tokens: 2000,
-        temperature: 0, // Zero temperatura para máxima precisão e consistência
+        temperature: 0,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[process-boleto] Erro OpenAI:', response.status, errorText);
+      console.error('[process-boleto] Erro Lovable AI:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: 'Limite de requisições da OpenAI excedido. Tente novamente.' }),
+          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: 'Créditos de IA esgotados. Adicione fundos.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       return new Response(
-        JSON.stringify({ error: `Erro na API OpenAI: ${response.status}` }),
+        JSON.stringify({ error: `Erro na API Lovable AI: ${response.status}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -196,7 +200,6 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
 
     console.log('[process-boleto] Conteúdo bruto:', content.substring(0, 500));
 
-    // Parse JSON response - remove markdown if present
     let jsonContent = content.trim();
     if (jsonContent.startsWith('```')) {
       jsonContent = jsonContent.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
@@ -218,18 +221,15 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
 
     console.log('[process-boleto] Dados extraídos:', JSON.stringify(parsedData));
 
-    // Process extracted data com validações aprimoradas
     let amount = 0;
     let valorValidado = false;
     
-    // Tentar extrair valor da linha digitável se disponível
     if (parsedData.linha_digitavel && parsedData.metodo_extracao_valor === 'linha_digitavel') {
       const linhaLimpa = parsedData.linha_digitavel.replace(/\D/g, '');
       if (linhaLimpa.length >= 47) {
-        // Últimos 10 dígitos antes do final contêm o valor
         const valorStr = linhaLimpa.slice(-10);
         const valorExtraido = parseInt(valorStr, 10) / 100;
-        if (valorExtraido > 0 && valorExtraido < 1000000) { // Sanity check
+        if (valorExtraido > 0 && valorExtraido < 1000000) {
           amount = valorExtraido;
           valorValidado = true;
           console.log('[process-boleto] Valor extraído da linha digitável:', amount);
@@ -237,30 +237,23 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
       }
     }
     
-    // Fallback para valor do campo
     if (!valorValidado && parsedData.valor !== null && parsedData.valor !== undefined) {
       if (typeof parsedData.valor === 'string') {
-        // Handle Brazilian format: 1.234,56
         amount = parseFloat(parsedData.valor.replace(/\./g, '').replace(',', '.'));
       } else {
         amount = parseFloat(parsedData.valor);
       }
     }
 
-    // Validar data
     let dueDate = null;
     if (parsedData.vencimento) {
-      // Parse DD/MM/YYYY or DD/MM/YY format
       const dateMatch = parsedData.vencimento.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
       if (dateMatch) {
         let year = parseInt(dateMatch[3]);
-        if (year < 100) {
-          year += 2000;
-        }
+        if (year < 100) year += 2000;
         const month = parseInt(dateMatch[2]) - 1;
         const day = parseInt(dateMatch[1]);
         
-        // Validação de data coerente
         if (day >= 1 && day <= 31 && month >= 0 && month <= 11 && year >= 2020 && year <= 2030) {
           const date = new Date(year, month, day);
           if (!isNaN(date.getTime())) {
@@ -270,7 +263,6 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
       }
     }
 
-    // If no due date and it's SEM_NOTA, calculate from today + 15 days
     if (!dueDate && tipoNota === 'SEM_NOTA') {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 15);
@@ -278,7 +270,6 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
       console.log('[process-boleto] Vencimento calculado (hoje + 15 dias):', dueDate);
     }
 
-    // Calcular confiança real baseada em múltiplos fatores
     const calcularConfianca = (campo: string, confiancaIA: string, validado: boolean) => {
       let base = confiancaIA === 'alta' ? 95 : confiancaIA === 'media' ? 80 : 60;
       if (validado) base = Math.min(99, base + 5);
@@ -293,49 +284,47 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
     const confiancaVencimento = calcularConfianca('vencimento', parsedData.confianca?.vencimento, !!dueDate);
     const confiancaBeneficiario = calcularConfianca('beneficiario', parsedData.confianca?.beneficiario, false);
     
-    // Confiança geral ponderada
     const overallConfidence = Math.round(
       (confiancaValor * 0.5) + (confiancaVencimento * 0.3) + (confiancaBeneficiario * 0.2)
     );
 
-    // Build response in original format for compatibility
     const result = {
       success: true,
       extracted: {
         amount: {
           value: isNaN(amount) ? '' : amount.toString().replace('.', ','),
           confidence: confiancaValor,
-          source: valorValidado ? 'Linha Digitável (validado)' : 'OpenAI GPT-4o'
+          source: valorValidado ? 'Linha Digitável (validado)' : 'Lovable AI'
         },
         due_date: {
           value: dueDate || '',
           confidence: confiancaVencimento,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         },
         beneficiario: {
           value: parsedData.beneficiario || '',
           confidence: confiancaBeneficiario,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         },
         description: {
           value: parsedData.descricao || parsedData.numero_documento || '',
           confidence: 85,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         },
         numero_movimento: {
           value: parsedData.numero_documento || '',
           confidence: 75,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         },
         linha_digitavel: {
           value: parsedData.linha_digitavel || '',
           confidence: parsedData.linha_digitavel ? 95 : 0,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         },
         cnpj_beneficiario: {
           value: parsedData.cnpj_beneficiario || '',
           confidence: parsedData.cnpj_beneficiario ? 90 : 0,
-          source: 'OpenAI GPT-4o'
+          source: 'Lovable AI'
         }
       },
       overallConfidence,
@@ -347,7 +336,6 @@ Retorne APENAS o JSON, sem formatação markdown, sem explicações.`;
       needsReview: overallConfidence < 85,
       observacoes: parsedData.observacoes || null,
       metodo_extracao: parsedData.metodo_extracao_valor || 'campo_valor',
-      // Also include simple format for backward compatibility
       amount: isNaN(amount) ? 0 : amount,
       due_date: dueDate,
       beneficiario: parsedData.beneficiario || null,

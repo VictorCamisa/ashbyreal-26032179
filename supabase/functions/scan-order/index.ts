@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,8 +21,8 @@ serve(async (req) => {
       throw new Error('Imagem não fornecida');
     }
 
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY não configurada');
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY não configurada');
     }
 
     // Initialize Supabase client
@@ -38,17 +38,17 @@ serve(async (req) => {
 
     const productList = produtos?.map(p => `- ${p.nome} (SKU: ${p.sku || 'N/A'}, Preço: R$ ${p.preco}, Estoque: ${p.estoque})`).join('\n') || 'Nenhum produto cadastrado';
 
-    console.log('Sending image to OpenAI for analysis...');
+    console.log('Sending image to Lovable AI for analysis...');
 
-    // Call OpenAI Vision API with tool calling - PROMPT OTIMIZADO PARA MÁXIMA PRECISÃO
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Lovable AI Vision API with tool calling - PROMPT OTIMIZADO PARA MÁXIMA PRECISÃO
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
@@ -241,12 +241,12 @@ Se algo estiver ilegível ou ausente, use null. Não invente dados.`
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`Erro na API OpenAI: ${response.status}`);
+      console.error('Lovable AI error:', response.status, errorText);
+      throw new Error(`Erro na API Lovable AI: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('OpenAI response received');
+    console.log('Lovable AI response received');
 
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {

@@ -36,9 +36,15 @@ interface AIAgent {
 }
 
 const MODEL_LABELS: Record<string, string> = {
-  "gpt-4o-mini": "GPT-4o Mini",
-  "gpt-4o": "GPT-4o",
-  "gpt-4-turbo": "GPT-4 Turbo"
+  "google/gemini-2.5-flash-lite": "Gemini Flash Lite",
+  "google/gemini-2.5-flash": "Gemini Flash",
+  "google/gemini-2.5-pro": "Gemini Pro",
+  "google/gemini-3-flash-preview": "Gemini 3 Flash",
+  "google/gemini-3-pro-preview": "Gemini 3 Pro",
+  // Legacy mappings
+  "gpt-4o-mini": "Gemini Flash",
+  "gpt-4o": "Gemini Pro",
+  "gpt-4-turbo": "Gemini Pro"
 };
 
 export default function AgenteIA() {
