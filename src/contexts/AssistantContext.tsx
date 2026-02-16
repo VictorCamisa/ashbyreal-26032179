@@ -350,14 +350,14 @@ Criação e gestão de agentes de inteligência artificial para atendimento.
 
 ## Como criar um agente
 1. Clique em "Criar Agente"
-2. Escolha um modelo (GPT-4o mini recomendado)
+2. Escolha um modelo (Gemini Flash recomendado)
 3. Escreva o prompt de sistema (personalidade)
 4. Selecione as tabelas de conhecimento
 5. Defina temperatura (criatividade)
 6. Teste antes de ativar
 
 ## Parâmetros importantes
-- **Modelo**: GPT-4o (mais inteligente) ou GPT-4o mini (mais rápido)
+- **Modelo**: Gemini Pro (mais inteligente) ou Gemini Flash (mais rápido)
 - **Temperatura**: 0.0 = preciso, 1.0 = criativo
 - **Max Tokens**: Limite de resposta
 

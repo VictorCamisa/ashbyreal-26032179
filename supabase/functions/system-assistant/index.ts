@@ -308,12 +308,12 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -325,24 +325,20 @@ serve(async (req) => {
     // Fetch real-time system stats for context
     let systemStats = "";
     try {
-      // Get recent orders count
       const { count: pedidosCount } = await supabase
         .from("pedidos")
         .select("*", { count: "exact", head: true })
         .gte("data_pedido", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
-      // Get clients count
       const { count: clientesCount } = await supabase
         .from("clientes")
         .select("*", { count: "exact", head: true });
 
-      // Get products count
       const { count: produtosCount } = await supabase
         .from("produtos")
         .select("*", { count: "exact", head: true })
         .eq("ativo", true);
 
-      // Get barrels count
       const { count: barrisCount } = await supabase
         .from("barris")
         .select("*", { count: "exact", head: true });
@@ -403,7 +399,7 @@ O fluxo completo é: **Pendente** → **Em Separação** → **Em Rota** → **E
 
 Você pode alterar o status clicando no pedido e usando os botões no topo da tela."`;
 
-    // Build messages for OpenAI
+    // Build messages for Lovable AI
     const messages = [
       { role: "system", content: systemPrompt },
       ...conversation_history.map((m: any) => ({
@@ -413,14 +409,14 @@ Você pode alterar o status clicando no pedido e usando os botões no topo da te
       { role: "user", content: message },
     ];
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "google/gemini-2.5-flash",
         messages,
         temperature: 0.7,
         max_tokens: 1000,
@@ -429,8 +425,15 @@ Você pode alterar o status clicando no pedido e usando os botões no topo da te
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[system-assistant] OpenAI error:", errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error("[system-assistant] Lovable AI error:", errorText);
+      
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
+      }
+      if (response.status === 402) {
+        throw new Error("AI credits exhausted. Please add funds.");
+      }
+      throw new Error(`Lovable AI API error: ${response.status}`);
     }
 
     const data = await response.json();

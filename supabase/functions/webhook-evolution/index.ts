@@ -85,12 +85,12 @@ serve(async (req) => {
       }
     };
 
-    // Helper to transcribe audio via OpenAI Whisper
+    // Helper to transcribe audio via OpenAI Whisper (Whisper not available on Lovable AI)
     // Supports both base64 string and HTTP URLs
     const transcribeAudio = async (audioSource: string, isBase64: boolean = false): Promise<string | null> => {
       const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
       if (!OPENAI_API_KEY || !audioSource) {
-        console.log("[webhook-evolution] OpenAI not configured or no audio source");
+        console.log("[webhook-evolution] OpenAI Whisper not configured or no audio source");
         return null;
       }
 

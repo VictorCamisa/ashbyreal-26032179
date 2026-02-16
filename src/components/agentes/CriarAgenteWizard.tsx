@@ -225,12 +225,11 @@ Fornecer suporte inicial e direcionar corretamente:
 ];
 
 const AVAILABLE_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Econômico e rápido. Bom para alto volume.", cost: "$", speed: "Muito rápido" },
-  { value: "gpt-4o", label: "GPT-4o", description: "Equilibrado entre custo e qualidade.", cost: "$$", speed: "Rápido" },
-  { value: "gpt-4.1-2025-04-14", label: "GPT-4.1", description: "Mais recente da linha GPT-4. Alta qualidade.", cost: "$$", speed: "Rápido" },
-  { value: "gpt-5-mini-2025-08-07", label: "GPT-5 Mini", description: "Nova geração, eficiente e poderoso.", cost: "$$", speed: "Rápido" },
-  { value: "gpt-5-2025-08-07", label: "GPT-5 Flagship", description: "O melhor modelo. Máxima qualidade e raciocínio.", cost: "$$$", speed: "Moderado" },
-  { value: "o4-mini-2025-04-16", label: "O4 Mini", description: "Raciocínio avançado para problemas complexos.", cost: "$$", speed: "Rápido" },
+  { value: "google/gemini-2.5-flash-lite", label: "Gemini Flash Lite", description: "Ultra rápido e econômico. Ideal para tarefas simples.", cost: "$", speed: "Muito rápido" },
+  { value: "google/gemini-2.5-flash", label: "Gemini Flash", description: "Equilibrado entre custo e qualidade. Recomendado.", cost: "$", speed: "Muito rápido" },
+  { value: "google/gemini-2.5-pro", label: "Gemini Pro", description: "Alta qualidade. Melhor raciocínio e contexto.", cost: "$$", speed: "Rápido" },
+  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash", description: "Nova geração, velocidade e capacidade.", cost: "$$", speed: "Rápido" },
+  { value: "google/gemini-3-pro-preview", label: "Gemini 3 Pro", description: "O melhor modelo. Máxima qualidade.", cost: "$$$", speed: "Moderado" },
 ];
 
 const AVAILABLE_TABLES = [
@@ -260,7 +259,7 @@ export function CriarAgenteWizard({ open, onOpenChange }: CriarAgenteWizardProps
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    model: "gpt-4o-mini",
+    model: "google/gemini-2.5-flash",
     system_prompt: "",
     greeting_message: "",
     knowledge_tables: [] as string[],
@@ -324,7 +323,7 @@ export function CriarAgenteWizard({ open, onOpenChange }: CriarAgenteWizardProps
     setFormData({
       name: "",
       description: "",
-      model: "gpt-4o-mini",
+      model: "google/gemini-2.5-flash",
       system_prompt: "",
       greeting_message: "",
       knowledge_tables: [],

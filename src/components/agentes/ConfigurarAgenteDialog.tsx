@@ -44,12 +44,11 @@ interface ConfigurarAgenteDialogProps {
 }
 
 const AVAILABLE_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini (Rápido e econômico)" },
-  { value: "gpt-4o", label: "GPT-4o (Equilibrado)" },
-  { value: "gpt-4.1-2025-04-14", label: "GPT-4.1 (Mais recente e poderoso)" },
-  { value: "gpt-5-mini-2025-08-07", label: "GPT-5 Mini (Nova geração, eficiente)" },
-  { value: "gpt-5-2025-08-07", label: "GPT-5 (Flagship - máxima qualidade)" },
-  { value: "o4-mini-2025-04-16", label: "O4 Mini (Raciocínio avançado)" },
+  { value: "google/gemini-2.5-flash-lite", label: "Gemini Flash Lite (Ultra rápido)" },
+  { value: "google/gemini-2.5-flash", label: "Gemini Flash (Recomendado)" },
+  { value: "google/gemini-2.5-pro", label: "Gemini Pro (Alta qualidade)" },
+  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Nova geração)" },
+  { value: "google/gemini-3-pro-preview", label: "Gemini 3 Pro (Máxima qualidade)" },
 ];
 
 const AVAILABLE_TABLES = [

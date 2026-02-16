@@ -13,12 +13,12 @@ serve(async (req) => {
   }
 
   try {
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -300,7 +300,7 @@ serve(async (req) => {
 
 USE ESTAS DATAS quando o cliente mencionar "amanhã", "fim de semana", "próximo sábado", etc.`;
 
-    // Build messages array for OpenAI with multi-message instruction
+    // Build messages array for Lovable AI
     const systemPrompt = `${agent.system_prompt}
 
 ${dateContext}
@@ -454,17 +454,28 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
       { role: "user", content: message },
     ];
 
-    console.log(`[ai-chat] Sending to OpenAI with ${messages.length} messages`);
+    // Map old OpenAI model names to Lovable AI models
+    const modelMap: Record<string, string> = {
+      "gpt-4o-mini": "google/gemini-2.5-flash",
+      "gpt-4o": "google/gemini-2.5-pro",
+      "gpt-4-turbo": "google/gemini-2.5-pro",
+      "gpt-4.1-2025-04-14": "google/gemini-2.5-pro",
+      "gpt-5-mini-2025-08-07": "google/gemini-2.5-flash",
+      "gpt-5-2025-08-07": "google/gemini-2.5-pro",
+      "o4-mini-2025-04-16": "google/gemini-2.5-pro",
+    };
+    const aiModel = modelMap[agent.model] || "google/gemini-2.5-flash";
 
-    // Call OpenAI
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    console.log(`[ai-chat] Sending to Lovable AI (${aiModel}) with ${messages.length} messages`);
+
+    const openaiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: agent.model || "gpt-4o-mini",
+        model: aiModel,
         messages,
         temperature: agent.temperature || 0.7,
         max_tokens: agent.max_tokens || 2000,
@@ -473,8 +484,14 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text();
-      console.error("[ai-chat] OpenAI error:", errorText);
-      throw new Error(`OpenAI API error: ${openaiResponse.status}`);
+      console.error("[ai-chat] Lovable AI error:", errorText);
+      if (openaiResponse.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
+      }
+      if (openaiResponse.status === 402) {
+        throw new Error("AI credits exhausted. Please add funds.");
+      }
+      throw new Error(`Lovable AI API error: ${openaiResponse.status}`);
     }
 
     const openaiData = await openaiResponse.json();

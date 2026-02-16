@@ -15,9 +15,9 @@ interface NovoAgenteDialogProps {
 }
 
 const AVAILABLE_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini (Rápido e econômico)" },
-  { value: "gpt-4o", label: "GPT-4o (Mais inteligente)" },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo (Equilibrado)" },
+  { value: "google/gemini-2.5-flash", label: "Gemini Flash (Recomendado)" },
+  { value: "google/gemini-2.5-pro", label: "Gemini Pro (Alta qualidade)" },
+  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Nova geração)" },
 ];
 
 const AVAILABLE_TABLES = [
@@ -32,7 +32,7 @@ export function NovoAgenteDialog({ open, onOpenChange }: NovoAgenteDialogProps) 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    model: "gpt-4o-mini",
+    model: "google/gemini-2.5-flash",
     system_prompt: `Você é um assistente de vendas da Taubaté Chopp. Seu objetivo é qualificar leads que responderam a uma campanha de reativação.
 
 INSTRUÇÕES:
@@ -92,7 +92,7 @@ Quando identificar interesse genuíno, diga: "Que ótimo! Vou transferir você p
       setFormData({
         name: "",
         description: "",
-        model: "gpt-4o-mini",
+        model: "google/gemini-2.5-flash",
         system_prompt: formData.system_prompt,
         greeting_message: formData.greeting_message,
         knowledge_tables: ["clientes", "pedidos", "produtos"],
