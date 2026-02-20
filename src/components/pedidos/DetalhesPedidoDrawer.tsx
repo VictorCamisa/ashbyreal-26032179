@@ -261,7 +261,7 @@ export function DetalhesPedidoDrawer({
           <div className="flex items-center justify-between">
             <div>
               <SheetTitle className="text-xl">
-                Pedido #{pedido?.numero_pedido ? String(pedido.numero_pedido).slice(-8) : pedidoId?.slice(0, 8)}
+                Pedido #{pedido?.numero_pedido || pedidoId?.slice(0, 8)}
               </SheetTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {formatDate(pedido?.data_pedido || null)}

@@ -297,32 +297,53 @@ export function ImportarTransacoesDialog({ open, onOpenChange }: ImportarTransac
     setPreviewMode(false);
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
+
+    // Fetch existing transactions for deduplication
+    const firstDate = parsedData.reduce((min, r) => {
+      const d = parseDate(r.data);
+      return d < min ? d : min;
+    }, '9999-12-31');
+    const lastDate = parsedData.reduce((max, r) => {
+      const d = parseDate(r.data);
+      return d > max ? d : max;
+    }, '0000-01-01');
+
+    const { data: existingTransactions } = await supabase
+      .from('transactions')
+      .select('description, amount, due_date')
+      .gte('due_date', firstDate)
+      .lte('due_date', lastDate);
+
+    const existingSet = new Set(
+      (existingTransactions || []).map(t => 
+        `${normalizeString(t.description)}|${Math.abs(Number(t.amount)).toFixed(2)}|${t.due_date}`
+      )
+    );
 
     for (let i = 0; i < parsedData.length; i++) {
       const row = parsedData[i];
       
       try {
-        // Determine type
         const tipo = row.tipo.toLowerCase() === 'receita' ? 'RECEBER' : 'PAGAR';
         const categoryType = tipo === 'RECEBER' ? 'RECEITA' : 'DESPESA';
+        const dueDate = parseDate(row.data);
         
-        // Find category by name
+        // Deduplication check
+        const dedupeKey = `${normalizeString(row.descricao)}|${row.valor.toFixed(2)}|${dueDate}`;
+        if (existingSet.has(dedupeKey)) {
+          skippedCount++;
+          setProgress(Math.round(((i + 1) / parsedData.length) * 100));
+          continue;
+        }
+        // Add to set to avoid duplicates within same import
+        existingSet.add(dedupeKey);
+
         const category = findCategoryMatch(row.categoria, categories || [], categoryType);
-
-        // Find subcategory by name
-        const subcategory = findSubcategoryMatch(
-          row.subcategoria, 
-          subcategories || [], 
-          category?.id
-        );
-
-        // Find account by name
+        const subcategory = findSubcategoryMatch(row.subcategoria, subcategories || [], category?.id);
         const account = findAccountMatch(row.conta, accounts || []);
-
-        // Determine entity based on account
         const entityId = getEntityForAccount(row.conta);
 
-        // Determine status based on whether it has "Data Competencia" (paid transactions have this)
         const hasPaid = row.dataCompetencia && row.dataCompetencia.trim() !== '';
         const status = hasPaid ? 'PAGO' : 'PREVISTO';
         const paymentDate = hasPaid ? parseDate(row.dataCompetencia) : null;
@@ -331,12 +352,12 @@ export function ImportarTransacoesDialog({ open, onOpenChange }: ImportarTransac
           entity_id: entityId,
           tipo: tipo as 'PAGAR' | 'RECEBER',
           amount: row.valor,
-          due_date: parseDate(row.data),
+          due_date: dueDate,
           description: row.descricao,
           category_id: category?.id || null,
           subcategory_id: subcategory?.id || null,
           account_id: account?.id || null,
-          reference_month: row.dataCompetencia ? parseDate(row.dataCompetencia) : parseDate(row.data),
+          reference_month: row.dataCompetencia ? parseDate(row.dataCompetencia) : dueDate,
           status: status as 'PREVISTO' | 'PAGO' | 'ATRASADO' | 'CANCELADO',
           payment_date: paymentDate,
           origin: 'MANUAL' as const
@@ -368,11 +389,15 @@ export function ImportarTransacoesDialog({ open, onOpenChange }: ImportarTransac
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-financeiro'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success(`${successCount} transações importadas com sucesso!`);
+      toast.success(`${successCount} transações importadas com sucesso!${skippedCount > 0 ? ` ${skippedCount} duplicadas ignoradas.` : ''}`);
     }
     
     if (errorCount > 0) {
       toast.error(`${errorCount} transações falharam ao importar`);
+    }
+
+    if (successCount === 0 && errorCount === 0 && skippedCount > 0) {
+      toast.info(`Todas as ${skippedCount} transações já existem no sistema.`);
     }
   };
 

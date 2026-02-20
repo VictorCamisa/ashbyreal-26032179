@@ -39,7 +39,7 @@ type PedidoItemRow = {
   };
 };
 
-function dbRowToPedido(row: PedidoRow): Pedido {
+function dbRowToPedido(row: PedidoRow): Pedido & { numeroPedido: number } {
   return {
     id: row.id,
     clienteId: row.cliente_id,
@@ -47,6 +47,7 @@ function dbRowToPedido(row: PedidoRow): Pedido {
     items: [],
     status: row.status as Pedido['status'],
     valorTotal: Number(row.valor_total),
+    numeroPedido: row.numero_pedido,
     dataPedido: row.data_pedido,
     dataEntrega: row.data_entrega || undefined,
     observacoes: row.observacoes || undefined,

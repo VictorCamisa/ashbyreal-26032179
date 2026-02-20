@@ -96,6 +96,14 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [metodoPagamento, setMetodoPagamento] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [dataEntrega, setDataEntrega] = useState('');
+  const [horarioEntrega, setHorarioEntrega] = useState('');
+  const [enderecoEntrega, setEnderecoEntrega] = useState({
+    rua: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+  });
   const [valorSinal, setValorSinal] = useState<number>(0);
   
   // Lojista state
@@ -241,15 +249,25 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const handleSubmit = async () => {
     if (!selectedCliente || cart.length === 0) return;
 
+    // Build full observações with horário
+    let fullObs = observacoes;
+    if (horarioEntrega) {
+      fullObs = `${fullObs ? fullObs + ' | ' : ''}Horário entrega: ${horarioEntrega}`;
+    }
+
+    // Build endereco JSON
+    const enderecoJson = enderecoEntrega.rua ? enderecoEntrega : undefined;
+
     try {
       const pedido = await createPedido({
         clienteId: selectedCliente.id,
         lojistaId: isVendaLojista ? selectedLojistaId : null,
         items: cart,
         metodoPagamento,
-        observacoes,
+        observacoes: fullObs,
         dataEntrega,
         valorSinal: valorSinal > 0 ? valorSinal : undefined,
+        enderecoEntrega: enderecoJson,
       });
 
       // Se cliente é CNPJ ou lojista e há barris selecionados, movimentar
@@ -288,6 +306,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setMetodoPagamento('');
     setObservacoes('');
     setDataEntrega('');
+    setHorarioEntrega('');
+    setEnderecoEntrega({ rua: '', numero: '', complemento: '', bairro: '', cidade: '' });
     setSearchProduto('');
     setSearchCliente('');
     setValorSinal(0);
@@ -779,16 +799,80 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                   )}
                 </div>
 
-                {/* Delivery Date */}
-                <div className="space-y-2">
-                  <Label htmlFor="dataEntrega">Data de Entrega (opcional)</Label>
-                  <Input
-                    id="dataEntrega"
-                    type="date"
-                    value={dataEntrega}
-                    onChange={(e) => setDataEntrega(e.target.value)}
-                    className="max-w-xs"
-                  />
+                {/* Delivery Date & Time */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dataEntrega">Data de Entrega</Label>
+                    <Input
+                      id="dataEntrega"
+                      type="date"
+                      value={dataEntrega}
+                      onChange={(e) => setDataEntrega(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="horarioEntrega">Horário de Entrega</Label>
+                    <Input
+                      id="horarioEntrega"
+                      type="time"
+                      value={horarioEntrega}
+                      onChange={(e) => setHorarioEntrega(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Delivery Address */}
+                <div className="space-y-3">
+                  <Label className="text-base">Endereço de Entrega</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label htmlFor="rua" className="text-xs text-muted-foreground">Rua</Label>
+                      <Input
+                        id="rua"
+                        value={enderecoEntrega.rua}
+                        onChange={(e) => setEnderecoEntrega(prev => ({ ...prev, rua: e.target.value }))}
+                        placeholder="Rua / Avenida"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="numero" className="text-xs text-muted-foreground">Número</Label>
+                      <Input
+                        id="numero"
+                        value={enderecoEntrega.numero}
+                        onChange={(e) => setEnderecoEntrega(prev => ({ ...prev, numero: e.target.value }))}
+                        placeholder="Nº"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="complemento" className="text-xs text-muted-foreground">Complemento</Label>
+                      <Input
+                        id="complemento"
+                        value={enderecoEntrega.complemento}
+                        onChange={(e) => setEnderecoEntrega(prev => ({ ...prev, complemento: e.target.value }))}
+                        placeholder="Apto, Sala..."
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="bairro" className="text-xs text-muted-foreground">Bairro</Label>
+                      <Input
+                        id="bairro"
+                        value={enderecoEntrega.bairro}
+                        onChange={(e) => setEnderecoEntrega(prev => ({ ...prev, bairro: e.target.value }))}
+                        placeholder="Bairro"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="cidade" className="text-xs text-muted-foreground">Cidade</Label>
+                      <Input
+                        id="cidade"
+                        value={enderecoEntrega.cidade}
+                        onChange={(e) => setEnderecoEntrega(prev => ({ ...prev, cidade: e.target.value }))}
+                        placeholder="Cidade"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Notes */}

@@ -107,9 +107,11 @@ export default function Pedidos() {
   };
 
   const filteredPedidos = useMemo(() => pedidos.filter((pedido) => {
+    const numeroPedido = String((pedido as any).numeroPedido || '');
     const matchesSearch =
       clientesMap[pedido.clienteId]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pedido.id.toLowerCase().includes(searchTerm.toLowerCase());
+      pedido.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      numeroPedido.includes(searchTerm);
     const matchesStatus = statusFilter === 'all' || pedido.status === statusFilter;
     return matchesSearch && matchesStatus;
   }), [pedidos, clientesMap, searchTerm, statusFilter]);
@@ -219,7 +221,7 @@ export default function Pedidos() {
                             title={`ID: ${pedido.id}`}
                           >
                             <TableCell className="font-mono text-sm">
-                              <span title={pedido.id}>#{pedido.id.slice(0, 8)}</span>
+                              <span title={pedido.id}>#{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
                             </TableCell>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {clientesMap[pedido.clienteId] || '-'}
