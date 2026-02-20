@@ -33,13 +33,12 @@ export function PageLayout({
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-3 sm:mb-6">
-        {/* Title and actions - stack on mobile */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-2 sm:mb-4">
-          <div className="min-w-0 flex-shrink-0">
-            <h1 className="text-base sm:text-xl font-semibold tracking-tight">{title}</h1>
+      <div className="mb-4 sm:mb-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-3 sm:mb-5">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">{title}</h1>
             {subtitle && (
-              <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
           
@@ -51,16 +50,16 @@ export function PageLayout({
         </div>
 
         {tabs && tabs.length > 0 && (
-          <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto scrollbar-none -mx-1 px-1">
+          <div className="flex gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto scrollbar-none -mx-1 px-1">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onTabChange?.(tab.id)}
                 className={cn(
-                  "px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all whitespace-nowrap flex-shrink-0",
+                  "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap flex-shrink-0",
                   activeTab === tab.id 
-                    ? "bg-background text-foreground shadow-sm" 
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/50" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
                 )}
               >
                 {tab.label}
