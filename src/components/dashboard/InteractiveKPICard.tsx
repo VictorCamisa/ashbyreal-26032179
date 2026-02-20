@@ -25,7 +25,6 @@ export function InteractiveKPICard({
   icon: Icon, 
   trend,
   subtitle,
-  sparklineData,
   href,
   variant = 'default',
   className,
@@ -34,99 +33,65 @@ export function InteractiveKPICard({
   const navigate = useNavigate();
   const TrendIcon = trend?.isPositive ? TrendingUp : TrendingDown;
 
-  const variantStyles = {
-    default: 'border-border/60 hover:border-primary/30',
-    success: 'border-success/30 hover:border-success/50 bg-success/5',
-    warning: 'border-amber-500/30 hover:border-amber-500/50 bg-amber-500/5',
-    danger: 'border-destructive/30 hover:border-destructive/50 bg-destructive/5',
-  };
+  const accentColor = {
+    default: 'text-primary bg-primary/10',
+    success: 'text-success bg-success/10',
+    warning: 'text-amber-500 bg-amber-500/10',
+    danger: 'text-destructive bg-destructive/10',
+  }[variant];
 
-  const handleClick = () => {
-    if (href) navigate(href);
-  };
-
-  // Simple sparkline SVG
-  const renderSparkline = () => {
-    if (!sparklineData || sparklineData.length < 2) return null;
-    
-    const max = Math.max(...sparklineData);
-    const min = Math.min(...sparklineData);
-    const range = max - min || 1;
-    
-    const width = 60;
-    const height = 20;
-    const padding = 2;
-    
-    const points = sparklineData.map((val, i) => {
-      const x = padding + (i / (sparklineData.length - 1)) * (width - padding * 2);
-      const y = height - padding - ((val - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    }).join(' ');
-
-    const isPositive = sparklineData[sparklineData.length - 1] >= sparklineData[0];
-
-    return (
-      <svg width={width} height={height} className="ml-auto opacity-60">
-        <polyline
-          points={points}
-          fill="none"
-          stroke={isPositive ? 'hsl(var(--success))' : 'hsl(var(--destructive))'}
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  };
+  const borderAccent = {
+    default: 'hover:ring-primary/20',
+    success: 'hover:ring-success/20',
+    warning: 'hover:ring-amber-500/20',
+    danger: 'hover:ring-destructive/20',
+  }[variant];
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: animationDelay / 1000 }}
-      onClick={handleClick}
+      transition={{ duration: 0.35, delay: animationDelay / 1000, ease: [0.25, 0.46, 0.45, 0.94] }}
+      onClick={() => href && navigate(href)}
       className={cn(
-        "rounded-xl bg-card border p-3 sm:p-5 shadow-sm transition-all duration-300",
-        "hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98]",
+        "relative rounded-2xl bg-card border border-border/50 p-3.5 sm:p-5 transition-all duration-300",
+        "kpi-glow hover:ring-1",
         href && "cursor-pointer group",
-        variantStyles[variant],
+        borderAccent,
         className
       )}
     >
-      <div className="flex items-start justify-between gap-2 sm:gap-3">
+      {/* Accent line */}
+      <div className={cn(
+        "absolute top-0 left-4 right-4 h-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+        variant === 'success' && "bg-success",
+        variant === 'warning' && "bg-amber-500",
+        variant === 'danger' && "bg-destructive",
+        variant === 'default' && "bg-primary",
+      )} />
+
+      <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2">
+          <div className="flex items-center gap-2 mb-2 sm:mb-3">
             {Icon && (
-              <div className={cn(
-                "h-6 w-6 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0",
-                variant === 'success' && "bg-success/20 text-success",
-                variant === 'warning' && "bg-amber-500/20 text-amber-500",
-                variant === 'danger' && "bg-destructive/20 text-destructive",
-                variant === 'default' && "bg-primary/10 text-primary"
-              )}>
-                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+              <div className={cn("h-7 w-7 sm:h-8 sm:w-8 rounded-xl flex items-center justify-center shrink-0", accentColor)}>
+                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             )}
-            <span className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide truncate">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
               {label}
             </span>
-            {href && (
-              <ArrowRight className="h-3 w-3 ml-auto text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-            )}
           </div>
           
-          <div className="flex items-end justify-between gap-2">
-            <p className="text-lg sm:text-2xl font-bold tabular-nums tracking-tight truncate">
-              {value}
-            </p>
-            {renderSparkline()}
-          </div>
+          <p className="text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight truncate">
+            {value}
+          </p>
           
           {(trend || subtitle) && (
-            <div className="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-2 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-1.5 sm:mt-2 flex-wrap">
               {trend && (
                 <span className={cn(
-                  "inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium px-1 sm:px-1.5 py-0.5 rounded-full flex-shrink-0",
+                  "inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded-md shrink-0",
                   trend.isPositive 
                     ? "text-success bg-success/10" 
                     : "text-destructive bg-destructive/10"
@@ -141,6 +106,10 @@ export function InteractiveKPICard({
             </div>
           )}
         </div>
+        
+        {href && (
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+        )}
       </div>
     </motion.div>
   );
