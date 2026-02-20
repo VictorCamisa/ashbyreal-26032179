@@ -18,6 +18,13 @@ export interface CreatePedidoData {
   observacoes?: string;
   dataEntrega?: string;
   valorSinal?: number;
+  enderecoEntrega?: {
+    rua: string;
+    numero: string;
+    complemento: string;
+    bairro: string;
+    cidade: string;
+  };
 }
 
 export function usePedidosMutations() {
@@ -52,6 +59,7 @@ export function usePedidosMutations() {
           valor_sinal: data.valorSinal || 0,
           data_pedido: new Date().toISOString(),
           data_entrega: data.dataEntrega ? new Date(data.dataEntrega).toISOString() : null,
+          endereco_entrega: data.enderecoEntrega || null,
           observacoes: data.observacoes || null,
           metodo_pagamento: data.metodoPagamento || null,
           status_history: JSON.stringify([{

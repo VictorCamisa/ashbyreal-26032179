@@ -201,39 +201,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
   });
 
-  // Auto-correct status: mark overdue transactions as ATRASADO
-  const autoCorrectStatusMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      const { error } = await supabase
-        .from('transactions')
-        .update({ status: 'ATRASADO' })
-        .in('id', ids);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
-    }
-  });
-
-  // Auto-correct overdue transactions when data loads
-  useEffect(() => {
-    if (bankTransactions && bankTransactions.length > 0) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const overdueIds = bankTransactions
-        .filter(t => {
-          const dueDate = new Date(t.due_date);
-          dueDate.setHours(0, 0, 0, 0);
-          return t.status === 'PREVISTO' && dueDate < today;
-        })
-        .map(t => t.id);
-
-      if (overdueIds.length > 0) {
-        autoCorrectStatusMutation.mutate(overdueIds);
-      }
-    }
-  }, [bankTransactions]);
+  // Compute overdue status locally instead of mutating the database on every load
+  // This prevents the bug where ALL PREVISTO transactions get marked as ATRASADO permanently
 
   const isLoading = isLoadingBank;
 
@@ -243,14 +212,27 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
 
     // Add bank transactions
     if (bankTransactions) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
       bankTransactions.forEach((t) => {
+        // Compute overdue status locally instead of writing to DB
+        let displayStatus = t.status;
+        if (t.status === 'PREVISTO') {
+          const dueDate = new Date(t.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          if (dueDate < today) {
+            displayStatus = 'ATRASADO';
+          }
+        }
+        
         unified.push({
           id: t.id,
           description: t.description,
           amount: Math.abs(Number(t.amount)),
           due_date: t.due_date,
           payment_date: t.payment_date,
-          status: t.status,
+          status: displayStatus,
           tipo: t.tipo as 'PAGAR' | 'RECEBER',
           origin: t.origin || 'MANUAL',
           origin_reference_id: t.origin_reference_id,
