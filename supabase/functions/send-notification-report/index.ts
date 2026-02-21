@@ -237,8 +237,11 @@ serve(async (req) => {
     reportMessage += `🤖 _Relatório automático • Taubaté Chopp_\n`;
     reportMessage += `🕐 _${now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`;
 
-    // Send via Evolution API
-    const phone = schedule.recipient_phone.replace(/\D/g, "");
+    // Send via Evolution API - ensure country code 55 (Brazil)
+    let phone = schedule.recipient_phone.replace(/\D/g, "");
+    if (!phone.startsWith("55")) {
+      phone = "55" + phone;
+    }
     const remoteJid = `${phone}@s.whatsapp.net`;
 
     console.log(`[send-notification-report] Sending ${reportType} to ${phone} via ${instanceName}`);
