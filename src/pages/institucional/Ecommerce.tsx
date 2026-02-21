@@ -91,7 +91,7 @@ export default function Ecommerce() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('produtos')
-        .select('id, nome, preco, categoria, tipo_produto')
+        .select('id, nome, preco, categoria, tipo_produto, estoque')
         .eq('ativo', true)
         .eq('tipo_produto', 'CHOPP')
         .order('nome');
@@ -354,6 +354,8 @@ export default function Ecommerce() {
                 const meta = getProductMeta(produto.nome);
                 const volume = getVolume(produto.nome);
                 const inCart = getCartItemQty(produto.id);
+                const estoque = produto.estoque ?? 0;
+                const emEstoque = estoque > 0;
 
                 return (
                   <motion.div
@@ -397,10 +399,18 @@ export default function Ecommerce() {
                           </motion.div>
                         )}
 
-                        {/* Rating */}
-                        <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full px-2.5 py-1">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-[11px] font-semibold text-white/90">{meta.rating}</span>
+                        {/* Stock & Rating */}
+                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full px-2.5 py-1">
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[11px] font-semibold text-white/90">{meta.rating}</span>
+                          </div>
+                          <div className={`flex items-center gap-1 backdrop-blur-md rounded-full px-2.5 py-1 ${emEstoque ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${emEstoque ? 'bg-green-400' : 'bg-red-400'}`} />
+                            <span className={`text-[10px] font-semibold ${emEstoque ? 'text-green-300' : 'text-red-300'}`}>
+                              {emEstoque ? `${estoque} em estoque` : 'Sob encomenda'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
