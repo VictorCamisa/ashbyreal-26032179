@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -36,7 +37,28 @@ export function useWhatsAppInstances() {
       if (error) throw error;
       return data as WhatsAppInstance[];
     },
+    refetchOnWindowFocus: true,
+    staleTime: 10_000, // 10s
   });
+
+  // Realtime subscription to keep status in sync
+  useEffect(() => {
+    const channel = supabase
+      .channel('whatsapp-instances-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'whatsapp_instances' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] });
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-instances-list'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const createInstance = useMutation({
     mutationFn: async ({ name, instanceName, evolutionApiUrl, evolutionApiKey }: CreateInstanceParams) => {
