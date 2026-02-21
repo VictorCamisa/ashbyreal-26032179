@@ -116,7 +116,7 @@ export function NotificacoesPanel({ open, onOpenChange }: { open: boolean; onOpe
       if (error) throw error;
       return data;
     },
-    enabled: open,
+    enabled: open || createOpen,
   });
 
   const createMutation = useMutation({
