@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Bell, Plus, Trash2, Clock, Send, Play, CheckCircle2, AlertCircle } from "lucide-react";
+import { Bell, Plus, Trash2, Clock, Send, Play, CheckCircle2, AlertCircle, Wifi, WifiOff, RefreshCw, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -234,6 +234,82 @@ export function NotificacoesPanel({ open, onOpenChange }: { open: boolean; onOpe
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
+          {/* Connection Status Banner */}
+          {(() => {
+            const connectedInstance = instances?.find(i => i.status === "connected");
+            const anyInstance = instances?.[0];
+            const hasInstances = !!instances?.length;
+
+            if (connectedInstance) {
+              return (
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="pt-4 pb-3 flex items-center gap-3">
+                    <Wifi className="h-5 w-5 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">WhatsApp Conectado</p>
+                      <p className="text-xs text-muted-foreground">Instância: {connectedInstance.name}</p>
+                    </div>
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">Online</Badge>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (hasInstances && !connectedInstance) {
+              return (
+                <Card className="border-accent/30 bg-accent/5">
+                  <CardContent className="pt-4 pb-3 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <WifiOff className="h-5 w-5 text-accent-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">WhatsApp Desconectado</p>
+                        <p className="text-xs text-muted-foreground">Instância "{anyInstance?.name}" precisa ser reconectada</p>
+                      </div>
+                      <Badge variant="secondary">Offline</Badge>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        onOpenChange(false);
+                        window.location.href = "/whatsapp";
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Ir para WhatsApp e Reconectar
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            return (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardContent className="pt-4 pb-3 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-destructive">Nenhuma API configurada</p>
+                      <p className="text-xs text-muted-foreground">Configure a Evolution API para enviar notificações</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      onOpenChange(false);
+                      window.location.href = "/whatsapp";
+                    }}
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Configurar Evolution API
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           <Button onClick={() => setCreateOpen(true)} className="w-full gap-2">
             <Plus className="h-4 w-4" /> Nova Notificação
           </Button>
