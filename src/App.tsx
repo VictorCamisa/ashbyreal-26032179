@@ -27,6 +27,7 @@ import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
 import InstitucionalHome from "./pages/institucional/Home";
 import InstitucionalProdutos from "./pages/institucional/Produtos";
+import InstitucionalEcommerce from "./pages/institucional/Ecommerce";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
                 {/* Public Institutional Pages */}
                 <Route path="/" element={<InstitucionalHome />} />
                 <Route path="/produtos" element={<InstitucionalProdutos />} />
+                <Route path="/ecommerce" element={<InstitucionalEcommerce />} />
                 
                 <Route path="/auth" element={<Auth />} />
                 {/* Public route for client signature */}
