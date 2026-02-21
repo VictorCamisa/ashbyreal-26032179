@@ -20,7 +20,8 @@ import {
   Send,
   Instagram,
   Sparkles,
-  Loader2
+  Loader2,
+  ShoppingCart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -401,13 +402,25 @@ export default function InstitucionalHome() {
                   {item}
                 </a>
               ))}
+              <Link 
+                to="/ecommerce"
+                className="px-4 py-2 text-sm font-semibold text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-full transition-all duration-300"
+              >
+                🛒 Ecommerce
+              </Link>
             </div>
 
             <div className="flex items-center gap-3">
+              <Link to="/ecommerce">
+                <GlassButton variant="ghost" size="sm" className="hidden sm:flex rounded-full">
+                  <ShoppingCart className="w-4 h-4 mr-2 text-amber-500" />
+                  Ecommerce
+                </GlassButton>
+              </Link>
               <Link to="/produtos">
                 <GlassButton variant="ghost" size="sm" className="hidden sm:flex rounded-full">
                   <Sparkles className="w-4 h-4 mr-2 text-amber-500" />
-                  Ver Catálogo
+                  Catálogo
                 </GlassButton>
               </Link>
               <Link to="/auth">
