@@ -35,38 +35,24 @@ serve(async (req) => {
 
     if (schedError || !schedule) throw new Error("Schedule not found");
 
-    // Get instance
+    // Get instance - don't check status, it can be stale in DB
     let instanceName = "";
     if (schedule.instance_id) {
       const { data: inst } = await supabase
         .from("whatsapp_instances")
-        .select("instance_name, status")
+        .select("instance_name")
         .eq("id", schedule.instance_id)
         .single();
-      if (!inst || inst.status !== "connected") throw new Error("WhatsApp instance not connected");
+      if (!inst) throw new Error("WhatsApp instance not found");
       instanceName = inst.instance_name;
     } else {
-      // Get first available instance (prefer connected, fallback to any)
-      const { data: connectedInst } = await supabase
+      const { data: anyInst } = await supabase
         .from("whatsapp_instances")
         .select("instance_name")
-        .eq("status", "connected")
         .limit(1)
         .single();
-      
-      if (connectedInst) {
-        instanceName = connectedInst.instance_name;
-      } else {
-        // Fallback: use any instance (status in DB may be stale)
-        const { data: anyInst } = await supabase
-          .from("whatsapp_instances")
-          .select("instance_name")
-          .limit(1)
-          .single();
-        if (!anyInst) throw new Error("No WhatsApp instance found. Please create one first.");
-        console.log(`[send-notification-report] No connected instance found, using fallback: ${anyInst.instance_name}`);
-        instanceName = anyInst.instance_name;
-      }
+      if (!anyInst) throw new Error("No WhatsApp instance found. Please create one first.");
+      instanceName = anyInst.instance_name;
     }
 
     // Build report based on type
