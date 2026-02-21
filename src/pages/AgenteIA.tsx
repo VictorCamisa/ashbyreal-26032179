@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Bot, Settings, MessageSquare, Trash2, TestTube, Sparkles, Target, Zap, MoreHorizontal, RotateCcw } from "lucide-react";
+import { Bot, Settings, MessageSquare, Trash2, TestTube, Sparkles, Target, Zap, MoreHorizontal, RotateCcw, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { CriarAgenteWizard } from "@/components/agentes/CriarAgenteWizard";
 import { ConfigurarAgenteDialog } from "@/components/agentes/ConfigurarAgenteDialog";
@@ -15,6 +15,7 @@ import { ConversasAgenteSheet } from "@/components/agentes/ConversasAgenteSheet"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { NotificacoesPanel } from "@/components/agentes/NotificacoesPanel";
 
 interface AIAgent {
   id: string;
@@ -53,6 +54,7 @@ export default function AgenteIA() {
   const [configurarAgente, setConfigurarAgente] = useState<AIAgent | null>(null);
   const [testarAgente, setTestarAgente] = useState<AIAgent | null>(null);
   const [conversasAgente, setConversasAgente] = useState<AIAgent | null>(null);
+  const [notificacoesOpen, setNotificacoesOpen] = useState(false);
 
   const { data: agents, isLoading } = useQuery({
     queryKey: ["ai-agents"],
@@ -132,6 +134,10 @@ export default function AgenteIA() {
           <Sparkles className="h-4 w-4" />Criar Novo Agente
         </Button>
         
+        <Button variant="outline" size="lg" className="gap-2" onClick={() => setNotificacoesOpen(true)}>
+          <Bell className="h-4 w-4" />Notificações
+        </Button>
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="lg" className="gap-2">
@@ -216,6 +222,7 @@ export default function AgenteIA() {
       {configurarAgente && <ConfigurarAgenteDialog agent={configurarAgente} open={!!configurarAgente} onOpenChange={open => !open && setConfigurarAgente(null)} />}
       {testarAgente && <TestarAgenteDialog agent={testarAgente} open={!!testarAgente} onOpenChange={open => !open && setTestarAgente(null)} />}
       {conversasAgente && <ConversasAgenteSheet agent={conversasAgente} open={!!conversasAgente} onOpenChange={open => !open && setConversasAgente(null)} />}
+      <NotificacoesPanel open={notificacoesOpen} onOpenChange={setNotificacoesOpen} />
     </PageLayout>
   );
 }

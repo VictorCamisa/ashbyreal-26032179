@@ -1942,6 +1942,71 @@ export type Database = {
           },
         ]
       }
+      notification_schedules: {
+        Row: {
+          created_at: string | null
+          custom_prompt: string | null
+          day_of_month: number | null
+          day_of_week: number | null
+          description: string | null
+          frequency: string
+          id: string
+          instance_id: string | null
+          is_active: boolean | null
+          last_sent_at: string | null
+          name: string
+          recipient_phone: string | null
+          recipient_user_id: string
+          report_type: string
+          send_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          custom_prompt?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          description?: string | null
+          frequency?: string
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          name: string
+          recipient_phone?: string | null
+          recipient_user_id: string
+          report_type?: string
+          send_time?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          custom_prompt?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          description?: string | null
+          frequency?: string
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          name?: string
+          recipient_phone?: string | null
+          recipient_user_id?: string
+          report_type?: string
+          send_time?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_schedules_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedido_itens: {
         Row: {
           created_at: string | null
