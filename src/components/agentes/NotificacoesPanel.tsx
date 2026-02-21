@@ -112,7 +112,7 @@ export function NotificacoesPanel({ open, onOpenChange }: { open: boolean; onOpe
       const { data, error } = await supabase
         .from("whatsapp_instances")
         .select("id, name, instance_name, status")
-        .eq("status", "connected");
+        .order("name");
       if (error) throw error;
       return data;
     },
