@@ -46,15 +46,27 @@ serve(async (req) => {
       if (!inst || inst.status !== "connected") throw new Error("WhatsApp instance not connected");
       instanceName = inst.instance_name;
     } else {
-      // Get first connected instance
-      const { data: inst } = await supabase
+      // Get first available instance (prefer connected, fallback to any)
+      const { data: connectedInst } = await supabase
         .from("whatsapp_instances")
         .select("instance_name")
         .eq("status", "connected")
         .limit(1)
         .single();
-      if (!inst) throw new Error("No connected WhatsApp instance found");
-      instanceName = inst.instance_name;
+      
+      if (connectedInst) {
+        instanceName = connectedInst.instance_name;
+      } else {
+        // Fallback: use any instance (status in DB may be stale)
+        const { data: anyInst } = await supabase
+          .from("whatsapp_instances")
+          .select("instance_name")
+          .limit(1)
+          .single();
+        if (!anyInst) throw new Error("No WhatsApp instance found. Please create one first.");
+        console.log(`[send-notification-report] No connected instance found, using fallback: ${anyInst.instance_name}`);
+        instanceName = anyInst.instance_name;
+      }
     }
 
     // Build report based on type
