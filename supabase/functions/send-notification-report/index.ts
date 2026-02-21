@@ -254,10 +254,8 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        number: remoteJid,
-        textMessage: {
-          text: reportMessage,
-        },
+        number: phone,
+        text: reportMessage,
       }),
     });
 
