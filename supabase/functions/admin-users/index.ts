@@ -252,7 +252,7 @@ serve(async (req) => {
 
     // UPDATE PROFILE
     if (req.method === "POST" && action === "update") {
-      const { userId, nome, telefone, cargo, is_owner, modules } = await req.json();
+      const { userId, nome, telefone, cargo, is_owner, modules, password } = await req.json();
       console.log("Updating profile:", userId, "with modules:", modules);
 
       if (!userId) {
@@ -260,6 +260,19 @@ serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // Update password if provided
+      if (password && password.length >= 6) {
+        const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+        if (pwError) {
+          console.error("Update password error:", pwError);
+          return new Response(JSON.stringify({ error: "Erro ao atualizar senha: " + pwError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        console.log("Password updated for user:", userId);
       }
 
       const updateData: Record<string, unknown> = {};

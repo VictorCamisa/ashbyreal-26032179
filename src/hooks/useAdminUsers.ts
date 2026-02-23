@@ -165,7 +165,7 @@ export function useAdminUsers() {
   });
 
   const updateProfile = useMutation({
-    mutationFn: async (profileData: { userId: string; nome?: string; telefone?: string; cargo?: string; is_owner?: boolean; modules?: string[] }) => {
+    mutationFn: async (profileData: { userId: string; nome?: string; telefone?: string; cargo?: string; is_owner?: boolean; modules?: string[]; password?: string }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
@@ -283,9 +283,9 @@ export function useUserModules() {
         .eq('user_id', user.id)
         .eq('is_visible', true);
 
-      // If no permissions set, show all modules (backwards compatible)
+      // If no permissions set, return empty (user must have explicit permissions)
       if (!modules || modules.length === 0) {
-        return ALL_MODULES.map(m => m.key);
+        return [];
       }
 
       return modules.map(m => m.module_key);
