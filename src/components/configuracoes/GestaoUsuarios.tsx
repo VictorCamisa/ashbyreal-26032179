@@ -22,6 +22,7 @@ export default function GestaoUsuarios() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editingModules, setEditingModules] = useState<string[]>([]);
+  const [editPassword, setEditPassword] = useState('');
   const [newUser, setNewUser] = useState({ 
     email: '', 
     password: '', 
@@ -61,6 +62,7 @@ export default function GestaoUsuarios() {
   const handleEditUser = (u: AdminUser) => {
     setEditingUser({ ...u });
     setEditingModules(u.modules || ALL_MODULES.map(m => m.key));
+    setEditPassword('');
     setEditDialogOpen(true);
   };
 
@@ -72,11 +74,13 @@ export default function GestaoUsuarios() {
       telefone: editingUser.telefone,
       cargo: editingUser.cargo,
       is_owner: editingUser.is_owner,
-      modules: editingModules
+      modules: editingModules,
+      ...(editPassword.length >= 6 ? { password: editPassword } : {}),
     });
     setEditDialogOpen(false);
     setEditingUser(null);
     setEditingModules([]);
+    setEditPassword('');
   };
 
   const handleToggleAdmin = async (u: AdminUser) => {
@@ -465,9 +469,22 @@ export default function GestaoUsuarios() {
                   onChange={(e) => setEditingUser({ ...editingUser, cargo: e.target.value })}
                   placeholder="Ex: Gerente, Vendedor"
                 />
-              </div>
+               </div>
+               <div className="space-y-2">
+                 <Label htmlFor="edit-password">Nova Senha</Label>
+                 <Input
+                   id="edit-password"
+                   type="password"
+                   value={editPassword}
+                   onChange={(e) => setEditPassword(e.target.value)}
+                   placeholder="Deixe vazio para manter a atual"
+                 />
+                 {editPassword.length > 0 && editPassword.length < 6 && (
+                   <p className="text-xs text-destructive">Mínimo 6 caracteres</p>
+                 )}
+               </div>
 
-              <Separator />
+               <Separator />
 
               {/* Admin info or module selection */}
               {editingUser.roles.includes('admin') ? (
