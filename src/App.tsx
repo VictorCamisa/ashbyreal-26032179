@@ -22,6 +22,7 @@ import Financeiro from "./pages/Financeiro";
 import Barris from "./pages/Barris";
 import AgenteIA from "./pages/AgenteIA";
 import Contabilidade from "./pages/Contabilidade";
+import Marketing from "./pages/Marketing";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
@@ -63,6 +64,7 @@ const App = () => (
                   <Route path="/financeiro" element={<Financeiro />} />
                   <Route path="/contabilidade" element={<Contabilidade />} />
                   <Route path="/agente-ia" element={<AgenteIA />} />
+                  <Route path="/marketing" element={<Marketing />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
