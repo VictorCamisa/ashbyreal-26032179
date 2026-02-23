@@ -14,12 +14,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -280,19 +279,19 @@ export default function WhatsApp() {
       </div>
 
       {/* Settings Sheet */}
-      <Sheet open={showSettings} onOpenChange={setShowSettings}>
-        <SheetContent side="right" className="w-full sm:w-[480px] bg-[#111B21] border-[#2A3942] p-0">
-          <SheetHeader className="px-6 py-4 border-b border-[#2A3942]">
-            <SheetTitle className="text-xl text-[#E9EDEF]">Configurações</SheetTitle>
-          </SheetHeader>
-          <div className="p-6 overflow-y-auto h-[calc(100vh-80px)]">
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-2xl max-h-[85vh] p-0 bg-[#111B21] border-[#2A3942] overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b border-[#2A3942]">
+            <DialogTitle className="text-xl text-[#E9EDEF]">Configurações</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
             <InstanceSettings
               onInstanceSelect={setSelectedInstance}
               selectedInstance={selectedInstance}
             />
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Disparo Panel (fullscreen overlay) */}
       {showDisparo && (
