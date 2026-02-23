@@ -15,6 +15,7 @@ import {
   Bot,
   Circle,
   ChevronsUpDown,
+  Megaphone,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -63,6 +64,7 @@ const financeNavItems = [
 
 const toolsNavItems = [
   { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
   { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
   { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot },
 ];

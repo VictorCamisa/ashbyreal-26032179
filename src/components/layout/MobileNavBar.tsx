@@ -13,6 +13,7 @@ import {
   HeadphonesIcon,
   Target,
   Settings,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserModules } from '@/hooks/useAdminUsers';
@@ -31,6 +32,7 @@ const allNavItems = [
   { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
   { key: 'agente-ia', label: 'IA', href: '/agente-ia', icon: Bot },
+  { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
 ];
 
 const priorityOrder = ['dashboard', 'pedidos', 'financeiro', 'clientes'];
