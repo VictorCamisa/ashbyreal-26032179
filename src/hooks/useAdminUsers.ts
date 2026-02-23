@@ -14,6 +14,7 @@ export const ALL_MODULES = [
   { key: 'contabilidade', label: 'Contabilidade', icon: 'Calculator' },
   { key: 'whatsapp', label: 'WhatsApp', icon: 'MessageCircle' },
   { key: 'suporte', label: 'Suporte', icon: 'HeadphonesIcon' },
+  { key: 'marketing', label: 'Marketing', icon: 'Megaphone' },
   { key: 'agente-ia', label: 'Agente IA', icon: 'Bot' },
 ] as const;
 
