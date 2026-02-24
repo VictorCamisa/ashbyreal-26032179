@@ -66,10 +66,10 @@
 
   .dark {
     --background: 220 14% 10%;
-    --foreground: 220 10% 92%;
+    --foreground: 220 10% 93%;
     
-    --card: 220 12% 13%;
-    --card-foreground: 220 10% 92%;
+    --card: 220 12% 15%;
+    --card-foreground: 220 10% 93%;
     
     --popover: 220 12% 13%;
     --popover-foreground: 220 10% 92%;
