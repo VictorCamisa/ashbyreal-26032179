@@ -13,7 +13,7 @@ interface BarrilDisponivel {
   codigo: string;
   capacidade: number;
   status_conteudo: 'CHEIO' | 'VAZIO';
-  localizacao: 'FABRICA' | 'LOJA' | 'CLIENTE';
+  localizacao: 'FABRICA' | 'LOJA' | 'CLIENTE' | 'DATTA_VALE' | 'ASHBY';
   cliente_id: string | null;
 }
 

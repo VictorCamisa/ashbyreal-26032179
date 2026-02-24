@@ -2813,7 +2813,12 @@ export type Database = {
     Enums: {
       app_role: "admin" | "moderator" | "user"
       ashby_status: "PENDENTE" | "ENTREGUE" | "PAGO" | "CANCELADO"
-      barril_localizacao: "LOJA" | "CLIENTE" | "FABRICA"
+      barril_localizacao:
+        | "LOJA"
+        | "CLIENTE"
+        | "FABRICA"
+        | "DATTA_VALE"
+        | "ASHBY"
       barril_status_conteudo: "CHEIO" | "VAZIO"
       barril_tipo_movimento: "SAIDA" | "RETORNO" | "ENTRADA" | "ENCHIMENTO"
       boleto_status:
@@ -2982,7 +2987,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       ashby_status: ["PENDENTE", "ENTREGUE", "PAGO", "CANCELADO"],
-      barril_localizacao: ["LOJA", "CLIENTE", "FABRICA"],
+      barril_localizacao: ["LOJA", "CLIENTE", "FABRICA", "DATTA_VALE", "ASHBY"],
       barril_status_conteudo: ["CHEIO", "VAZIO"],
       barril_tipo_movimento: ["SAIDA", "RETORNO", "ENTRADA", "ENCHIMENTO"],
       boleto_status: ["PENDENTE", "APROVADO", "PAGO", "REJEITADO", "CANCELADO"],
