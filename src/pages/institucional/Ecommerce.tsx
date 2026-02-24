@@ -154,7 +154,7 @@ export default function Ecommerce() {
     const message = encodeURIComponent(
       `🍺 *Pedido — Taubaté Chopp*\n\n${items}\n\n💰 *Total: R$ ${cartTotal.toFixed(2)}*\n\nGostaria de finalizar!`
     );
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
+    window.location.href = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${message}`;
   };
 
   const getCartQty = (id: string) => cart.find(i => i.id === id)?.quantidade || 0;
@@ -237,17 +237,18 @@ export default function Ecommerce() {
             </motion.p>
           </div>
 
-          <motion.div
+          <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2 }}
-            className="absolute bottom-8 right-8 hidden sm:flex flex-col items-center gap-2"
+            className="absolute bottom-8 right-8 hidden sm:flex flex-col items-center gap-2 cursor-pointer bg-transparent border-none"
+            onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}
           >
             <span className="text-[10px] tracking-[0.2em] uppercase text-white/30">Scroll</span>
             <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
               <ChevronDown className="w-4 h-4 text-white/30" />
             </motion.div>
-          </motion.div>
+          </motion.button>
         </motion.div>
       </section>
 
@@ -463,7 +464,7 @@ export default function Ecommerce() {
               <Search className="w-12 h-12 mx-auto text-white/[0.06] mb-6" />
               <p className="text-white/30 text-sm font-light mb-6">Nenhum resultado para "{searchTerm}"</p>
               <button
-                onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de saber sobre os chopps disponíveis.')}`, '_blank')}
+                onClick={() => window.location.href = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent('Olá! Gostaria de saber sobre os chopps disponíveis.')}`}
                 className="text-[11px] tracking-[0.2em] uppercase text-amber-400/60 hover:text-amber-400 transition-colors inline-flex items-center gap-2"
               >
                 Perguntar no WhatsApp <ArrowRight className="w-3.5 h-3.5" />
@@ -556,7 +557,7 @@ export default function Ecommerce() {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="h-14 px-10 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm inline-flex items-center gap-3 shadow-2xl shadow-amber-500/20 transition-colors"
-                onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de um atendimento personalizado.')}`, '_blank')}
+                onClick={() => window.location.href = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent('Olá! Gostaria de um atendimento personalizado.')}`}
               >
                 <MessageCircle className="w-5 h-5" />
                 Falar no WhatsApp
@@ -596,7 +597,7 @@ export default function Ecommerce() {
                 <a href={`tel:${PHONE_DISPLAY.replace(/\D/g, '')}`} className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
                   <Phone className="w-3.5 h-3.5" /> {PHONE_DISPLAY}
                 </a>
-                <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
+                <a href={`https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                 </a>
                 <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
