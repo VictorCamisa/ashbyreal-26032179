@@ -19,11 +19,13 @@ import { TestarAgenteDialog } from '@/components/agentes/TestarAgenteDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   Bot,
+  BarChart3,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatMonthYear } from '@/lib/dateUtils';
@@ -41,6 +43,7 @@ interface AIAgent {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [mesReferencia, setMesReferencia] = useState(new Date());
   const [entityFilter, setEntityFilter] = useState<'all' | 'LOJA' | 'PARTICULAR'>('all');
@@ -130,6 +133,16 @@ export default function Dashboard() {
           )}
 
           <QuickActions />
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 sm:h-8 text-xs sm:text-sm gap-1.5 px-2 sm:px-3"
+            onClick={() => navigate('/analise-financeira')}
+          >
+            <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Análise Financeira</span>
+          </Button>
         </div>
       }
     >
