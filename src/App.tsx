@@ -26,6 +26,7 @@ import Contabilidade from "./pages/Contabilidade";
 import Marketing from "./pages/Marketing";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
+import AnaliseFinanceira from "./pages/AnaliseFinanceira";
 // Institucional pages
 import InstitucionalHome from "./pages/institucional/Home";
 import InstitucionalProdutos from "./pages/institucional/Produtos";
@@ -61,6 +62,7 @@ const App = () => (
                 {/* All module pages inside the Layout (no sidebar, with back button) */}
                 <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/analise-financeira" element={<AnaliseFinanceira />} />
                   <Route path="/crm" element={<CRM />} />
                   <Route path="/clientes" element={<Clientes />} />
                   <Route path="/cliente/:id" element={<ClienteDetalhes />} />
