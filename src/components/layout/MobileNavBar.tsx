@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
+import {
+  Home, 
   LayoutDashboard, 
   ShoppingCart, 
   Package, 
@@ -21,6 +22,7 @@ import { useMemo, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const allNavItems = [
+  { key: 'hub', label: 'Início', href: '/hub', icon: Home },
   { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
   { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users },
@@ -35,7 +37,7 @@ const allNavItems = [
   { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
 ];
 
-const priorityOrder = ['dashboard', 'pedidos', 'financeiro', 'clientes'];
+const priorityOrder = ['hub', 'pedidos', 'financeiro', 'clientes'];
 
 export function MobileNavBar() {
   const { data: visibleModules } = useUserModules();

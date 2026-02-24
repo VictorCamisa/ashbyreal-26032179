@@ -182,7 +182,7 @@ export default function Auth() {
           const isAdmin = roles?.some(r => r.role === 'admin');
           
           if (isAdmin) {
-            navigate('/dashboard');
+            navigate('/hub');
             return;
           }
 
@@ -195,7 +195,7 @@ export default function Auth() {
 
           // If no permissions set or has dashboard, go to dashboard
           if (!modules || modules.length === 0 || modules.some(m => m.module_key === 'dashboard')) {
-            navigate('/dashboard');
+            navigate('/hub');
             return;
           }
 
@@ -214,11 +214,11 @@ export default function Auth() {
           };
 
           const firstModule = modules[0]?.module_key;
-          const redirectPath = moduleRouteMap[firstModule] || '/dashboard';
+          const redirectPath = moduleRouteMap[firstModule] || '/hub';
           navigate(redirectPath);
         } catch (error) {
           console.error('Error determining redirect:', error);
-          navigate('/dashboard');
+          navigate('/hub');
         }
       };
 
