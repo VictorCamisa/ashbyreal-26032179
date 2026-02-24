@@ -120,16 +120,15 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
         </div>
         
         <Select value={filterLocalizacao} onValueChange={setFilterLocalizacao}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Localização" />
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Onde está" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todas</SelectItem>
-            <SelectItem value="DATTA_VALE">Datta Vale</SelectItem>
-            <SelectItem value="ASHBY">Ashby</SelectItem>
-            <SelectItem value="LOJA">Na Loja</SelectItem>
-            <SelectItem value="CLIENTE">Com Cliente</SelectItem>
-            <SelectItem value="FABRICA">Fábrica (legado)</SelectItem>
+            <SelectItem value="todos">Todos os locais</SelectItem>
+            <SelectItem value="LOJA">🏪 Na Loja</SelectItem>
+            <SelectItem value="CLIENTE">👤 Com Cliente</SelectItem>
+            <SelectItem value="ASHBY">🏭 Fáb. Ashby</SelectItem>
+            <SelectItem value="DATTA_VALE">🏭 Fáb. Datta Vale</SelectItem>
           </SelectContent>
         </Select>
 
