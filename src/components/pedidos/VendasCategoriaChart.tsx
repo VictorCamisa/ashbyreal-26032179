@@ -59,7 +59,7 @@ export function VendasCategoriaChart({ items }: VendasCategoriaChartProps) {
 
     return Object.values(produtoStats)
       .sort((a, b) => b.total - a.total)
-      .slice(0, 8)
+      .slice(0, 5)
       .map((p) => ({
         ...p,
         // Truncate long names for axis
