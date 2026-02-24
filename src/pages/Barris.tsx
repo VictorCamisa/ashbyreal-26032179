@@ -24,14 +24,19 @@ export default function Barris() {
 
   const computed = useMemo(() => {
     const all = barris || [];
-    // Fábrica = marca (prefixo do código), não localização
+    // Por marca (prefixo do código)
     const ashby = all.filter(b => b.codigo.startsWith('ASH'));
     const dtv = all.filter(b => b.codigo.startsWith('DTV'));
+    // Por localização física
+    const naFabrica = all.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA');
     const loja = all.filter(b => b.localizacao === 'LOJA');
     const clientes = all.filter(b => b.localizacao === 'CLIENTE');
-    const clientesUnicos = new Set(clientes.filter(b => b.cliente_id).map(b => b.cliente_id)).size;
+    const clientesUnicos = new Set(
+      all.filter(b => b.localizacao === 'CLIENTE' && (b.cliente_id || b.lojista_id))
+        .map(b => b.cliente_id || b.lojista_id)
+    ).size;
 
-    return { ashby, dtv, loja, clientes, clientesUnicos };
+    return { ashby, dtv, naFabrica, loja, clientes, clientesUnicos };
   }, [barris]);
 
   const fabricaFiltered = useMemo(() => {
@@ -61,12 +66,12 @@ export default function Barris() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Fábrica</CardTitle>
+            <CardTitle className="text-sm font-medium">Na Fábrica</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{computed.ashby.length + computed.dtv.length}</div>
+              <div className="text-2xl font-bold">{computed.naFabrica.length}</div>
             )}
           </CardContent>
         </Card>
