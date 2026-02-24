@@ -9,7 +9,6 @@ import {
   subMonths,
   differenceInDays,
   isAfter,
-  isBefore,
   addDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -22,6 +21,7 @@ export interface AnaliseFilters {
   statusFilter: StatusFilter;
   categoryId?: string;
   origin?: string;
+  mesReferencia: Date; // selected month
 }
 
 export interface MonthlyData {
@@ -40,27 +40,22 @@ export interface MonthlyData {
 }
 
 export interface AnaliseKPIs {
-  // Revenue
   receitaBruta: number;
   receitaLiquida: number;
   ticketMedio: number;
   inadimplencia: number;
   inadimplenciaPct: number;
-  // Cash
   saldoAtual: number;
   entradasPeriodo: number;
   saidasPeriodo: number;
   resultadoCaixa: number;
-  // Projection
   projecao30d: number;
   projecao60d: number;
   projecao90d: number;
   receitaRecorrenteEsperada: number;
   compromissosFuturos: number;
-  // Efficiency
   taxaConversaoPagamento: number;
   tempoMedioPagamento: number;
-  // Comparison
   receitaMesAnterior: number;
   receitaMesmoMesAnoAnterior: number;
   crescimentoMensal: number;
@@ -78,35 +73,34 @@ export interface AlertaFinanceiro {
 export function useAnaliseFinanceira(filters: AnaliseFilters) {
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
+  const mesRef = filters.mesReferencia;
+  const selectedMonthKey = format(mesRef, 'yyyy-MM');
+  const prevMonthKey = format(subMonths(mesRef, 1), 'yyyy-MM');
+  const sameMonthLastYearKey = format(subMonths(mesRef, 12), 'yyyy-MM');
 
   // Fetch all transactions for comprehensive analysis
   const { data: rawData, isLoading } = useQuery({
     queryKey: ['analise-financeira-raw'],
     queryFn: async () => {
-      // Fetch all transactions
       const { data: transactions } = await supabase
         .from('transactions')
         .select('id, amount, tipo, due_date, payment_date, status, origin, category_id, reference_month, description')
         .order('due_date', { ascending: true });
 
-      // Fetch categories for breakdown
       const { data: categories } = await supabase
         .from('categories')
         .select('id, name, type, color');
 
-      // Fetch pending boletos
       const { data: boletos } = await supabase
         .from('boletos')
         .select('id, amount, due_date, status, description, beneficiario')
         .in('status', ['PENDENTE', 'APROVADO']);
 
-      // Fetch open invoices
       const { data: invoices } = await supabase
         .from('credit_card_invoices')
         .select('id, total_value, due_date, status, competencia, credit_card_id, credit_cards(name)')
         .in('status', ['ABERTA', 'FECHADA']);
 
-      // Fetch pedidos for ticket médio
       const { data: pedidos } = await supabase
         .from('pedidos')
         .select('id, valor_total, data_pedido, status, data_pagamento')
@@ -123,6 +117,15 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
     staleTime: 2 * 60 * 1000,
   });
 
+  // Helper: get the date key for a transaction based on regime
+  const getTxDateKey = (t: any, regime: Regime): string | null => {
+    const dateStr = regime === 'caixa'
+      ? (t.status === 'PAGO' ? (t.payment_date || t.due_date) : t.due_date)
+      : t.due_date;
+    if (!dateStr) return null;
+    return format(parseISO(dateStr), 'yyyy-MM');
+  };
+
   // Process monthly timeline data
   const timelineData = useQuery({
     queryKey: ['analise-financeira-timeline', filters.regime, filters.statusFilter, filters.categoryId, filters.origin],
@@ -132,8 +135,8 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
 
       const { transactions } = rawData;
       const regime = filters.regime;
+      const currentMonthKey = format(today, 'yyyy-MM');
 
-      // Find date range
       const dates = transactions
         .map(t => regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date)
         .filter(Boolean)
@@ -143,9 +146,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
 
       const earliest = startOfMonth(parseISO(dates[0]));
       const projection90d = addMonths(today, 3);
-      const currentMonthKey = format(today, 'yyyy-MM');
 
-      // Build monthly buckets
       const monthlyMap: Record<string, {
         receitas: number; despesas: number;
         receitasPagas: number; despesasPagas: number;
@@ -165,7 +166,6 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         cursor = addMonths(cursor, 1);
       }
 
-      // Filter and populate
       transactions.forEach(t => {
         if (t.status === 'CANCELADO') return;
         if (filters.categoryId && t.category_id !== filters.categoryId) return;
@@ -199,7 +199,6 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         }
       });
 
-      // Add future invoice obligations
       if (regime === 'caixa') {
         rawData.invoices.forEach(inv => {
           if (!inv.due_date) return;
@@ -211,7 +210,6 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         });
       }
 
-      // Build result with cumulative + projection markers
       let acumulado = 0;
       return Object.entries(monthlyMap)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -240,33 +238,26 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
     },
   });
 
-  // Compute KPIs
+  // Compute KPIs - now uses mesReferencia
   const kpis = useQuery({
-    queryKey: ['analise-financeira-kpis', filters.regime],
+    queryKey: ['analise-financeira-kpis', filters.regime, selectedMonthKey],
     enabled: !!rawData,
     queryFn: (): AnaliseKPIs => {
       if (!rawData) return {} as AnaliseKPIs;
 
       const { transactions, pedidos, boletos, invoices } = rawData;
-      const currentMonth = format(today, 'yyyy-MM');
-      const prevMonth = format(subMonths(today, 1), 'yyyy-MM');
-      const sameMonthLastYear = format(subMonths(today, 12), 'yyyy-MM');
+      const regime = filters.regime;
 
-      // Filter to current month
-      const thisMonthTx = transactions.filter(t => {
-        const d = filters.regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date;
-        return d && format(parseISO(d), 'yyyy-MM') === currentMonth && t.status !== 'CANCELADO';
-      });
+      // Filter transactions to selected month
+      const filterByMonth = (txs: typeof transactions, monthKey: string) =>
+        txs.filter(t => {
+          const d = regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date;
+          return d && format(parseISO(d), 'yyyy-MM') === monthKey && t.status !== 'CANCELADO';
+        });
 
-      const prevMonthTx = transactions.filter(t => {
-        const d = filters.regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date;
-        return d && format(parseISO(d), 'yyyy-MM') === prevMonth && t.status !== 'CANCELADO';
-      });
-
-      const lastYearTx = transactions.filter(t => {
-        const d = filters.regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date;
-        return d && format(parseISO(d), 'yyyy-MM') === sameMonthLastYear && t.status !== 'CANCELADO';
-      });
+      const thisMonthTx = filterByMonth(transactions, selectedMonthKey);
+      const prevMonthTx = filterByMonth(transactions, prevMonthKey);
+      const lastYearTx = filterByMonth(transactions, sameMonthLastYearKey);
 
       const sumReceitas = (txs: typeof transactions) =>
         txs.filter(t => t.tipo === 'RECEBER').reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
@@ -278,7 +269,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
       const receitaPrev = sumReceitas(prevMonthTx);
       const receitaLastYear = sumReceitas(lastYearTx);
 
-      // Inadimplência: valor vencido não pago / total emitido
+      // Inadimplência: valor vencido não pago / total emitido (global)
       const totalEmitidoReceber = transactions
         .filter(t => t.tipo === 'RECEBER' && t.status !== 'CANCELADO')
         .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
@@ -286,13 +277,17 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         .filter(t => t.tipo === 'RECEBER' && t.status === 'PREVISTO' && t.due_date < todayStr)
         .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
 
-      // Ticket médio
-      const pedidosPagos = pedidos.filter(p => p.valor_total && p.valor_total > 0);
-      const ticketMedio = pedidosPagos.length > 0
-        ? pedidosPagos.reduce((a, p) => a + Number(p.valor_total), 0) / pedidosPagos.length
+      // Ticket médio from selected month pedidos
+      const mesStart = format(startOfMonth(mesRef), 'yyyy-MM-dd');
+      const mesEnd = format(endOfMonth(mesRef), 'yyyy-MM-dd');
+      const pedidosMes = pedidos.filter(p =>
+        p.data_pedido && p.data_pedido >= mesStart && p.data_pedido <= mesEnd && p.valor_total && Number(p.valor_total) > 0
+      );
+      const ticketMedio = pedidosMes.length > 0
+        ? pedidosMes.reduce((a, p) => a + Number(p.valor_total), 0) / pedidosMes.length
         : 0;
 
-      // Saldo: all paid receitas - all paid despesas
+      // Saldo: all paid receitas - all paid despesas (global, always current)
       const allPaidReceitas = transactions
         .filter(t => t.tipo === 'RECEBER' && t.status === 'PAGO')
         .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
@@ -300,7 +295,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         .filter(t => t.tipo === 'PAGAR' && t.status === 'PAGO')
         .reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
 
-      // Projections: deterministic (what's already scheduled)
+      // Projections
       const futureReceitas = (days: number) =>
         transactions
           .filter(t => t.tipo === 'RECEBER' && t.status === 'PREVISTO' && t.due_date >= todayStr && t.due_date <= format(addDays(today, days), 'yyyy-MM-dd'))
@@ -313,23 +308,23 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
       const saldoAtual = allPaidReceitas - allPaidDespesas;
       const inadimplenciaPct = totalEmitidoReceber > 0 ? (totalVencidoNaoPago / totalEmitidoReceber) * 100 : 0;
 
-      // Compromissos futuros (boletos + invoices)
       const compromissosBoletos = boletos.reduce((a, b) => a + Number(b.amount), 0);
       const compromissosInvoices = invoices.reduce((a, i) => a + Number(i.total_value || 0), 0);
 
-      // Recorrentes
       const recorrentes = transactions.filter(t => t.origin === 'RECORRENTE' && t.tipo === 'RECEBER' && t.status === 'PREVISTO');
       const receitaRecorrente = recorrentes.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
 
-      // Tempo médio de pagamento
       const txWithBothDates = transactions.filter(t => t.due_date && t.payment_date && t.status === 'PAGO');
       const tempoMedio = txWithBothDates.length > 0
         ? txWithBothDates.reduce((a, t) => a + Math.abs(differenceInDays(parseISO(t.payment_date!), parseISO(t.due_date))), 0) / txWithBothDates.length
         : 0;
 
-      // Taxa conversão: pedidos pagos / total pedidos
-      const pedidosPagosCount = pedidos.filter(p => p.data_pagamento).length;
-      const taxaConversao = pedidos.length > 0 ? (pedidosPagosCount / pedidos.length) * 100 : 0;
+      const pedidosPagosCount = pedidosMes.filter(p => p.data_pagamento).length;
+      const taxaConversao = pedidosMes.length > 0 ? (pedidosPagosCount / pedidosMes.length) * 100 : 0;
+
+      // Period entries/exits (selected month, paid only)
+      const entradasPeriodo = sumReceitas(thisMonthTx.filter(t => t.status === 'PAGO'));
+      const saidasPeriodo = sumDespesas(thisMonthTx.filter(t => t.status === 'PAGO'));
 
       return {
         receitaBruta,
@@ -338,9 +333,9 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
         inadimplencia: totalVencidoNaoPago,
         inadimplenciaPct,
         saldoAtual,
-        entradasPeriodo: sumReceitas(thisMonthTx.filter(t => t.status === 'PAGO')),
-        saidasPeriodo: sumDespesas(thisMonthTx.filter(t => t.status === 'PAGO')),
-        resultadoCaixa: sumReceitas(thisMonthTx.filter(t => t.status === 'PAGO')) - sumDespesas(thisMonthTx.filter(t => t.status === 'PAGO')),
+        entradasPeriodo,
+        saidasPeriodo,
+        resultadoCaixa: entradasPeriodo - saidasPeriodo,
         projecao30d: saldoAtual + futureReceitas(30) - futureDespesas(30),
         projecao60d: saldoAtual + futureReceitas(60) - futureDespesas(60),
         projecao90d: saldoAtual + futureReceitas(90) - futureDespesas(90),
@@ -387,7 +382,6 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
           }
         });
 
-      // Risk: saldo current minus next 15 days obligations
       const next15d = format(addDays(today, 15), 'yyyy-MM-dd');
       const obrigacoes15d = rawData.transactions
         .filter(t => t.tipo === 'PAGAR' && t.status === 'PREVISTO' && t.due_date >= todayStr && t.due_date <= next15d)
@@ -419,14 +413,19 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
 
   // Categories breakdown
   const categoriesBreakdown = useQuery({
-    queryKey: ['analise-financeira-categories'],
+    queryKey: ['analise-financeira-categories', selectedMonthKey, filters.regime],
     enabled: !!rawData,
     queryFn: () => {
       if (!rawData) return [];
       const catMap: Record<string, { name: string; color: string; receitas: number; despesas: number }> = {};
+      const regime = filters.regime;
 
       rawData.transactions.forEach(t => {
         if (t.status === 'CANCELADO') return;
+        // Filter to selected month
+        const d = regime === 'caixa' ? (t.payment_date || t.due_date) : t.due_date;
+        if (!d || format(parseISO(d), 'yyyy-MM') !== selectedMonthKey) return;
+
         const catId = t.category_id || 'sem-categoria';
         const cat = rawData.categories.find(c => c.id === catId);
         if (!catMap[catId]) {

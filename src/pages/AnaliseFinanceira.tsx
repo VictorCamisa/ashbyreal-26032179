@@ -6,21 +6,24 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   ComposedChart, Area, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, ReferenceLine, Cell, Legend, BarChart,
+  CartesianGrid, ReferenceLine, Cell,
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight,
-  Activity, Target, AlertTriangle, Clock, Percent, Eye, EyeOff,
-  ChevronLeft, ChevronRight, Calendar, Zap, Shield, ArrowLeft,
+  Activity, Target, AlertTriangle, Clock, Eye, EyeOff,
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon, Zap, Shield, ArrowLeft,
   BarChart3, PieChart, Banknote, CreditCard, FileWarning,
 } from 'lucide-react';
 import { useAnaliseFinanceira, Regime, StatusFilter, MonthlyData } from '@/hooks/useAnaliseFinanceira';
 import { format, subMonths, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 type ChartMetric = 'receitas' | 'despesas' | 'saldo' | 'acumulado' | 'inadimplencia';
 
@@ -39,10 +42,10 @@ export default function AnaliseFinanceira() {
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [originFilter, setOriginFilter] = useState<string | undefined>(undefined);
   const [activeMetrics, setActiveMetrics] = useState<Set<ChartMetric>>(new Set(['acumulado', 'receitas', 'despesas']));
+  const [mesReferencia, setMesReferencia] = useState(new Date());
   const [centerDate, setCenterDate] = useState(new Date());
-  const [chartView, setChartView] = useState<'timeline' | 'comparison'>('timeline');
 
-  const filters = { regime, statusFilter, categoryId, origin: originFilter };
+  const filters = { regime, statusFilter, categoryId, origin: originFilter, mesReferencia };
   const { timelineData, kpis, alertas, categoriesBreakdown, categories, isLoading } = useAnaliseFinanceira(filters);
 
   const toggleMetric = (key: ChartMetric) => {
@@ -63,6 +66,7 @@ export default function AnaliseFinanceira() {
   }, [timelineData, centerDate]);
 
   const currentMonthKey = format(new Date(), 'yyyy-MM');
+  const selectedMonthLabel = format(mesReferencia, "MMMM 'de' yyyy", { locale: ptBR });
 
   const formatCurrency = (value: number) => {
     if (Math.abs(value) >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
@@ -93,17 +97,20 @@ export default function AnaliseFinanceira() {
           </div>
         </div>
         <div className="space-y-1.5">
-          {payload.map((entry: any, i: number) => (
-            <div key={i} className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-2">
-                <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span className="text-xs text-muted-foreground">{entry.name}</span>
+          {payload.map((entry: any, i: number) => {
+            const isDespesa = entry.dataKey === 'despesas';
+            return (
+              <div key={i} className="flex items-center justify-between gap-6">
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <span className="text-xs text-muted-foreground">{entry.name}</span>
+                </div>
+                <span className={cn("font-semibold text-xs tabular-nums", isDespesa ? "text-red-500" : "text-foreground")}>
+                  {entry.dataKey === 'inadimplencia' ? `${Number(entry.value).toFixed(1)}%` : formatCurrencyFull(entry.value)}
+                </span>
               </div>
-              <span className="font-semibold text-xs tabular-nums text-foreground">
-                {entry.dataKey === 'inadimplencia' ? `${Number(entry.value).toFixed(1)}%` : formatCurrencyFull(entry.value)}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="mt-3 pt-2 border-t border-border/50 grid grid-cols-2 gap-2 text-[10px]">
           <div>
@@ -119,7 +126,6 @@ export default function AnaliseFinanceira() {
     );
   };
 
-  // Alertas summary
   const alertaVencidos = alertas.filter(a => a.tipo === 'vencido');
   const alertaSemana = alertas.filter(a => a.tipo === 'vence_semana');
   const alertaRisco = alertas.filter(a => a.tipo === 'risco');
@@ -147,6 +153,39 @@ export default function AnaliseFinanceira() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </Button>
+
+          {/* === PERIOD FILTER (complete month picker) === */}
+          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-0.5 border border-border/50">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-background"
+              onClick={() => setMesReferencia(prev => subMonths(prev, 1))}>
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="h-8 text-xs px-4 rounded-lg hover:bg-background font-medium min-w-[180px] justify-center capitalize">
+                  <CalendarIcon className="h-3 w-3 mr-1.5" />
+                  {selectedMonthLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="center">
+                <Calendar
+                  mode="single"
+                  selected={mesReferencia}
+                  onSelect={(date) => date && setMesReferencia(date)}
+                  initialFocus
+                  className={cn('p-3 pointer-events-auto')}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-background"
+              onClick={() => setMesReferencia(prev => addMonths(prev, 1))}>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-[10px] px-2 rounded-lg hover:bg-background text-primary font-semibold"
+              onClick={() => setMesReferencia(new Date())}>
+              Hoje
+            </Button>
+          </div>
 
           {/* Regime toggle */}
           <Tabs value={regime} onValueChange={(v) => setRegime(v as Regime)}>
@@ -203,11 +242,20 @@ export default function AnaliseFinanceira() {
                 trend={kpis.crescimentoMensal}
               />
               <KPICard
+                label="Despesas"
+                value={formatCurrency(kpis.saidasPeriodo)}
+                icon={ArrowDownRight}
+                color="red"
+                detail={`Saídas do período`}
+                isExpense
+              />
+              <KPICard
                 label="Resultado"
                 value={formatCurrency(kpis.resultadoCaixa)}
                 icon={Target}
                 color={kpis.resultadoCaixa >= 0 ? 'emerald' : 'red'}
                 detail={`Entradas: ${formatCurrency(kpis.entradasPeriodo)}`}
+                isExpense={kpis.resultadoCaixa < 0}
               />
               <KPICard
                 label="Inadimplência"
@@ -223,13 +271,6 @@ export default function AnaliseFinanceira() {
                 color="blue"
                 detail={`Conversão: ${kpis.taxaConversaoPagamento.toFixed(0)}%`}
               />
-              <KPICard
-                label="Tempo Médio Pgto"
-                value={`${kpis.tempoMedioPagamento.toFixed(0)}d`}
-                icon={Clock}
-                color={kpis.tempoMedioPagamento > 15 ? 'amber' : 'emerald'}
-                detail="dias entre emissão e liquidação"
-              />
             </div>
 
             {/* Row 2: Cash & Projections */}
@@ -241,6 +282,7 @@ export default function AnaliseFinanceira() {
                 color={kpis.saldoAtual >= 0 ? 'blue' : 'red'}
                 detail="Caixa realizado"
                 large
+                isExpense={kpis.saldoAtual < 0}
               />
               <KPICard
                 label="Projeção 30d"
@@ -248,25 +290,29 @@ export default function AnaliseFinanceira() {
                 icon={TrendingUp}
                 color={kpis.projecao30d >= kpis.saldoAtual ? 'emerald' : 'red'}
                 trend={kpis.projecao30d - kpis.saldoAtual}
+                isExpense={kpis.projecao30d < 0}
               />
               <KPICard
                 label="Projeção 60d"
                 value={formatCurrency(kpis.projecao60d)}
                 icon={TrendingUp}
                 color={kpis.projecao60d >= kpis.saldoAtual ? 'emerald' : 'red'}
+                isExpense={kpis.projecao60d < 0}
               />
               <KPICard
                 label="Projeção 90d"
                 value={formatCurrency(kpis.projecao90d)}
                 icon={TrendingUp}
                 color={kpis.projecao90d >= kpis.saldoAtual ? 'emerald' : 'red'}
+                isExpense={kpis.projecao90d < 0}
               />
               <KPICard
                 label="Compromissos"
                 value={formatCurrency(kpis.compromissosFuturos)}
                 icon={CreditCard}
-                color="amber"
+                color="red"
                 detail="Boletos + faturas a vencer"
+                isExpense
               />
             </div>
           </div>
@@ -301,7 +347,7 @@ export default function AnaliseFinanceira() {
                 </Button>
                 <Button variant="ghost" size="sm" className="h-8 text-xs px-4 rounded-lg hover:bg-background font-medium"
                   onClick={() => setCenterDate(new Date())}>
-                  <Calendar className="h-3 w-3 mr-1.5" /> Hoje
+                  <CalendarIcon className="h-3 w-3 mr-1.5" /> Centralizar
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-background"
                   onClick={() => setCenterDate(prev => addMonths(prev, 3))}>
@@ -460,13 +506,13 @@ export default function AnaliseFinanceira() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <PieChart className="h-4 w-4 text-primary" />
-                Quebra por Categoria
+                Quebra por Categoria — <span className="capitalize text-muted-foreground font-normal">{selectedMonthLabel}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               {categoriesBreakdown.length > 0 ? (
                 <div className="space-y-2.5">
-                  {categoriesBreakdown.slice(0, 8).map((cat, i) => {
+                  {categoriesBreakdown.slice(0, 8).map((cat) => {
                     const total = cat.receitas + cat.despesas;
                     const maxTotal = Math.max(...categoriesBreakdown.map(c => c.receitas + c.despesas));
                     const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
@@ -478,8 +524,8 @@ export default function AnaliseFinanceira() {
                             <span className="font-medium text-foreground truncate max-w-[140px]">{cat.name}</span>
                           </div>
                           <div className="flex items-center gap-3 tabular-nums">
-                            <span className="text-emerald-400">{formatCurrency(cat.receitas)}</span>
-                            <span className="text-red-400">{formatCurrency(cat.despesas)}</span>
+                            <span className="text-emerald-500">{formatCurrency(cat.receitas)}</span>
+                            <span className="text-red-500 font-semibold">{formatCurrency(cat.despesas)}</span>
                           </div>
                         </div>
                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -522,19 +568,19 @@ export default function AnaliseFinanceira() {
                   <div className="pt-3 border-t border-border/50 grid grid-cols-3 gap-3 text-center">
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">30 dias</p>
-                      <p className={`text-sm font-bold ${kpis.projecao30d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${kpis.projecao30d >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {formatCurrency(kpis.projecao30d)}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">60 dias</p>
-                      <p className={`text-sm font-bold ${kpis.projecao60d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${kpis.projecao60d >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {formatCurrency(kpis.projecao60d)}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">90 dias</p>
-                      <p className={`text-sm font-bold ${kpis.projecao90d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${kpis.projecao90d >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {formatCurrency(kpis.projecao90d)}
                       </p>
                     </div>
@@ -596,9 +642,9 @@ export default function AnaliseFinanceira() {
                           : 'bg-amber-500/20'
                       }`}>
                         {alerta.tipo === 'risco' ? (
-                          <Shield className="h-4 w-4 text-red-400" />
+                          <Shield className="h-4 w-4 text-red-500" />
                         ) : (
-                          <AlertTriangle className={`h-4 w-4 ${alerta.tipo === 'vencido' ? 'text-red-400' : 'text-amber-400'}`} />
+                          <AlertTriangle className={`h-4 w-4 ${alerta.tipo === 'vencido' ? 'text-red-500' : 'text-amber-400'}`} />
                         )}
                       </div>
                       <div>
@@ -612,9 +658,7 @@ export default function AnaliseFinanceira() {
                         )}
                       </div>
                     </div>
-                    <span className={`text-sm font-bold tabular-nums ${
-                      alerta.tipo === 'vencido' || alerta.tipo === 'risco' ? 'text-red-400' : 'text-amber-400'
-                    }`}>
+                    <span className="text-sm font-bold tabular-nums text-red-500">
                       {formatCurrencyFull(alerta.valor)}
                     </span>
                   </motion.div>
@@ -635,7 +679,7 @@ export default function AnaliseFinanceira() {
 
 // === Sub-components ===
 
-function KPICard({ label, value, icon: Icon, color, detail, trend, large }: {
+function KPICard({ label, value, icon: Icon, color, detail, trend, large, isExpense }: {
   label: string;
   value: string;
   icon: typeof Activity;
@@ -643,16 +687,24 @@ function KPICard({ label, value, icon: Icon, color, detail, trend, large }: {
   detail?: string;
   trend?: number;
   large?: boolean;
+  isExpense?: boolean;
 }) {
   const colorMap: Record<string, string> = {
-    emerald: 'border-emerald-500/20 from-emerald-500/10 to-emerald-600/5 text-emerald-400',
-    red: 'border-red-500/20 from-red-500/10 to-red-600/5 text-red-400',
-    blue: 'border-blue-500/20 from-blue-500/10 to-blue-600/5 text-blue-400',
-    amber: 'border-amber-500/20 from-amber-500/10 to-amber-600/5 text-amber-400',
-    purple: 'border-purple-500/20 from-purple-500/10 to-purple-600/5 text-purple-400',
+    emerald: 'border-emerald-500/20 from-emerald-500/10 to-emerald-600/5',
+    red: 'border-red-500/20 from-red-500/10 to-red-600/5',
+    blue: 'border-blue-500/20 from-blue-500/10 to-blue-600/5',
+    amber: 'border-amber-500/20 from-amber-500/10 to-amber-600/5',
+    purple: 'border-purple-500/20 from-purple-500/10 to-purple-600/5',
+  };
+  const textColorMap: Record<string, string> = {
+    emerald: 'text-emerald-500',
+    red: 'text-red-500',
+    blue: 'text-blue-500',
+    amber: 'text-amber-500',
+    purple: 'text-purple-500',
   };
   const classes = colorMap[color] || colorMap.blue;
-  const [borderClass, ...restClasses] = classes.split(' ');
+  const textColor = isExpense ? 'text-red-500' : (textColorMap[color] || textColorMap.blue);
 
   return (
     <motion.div
@@ -661,13 +713,13 @@ function KPICard({ label, value, icon: Icon, color, detail, trend, large }: {
       transition={{ type: 'spring', stiffness: 400 }}
     >
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-medium uppercase tracking-wider opacity-80">{label}</p>
-        <Icon className="h-3.5 w-3.5 opacity-50" />
+        <p className={cn("text-[10px] font-medium uppercase tracking-wider opacity-80", textColor)}>{label}</p>
+        <Icon className={cn("h-3.5 w-3.5 opacity-50", textColor)} />
       </div>
-      <p className={`${large ? 'text-xl' : 'text-lg'} font-black tabular-nums mt-0.5`}>{value}</p>
-      {detail && <p className="text-[10px] opacity-60 mt-0.5">{detail}</p>}
+      <p className={cn(`${large ? 'text-xl' : 'text-lg'} font-black tabular-nums mt-0.5`, isExpense ? 'text-red-500' : textColor)}>{value}</p>
+      {detail && <p className={cn("text-[10px] opacity-60 mt-0.5", isExpense ? 'text-red-400' : '')}>{detail}</p>}
       {trend !== undefined && (
-        <div className="flex items-center gap-1 mt-0.5">
+        <div className={cn("flex items-center gap-1 mt-0.5", isExpense ? 'text-red-500' : textColor)}>
           {trend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
           <span className="text-[10px] font-medium">
             {trend >= 0 ? '+' : ''}{typeof trend === 'number' && Math.abs(trend) > 100 ? formatShort(trend) : `${trend.toFixed(1)}%`}
@@ -688,8 +740,8 @@ function ComparisonRow({ label, current, previous, formatFn }: {
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
         <div className="flex items-center gap-2">
-          {isPositive ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> : <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
-          <span className={`text-xs font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+          {isPositive ? <TrendingUp className="h-3.5 w-3.5 text-emerald-500" /> : <TrendingDown className="h-3.5 w-3.5 text-red-500" />}
+          <span className={`text-xs font-bold ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
             {isPositive ? '+' : ''}{diff.toFixed(1)}%
           </span>
         </div>
