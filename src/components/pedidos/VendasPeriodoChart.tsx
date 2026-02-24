@@ -87,10 +87,13 @@ export function VendasPeriodoChart({ pedidos }: VendasPeriodoChartProps) {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                 }}
-                formatter={(value: number, name: string) => [
-                  name === 'vendas' ? `R$ ${(value * 1000).toLocaleString('pt-BR')}` : value,
-                  name === 'vendas' ? 'Vendas' : 'Qtd. Pedidos',
-                ]}
+                formatter={(value: number, name: string) => {
+                  const isVendas = name === 'Vendas (R$ mil)';
+                  return [
+                    isVendas ? `R$ ${(value * 1000).toLocaleString('pt-BR')}` : value,
+                    isVendas ? 'Vendas' : 'Qtd. Pedidos',
+                  ];
+                }}
               />
               <Legend />
               <Bar
