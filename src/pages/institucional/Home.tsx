@@ -59,16 +59,38 @@ const slideFromRight = {
   visible: { opacity: 1, x: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } }
 };
 
-// ── Section wrapper with reveal animation ──
-function Section({ children, className = '', id, bg }: { children: React.ReactNode; className?: string; id?: string; bg?: string }) {
+// ── Floating orb for backgrounds ──
+function FloatingOrb({ className, delay = 0, duration = 20 }: { className: string; delay?: number; duration?: number }) {
+  return (
+    <motion.div
+      className={`absolute rounded-full pointer-events-none ${className}`}
+      animate={{
+        x: [0, 30, -20, 10, 0],
+        y: [0, -25, 15, -10, 0],
+        scale: [1, 1.1, 0.95, 1.05, 1],
+      }}
+      transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
+    />
+  );
+}
+
+// ── Section wrapper with reveal + parallax ──
+function Section({ children, className = '', id, overflow = true }: { children: React.ReactNode; className?: string; id?: string; overflow?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const bgY = useTransform(scrollYProgress, [0, 1], [30, -30]);
+
   return (
-    <section id={id} ref={ref} className={`relative scroll-mt-20 ${bg || ''} ${className}`}>
+    <section id={id} ref={ref} className={`relative scroll-mt-20 ${overflow ? 'overflow-hidden' : ''} ${className}`}>
+      <motion.div style={{ y: bgY }} className="absolute inset-0 pointer-events-none" aria-hidden>
+        {/* Slot for bg elements rendered inside children */}
+      </motion.div>
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={isInView ? { opacity: 1 } : { opacity: 0 }}
-        transition={{ duration: 0.5 }}
+        className="relative z-10"
+        initial={{ opacity: 0, y: 20 }}
+        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       >
         {children}
       </motion.div>
@@ -76,7 +98,7 @@ function Section({ children, className = '', id, bg }: { children: React.ReactNo
   );
 }
 
-// ── Magnetic hover effect for interactive elements ──
+// ── Magnetic hover effect ──
 function MagneticWrap({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -96,6 +118,20 @@ function MagneticWrap({ children, className = '' }: { children: React.ReactNode;
     >
       {children}
     </motion.div>
+  );
+}
+
+// ── Smooth divider wave ──
+function WaveDivider({ flip = false, className = '' }: { flip?: boolean; className?: string }) {
+  return (
+    <div className={`w-full overflow-hidden leading-[0] ${flip ? 'rotate-180' : ''} ${className}`}>
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="relative block w-full h-[60px] sm:h-[80px]">
+        <path
+          d="M0,60 C200,100 400,20 600,60 C800,100 1000,20 1200,60 L1200,120 L0,120 Z"
+          className="fill-background"
+        />
+      </svg>
+    </div>
   );
 }
 
@@ -144,6 +180,7 @@ export default function InstitucionalHome() {
   const totalLitros = Math.ceil(numPessoas * litrosPorPessoa);
   const barris30L = Math.ceil(totalLitros / 30);
 
+  // ── Business logic (unchanged) ──
   const handleWhatsApp = async () => {
     if (!formData.nome || !formData.telefone) {
       toast({ variant: 'destructive', title: 'Campos obrigatórios', description: 'Preencha nome e telefone.' });
@@ -189,7 +226,14 @@ export default function InstitucionalHome() {
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {/* ── Navbar with scroll-reactive background ── */}
+      {/* ── Global floating ambient orbs (behind everything) ── */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <FloatingOrb className="w-[600px] h-[600px] bg-primary/[0.04] blur-[120px] top-[10%] -left-[200px]" delay={0} duration={25} />
+        <FloatingOrb className="w-[500px] h-[500px] bg-primary/[0.05] blur-[100px] top-[40%] -right-[150px]" delay={5} duration={22} />
+        <FloatingOrb className="w-[400px] h-[400px] bg-primary/[0.03] blur-[80px] top-[70%] left-[20%]" delay={10} duration={28} />
+      </div>
+
+      {/* ── Navbar ── */}
       <motion.nav
         className="fixed top-0 left-0 right-0 z-50 border-b border-transparent"
         style={{
@@ -237,18 +281,25 @@ export default function InstitucionalHome() {
         </div>
       </motion.nav>
 
-      {/* ── Hero with parallax + banner ── */}
+      {/* ══════════════════════════════════════════════════
+          HERO
+      ══════════════════════════════════════════════════ */}
       <section className="relative min-h-[92vh] flex items-center pt-16 overflow-hidden">
-        {/* Background image with overlay */}
         <motion.div
           className="absolute inset-0"
-          initial={{ scale: 1.1 }}
+          initial={{ scale: 1.15 }}
           animate={{ scale: 1 }}
-          transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 2, ease: [0.22, 1, 0.36, 1] }}
         >
           <img src={heroBanner} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/60" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/50" />
+          {/* Animated shimmer */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/[0.03] to-transparent"
+            animate={{ x: ['-100%', '100%'] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", repeatDelay: 3 }}
+          />
         </motion.div>
 
         <motion.div style={{ y: heroParallax }} className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32 w-full">
@@ -315,10 +366,10 @@ export default function InstitucionalHome() {
             </motion.div>
           </motion.div>
 
-          {/* Stats with count-up feel */}
+          {/* Stats */}
           <motion.div
             initial="hidden" animate="visible" variants={stagger}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-20 pt-10 border-t border-border/50"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-20 pt-10 border-t border-border/30"
           >
             {stats.map((s, i) => (
               <motion.div key={s.label} variants={fadeUp} custom={i}
@@ -354,44 +405,64 @@ export default function InstitucionalHome() {
         </motion.div>
       </section>
 
-      {/* ── Diferenciais ── */}
-      <Section className="py-24" bg="border-t border-border/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8"
-          >
-            {[
-              { icon: Award, title: 'Qualidade Premiada', desc: 'Primeira microcervejaria do Brasil com prêmios internacionais.' },
-              { icon: Truck, title: 'Entrega Rápida', desc: 'Taubaté e região com agilidade e pontualidade.' },
-              { icon: Clock, title: 'Atendimento 7 dias', desc: 'Suporte completo, segunda a domingo.' },
-              { icon: Beer, title: 'Variedade', desc: 'Pilsen, Pale Ale, IPA, Weiss e mais.' },
-            ].map((d, i) => (
-              <motion.div key={i} variants={fadeUp} custom={i}
-                className="group cursor-default"
-                whileHover={{ y: -4 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <motion.div
-                  className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 group-hover:shadow-lg group-hover:shadow-primary/10 transition-all duration-300"
-                  whileHover={{ rotate: [0, -5, 5, 0] }}
-                  transition={{ duration: 0.4 }}
+      {/* ══════════════════════════════════════════════════
+          DIFERENCIAIS — warm glow bg
+      ══════════════════════════════════════════════════ */}
+      <div className="relative">
+        <WaveDivider flip className="-mb-px" />
+        <Section className="py-20 sm:py-28 bg-gradient-to-b from-primary/[0.04] via-primary/[0.02] to-transparent">
+          {/* Decorative orbs */}
+          <FloatingOrb className="w-[300px] h-[300px] bg-primary/[0.06] blur-[80px] -top-20 right-[10%]" delay={2} duration={18} />
+          <FloatingOrb className="w-[200px] h-[200px] bg-primary/[0.04] blur-[60px] bottom-0 left-[5%]" delay={7} duration={15} />
+          
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} variants={stagger}
+              className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8"
+            >
+              {[
+                { icon: Award, title: 'Qualidade Premiada', desc: 'Primeira microcervejaria do Brasil com prêmios internacionais.' },
+                { icon: Truck, title: 'Entrega Rápida', desc: 'Taubaté e região com agilidade e pontualidade.' },
+                { icon: Clock, title: 'Atendimento 7 dias', desc: 'Suporte completo, segunda a domingo.' },
+                { icon: Beer, title: 'Variedade', desc: 'Pilsen, Pale Ale, IPA, Weiss e mais.' },
+              ].map((d, i) => (
+                <motion.div key={i} variants={fadeUp} custom={i}
+                  className="group cursor-default rounded-2xl p-6 bg-card/50 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card/80 hover:shadow-xl hover:shadow-primary/5 transition-all duration-500"
+                  whileHover={{ y: -6 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  <d.icon className="w-6 h-6 text-primary" />
+                  <motion.div
+                    className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 group-hover:shadow-lg group-hover:shadow-primary/10 transition-all duration-300"
+                    whileHover={{ rotate: [0, -5, 5, 0] }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <d.icon className="w-6 h-6 text-primary" />
+                  </motion.div>
+                  <h3 className="font-bold text-foreground mb-1 group-hover:text-primary transition-colors duration-300">{d.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{d.desc}</p>
                 </motion.div>
-                <h3 className="font-bold text-foreground mb-1 group-hover:text-primary transition-colors duration-300">{d.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{d.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </Section>
+              ))}
+            </motion.div>
+          </div>
+        </Section>
+      </div>
 
-      {/* ── Produtos ── */}
-      <Section id="produtos" className="py-24">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      {/* ══════════════════════════════════════════════════
+          PRODUTOS — dark rich section
+      ══════════════════════════════════════════════════ */}
+      <Section id="produtos" className="py-24 sm:py-32 bg-gradient-to-b from-background via-muted/40 to-background">
+        <FloatingOrb className="w-[350px] h-[350px] bg-primary/[0.05] blur-[100px] top-[20%] -left-[100px]" delay={3} duration={20} />
+        <FloatingOrb className="w-[250px] h-[250px] bg-primary/[0.04] blur-[70px] bottom-[10%] right-[5%]" delay={8} duration={16} />
+
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-14">
             <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
-              <span className="w-6 h-px bg-primary" />
+              <motion.span
+                className="w-8 h-px bg-primary"
+                initial={{ scaleX: 0 }}
+                whileInView={{ scaleX: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6 }}
+              />
               Nossos Produtos
             </motion.p>
             <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
@@ -404,23 +475,23 @@ export default function InstitucionalHome() {
           >
             {products.map((p, i) => (
               <motion.div key={p.name} variants={scaleIn}
-                className="group rounded-2xl border border-border/50 bg-card overflow-hidden hover:border-primary/30 transition-all duration-500"
+                className="group rounded-2xl border border-border/40 bg-card/60 backdrop-blur-sm overflow-hidden hover:border-primary/30 transition-all duration-500"
                 onMouseEnter={() => setHoveredProduct(i)}
                 onMouseLeave={() => setHoveredProduct(null)}
-                whileHover={{ y: -6, boxShadow: '0 20px 40px -12px hsl(var(--primary) / 0.12)' }}
+                whileHover={{ y: -8, boxShadow: '0 25px 50px -12px hsl(var(--primary) / 0.15)' }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
               >
                 <div className="aspect-[4/3] overflow-hidden bg-muted relative">
                   <motion.img
                     src={p.image} alt={p.name}
                     className="w-full h-full object-cover"
-                    animate={{ scale: hoveredProduct === i ? 1.08 : 1 }}
-                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    animate={{ scale: hoveredProduct === i ? 1.1 : 1 }}
+                    transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                   />
                   <AnimatePresence>
                     {hoveredProduct === i && (
                       <motion.div
-                        className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent"
+                        className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-transparent"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -465,140 +536,153 @@ export default function InstitucionalHome() {
         </div>
       </Section>
 
-      {/* ── Calculadora ── */}
-      <Section id="calculadora" className="py-24" bg="bg-muted/30 border-y border-border/30">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-10">
-            <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
-              <span className="w-6 h-px bg-primary" />
-              Ferramenta Gratuita
-            </motion.p>
-            <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
-              Calculadora de <span className="text-primary">Chopp</span>
-            </motion.h2>
-          </motion.div>
+      {/* ══════════════════════════════════════════════════
+          CALCULADORA — accent glow bg
+      ══════════════════════════════════════════════════ */}
+      <div className="relative">
+        <WaveDivider flip className="-mb-px" />
+        <Section id="calculadora" className="py-24 sm:py-32 bg-gradient-to-b from-primary/[0.06] via-primary/[0.03] to-transparent">
+          <FloatingOrb className="w-[400px] h-[400px] bg-primary/[0.07] blur-[100px] top-[10%] left-[50%] -translate-x-1/2" delay={0} duration={22} />
 
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.97 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="rounded-2xl border border-border/50 bg-card p-6 sm:p-8 shadow-sm"
-          >
-            <div className="grid sm:grid-cols-2 gap-8">
-              <div className="space-y-8">
-                <div>
-                  <Label className="text-sm text-muted-foreground mb-3 block">Convidados</Label>
-                  <div className="flex items-center gap-4">
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setNumPessoas(Math.max(10, numPessoas - 10))}>
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                    </motion.div>
-                    <div className="flex-1 text-center">
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={numPessoas}
-                          initial={{ opacity: 0, y: -10, scale: 0.9 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.9 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-4xl font-extrabold inline-block"
-                        >
-                          {numPessoas}
-                        </motion.span>
-                      </AnimatePresence>
-                      <span className="text-muted-foreground ml-2 text-sm">pessoas</span>
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 relative z-10">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-10">
+              <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
+                <motion.span className="w-8 h-px bg-primary" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+                Ferramenta Gratuita
+              </motion.p>
+              <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
+                Calculadora de <span className="text-primary">Chopp</span>
+              </motion.h2>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="rounded-2xl border border-primary/10 bg-card/70 backdrop-blur-md p-6 sm:p-8 shadow-xl shadow-primary/5"
+            >
+              <div className="grid sm:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                  <div>
+                    <Label className="text-sm text-muted-foreground mb-3 block">Convidados</Label>
+                    <div className="flex items-center gap-4">
+                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                        <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setNumPessoas(Math.max(10, numPessoas - 10))}>
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      </motion.div>
+                      <div className="flex-1 text-center">
+                        <AnimatePresence mode="wait">
+                          <motion.span
+                            key={numPessoas}
+                            initial={{ opacity: 0, y: -10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-4xl font-extrabold inline-block"
+                          >
+                            {numPessoas}
+                          </motion.span>
+                        </AnimatePresence>
+                        <span className="text-muted-foreground ml-2 text-sm">pessoas</span>
+                      </div>
+                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                        <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setNumPessoas(numPessoas + 10)}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </motion.div>
                     </div>
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setNumPessoas(numPessoas + 10)}>
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </motion.div>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground mb-3 block">Duração</Label>
+                    <div className="flex items-center gap-4">
+                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                        <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setDuracao(Math.max(1, duracao - 1))}>
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                      </motion.div>
+                      <div className="flex-1 text-center">
+                        <AnimatePresence mode="wait">
+                          <motion.span
+                            key={duracao}
+                            initial={{ opacity: 0, y: -10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-4xl font-extrabold inline-block"
+                          >
+                            {duracao}
+                          </motion.span>
+                        </AnimatePresence>
+                        <span className="text-muted-foreground ml-2 text-sm">horas</span>
+                      </div>
+                      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                        <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setDuracao(duracao + 1)}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </motion.div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground mb-3 block">Duração</Label>
-                  <div className="flex items-center gap-4">
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setDuracao(Math.max(1, duracao - 1))}>
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                    </motion.div>
-                    <div className="flex-1 text-center">
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={duracao}
-                          initial={{ opacity: 0, y: -10, scale: 0.9 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.9 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-4xl font-extrabold inline-block"
-                        >
-                          {duracao}
-                        </motion.span>
-                      </AnimatePresence>
-                      <span className="text-muted-foreground ml-2 text-sm">horas</span>
-                    </div>
-                    <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                      <Button variant="outline" size="icon" className="rounded-full h-10 w-10 shrink-0 hover:border-primary/40 transition-colors" onClick={() => setDuracao(duracao + 1)}>
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </motion.div>
-                  </div>
-                </div>
-              </div>
 
-              <motion.div
-                className="flex flex-col items-center justify-center rounded-xl bg-primary/5 border border-primary/10 p-6"
-                whileHover={{ borderColor: 'hsl(var(--primary) / 0.25)' }}
-                transition={{ duration: 0.3 }}
-              >
                 <motion.div
-                  animate={{ y: [0, -4, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/15 p-6"
+                  whileHover={{ borderColor: 'hsl(var(--primary) / 0.3)', boxShadow: '0 0 40px hsl(var(--primary) / 0.08)' }}
+                  transition={{ duration: 0.4 }}
                 >
-                  <Users className="w-8 h-8 text-primary mb-3" />
+                  <motion.div
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <Users className="w-8 h-8 text-primary mb-3" />
+                  </motion.div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Recomendado</p>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={totalLitros}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                      className="text-5xl font-extrabold text-foreground"
+                    >
+                      {totalLitros}L
+                    </motion.p>
+                  </AnimatePresence>
+                  <p className="text-muted-foreground mt-1 mb-5">
+                    ≈ {barris30L} {barris30L === 1 ? 'barril' : 'barris'} de 30L
+                  </p>
+                  <MagneticWrap>
+                    <Button
+                      className="bg-primary text-primary-foreground font-semibold rounded-full px-6 shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95 transition-all duration-300"
+                      onClick={() => document.getElementById('contato')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      Solicitar orçamento
+                    </Button>
+                  </MagneticWrap>
                 </motion.div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Recomendado</p>
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={totalLitros}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    className="text-5xl font-extrabold text-foreground"
-                  >
-                    {totalLitros}L
-                  </motion.p>
-                </AnimatePresence>
-                <p className="text-muted-foreground mt-1 mb-5">
-                  ≈ {barris30L} {barris30L === 1 ? 'barril' : 'barris'} de 30L
-                </p>
-                <MagneticWrap>
-                  <Button
-                    className="bg-primary text-primary-foreground font-semibold rounded-full px-6 shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 active:scale-95 transition-all duration-300"
-                    onClick={() => document.getElementById('contato')?.scrollIntoView({ behavior: 'smooth' })}
-                  >
-                    Solicitar orçamento
-                  </Button>
-                </MagneticWrap>
-              </motion.div>
-            </div>
-          </motion.div>
-        </div>
-      </Section>
+              </div>
+            </motion.div>
+          </div>
+        </Section>
+        <WaveDivider className="-mt-px" />
+      </div>
 
-      {/* ── Sobre ── */}
-      <Section id="sobre" className="py-24">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      {/* ══════════════════════════════════════════════════
+          SOBRE — clean with floating visual
+      ══════════════════════════════════════════════════ */}
+      <Section id="sobre" className="py-24 sm:py-32">
+        <FloatingOrb className="w-[300px] h-[300px] bg-primary/[0.04] blur-[80px] top-[30%] right-[10%]" delay={4} duration={19} />
+
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromLeft}
               className="space-y-5"
             >
               <p className="text-primary font-semibold text-sm tracking-widest uppercase flex items-center gap-2">
-                <span className="w-6 h-px bg-primary" /> Sobre Nós
+                <motion.span className="w-8 h-px bg-primary" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+                Sobre Nós
               </p>
               <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight">
                 A tradição do chopp <span className="text-primary">Ashby</span> em Taubaté
@@ -617,8 +701,20 @@ export default function InstitucionalHome() {
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromRight}
               className="relative flex items-center justify-center"
             >
+              {/* Glowing ring behind logo */}
               <motion.div
-                className="w-64 h-64 sm:w-72 sm:h-72 rounded-3xl bg-primary/5 border border-primary/10 flex items-center justify-center relative"
+                className="absolute w-72 h-72 sm:w-80 sm:h-80 rounded-full border border-primary/10"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+              />
+              <motion.div
+                className="absolute w-60 h-60 sm:w-68 sm:h-68 rounded-full border border-primary/5"
+                animate={{ rotate: -360 }}
+                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+              />
+              
+              <motion.div
+                className="w-64 h-64 sm:w-72 sm:h-72 rounded-3xl bg-gradient-to-br from-primary/10 via-card/80 to-card/50 backdrop-blur-sm border border-primary/10 flex items-center justify-center relative shadow-2xl shadow-primary/5"
                 whileHover={{ borderColor: 'hsl(var(--primary) / 0.25)' }}
               >
                 <motion.img
@@ -627,9 +723,8 @@ export default function InstitucionalHome() {
                   whileHover={{ scale: 1.05, rotate: 3 }}
                   transition={{ type: "spring", stiffness: 200 }}
                 />
-                {/* Floating badge */}
                 <motion.div
-                  className="absolute -bottom-4 -right-4 bg-card border border-border rounded-xl px-4 py-2.5 shadow-lg"
+                  className="absolute -bottom-4 -right-4 bg-card border border-border/50 rounded-xl px-4 py-2.5 shadow-lg"
                   initial={{ opacity: 0, y: 20, scale: 0.8 }}
                   whileInView={{ opacity: 1, y: 0, scale: 1 }}
                   viewport={{ once: true }}
@@ -649,79 +744,91 @@ export default function InstitucionalHome() {
         </div>
       </Section>
 
-      {/* ── Depoimentos ── */}
-      <Section className="py-24" bg="bg-muted/30 border-y border-border/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-14">
-            <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
-              <span className="w-6 h-px bg-primary" /> Depoimentos
-            </motion.p>
-            <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
-              O que nossos clientes dizem
-            </motion.h2>
-          </motion.div>
+      {/* ══════════════════════════════════════════════════
+          DEPOIMENTOS — warm tinted bg
+      ══════════════════════════════════════════════════ */}
+      <div className="relative">
+        <WaveDivider flip className="-mb-px" />
+        <Section className="py-24 sm:py-32 bg-gradient-to-b from-primary/[0.05] via-muted/30 to-transparent">
+          <FloatingOrb className="w-[300px] h-[300px] bg-primary/[0.06] blur-[90px] top-[20%] left-[5%]" delay={6} duration={21} />
+          <FloatingOrb className="w-[200px] h-[200px] bg-primary/[0.04] blur-[60px] bottom-[15%] right-[15%]" delay={2} duration={17} />
 
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
-            className="grid md:grid-cols-3 gap-6"
-          >
-            {testimonials.map((t, i) => (
-              <motion.div key={i} variants={scaleIn}
-                className="rounded-2xl border border-border/50 bg-card p-6 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-500"
-                whileHover={{ y: -4 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                <div className="flex gap-0.5 mb-4">
-                  {[...Array(5)].map((_, j) => (
-                    <motion.div
-                      key={j}
-                      initial={{ opacity: 0, scale: 0, rotate: -30 }}
-                      whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.4 + j * 0.08, type: "spring", stiffness: 300 }}
-                    >
-                      <Star className="w-4 h-4 text-primary fill-primary" />
-                    </motion.div>
-                  ))}
-                </div>
-                <p className="text-muted-foreground mb-5 leading-relaxed italic">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <motion.div
-                    className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
-                    whileHover={{ scale: 1.1, backgroundColor: 'hsl(var(--primary) / 0.2)' }}
-                  >
-                    <span className="text-primary font-bold text-sm">{t.name.charAt(0)}</span>
-                  </motion.div>
-                  <div>
-                    <p className="font-semibold text-sm">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-14">
+              <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
+                <motion.span className="w-8 h-px bg-primary" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+                Depoimentos
+              </motion.p>
+              <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
+                O que nossos clientes dizem
+              </motion.h2>
+            </motion.div>
+
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
+              className="grid md:grid-cols-3 gap-6"
+            >
+              {testimonials.map((t, i) => (
+                <motion.div key={i} variants={scaleIn}
+                  className="rounded-2xl border border-border/40 bg-card/60 backdrop-blur-sm p-6 hover:border-primary/25 hover:shadow-xl hover:shadow-primary/5 transition-all duration-500"
+                  whileHover={{ y: -6 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
+                  <div className="flex gap-0.5 mb-4">
+                    {[...Array(5)].map((_, j) => (
+                      <motion.div
+                        key={j}
+                        initial={{ opacity: 0, scale: 0, rotate: -30 }}
+                        whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: 0.4 + j * 0.08, type: "spring", stiffness: 300 }}
+                      >
+                        <Star className="w-4 h-4 text-primary fill-primary" />
+                      </motion.div>
+                    ))}
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </Section>
+                  <p className="text-muted-foreground mb-5 leading-relaxed italic">"{t.text}"</p>
+                  <div className="flex items-center gap-3">
+                    <motion.div
+                      className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"
+                      whileHover={{ scale: 1.1, backgroundColor: 'hsl(var(--primary) / 0.2)' }}
+                    >
+                      <span className="text-primary font-bold text-sm">{t.name.charAt(0)}</span>
+                    </motion.div>
+                    <div>
+                      <p className="font-semibold text-sm">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">{t.role}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </Section>
+      </div>
 
-      {/* ── FAQ ── */}
-      <Section id="faq" className="py-24">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6">
+      {/* ══════════════════════════════════════════════════
+          FAQ
+      ══════════════════════════════════════════════════ */}
+      <Section id="faq" className="py-24 sm:py-32">
+        <FloatingOrb className="w-[250px] h-[250px] bg-primary/[0.04] blur-[70px] top-[40%] -right-[50px]" delay={5} duration={20} />
+
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 relative z-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="mb-10">
             <motion.p variants={fadeIn} className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
-              <span className="w-6 h-px bg-primary" /> FAQ
+              <motion.span className="w-8 h-px bg-primary" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+              FAQ
             </motion.p>
             <motion.h2 variants={fadeIn} className="text-3xl sm:text-4xl font-extrabold">
               Perguntas Frequentes
             </motion.h2>
           </motion.div>
 
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
-          >
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
             <Accordion type="single" collapsible className="space-y-3">
               {faqItems.map((item, i) => (
                 <motion.div key={i} variants={fadeUp} custom={i}>
                   <AccordionItem value={`item-${i}`}
-                    className="border border-border/50 rounded-xl px-5 bg-card data-[state=open]:border-primary/30 data-[state=open]:shadow-md data-[state=open]:shadow-primary/5 transition-all duration-300"
+                    className="border border-border/40 rounded-xl px-5 bg-card/60 backdrop-blur-sm data-[state=open]:border-primary/30 data-[state=open]:shadow-lg data-[state=open]:shadow-primary/5 data-[state=open]:bg-card/80 transition-all duration-300"
                   >
                     <AccordionTrigger className="text-left hover:no-underline py-4 text-sm font-medium hover:text-primary transition-colors duration-200">
                       {item.q}
@@ -737,118 +844,127 @@ export default function InstitucionalHome() {
         </div>
       </Section>
 
-      {/* ── Contato ── */}
-      <Section id="contato" className="py-24" bg="bg-muted/30 border-t border-border/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="grid lg:grid-cols-2 gap-12">
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromLeft}
-              className="space-y-6"
-            >
-              <div>
-                <p className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
-                  <span className="w-6 h-px bg-primary" /> Contato
-                </p>
-                <h2 className="text-3xl sm:text-4xl font-extrabold mb-3">
-                  Solicite seu <span className="text-primary">orçamento</span>
-                </h2>
-                <p className="text-muted-foreground">Atendimento personalizado e rápido.</p>
-              </div>
+      {/* ══════════════════════════════════════════════════
+          CONTATO — warm accent bg
+      ══════════════════════════════════════════════════ */}
+      <div className="relative">
+        <WaveDivider flip className="-mb-px" />
+        <Section id="contato" className="py-24 sm:py-32 bg-gradient-to-b from-primary/[0.05] via-muted/20 to-background">
+          <FloatingOrb className="w-[350px] h-[350px] bg-primary/[0.06] blur-[90px] top-[15%] right-[10%]" delay={1} duration={23} />
+          <FloatingOrb className="w-[250px] h-[250px] bg-primary/[0.04] blur-[70px] bottom-[20%] left-[10%]" delay={9} duration={18} />
 
-              <div className="space-y-4">
-                {[
-                  { icon: Phone, label: 'Telefone / WhatsApp', value: PHONE_NUMBER },
-                  { icon: Mail, label: 'E-mail', value: 'contato@taubatechopp.com.br' },
-                  { icon: MapPin, label: 'Endereço', value: ADDRESS },
-                ].map((c, i) => (
-                  <motion.div key={i}
-                    className="flex items-start gap-3 group cursor-default"
-                    whileHover={{ x: 6 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-primary/20 group-hover:shadow-md group-hover:shadow-primary/10 transition-all duration-300">
-                      <c.icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">{c.label}</p>
-                      <p className="text-sm font-medium">{c.value}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <motion.a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-                whileHover={{ x: 4 }}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+            <div className="grid lg:grid-cols-2 gap-12">
+              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromLeft}
+                className="space-y-6"
               >
-                <Instagram className="w-4 h-4 group-hover:text-primary transition-colors" /> @taubatechopp
-              </motion.a>
-            </motion.div>
-
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromRight}>
-              <motion.div
-                className="rounded-2xl border border-border/50 bg-card p-6 sm:p-8"
-                whileHover={{ borderColor: 'hsl(var(--border))' }}
-              >
-                <div className="space-y-4">
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="nome" className="text-xs">Nome *</Label>
-                      <Input id="nome" placeholder="Seu nome" value={formData.nome}
-                        onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                        className="h-11 rounded-lg focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="telefone" className="text-xs">Telefone *</Label>
-                      <Input id="telefone" placeholder="(12) 99999-9999" value={formData.telefone}
-                        onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                        className="h-11 rounded-lg focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-xs">E-mail</Label>
-                    <Input id="email" type="email" placeholder="seu@email.com" value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="h-11 rounded-lg focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="tipoEvento" className="text-xs">Tipo de Evento</Label>
-                      <Input id="tipoEvento" placeholder="Ex: Casamento" value={formData.tipoEvento}
-                        onChange={(e) => setFormData({ ...formData, tipoEvento: e.target.value })}
-                        className="h-11 rounded-lg focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="dataEvento" className="text-xs">Data do Evento</Label>
-                      <Input id="dataEvento" type="date" value={formData.dataEvento}
-                        onChange={(e) => setFormData({ ...formData, dataEvento: e.target.value })}
-                        className="h-11 rounded-lg focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="mensagem" className="text-xs">Mensagem</Label>
-                    <Textarea id="mensagem" placeholder="Conte sobre seu evento..." rows={3} value={formData.mensagem}
-                      onChange={(e) => setFormData({ ...formData, mensagem: e.target.value })}
-                      className="rounded-lg resize-none focus:ring-2 focus:ring-primary/20 transition-shadow" />
-                  </div>
-                  <MagneticWrap>
-                    <Button
-                      className="w-full h-12 bg-primary text-primary-foreground font-bold rounded-lg shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
-                      onClick={handleWhatsApp} disabled={isSubmitting}
-                    >
-                      {isSubmitting ? <><Loader2 className="mr-2 w-4 h-4 animate-spin" />Enviando...</> :
-                        <><Send className="mr-2 w-4 h-4" />Enviar via WhatsApp</>}
-                    </Button>
-                  </MagneticWrap>
-                  <p className="text-[11px] text-muted-foreground text-center">Seus dados serão salvos para facilitar o atendimento</p>
+                <div>
+                  <p className="text-primary font-semibold text-sm tracking-widest uppercase mb-2 flex items-center gap-2">
+                    <motion.span className="w-8 h-px bg-primary" initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} />
+                    Contato
+                  </p>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold mb-3">
+                    Solicite seu <span className="text-primary">orçamento</span>
+                  </h2>
+                  <p className="text-muted-foreground">Atendimento personalizado e rápido.</p>
                 </div>
+
+                <div className="space-y-4">
+                  {[
+                    { icon: Phone, label: 'Telefone / WhatsApp', value: PHONE_NUMBER },
+                    { icon: Mail, label: 'E-mail', value: 'contato@taubatechopp.com.br' },
+                    { icon: MapPin, label: 'Endereço', value: ADDRESS },
+                  ].map((c, i) => (
+                    <motion.div key={i}
+                      className="flex items-start gap-3 group cursor-default"
+                      whileHover={{ x: 6 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-primary/20 group-hover:shadow-md group-hover:shadow-primary/10 transition-all duration-300">
+                        <c.icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">{c.label}</p>
+                        <p className="text-sm font-medium">{c.value}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <motion.a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+                  whileHover={{ x: 4 }}
+                >
+                  <Instagram className="w-4 h-4 group-hover:text-primary transition-colors" /> @taubatechopp
+                </motion.a>
               </motion.div>
-            </motion.div>
+
+              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={slideFromRight}>
+                <motion.div
+                  className="rounded-2xl border border-border/40 bg-card/70 backdrop-blur-md p-6 sm:p-8 shadow-xl shadow-primary/5"
+                  whileHover={{ borderColor: 'hsl(var(--border))' }}
+                >
+                  <div className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="nome" className="text-xs">Nome *</Label>
+                        <Input id="nome" placeholder="Seu nome" value={formData.nome}
+                          onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                          className="h-11 rounded-lg bg-background/50 focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="telefone" className="text-xs">Telefone *</Label>
+                        <Input id="telefone" placeholder="(12) 99999-9999" value={formData.telefone}
+                          onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                          className="h-11 rounded-lg bg-background/50 focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email" className="text-xs">E-mail</Label>
+                      <Input id="email" type="email" placeholder="seu@email.com" value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="h-11 rounded-lg bg-background/50 focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="tipoEvento" className="text-xs">Tipo de Evento</Label>
+                        <Input id="tipoEvento" placeholder="Ex: Casamento" value={formData.tipoEvento}
+                          onChange={(e) => setFormData({ ...formData, tipoEvento: e.target.value })}
+                          className="h-11 rounded-lg bg-background/50 focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="dataEvento" className="text-xs">Data do Evento</Label>
+                        <Input id="dataEvento" type="date" value={formData.dataEvento}
+                          onChange={(e) => setFormData({ ...formData, dataEvento: e.target.value })}
+                          className="h-11 rounded-lg bg-background/50 focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mensagem" className="text-xs">Mensagem</Label>
+                      <Textarea id="mensagem" placeholder="Conte sobre seu evento..." rows={3} value={formData.mensagem}
+                        onChange={(e) => setFormData({ ...formData, mensagem: e.target.value })}
+                        className="rounded-lg bg-background/50 resize-none focus:ring-2 focus:ring-primary/20 transition-shadow" />
+                    </div>
+                    <MagneticWrap>
+                      <Button
+                        className="w-full h-12 bg-primary text-primary-foreground font-bold rounded-lg shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300"
+                        onClick={handleWhatsApp} disabled={isSubmitting}
+                      >
+                        {isSubmitting ? <><Loader2 className="mr-2 w-4 h-4 animate-spin" />Enviando...</> :
+                          <><Send className="mr-2 w-4 h-4" />Enviar via WhatsApp</>}
+                      </Button>
+                    </MagneticWrap>
+                    <p className="text-[11px] text-muted-foreground text-center">Seus dados serão salvos para facilitar o atendimento</p>
+                  </div>
+                </motion.div>
+              </motion.div>
+            </div>
           </div>
-        </div>
-      </Section>
+        </Section>
+      </div>
 
       {/* ── Footer ── */}
-      <footer className="py-10 border-t border-border/50">
+      <footer className="relative py-10 border-t border-border/30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <motion.div
             className="flex items-center gap-3"
