@@ -52,6 +52,7 @@ import { ImportarTransacoesDialog } from './ImportarTransacoesDialog';
 import { NovaTransacaoDialog } from './NovaTransacaoDialog';
 import { EditarTransacaoDialog } from './EditarTransacaoDialog';
 import { EditarRecorrenteConfirmDialog } from './EditarRecorrenteConfirmDialog';
+import { ExcluirRecorrenteConfirmDialog } from './ExcluirRecorrenteConfirmDialog';
 import { TornarRecorrenteDialog } from './TornarRecorrenteDialog';
 import { CalendarioFinanceiro } from './CalendarioFinanceiro';
 import { TransacoesDRE } from './TransacoesDRE';
@@ -132,6 +133,9 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   // State for recurring edit confirmation
   const [pendingEditTransaction, setPendingEditTransaction] = useState<any>(null);
   const [editFutureMode, setEditFutureMode] = useState<boolean>(false);
+  
+  // State for recurring delete confirmation
+  const [pendingDeleteTransaction, setPendingDeleteTransaction] = useState<any>(null);
   
   // Expanded invoice state - to show credit card transactions
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
@@ -439,6 +443,39 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
       queryClient.invalidateQueries({ queryKey: ['transacoes'] });
       toast.success('Transação excluída com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao excluir: ' + error.message);
+    }
+  });
+
+  // Delete all future recurring transactions mutation
+  const deleteRecurringMutation = useMutation({
+    mutationFn: async ({ transaction, deleteAll }: { transaction: any; deleteAll: boolean }) => {
+      if (deleteAll) {
+        // Delete this and all future with same origin description
+        // Since recurrence_id is null, match by description + origin
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('description', transaction.description)
+          .eq('origin', 'RECORRENTE')
+          .gte('due_date', transaction.due_date);
+        if (error) throw error;
+      } else {
+        // Delete only this one
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', transaction.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['transacoes-banco'] });
+      queryClient.invalidateQueries({ queryKey: ['transacoes'] });
+      toast.success(variables.deleteAll ? 'Transações recorrentes excluídas!' : 'Transação excluída com sucesso!');
+      setPendingDeleteTransaction(null);
     },
     onError: (error: any) => {
       toast.error('Erro ao excluir: ' + error.message);
@@ -1073,7 +1110,14 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                     onToggleSelection={() => toggleSelection(t.id)}
                     onMarkAsPaid={() => markAsPaidMutation.mutate(t.id)}
                     onEdit={() => handleEditClick(t)}
-                    onDelete={() => setDeletingId(t.id)}
+                    onDelete={() => {
+                      const isRecorrente = t.origin === 'RECORRENTE' || !!t.recurrence_id;
+                      if (isRecorrente) {
+                        setPendingDeleteTransaction(t);
+                      } else {
+                        setDeletingId(t.id);
+                      }
+                    }}
                     onRecurring={() => setRecurringTransaction(t)}
                     onAddTag={(tag) => handleAddTag(t.id, t.tags as string[] | null, tag)}
                     onRemoveTag={(tag) => handleRemoveTag(t.id, t.tags as string[] | null, tag)}
@@ -1114,6 +1158,24 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         transactionDescription={pendingEditTransaction?.description}
         onEditSingle={handleEditSingle}
         onEditFuture={handleEditFuture}
+      />
+
+      {/* Recurring delete confirmation modal */}
+      <ExcluirRecorrenteConfirmDialog
+        open={!!pendingDeleteTransaction}
+        onOpenChange={(open) => !open && setPendingDeleteTransaction(null)}
+        transactionDescription={pendingDeleteTransaction?.description}
+        onDeleteSingle={() => {
+          if (pendingDeleteTransaction) {
+            deleteRecurringMutation.mutate({ transaction: pendingDeleteTransaction, deleteAll: false });
+          }
+        }}
+        onDeleteAll={() => {
+          if (pendingDeleteTransaction) {
+            deleteRecurringMutation.mutate({ transaction: pendingDeleteTransaction, deleteAll: true });
+          }
+        }}
+        isLoading={deleteRecurringMutation.isPending}
       />
 
       <EditarTransacaoDialog
