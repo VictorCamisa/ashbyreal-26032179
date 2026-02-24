@@ -1,14 +1,14 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform, useInView } from 'framer-motion';
 import {
   ShoppingCart, Plus, Minus, Trash2, MessageCircle, Search, ArrowLeft,
-  Award, Star, Truck, Shield, Clock, Beer, Users, MapPin, Phone,
-  Instagram, ChevronRight, Sparkles, X,
+  Award, Star, Truck, Shield, Clock, Beer, MapPin, Phone,
+  Instagram, ChevronDown, X, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
@@ -26,97 +26,17 @@ const INSTAGRAM_URL = 'https://www.instagram.com/taubatechopp/';
 const ADDRESS = 'R. Dr. Emílio Winther, 1117 - Jardim das Nações, Taubaté - SP';
 const PHONE_DISPLAY = '(12) 3432-6712';
 
-// ── Animation variants ──
-const fadeUp = {
-  hidden: { opacity: 0, y: 40 },
-  visible: (i: number = 0) => ({
-    opacity: 1, y: 0,
-    transition: { duration: 0.7, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }
-  })
-};
-
-const stagger = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } }
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }
-};
-
-// ── Floating Orb ──
-function FloatingOrb({ className, delay = 0, duration = 20 }: { className: string; delay?: number; duration?: number }) {
-  return (
-    <motion.div
-      className={`absolute rounded-full pointer-events-none ${className}`}
-      animate={{
-        x: [0, 30, -20, 10, 0],
-        y: [0, -25, 15, -10, 0],
-        scale: [1, 1.1, 0.95, 1.05, 1],
-      }}
-      transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
-    />
-  );
-}
-
-// ── Wave Divider ──
-function WaveDivider({ flip = false, className = '' }: { flip?: boolean; className?: string }) {
-  return (
-    <div className={`w-full overflow-hidden leading-[0] ${flip ? 'rotate-180' : ''} ${className}`}>
-      <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="relative block w-full h-[60px] sm:h-[80px]">
-        <path d="M0,60 C200,100 400,20 600,60 C800,100 1000,20 1200,60 L1200,120 L0,120 Z" className="fill-[#0a0a0a]" />
-      </svg>
-    </div>
-  );
-}
-
-// ── Section with reveal ──
-function Section({ children, className = '', id }: { children: React.ReactNode; className?: string; id?: string }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <section id={id} ref={ref} className={`relative overflow-hidden ${className}`}>
-      <motion.div
-        className="relative z-10"
-        initial={{ opacity: 0, y: 30 }}
-        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {children}
-      </motion.div>
-    </section>
-  );
-}
-
-// ── Animated Counter ──
-function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: string }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-  return (
-    <motion.span
-      ref={ref}
-      initial={{ opacity: 0, y: 10 }}
-      animate={isInView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="inline-block"
-    >
-      {value}{suffix}
-    </motion.span>
-  );
-}
-
 // ── Product metadata ──
-interface ProductMeta { image: string; badge?: string; tagline: string; rating: number; }
+interface ProductMeta { image: string; badge?: string; tagline: string; rating: number; color: string; }
 
 const productImageMap: Record<string, ProductMeta> = {
-  'pilsen': { image: imgPilsen, badge: 'Mais Vendido', tagline: 'Clássica, leve e refrescante', rating: 4.8 },
-  'puro malte': { image: imgPuroMalte, tagline: '100% malte de cevada', rating: 4.7 },
-  'escuro': { image: imgEscuro, tagline: 'Notas de caramelo e tostado', rating: 4.6 },
-  'ipa': { image: imgIpa, badge: 'Intensa', tagline: 'Lúpulos cítricos e amargor marcante', rating: 4.9 },
-  'ale': { image: imgAle, badge: 'Premiada', tagline: 'Frutada e equilibrada', rating: 4.8 },
-  'weiss': { image: imgWeiss, tagline: 'Trigo com banana e cravo', rating: 4.5 },
-  'vinho': { image: imgVinho, badge: 'Exclusivo', tagline: 'Inovação com notas de vinho', rating: 4.7 },
+  'pilsen': { image: imgPilsen, badge: 'Mais Vendido', tagline: 'Clássica, leve e refrescante', rating: 4.8, color: '#F59E0B' },
+  'puro malte': { image: imgPuroMalte, tagline: '100% malte de cevada', rating: 4.7, color: '#D97706' },
+  'escuro': { image: imgEscuro, tagline: 'Notas de caramelo e tostado', rating: 4.6, color: '#78350F' },
+  'ipa': { image: imgIpa, badge: 'Intensa', tagline: 'Lúpulos cítricos e amargor marcante', rating: 4.9, color: '#059669' },
+  'ale': { image: imgAle, badge: 'Premiada', tagline: 'Frutada e equilibrada', rating: 4.8, color: '#DC2626' },
+  'weiss': { image: imgWeiss, tagline: 'Trigo com banana e cravo', rating: 4.5, color: '#F5E6D3' },
+  'vinho': { image: imgVinho, badge: 'Exclusivo', tagline: 'Inovação com notas de vinho', rating: 4.7, color: '#7C3AED' },
 };
 
 function getProductMeta(name: string): ProductMeta {
@@ -124,14 +44,7 @@ function getProductMeta(name: string): ProductMeta {
   for (const [key, meta] of Object.entries(productImageMap)) {
     if (lower.includes(key)) return meta;
   }
-  return { image: imgPilsen, tagline: 'Chopp artesanal Ashby', rating: 4.5 };
-}
-
-function getProductType(name: string): string {
-  const lower = name.toLowerCase();
-  if (lower.includes('ipa') || lower.includes('ale') || lower.includes('weiss')) return 'Especiais';
-  if (lower.includes('vinho')) return 'Exclusivos';
-  return 'Clássicos';
+  return { image: imgPilsen, tagline: 'Chopp artesanal Ashby', rating: 4.5, color: '#F59E0B' };
 }
 
 function getVolume(name: string): string {
@@ -142,26 +55,58 @@ function getVolume(name: string): string {
 
 interface CartItem { id: string; nome: string; preco: number; quantidade: number; }
 
-// ── Testimonials ──
 const testimonials = [
-  { name: 'Ricardo Mendes', role: 'Evento Corporativo', text: 'Chopp gelado, atendimento impecável e entrega pontual. Superou expectativas!', rating: 5 },
-  { name: 'Fernanda Lima', role: 'Casamento', text: 'O chopp Ashby foi um sucesso no casamento! Todos elogiaram.', rating: 5 },
-  { name: 'João Paulo Silva', role: 'Churrasco', text: 'Qualidade excepcional! Entrega rápida e chopp perfeito. Virou tradição.', rating: 5 },
+  { name: 'Ricardo M.', event: 'Corporativo', text: 'Superou todas as expectativas. Chopp perfeito.', stars: 5 },
+  { name: 'Fernanda L.', event: 'Casamento', text: 'O destaque do nosso casamento. Todos elogiaram.', stars: 5 },
+  { name: 'João Paulo S.', event: 'Churrasco', text: 'Qualidade excepcional. Virou tradição na família.', stars: 5 },
 ];
 
-// ══════════════════════════════════════════════════════
-// COMPONENT
+// ── Reveal wrapper ──
+function Reveal({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 50 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.8, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// ── Marquee ──
+function Marquee({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden whitespace-nowrap">
+      <motion.div
+        className="inline-flex gap-12"
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+      >
+        {children}
+        {children}
+      </motion.div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════
 export default function Ecommerce() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState('Todos');
   const [cartOpen, setCartOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
 
   const { scrollYProgress } = useScroll();
-  const heroScale = useTransform(scrollYProgress, [0, 0.15], [1.1, 1]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.3]);
-  const navBgOpacity = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
+  const heroImgY = useTransform(scrollYProgress, [0, 0.3], ['0%', '20%']);
+  const heroTextY = useTransform(scrollYProgress, [0, 0.3], [0, -80]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.25], [1, 0]);
+  const navBorder = useTransform(scrollYProgress, [0.02, 0.06], [0, 1]);
 
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['produtos-ecommerce'],
@@ -177,15 +122,10 @@ export default function Ecommerce() {
     },
   });
 
-  const categories = ['Todos', 'Clássicos', 'Especiais', 'Exclusivos'];
-
   const filteredProducts = useMemo(() => {
-    return produtos.filter(p => {
-      const matchesSearch = p.nome.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = activeFilter === 'Todos' || getProductType(p.nome) === activeFilter;
-      return matchesSearch && matchesCategory;
-    });
-  }, [produtos, searchTerm, activeFilter]);
+    if (!searchTerm) return produtos;
+    return produtos.filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [produtos, searchTerm]);
 
   const cartTotal = cart.reduce((sum, item) => sum + item.preco * item.quantidade, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantidade, 0);
@@ -212,775 +152,565 @@ export default function Ecommerce() {
     if (cart.length === 0) return;
     const items = cart.map(i => `• ${i.quantidade}x ${i.nome} - R$ ${(i.preco * i.quantidade).toFixed(2)}`).join('\n');
     const message = encodeURIComponent(
-      `🛒 *Pedido via Ecommerce - Taubaté Chopp*\n\n${items}\n\n💰 *Total: R$ ${cartTotal.toFixed(2)}*\n\nGostaria de finalizar este pedido!`
+      `🍺 *Pedido — Taubaté Chopp*\n\n${items}\n\n💰 *Total: R$ ${cartTotal.toFixed(2)}*\n\nGostaria de finalizar!`
     );
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${message}`, '_blank');
   };
 
-  const getCartItemQty = (id: string) => cart.find(i => i.id === id)?.quantidade || 0;
-
-  // Featured products (first 3 with badges)
-  const featuredProducts = useMemo(() => {
-    return produtos.filter(p => {
-      const meta = getProductMeta(p.nome);
-      return !!meta.badge;
-    }).slice(0, 4);
-  }, [produtos]);
+  const getCartQty = (id: string) => cart.find(i => i.id === id)?.quantidade || 0;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-x-hidden">
-      {/* ── Global floating orbs ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <FloatingOrb className="w-[600px] h-[600px] bg-amber-500/[0.03] blur-[120px] top-[10%] -left-[200px]" delay={0} duration={25} />
-        <FloatingOrb className="w-[500px] h-[500px] bg-amber-500/[0.04] blur-[100px] top-[40%] -right-[150px]" delay={5} duration={22} />
-        <FloatingOrb className="w-[400px] h-[400px] bg-amber-500/[0.03] blur-[80px] top-[70%] left-[20%]" delay={10} duration={28} />
-        <FloatingOrb className="w-[350px] h-[350px] bg-amber-600/[0.02] blur-[90px] top-[90%] right-[10%]" delay={15} duration={30} />
-      </div>
+    <div className="min-h-screen bg-[#060606] text-white selection:bg-amber-500/30">
 
-      {/* ═══════════════════════════════════════
-          NAVBAR
-      ═══════════════════════════════════════ */}
+      {/* ═══ NAVBAR — Minimal, editorial ═══ */}
       <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 border-b border-transparent"
-        style={{
-          backgroundColor: useTransform(navBgOpacity, v => `rgba(10,10,10,${0.5 + v * 0.45})`),
-          borderColor: useTransform(navBgOpacity, v => `rgba(255,255,255,${v * 0.05})`),
-          backdropFilter: 'blur(20px)',
-        }}
+        className="fixed top-0 left-0 right-0 z-50 mix-blend-difference"
+        style={{ borderBottomWidth: 1, borderColor: useTransform(navBorder, v => `rgba(255,255,255,${v * 0.06})`) }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center gap-3 group">
-              <motion.img
-                src={logoTaubateChopp}
-                alt="Taubaté Chopp"
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-amber-500/30 group-hover:ring-amber-500/60 transition-all"
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              />
-              <div className="hidden sm:block">
-                <span className="text-sm font-bold tracking-tight text-white">TAUBATÉ CHOPP</span>
-                <span className="text-[10px] text-amber-400/80 block tracking-widest uppercase">Distribuidor Ashby</span>
-              </div>
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 flex items-center justify-between h-[60px]">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <img src={logoTaubateChopp} alt="Taubaté Chopp" className="h-8 w-8 rounded-full object-cover" />
+            <span className="text-[11px] font-medium tracking-[0.2em] uppercase">Taubaté Chopp</span>
+          </Link>
+
+          <div className="flex items-center gap-5">
+            <Link to="/" className="text-[11px] tracking-[0.15em] uppercase opacity-50 hover:opacity-100 transition-opacity hidden sm:block">
+              Home
             </Link>
-
-            <div className="flex items-center gap-3">
-              <Link to="/">
-                <Button variant="ghost" size="sm" className="rounded-full text-xs text-white/60 hover:text-white hover:bg-white/5">
-                  <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Voltar
-                </Button>
-              </Link>
-
-              <Sheet open={cartOpen} onOpenChange={setCartOpen}>
-                <SheetTrigger asChild>
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button size="sm" className="rounded-full bg-amber-500 hover:bg-amber-400 text-black font-bold relative gap-2 shadow-lg shadow-amber-500/20">
-                      <ShoppingCart className="w-4 h-4" />
-                      <span className="hidden sm:inline text-xs">Carrinho</span>
-                      {cartCount > 0 && (
-                        <motion.span
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -top-2 -right-2 bg-white text-black text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center shadow-md"
-                        >
-                          {cartCount}
-                        </motion.span>
-                      )}
-                    </Button>
-                  </motion.div>
-                </SheetTrigger>
-                <SheetContent className="w-full sm:max-w-md flex flex-col bg-[#111] border-white/5 text-white">
-                  <SheetHeader>
-                    <SheetTitle className="flex items-center gap-2 text-white">
-                      <ShoppingCart className="w-5 h-5 text-amber-400" />
-                      Seu Carrinho ({cartCount})
-                    </SheetTitle>
-                  </SheetHeader>
-
-                  {cart.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                      <motion.div
-                        animate={{ y: [0, -8, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        <ShoppingCart className="w-20 h-20 text-white/5 mb-4" />
-                      </motion.div>
-                      <h3 className="font-semibold text-lg mb-1 text-white/80">Carrinho vazio</h3>
-                      <p className="text-sm text-white/40">Adicione chopps para continuar</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 overflow-y-auto space-y-3 py-4">
-                        <AnimatePresence>
-                          {cart.map(item => {
-                            const meta = getProductMeta(item.nome);
-                            return (
-                              <motion.div
-                                key={item.id}
-                                layout
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5"
-                              >
-                                <img src={meta.image} alt={item.nome} className="w-14 h-14 rounded-lg object-cover" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold truncate text-white/90">{item.nome}</p>
-                                  <p className="text-xs text-white/40">
-                                    R$ {item.preco.toFixed(2)} × {item.quantidade} = <span className="text-amber-400 font-semibold">R$ {(item.preco * item.quantidade).toFixed(2)}</span>
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-white/60 hover:text-white hover:bg-white/10" onClick={() => updateQuantity(item.id, -1)}>
-                                    <Minus className="w-3 h-3" />
-                                  </Button>
-                                  <span className="text-sm font-bold w-6 text-center">{item.quantidade}</span>
-                                  <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-white/60 hover:text-white hover:bg-white/10" onClick={() => updateQuantity(item.id, 1)}>
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => removeFromCart(item.id)}>
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </motion.div>
-                            );
-                          })}
-                        </AnimatePresence>
-                      </div>
-                      <div className="border-t border-white/10 pt-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-white/50">Total do pedido</span>
-                          <span className="text-3xl font-black text-amber-400">R$ {cartTotal.toFixed(2)}</span>
-                        </div>
-                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                          <Button
-                            className="w-full h-14 rounded-2xl bg-green-600 hover:bg-green-500 text-white font-bold text-base shadow-xl shadow-green-600/20 transition-all"
-                            onClick={sendToWhatsApp}
-                          >
-                            <MessageCircle className="w-5 h-5 mr-2" />
-                            Finalizar pelo WhatsApp
-                          </Button>
-                        </motion.div>
-                        <p className="text-[10px] text-white/30 text-center">
-                          Você será redirecionado para confirmar no WhatsApp
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </SheetContent>
-              </Sheet>
-            </div>
+            <button
+              onClick={() => setCartOpen(true)}
+              className="relative flex items-center gap-2 text-[11px] tracking-[0.15em] uppercase"
+            >
+              Sacola
+              {cartCount > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold"
+                >
+                  {cartCount}
+                </motion.span>
+              )}
+            </button>
           </div>
         </div>
       </motion.nav>
 
-      {/* ═══════════════════════════════════════
-          HERO CINEMATOGRÁFICO
-      ═══════════════════════════════════════ */}
-      <section className="relative pt-16 min-h-[85vh] flex items-center overflow-hidden">
-        <motion.div className="absolute inset-0" style={{ scale: heroScale }}>
-          <img src={heroBg} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/80 to-[#0a0a0a]/30" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-[#0a0a0a]/50" />
-          {/* Shimmer */}
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/[0.03] to-transparent"
-            animate={{ x: ['-100%', '100%'] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", repeatDelay: 3 }}
-          />
+      {/* ═══ HERO — Full-bleed editorial ═══ */}
+      <section ref={heroRef} className="relative h-screen flex items-end overflow-hidden">
+        <motion.div className="absolute inset-0" style={{ y: heroImgY }}>
+          <img src={heroBg} alt="" className="w-full h-[120%] object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/40 to-transparent" />
+          <div className="absolute inset-0 bg-[#060606]/30" />
         </motion.div>
 
-        <motion.div style={{ opacity: heroOpacity }} className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 w-full">
-          <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-2xl">
-            <motion.div variants={fadeUp} custom={0}>
-              <Badge className="mb-6 bg-amber-500/20 text-amber-300 border-amber-500/30 backdrop-blur-sm text-xs px-4 py-1.5">
-                <motion.span
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Award className="w-3.5 h-3.5 mr-1.5" />
-                </motion.span>
-                Distribuidor Oficial Ashby
-              </Badge>
-            </motion.div>
-
-            <motion.h1 variants={fadeUp} custom={1} className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[0.9] tracking-tight mb-6">
-              Chopp Ashby{' '}
-              <motion.span
-                className="bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 bg-clip-text text-transparent"
-                animate={{ backgroundPosition: ['0%', '100%', '0%'] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-                style={{ backgroundSize: '200% 100%' }}
-              >
-                Premium
-              </motion.span>
-            </motion.h1>
-
-            <motion.p variants={fadeUp} custom={2} className="text-white/50 text-base sm:text-lg max-w-lg mb-10 leading-relaxed">
-              Selecione seus chopps favoritos e finalize seu pedido direto pelo WhatsApp.
-              Entrega rápida em Taubaté e região.
+        <motion.div
+          style={{ y: heroTextY, opacity: heroOpacity }}
+          className="relative z-10 w-full max-w-[1400px] mx-auto px-5 sm:px-8 pb-16 sm:pb-24"
+        >
+          <div className="flex flex-col gap-6 max-w-3xl">
+            <motion.p
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 1, delay: 0.3 }}
+              className="text-[11px] tracking-[0.3em] uppercase text-amber-400/80 font-medium"
+            >
+              Distribuidor Oficial Ashby — Desde 1993
             </motion.p>
+            <motion.h1
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="text-[clamp(2.5rem,8vw,7rem)] font-extralight leading-[0.9] tracking-[-0.03em]"
+            >
+              Chopp
+              <br />
+              <span className="font-bold italic">Premium</span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1, delay: 0.8 }}
+              className="text-white/40 text-base sm:text-lg max-w-md leading-relaxed font-light"
+            >
+              Selecione, peça e receba. A primeira microcervejaria do Brasil direto na sua mesa.
+            </motion.p>
+          </div>
 
-            <motion.div variants={fadeUp} custom={3} className="flex flex-wrap gap-3">
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Button
-                  size="lg"
-                  className="rounded-full bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 shadow-xl shadow-amber-500/25 h-13"
-                  onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}
-                >
-                  <Beer className="w-4 h-4 mr-2" />
-                  Ver Catálogo
-                  <motion.span
-                    className="ml-1"
-                    animate={{ x: [0, 4, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </motion.span>
-                </Button>
-              </motion.div>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full px-8 h-13 border-white/10 hover:border-amber-500/30 hover:bg-amber-500/5 text-white/80 transition-all"
-                onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Vim pelo site e gostaria de fazer um pedido.')}`, '_blank')}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Pedir pelo WhatsApp
-              </Button>
-            </motion.div>
-          </motion.div>
-
-          {/* Hero Stats */}
           <motion.div
-            initial="hidden" animate="visible" variants={stagger}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-16 pt-8 border-t border-white/5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            className="absolute bottom-8 right-8 hidden sm:flex flex-col items-center gap-2"
           >
-            {[
-              { value: '500+', label: 'Eventos atendidos' },
-              { value: '7', label: 'Estilos de chopp' },
-              { value: '4.9', label: 'Avaliação média' },
-              { value: '30+', label: 'Anos Ashby' },
-            ].map((stat, i) => (
-              <motion.div key={stat.label} variants={fadeUp} custom={i} className="text-center sm:text-left">
-                <div className="text-2xl sm:text-3xl font-black text-amber-400">
-                  <AnimatedCounter value={stat.value} />
-                </div>
-                <div className="text-xs text-white/30 mt-1">{stat.label}</div>
-              </motion.div>
-            ))}
+            <span className="text-[10px] tracking-[0.2em] uppercase text-white/30">Scroll</span>
+            <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+              <ChevronDown className="w-4 h-4 text-white/30" />
+            </motion.div>
           </motion.div>
         </motion.div>
       </section>
 
-      <WaveDivider className="relative z-10 -mt-1" />
+      {/* ═══ MARQUEE — Running text strip ═══ */}
+      <div className="border-y border-white/[0.06] py-4 bg-[#060606]">
+        <Marquee>
+          {['Pilsen', 'IPA Nirvana', 'Pale Ale', 'Weiss', 'Chopp Escuro', 'Puro Malte', 'Chopp de Vinho'].map(name => (
+            <span key={name} className="text-[11px] tracking-[0.25em] uppercase text-white/20 flex items-center gap-3">
+              <span className="w-1 h-1 rounded-full bg-amber-500/40" />
+              {name}
+            </span>
+          ))}
+        </Marquee>
+      </div>
 
-      {/* ═══════════════════════════════════════
-          DESTAQUES
-      ═══════════════════════════════════════ */}
-      {featuredProducts.length > 0 && (
-        <Section className="py-16 sm:py-24">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }} className="text-center mb-12">
-              <motion.div variants={fadeUp}>
-                <Badge className="mb-4 bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs px-4 py-1">
-                  <Sparkles className="w-3 h-3 mr-1.5" /> Destaques
-                </Badge>
-              </motion.div>
-              <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-black mb-3">
-                Os Mais <span className="text-amber-400">Pedidos</span>
-              </motion.h2>
-              <motion.p variants={fadeUp} className="text-white/40 max-w-md mx-auto">
-                Os favoritos dos nossos clientes, com qualidade Ashby garantida.
-              </motion.p>
-            </motion.div>
-
-            <motion.div
-              variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
-            >
-              {featuredProducts.map((produto, i) => {
-                const meta = getProductMeta(produto.nome);
-                const volume = getVolume(produto.nome);
-                return (
-                  <motion.div key={produto.id} variants={fadeUp} custom={i}>
-                    <motion.div
-                      className="group relative rounded-2xl bg-gradient-to-b from-white/[0.06] to-white/[0.02] border border-white/[0.08] overflow-hidden"
-                      whileHover={{ y: -8, scale: 1.02 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                    >
-                      <div className="relative aspect-[4/5] overflow-hidden">
-                        <img
-                          src={meta.image}
-                          alt={produto.nome}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
-                        {meta.badge && (
-                          <Badge className="absolute top-3 left-3 bg-amber-500 text-black border-0 text-[10px] font-bold shadow-lg shadow-amber-500/30">
-                            {meta.badge}
-                          </Badge>
-                        )}
-                        {volume && (
-                          <Badge className="absolute top-3 right-3 bg-black/60 text-white/90 border-0 text-[10px] backdrop-blur-md">
-                            {volume}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="p-4">
-                        <h3 className="font-bold text-sm text-white/90 group-hover:text-amber-400 transition-colors">{produto.nome}</h3>
-                        <p className="text-xs text-white/35 mt-1">{meta.tagline}</p>
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-xl font-black">R$ {produto.preco.toFixed(0)}</span>
-                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                            <Button
-                              size="sm"
-                              className="rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold h-9 text-xs gap-1.5 shadow-lg shadow-amber-500/20"
-                              onClick={() => addToCart({ id: produto.id, nome: produto.nome, preco: produto.preco })}
-                            >
-                              <Plus className="w-3.5 h-3.5" /> Pedir
-                            </Button>
-                          </motion.div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          </div>
-        </Section>
-      )}
-
-      {/* ═══════════════════════════════════════
-          FILTERS + CATALOG
-      ═══════════════════════════════════════ */}
-      <section id="catalogo" className="scroll-mt-20">
-        {/* Sticky Filters */}
-        <div className="sticky top-16 z-40 bg-[#0a0a0a]/90 backdrop-blur-2xl border-b border-white/5 py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                <input
-                  placeholder="Buscar chopps..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full h-10 pl-10 pr-4 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-transparent transition-all"
-                />
-              </div>
-              <div className="flex gap-2 overflow-x-auto scrollbar-none w-full sm:w-auto">
-                {categories.map(cat => (
-                  <motion.button
-                    key={cat}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 transition-all ${
-                      activeFilter === cat
-                        ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
-                        : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
-                    }`}
-                    onClick={() => setActiveFilter(cat)}
-                  >
-                    {cat}
-                  </motion.button>
-                ))}
-              </div>
-              <div className="hidden sm:block text-xs text-white/30 ml-auto font-medium">
-                {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Products Grid */}
-        <div className="py-10 sm:py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                {Array.from({ length: 8 }).map((_, i) => (
+      {/* ═══ EDITORIAL INTRO ═══ */}
+      <section className="py-24 sm:py-32">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <Reveal>
+              <p className="text-[11px] tracking-[0.3em] uppercase text-amber-400/60 mb-6">Nossa Coleção</p>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extralight leading-[1.1] tracking-[-0.02em] mb-8">
+                Sete estilos,<br />
+                <span className="font-bold">uma tradição.</span>
+              </h2>
+              <p className="text-white/30 text-base leading-relaxed max-w-md font-light">
+                Cada chopp Ashby carrega mais de 30 anos de dedicação cervejeira.
+                Da leveza da Pilsen à ousadia do Chopp de Vinho, encontre o seu favorito.
+              </p>
+            </Reveal>
+            <Reveal delay={0.2}>
+              <div className="grid grid-cols-3 gap-3">
+                {[imgPilsen, imgIpa, imgAle, imgEscuro, imgWeiss, imgVinho].map((img, i) => (
                   <motion.div
                     key={i}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="rounded-2xl overflow-hidden"
+                    className="aspect-[3/4] rounded-xl overflow-hidden"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   >
-                    <div className="aspect-[4/5] bg-white/5 animate-pulse" />
-                    <div className="p-4 space-y-3">
-                      <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
-                      <div className="h-3 bg-white/5 rounded animate-pulse w-1/2" />
-                      <div className="h-8 bg-white/5 rounded animate-pulse w-1/3" />
-                    </div>
+                    <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
                   </motion.div>
                 ))}
               </div>
-            ) : filteredProducts.length > 0 ? (
-              <motion.div
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-50px" }}
-                variants={stagger}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-              >
-                {filteredProducts.map((produto, i) => {
-                  const meta = getProductMeta(produto.nome);
-                  const volume = getVolume(produto.nome);
-                  const inCart = getCartItemQty(produto.id);
-                  const estoque = produto.estoque ?? 0;
-                  const emEstoque = estoque > 0;
+            </Reveal>
+          </div>
+        </div>
+      </section>
 
-                  return (
+      {/* ═══ CATALOG — The Shop ═══ */}
+      <section id="catalogo" className="pb-24 sm:pb-32">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8">
+          {/* Section header + search */}
+          <Reveal>
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 mb-12 border-b border-white/[0.06] pb-8">
+              <div>
+                <p className="text-[11px] tracking-[0.3em] uppercase text-amber-400/60 mb-3">Catálogo</p>
+                <h2 className="text-3xl sm:text-4xl font-extralight tracking-[-0.02em]">
+                  Escolha seus <span className="font-bold">chopps</span>
+                </h2>
+              </div>
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <input
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full h-11 pl-11 pr-4 rounded-full bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-amber-500/40 transition-colors"
+                />
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Products */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="aspect-[16/9] bg-white/[0.02] animate-pulse rounded-sm" />
+              ))}
+            </div>
+          ) : filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-[1px] bg-white/[0.04] rounded-xl overflow-hidden">
+              {filteredProducts.map((produto, i) => {
+                const meta = getProductMeta(produto.nome);
+                const volume = getVolume(produto.nome);
+                const inCart = getCartQty(produto.id);
+                const estoque = produto.estoque ?? 0;
+
+                return (
+                  <Reveal key={produto.id} delay={i * 0.05}>
                     <motion.div
-                      key={produto.id}
-                      variants={fadeUp}
-                      custom={i % 4}
-                      layout
+                      className="relative bg-[#060606] group cursor-pointer"
+                      whileHover="hover"
+                      onClick={() => setSelectedProduct(selectedProduct === produto.id ? null : produto.id)}
                     >
-                      <motion.div
-                        className="group relative rounded-2xl bg-white/[0.03] border border-white/[0.06] overflow-hidden hover:border-amber-500/20 transition-all duration-500"
-                        whileHover={{ y: -4 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                      >
+                      <div className="flex flex-col sm:flex-row">
                         {/* Image */}
-                        <div className="relative aspect-[4/5] overflow-hidden">
-                          <img
+                        <div className="relative w-full sm:w-[45%] aspect-[4/3] sm:aspect-auto overflow-hidden">
+                          <motion.img
                             src={meta.image}
                             alt={produto.nome}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                            className="w-full h-full object-cover"
                             loading="lazy"
+                            variants={{ hover: { scale: 1.08 } }}
+                            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-transparent" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#060606]/80 hidden sm:block" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#060606]/80 to-transparent sm:hidden" />
 
                           {/* Badges */}
-                          <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
-                            {meta.badge && (
-                              <Badge className="bg-amber-500 text-black border-0 text-[10px] font-bold shadow-lg shadow-amber-500/30 px-2.5">
+                          {meta.badge && (
+                            <div className="absolute top-4 left-4">
+                              <span className="text-[9px] tracking-[0.2em] uppercase font-bold px-3 py-1.5 rounded-full"
+                                style={{ backgroundColor: meta.color + '22', color: meta.color, border: `1px solid ${meta.color}33` }}>
                                 {meta.badge}
-                              </Badge>
-                            )}
-                            {volume && (
-                              <Badge className="bg-black/60 text-white/90 border-0 text-[10px] backdrop-blur-md ml-auto">
-                                {volume}
-                              </Badge>
-                            )}
-                          </div>
+                              </span>
+                            </div>
+                          )}
 
-                          {/* Cart indicator */}
+                          {/* Cart badge */}
                           <AnimatePresence>
                             {inCart > 0 && (
                               <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 exit={{ scale: 0 }}
-                                className="absolute bottom-3 right-3 bg-amber-500 text-black text-xs font-black rounded-full w-8 h-8 flex items-center justify-center shadow-lg shadow-amber-500/40"
+                                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-amber-500 text-black text-xs font-bold flex items-center justify-center"
                               >
                                 {inCart}
                               </motion.div>
                             )}
                           </AnimatePresence>
-
-                          {/* Stock & Rating */}
-                          <div className="absolute bottom-3 left-3 right-12 flex items-center justify-between">
-                            <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-full px-2.5 py-1">
-                              <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                              <span className="text-[11px] font-semibold text-white/90">{meta.rating}</span>
-                            </div>
-                            <div className={`flex items-center gap-1 backdrop-blur-md rounded-full px-2.5 py-1 ${emEstoque ? 'bg-green-500/20' : 'bg-amber-500/20'}`}>
-                              <div className={`w-1.5 h-1.5 rounded-full ${emEstoque ? 'bg-green-400' : 'bg-amber-400'}`} />
-                              <span className={`text-[10px] font-semibold ${emEstoque ? 'text-green-300' : 'text-amber-300'}`}>
-                                {emEstoque ? `${estoque} un.` : 'Sob encomenda'}
-                              </span>
-                            </div>
-                          </div>
                         </div>
 
                         {/* Info */}
-                        <div className="p-4 space-y-3">
+                        <div className="flex-1 p-6 sm:p-8 flex flex-col justify-between min-h-[200px]">
                           <div>
-                            <h3 className="font-bold text-sm text-white/90 group-hover:text-amber-400 transition-colors line-clamp-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              {volume && (
+                                <span className="text-[10px] tracking-[0.15em] uppercase text-white/25 border border-white/10 rounded-full px-2.5 py-0.5">
+                                  {volume}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-400/60 text-amber-400/60" />
+                                <span className="text-[11px] text-white/30">{meta.rating}</span>
+                              </div>
+                            </div>
+                            <h3 className="text-xl sm:text-2xl font-light tracking-[-0.01em] mb-2 group-hover:text-amber-400/90 transition-colors duration-500">
                               {produto.nome}
                             </h3>
-                            <p className="text-xs text-white/35 mt-1 line-clamp-1">{meta.tagline}</p>
+                            <p className="text-sm text-white/25 font-light leading-relaxed">{meta.tagline}</p>
                           </div>
 
-                          <div className="flex items-end justify-between pt-1">
+                          <div className="flex items-end justify-between mt-6">
                             <div>
-                              <span className="text-xs text-white/30 block">A partir de</span>
-                              <span className="text-2xl font-black text-white">
-                                R$ {produto.preco.toFixed(0)}
-                                <span className="text-sm font-medium text-white/40">,{(produto.preco % 1).toFixed(2).slice(2)}</span>
+                              <span className="text-[10px] text-white/20 block mb-1 uppercase tracking-wider">Preço</span>
+                              <span className="text-3xl font-extralight tracking-tight">
+                                R${produto.preco.toFixed(0)}
                               </span>
                             </div>
 
-                            {inCart > 0 ? (
-                              <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
+                              {inCart > 0 ? (
+                                <div className="flex items-center gap-1.5 bg-white/[0.04] rounded-full px-1 py-1">
+                                  <motion.button
+                                    whileTap={{ scale: 0.85 }}
+                                    className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.1] flex items-center justify-center transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); updateQuantity(produto.id, -1); }}
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </motion.button>
+                                  <span className="text-sm font-medium w-6 text-center">{inCart}</span>
+                                  <motion.button
+                                    whileTap={{ scale: 0.85 }}
+                                    className="w-8 h-8 rounded-full bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); updateQuantity(produto.id, 1); }}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </motion.button>
+                                </div>
+                              ) : (
                                 <motion.button
-                                  whileTap={{ scale: 0.85 }}
-                                  className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/15 flex items-center justify-center text-white/70 transition-colors"
-                                  onClick={() => updateQuantity(produto.id, -1)}
-                                >
-                                  <Minus className="w-3.5 h-3.5" />
-                                </motion.button>
-                                <span className="text-sm font-bold w-5 text-center">{inCart}</span>
-                                <motion.button
-                                  whileTap={{ scale: 0.85 }}
-                                  className="h-9 w-9 rounded-xl bg-amber-500 hover:bg-amber-400 flex items-center justify-center text-black transition-colors shadow-lg shadow-amber-500/20"
-                                  onClick={() => updateQuantity(produto.id, 1)}
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  className="h-10 px-5 rounded-full bg-white/[0.06] hover:bg-amber-500 hover:text-black text-sm font-medium flex items-center gap-2 transition-all duration-300 border border-white/[0.08] hover:border-amber-500"
+                                  onClick={(e) => { e.stopPropagation(); addToCart({ id: produto.id, nome: produto.nome, preco: produto.preco }); }}
                                 >
                                   <Plus className="w-3.5 h-3.5" />
+                                  Adicionar
                                 </motion.button>
-                              </div>
-                            ) : (
-                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }}>
-                                <Button
-                                  size="sm"
-                                  className="rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold h-9 text-xs gap-1.5 shadow-lg shadow-amber-500/20"
-                                  onClick={() => addToCart({ id: produto.id, nome: produto.nome, preco: produto.preco })}
-                                >
-                                  <Plus className="w-3.5 h-3.5" /> Adicionar
-                                </Button>
-                              </motion.div>
-                            )}
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Stock indicator */}
+                          <div className="mt-4 pt-4 border-t border-white/[0.04]">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-1.5 h-1.5 rounded-full ${estoque > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                              <span className="text-[10px] tracking-[0.1em] uppercase text-white/20">
+                                {estoque > 0 ? `${estoque} em estoque` : 'Sob encomenda'}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     </motion.div>
-                  );
-                })}
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center py-24"
+                  </Reveal>
+                );
+              })}
+            </div>
+          ) : (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-32">
+              <Search className="w-12 h-12 mx-auto text-white/[0.06] mb-6" />
+              <p className="text-white/30 text-sm font-light mb-6">Nenhum resultado para "{searchTerm}"</p>
+              <button
+                onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de saber sobre os chopps disponíveis.')}`, '_blank')}
+                className="text-[11px] tracking-[0.2em] uppercase text-amber-400/60 hover:text-amber-400 transition-colors inline-flex items-center gap-2"
               >
-                <motion.div
-                  animate={{ y: [0, -8, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Search className="w-16 h-16 mx-auto text-white/10 mb-4" />
-                </motion.div>
-                <h3 className="text-lg font-semibold mb-2 text-white/60">Nenhum produto encontrado</h3>
-                <p className="text-sm text-white/30 mb-6">Tente ajustar sua busca ou filtro.</p>
-                <Button
-                  variant="outline"
-                  className="rounded-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                  onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de saber mais sobre os chopps disponíveis.')}`, '_blank')}
-                >
-                  <MessageCircle className="w-4 h-4 mr-2" /> Perguntar no WhatsApp
-                </Button>
-              </motion.div>
-            )}
+                Perguntar no WhatsApp <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </div>
+      </section>
+
+      {/* ═══ SOCIAL PROOF — Minimal editorial ═══ */}
+      <section className="border-t border-white/[0.06]">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-24 sm:py-32">
+          <Reveal>
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-16">
+              <div>
+                <p className="text-[11px] tracking-[0.3em] uppercase text-amber-400/60 mb-6">Depoimentos</p>
+                <h2 className="text-3xl sm:text-4xl font-extralight tracking-[-0.02em] mb-4">
+                  Quem prova,<br /><span className="font-bold">recomenda.</span>
+                </h2>
+                <div className="flex items-center gap-2 mt-6">
+                  <div className="flex -space-x-1">
+                    {[1,2,3,4,5].map(i => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <span className="text-sm text-white/30 font-light">4.9 média</span>
+                </div>
+                <p className="text-white/20 text-sm font-light mt-2">+500 clientes atendidos</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-[1px] bg-white/[0.04] rounded-xl overflow-hidden">
+                {testimonials.map((t, i) => (
+                  <Reveal key={t.name} delay={i * 0.1}>
+                    <div className="bg-[#060606] p-8 h-full flex flex-col justify-between min-h-[220px]">
+                      <p className="text-sm text-white/40 font-light leading-relaxed italic">
+                        "{t.text}"
+                      </p>
+                      <div className="mt-6 pt-4 border-t border-white/[0.04]">
+                        <p className="text-sm font-medium text-white/70">{t.name}</p>
+                        <p className="text-[10px] tracking-[0.15em] uppercase text-white/20 mt-1">{t.event}</p>
+                      </div>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ═══ TRUST — Horizontal strip ═══ */}
+      <section className="border-t border-white/[0.06]">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.06]">
+            {[
+              { icon: Truck, label: 'Entrega', desc: 'Mesmo dia em Taubaté' },
+              { icon: Shield, label: 'Qualidade', desc: 'Ashby premiada mundial' },
+              { icon: Award, label: 'Oficial', desc: '100% original de fábrica' },
+            ].map((item, i) => (
+              <Reveal key={item.label} delay={i * 0.1}>
+                <div className="px-8 py-10 flex items-center gap-5 group">
+                  <div className="w-12 h-12 rounded-full border border-white/[0.08] flex items-center justify-center group-hover:border-amber-500/30 group-hover:bg-amber-500/[0.04] transition-all duration-500">
+                    <item.icon className="w-5 h-5 text-white/30 group-hover:text-amber-400/80 transition-colors duration-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white/70">{item.label}</p>
+                    <p className="text-[11px] text-white/20 font-light">{item.desc}</p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
 
-      <WaveDivider flip className="relative z-10" />
-
-      {/* ═══════════════════════════════════════
-          PROVA SOCIAL
-      ═══════════════════════════════════════ */}
-      <Section className="py-16 sm:py-24 bg-gradient-to-b from-transparent via-amber-500/[0.02] to-transparent">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }} className="text-center mb-12">
-            <motion.div variants={fadeUp}>
-              <Badge className="mb-4 bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs px-4 py-1">
-                <Star className="w-3 h-3 mr-1.5 fill-amber-400" /> Avaliações
-              </Badge>
-            </motion.div>
-            <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl font-black mb-3">
-              O que nossos <span className="text-amber-400">clientes</span> dizem
-            </motion.h2>
-            <motion.p variants={fadeUp} className="text-white/40 max-w-md mx-auto">
-              Mais de 500 clientes satisfeitos em Taubaté e região.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6"
-          >
-            {testimonials.map((t, i) => (
-              <motion.div
-                key={t.name}
-                variants={fadeUp}
-                custom={i}
-                className="relative p-6 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm hover:border-amber-500/20 transition-all duration-500 group"
-              >
-                <div className="flex items-center gap-1 mb-4">
-                  {Array.from({ length: t.rating }).map((_, j) => (
-                    <Star key={j} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-white/60 mb-4 leading-relaxed italic">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500/30 to-amber-600/10 flex items-center justify-center text-amber-400 font-bold text-sm">
-                    {t.name[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white/80">{t.name}</p>
-                    <p className="text-xs text-white/30">{t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </Section>
-
-      <WaveDivider className="relative z-10" />
-
-      {/* ═══════════════════════════════════════
-          TRUST PREMIUM
-      ═══════════════════════════════════════ */}
-      <Section className="py-16 sm:py-24">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-6"
-          >
-            {[
-              { icon: Truck, title: 'Entrega Rápida', desc: 'Taubaté e região com agilidade', stat: 'Mesmo dia' },
-              { icon: Shield, title: 'Qualidade Ashby', desc: 'Cervejaria premiada internacionalmente', stat: 'Desde 1993' },
-              { icon: Award, title: 'Distribuidor Oficial', desc: 'Produtos originais direto da fábrica', stat: '100% original' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                variants={fadeUp}
-                custom={i}
-                className="group text-center p-8 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm hover:border-amber-500/20 hover:bg-white/[0.05] transition-all duration-500"
-              >
-                <motion.div
-                  className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 mb-4 group-hover:bg-amber-500/20 transition-colors"
-                  whileHover={{ rotate: 10, scale: 1.1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <item.icon className="w-6 h-6 text-amber-400" />
-                </motion.div>
-                <h4 className="text-sm font-bold text-white/80 mb-1">{item.title}</h4>
-                <p className="text-xs text-white/30 mb-3">{item.desc}</p>
-                <span className="text-xs font-bold text-amber-400/80">{item.stat}</span>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </Section>
-
-      {/* ═══════════════════════════════════════
-          CTA FINAL
-      ═══════════════════════════════════════ */}
-      <Section className="py-16 sm:py-24">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
-            className="relative rounded-3xl overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-400" />
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgwLDAsMCwwLjA1KSIvPjwvc3ZnPg==')] opacity-50" />
-            <div className="relative p-8 sm:p-12 text-center">
-              <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <MessageCircle className="w-12 h-12 mx-auto mb-4 text-black/70" />
-              </motion.div>
-              <h3 className="text-2xl sm:text-3xl font-black text-black mb-3">
-                Não encontrou o que procura?
-              </h3>
-              <p className="text-black/60 text-sm sm:text-base max-w-md mx-auto mb-8">
-                Fale diretamente com a gente! Temos condições especiais para eventos e pedidos em grande quantidade.
+      {/* ═══ CTA — Big editorial block ═══ */}
+      <section className="border-t border-white/[0.06]">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-24 sm:py-32">
+          <Reveal>
+            <div className="text-center max-w-xl mx-auto">
+              <p className="text-[11px] tracking-[0.3em] uppercase text-amber-400/60 mb-8">Atendimento</p>
+              <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extralight tracking-[-0.03em] leading-[1.1] mb-8">
+                Não encontrou?<br />
+                <span className="font-bold italic">Fale conosco.</span>
+              </h2>
+              <p className="text-white/25 font-light text-base mb-10 leading-relaxed">
+                Condições especiais para eventos, festas e pedidos em grande quantidade.
               </p>
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Button
-                  size="lg"
-                  className="rounded-full bg-black hover:bg-black/80 text-amber-400 font-bold px-10 h-14 shadow-xl text-base"
-                  onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de um atendimento personalizado.')}`, '_blank')}
-                >
-                  <MessageCircle className="w-5 h-5 mr-2" />
-                  Falar no WhatsApp
-                </Button>
-              </motion.div>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="h-14 px-10 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-semibold text-sm inline-flex items-center gap-3 shadow-2xl shadow-amber-500/20 transition-colors"
+                onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Olá! Gostaria de um atendimento personalizado.')}`, '_blank')}
+              >
+                <MessageCircle className="w-5 h-5" />
+                Falar no WhatsApp
+              </motion.button>
             </div>
-          </motion.div>
+          </Reveal>
         </div>
-      </Section>
+      </section>
 
-      {/* ═══════════════════════════════════════
-          FOOTER COMPLETO
-      ═══════════════════════════════════════ */}
-      <footer className="border-t border-white/5 pt-16 pb-8 relative">
-        <FloatingOrb className="w-[300px] h-[300px] bg-amber-500/[0.02] blur-[80px] bottom-0 left-[10%]" delay={0} duration={20} />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-            {/* Brand */}
+      {/* ═══ FOOTER — Clean editorial ═══ */}
+      <footer className="border-t border-white/[0.06]">
+        <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <img src={logoTaubateChopp} alt="Taubaté Chopp" className="h-10 w-10 rounded-full object-cover ring-2 ring-amber-500/20" />
+                <img src={logoTaubateChopp} alt="" className="h-9 w-9 rounded-full object-cover" />
                 <div>
-                  <span className="text-sm font-bold text-white block">TAUBATÉ CHOPP</span>
-                  <span className="text-[10px] text-amber-400/60 tracking-widest uppercase">Distribuidor Ashby</span>
+                  <span className="text-[11px] tracking-[0.2em] uppercase font-medium block">Taubaté Chopp</span>
+                  <span className="text-[9px] tracking-[0.15em] uppercase text-amber-400/40">Distribuidor Ashby</span>
                 </div>
               </div>
-              <p className="text-xs text-white/30 leading-relaxed">
+              <p className="text-xs text-white/15 leading-relaxed font-light">
                 Distribuidor oficial da Cervejaria Ashby em Taubaté e região do Vale do Paraíba.
               </p>
             </div>
-
-            {/* Links */}
             <div>
-              <h5 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-4">Navegação</h5>
-              <div className="space-y-2">
-                <Link to="/" className="block text-sm text-white/30 hover:text-amber-400 transition-colors">Página Inicial</Link>
-                <Link to="/produtos" className="block text-sm text-white/30 hover:text-amber-400 transition-colors">Catálogo Completo</Link>
-                <Link to="/auth" className="block text-sm text-white/30 hover:text-amber-400 transition-colors">Área do Cliente</Link>
+              <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mb-5">Links</p>
+              <div className="space-y-3">
+                <Link to="/" className="block text-sm text-white/20 hover:text-white/60 transition-colors font-light">Home</Link>
+                <Link to="/produtos" className="block text-sm text-white/20 hover:text-white/60 transition-colors font-light">Produtos</Link>
+                <Link to="/auth" className="block text-sm text-white/20 hover:text-white/60 transition-colors font-light">Área do Cliente</Link>
               </div>
             </div>
-
-            {/* Contato */}
             <div>
-              <h5 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-4">Contato</h5>
+              <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mb-5">Contato</p>
               <div className="space-y-3">
-                <a href={`tel:${PHONE_DISPLAY.replace(/\D/g, '')}`} className="flex items-center gap-2 text-sm text-white/30 hover:text-amber-400 transition-colors">
+                <a href={`tel:${PHONE_DISPLAY.replace(/\D/g, '')}`} className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
                   <Phone className="w-3.5 h-3.5" /> {PHONE_DISPLAY}
                 </a>
-                <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-white/30 hover:text-amber-400 transition-colors">
+                <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                 </a>
-                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-white/30 hover:text-amber-400 transition-colors">
+                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm text-white/20 hover:text-white/60 transition-colors font-light">
                   <Instagram className="w-3.5 h-3.5" /> @taubatechopp
                 </a>
               </div>
             </div>
-
-            {/* Endereço */}
             <div>
-              <h5 className="text-xs font-bold text-white/60 uppercase tracking-wider mb-4">Localização</h5>
-              <div className="flex items-start gap-2 text-sm text-white/30">
+              <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mb-5">Localização</p>
+              <div className="flex items-start gap-2.5 text-sm text-white/20 font-light">
                 <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>{ADDRESS}</span>
               </div>
-              <div className="mt-3 flex items-center gap-2 text-sm text-white/30">
+              <div className="flex items-center gap-2.5 text-sm text-white/20 font-light mt-3">
                 <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>Seg-Sáb: 8h às 18h</span>
+                <span>Seg — Sáb: 8h às 18h</span>
               </div>
             </div>
           </div>
-
-          <div className="border-t border-white/5 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span className="text-xs text-white/20">© 2025 Taubaté Chopp — Distribuidor Oficial Ashby. Todos os direitos reservados.</span>
-            <span className="text-xs text-white/20">Beba com moderação</span>
+          <div className="border-t border-white/[0.04] pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-[10px] text-white/10 tracking-wider">© 2025 Taubaté Chopp. Todos os direitos reservados.</span>
+            <span className="text-[10px] text-white/10 tracking-wider">Beba com moderação</span>
           </div>
         </div>
       </footer>
 
-      {/* ═══════════════════════════════════════
-          FLOATING CART (MOBILE)
-      ═══════════════════════════════════════ */}
+      {/* ═══ CART SHEET ═══ */}
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent className="w-full sm:max-w-[420px] flex flex-col bg-[#0a0a0a] border-white/[0.04] text-white p-0">
+          <div className="px-6 pt-6 pb-4 border-b border-white/[0.04]">
+            <SheetHeader>
+              <SheetTitle className="flex items-center justify-between text-white">
+                <span className="text-[11px] tracking-[0.2em] uppercase font-medium">
+                  Sacola ({cartCount})
+                </span>
+              </SheetTitle>
+            </SheetHeader>
+          </div>
+
+          {cart.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+              <ShoppingCart className="w-12 h-12 text-white/[0.06] mb-6" />
+              <p className="text-sm text-white/30 font-light">Sua sacola está vazia</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                <AnimatePresence>
+                  {cart.map(item => {
+                    const meta = getProductMeta(item.nome);
+                    return (
+                      <motion.div
+                        key={item.id}
+                        layout
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20, height: 0 }}
+                        className="flex items-center gap-4"
+                      >
+                        <img src={meta.image} alt={item.nome} className="w-16 h-16 rounded-lg object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{item.nome}</p>
+                          <p className="text-xs text-white/25 mt-0.5">
+                            R$ {item.preco.toFixed(2)} × {item.quantidade}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            className="w-7 h-7 rounded-full bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center transition-colors"
+                            onClick={() => updateQuantity(item.id, -1)}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-xs font-medium w-5 text-center">{item.quantidade}</span>
+                          <button
+                            className="w-7 h-7 rounded-full bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center transition-colors"
+                            onClick={() => updateQuantity(item.id, 1)}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="w-7 h-7 rounded-full hover:bg-red-500/10 flex items-center justify-center text-white/20 hover:text-red-400 transition-colors ml-1"
+                            onClick={() => removeFromCart(item.id)}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+              <div className="px-6 py-5 border-t border-white/[0.04] space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] tracking-[0.15em] uppercase text-white/30">Total</span>
+                  <span className="text-2xl font-extralight">R$ {cartTotal.toFixed(2)}</span>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full h-13 rounded-full bg-[#25D366] hover:bg-[#20BD5A] text-white font-semibold text-sm flex items-center justify-center gap-2.5 transition-colors"
+                  onClick={sendToWhatsApp}
+                >
+                  <MessageCircle className="w-4.5 h-4.5" />
+                  Finalizar pelo WhatsApp
+                </motion.button>
+                <p className="text-[10px] text-white/10 text-center">Redirecionamento para confirmar no WhatsApp</p>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ═══ FLOATING CART — Mobile ═══ */}
       <AnimatePresence>
         {cartCount > 0 && (
           <motion.div
@@ -988,18 +718,18 @@ export default function Ecommerce() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 left-4 right-4 z-50 sm:hidden"
+            className="fixed bottom-5 left-4 right-4 z-50 sm:hidden"
           >
             <motion.button
               whileTap={{ scale: 0.97 }}
-              className="w-full h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm shadow-2xl shadow-amber-500/40 flex items-center justify-between px-5 transition-all"
+              className="w-full h-[52px] rounded-full bg-white text-black font-medium text-sm flex items-center justify-between px-5 shadow-2xl shadow-black/50"
               onClick={() => setCartOpen(true)}
             >
-              <span className="flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
-                Ver Carrinho ({cartCount})
+              <span className="flex items-center gap-2.5">
+                <ShoppingCart className="w-4 h-4" />
+                Ver sacola ({cartCount})
               </span>
-              <span className="font-black text-base">R$ {cartTotal.toFixed(2)}</span>
+              <span className="font-bold">R$ {cartTotal.toFixed(2)}</span>
             </motion.button>
           </motion.div>
         )}
