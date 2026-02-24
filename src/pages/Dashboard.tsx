@@ -4,7 +4,7 @@ import { PageLayout } from '@/components/layout/PageLayout';
 import { DashboardKPIsEnhanced } from '@/components/dashboard/DashboardKPIsEnhanced';
 import { DashboardMobile } from '@/components/dashboard/DashboardMobile';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
-import { CashFlowChart } from '@/components/dashboard/CashFlowChart';
+import { CashFlowTimeline } from '@/components/dashboard/CashFlowTimeline';
 import { LeadFunnelChart } from '@/components/dashboard/LeadFunnelChart';
 import { RankingsPanel } from '@/components/dashboard/RankingsPanel';
 import { PedidosTimeline } from '@/components/dashboard/PedidosTimeline';
@@ -197,17 +197,17 @@ export default function Dashboard() {
             <EvolutionChart data={evolutionData} />
           </div>
 
-          {/* Cash Flow + Lead Funnel */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <CashFlowChart data={cashFlowForecast} />
-            {dashboardData && (
-              <LeadFunnelChart
-                data={leadFunnel}
-                totalLeads={dashboardData.leads.total}
-                taxaConversao={dashboardData.leads.conversao}
-              />
-            )}
-          </div>
+          {/* Full-width Dynamic Cash Flow */}
+          <CashFlowTimeline />
+
+          {/* Lead Funnel */}
+          {dashboardData && (
+            <LeadFunnelChart
+              data={leadFunnel}
+              totalLeads={dashboardData.leads.total}
+              taxaConversao={dashboardData.leads.conversao}
+            />
+          )}
 
           {/* Rankings + Pedidos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
