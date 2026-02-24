@@ -18,6 +18,7 @@ import choppPilsen from '@/assets/chopp-pilsen.jpg';
 import choppAle from '@/assets/chopp-ale.jpg';
 import choppIpa from '@/assets/chopp-ipa.jpg';
 import choppWeiss from '@/assets/chopp-weiss.jpg';
+import heroBanner from '@/assets/hero-banner.jpg';
 
 const PHONE_NUMBER = '+55 12 3432-6712';
 const WHATSAPP_NUMBER = '551234326712';
@@ -236,19 +237,19 @@ export default function InstitucionalHome() {
         </div>
       </motion.nav>
 
-      {/* ── Hero with parallax ── */}
+      {/* ── Hero with parallax + banner ── */}
       <section className="relative min-h-[92vh] flex items-center pt-16 overflow-hidden">
-        {/* Animated gradient orbs */}
+        {/* Background image with overlay */}
         <motion.div
-          className="absolute top-20 -right-32 w-[500px] h-[500px] rounded-full bg-primary/8 blur-[100px]"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute -bottom-20 -left-32 w-[400px] h-[400px] rounded-full bg-primary/5 blur-[80px]"
-          animate={{ scale: [1.2, 1, 1.2], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        />
+          className="absolute inset-0"
+          initial={{ scale: 1.1 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <img src={heroBanner} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/60" />
+        </motion.div>
 
         <motion.div style={{ y: heroParallax }} className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32 w-full">
           <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-3xl">
