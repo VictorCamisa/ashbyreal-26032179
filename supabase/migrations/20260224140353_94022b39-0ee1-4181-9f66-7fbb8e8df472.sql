@@ -1,0 +1,1 @@
+UPDATE barris SET localizacao = 'ASHBY' WHERE localizacao = 'FABRICA';
