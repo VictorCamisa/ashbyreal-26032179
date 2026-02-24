@@ -24,20 +24,20 @@ export default function Barris() {
 
   const computed = useMemo(() => {
     const all = barris || [];
-    const fabrica = all.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA');
-    const fabricaAshby = all.filter(b => b.localizacao === 'ASHBY');
-    const fabricaDtv = all.filter(b => b.localizacao === 'DATTA_VALE');
+    // Fábrica = marca (prefixo do código), não localização
+    const ashby = all.filter(b => b.codigo.startsWith('ASH'));
+    const dtv = all.filter(b => b.codigo.startsWith('DTV'));
     const loja = all.filter(b => b.localizacao === 'LOJA');
     const clientes = all.filter(b => b.localizacao === 'CLIENTE');
     const clientesUnicos = new Set(clientes.filter(b => b.cliente_id).map(b => b.cliente_id)).size;
 
-    return { fabrica, fabricaAshby, fabricaDtv, loja, clientes, clientesUnicos };
+    return { ashby, dtv, loja, clientes, clientesUnicos };
   }, [barris]);
 
   const fabricaFiltered = useMemo(() => {
-    if (fabricaSub === 'ashby') return computed.fabricaAshby;
-    if (fabricaSub === 'datta_vale') return computed.fabricaDtv;
-    return computed.fabrica;
+    if (fabricaSub === 'ashby') return computed.ashby;
+    if (fabricaSub === 'datta_vale') return computed.dtv;
+    return [...computed.ashby, ...computed.dtv];
   }, [fabricaSub, computed]);
 
   return (
@@ -66,7 +66,7 @@ export default function Barris() {
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{computed.fabrica.length}</div>
+              <div className="text-2xl font-bold">{computed.ashby.length + computed.dtv.length}</div>
             )}
           </CardContent>
         </Card>
@@ -112,7 +112,7 @@ export default function Barris() {
                   Todos ({barris?.length || 0})
                 </TabsTrigger>
                 <TabsTrigger value="fabrica" className="text-xs sm:text-sm">
-                  🏭 Fábrica ({computed.fabrica.length})
+                  🏭 Fábrica ({computed.ashby.length + computed.dtv.length})
                 </TabsTrigger>
                 <TabsTrigger value="loja" className="text-xs sm:text-sm">
                   🏪 Loja ({computed.loja.length})
@@ -132,19 +132,19 @@ export default function Barris() {
                   onClick={() => setFabricaSub('todas')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'todas' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                 >
-                  Todas ({computed.fabrica.length})
+                  Todas ({computed.ashby.length + computed.dtv.length})
                 </button>
                 <button
                   onClick={() => setFabricaSub('ashby')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'ashby' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                 >
-                  🔵 Ashby ({computed.fabricaAshby.length})
+                  🔵 Ashby ({computed.ashby.length})
                 </button>
                 <button
                   onClick={() => setFabricaSub('datta_vale')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'datta_vale' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                 >
-                  🟡 Datta Vale ({computed.fabricaDtv.length})
+                  🟡 Datta Vale ({computed.dtv.length})
                 </button>
               </div>
               <BarrisTable barris={fabricaFiltered} onViewHistory={handleViewMovimentacoes} />
