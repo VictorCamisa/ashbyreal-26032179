@@ -159,7 +159,7 @@ export function useBarrisMutations() {
 
   const transferirBarrilManual = async (
     barrilId: string,
-    novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE',
+    novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE' | 'DATTA_VALE' | 'ASHBY',
     clienteId?: string | null,
     observacoes?: string
   ) => {
@@ -211,7 +211,7 @@ export function useBarrisMutations() {
 
       toast({
         title: 'Barril transferido',
-        description: `Barril movido para ${novaLocalizacao === 'LOJA' ? 'loja' : novaLocalizacao === 'FABRICA' ? 'fábrica' : 'cliente'}`
+        description: `Barril movido para ${novaLocalizacao === 'LOJA' ? 'loja' : novaLocalizacao === 'DATTA_VALE' ? 'Datta Vale' : novaLocalizacao === 'ASHBY' ? 'Ashby' : novaLocalizacao === 'FABRICA' ? 'fábrica' : 'cliente'}`
       });
 
       return true;
@@ -232,7 +232,8 @@ export function useBarrisMutations() {
   const criarBarrisDaFabrica = async (
     quantidade: number,
     capacidade: number,
-    prefixoCodigo: string = 'BR'
+    prefixoCodigo: string = 'BR',
+    fabrica: 'DATTA_VALE' | 'ASHBY' = 'DATTA_VALE'
   ) => {
     setIsLoading(true);
 
@@ -278,10 +279,10 @@ export function useBarrisMutations() {
             barril_id: novoBarril.id,
             tipo_movimento: 'ENTRADA',
             status_conteudo: 'CHEIO',
-            localizacao_anterior: 'FABRICA',
+            localizacao_anterior: fabrica,
             localizacao_nova: 'LOJA',
             data_movimento: new Date().toISOString(),
-            observacoes: 'Entrada da fábrica - barril novo'
+            observacoes: `Entrada da fábrica ${fabrica === 'DATTA_VALE' ? 'Datta Vale' : 'Ashby'} - barril novo`
           });
 
         if (movError) throw movError;
@@ -395,10 +396,11 @@ export function useBarrisMutations() {
   const processarEntradaChopp = async (
     quantidade: number,
     capacidade: number,
-    modo: 'criar' | 'encher'
+    modo: 'criar' | 'encher',
+    fabrica: 'DATTA_VALE' | 'ASHBY' = 'DATTA_VALE'
   ) => {
     if (modo === 'criar') {
-      return await criarBarrisDaFabrica(quantidade, capacidade);
+      return await criarBarrisDaFabrica(quantidade, capacidade, 'BR', fabrica);
     } else {
       return await encherBarrisVazios(quantidade, capacidade);
     }

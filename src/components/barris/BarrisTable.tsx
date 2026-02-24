@@ -91,7 +91,7 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
     await atualizarStatusBarril(barril.id, novoStatus);
   };
 
-  const handleLocalizacaoChange = async (barril: Barril, novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE') => {
+  const handleLocalizacaoChange = async (barril: Barril, novaLocalizacao: 'FABRICA' | 'LOJA' | 'CLIENTE' | 'DATTA_VALE' | 'ASHBY') => {
     if (barril.localizacao === novaLocalizacao) return;
     
     // Se for para cliente, mantém o cliente_id atual (se houver)
@@ -120,14 +120,16 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
         </div>
         
         <Select value={filterLocalizacao} onValueChange={setFilterLocalizacao}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Localização" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas</SelectItem>
-            <SelectItem value="FABRICA">Na Fábrica</SelectItem>
+            <SelectItem value="DATTA_VALE">Datta Vale</SelectItem>
+            <SelectItem value="ASHBY">Ashby</SelectItem>
             <SelectItem value="LOJA">Na Loja</SelectItem>
             <SelectItem value="CLIENTE">Com Cliente</SelectItem>
+            <SelectItem value="FABRICA">Fábrica (legado)</SelectItem>
           </SelectContent>
         </Select>
 
@@ -167,15 +169,19 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
                 <TableCell>
                   <Select
                     value={barril.localizacao}
-                    onValueChange={(value: 'FABRICA' | 'LOJA' | 'CLIENTE') => 
+                    onValueChange={(value: 'FABRICA' | 'LOJA' | 'CLIENTE' | 'DATTA_VALE' | 'ASHBY') => 
                       handleLocalizacaoChange(barril, value)
                     }
                     disabled={isLoading}
                   >
-                    <SelectTrigger className="w-[130px] h-8">
+                    <SelectTrigger className="w-[140px] h-8">
                       <SelectValue>
                         <span className="flex items-center gap-1.5">
-                          {barril.localizacao === 'FABRICA' ? (
+                          {barril.localizacao === 'DATTA_VALE' ? (
+                            <><Factory className="h-3 w-3" /> Datta Vale</>
+                          ) : barril.localizacao === 'ASHBY' ? (
+                            <><Factory className="h-3 w-3" /> Ashby</>
+                          ) : barril.localizacao === 'FABRICA' ? (
                             <><Factory className="h-3 w-3" /> Fábrica</>
                           ) : barril.localizacao === 'LOJA' ? (
                             <><Store className="h-3 w-3" /> Loja</>
@@ -186,9 +192,14 @@ export function BarrisTable({ barris, onViewHistory }: BarrisTableProps) {
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="FABRICA">
+                      <SelectItem value="DATTA_VALE">
                         <span className="flex items-center gap-2">
-                          <Factory className="h-4 w-4" /> Fábrica
+                          <Factory className="h-4 w-4" /> Datta Vale
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="ASHBY">
+                        <span className="flex items-center gap-2">
+                          <Factory className="h-4 w-4" /> Ashby
                         </span>
                       </SelectItem>
                       <SelectItem value="LOJA">

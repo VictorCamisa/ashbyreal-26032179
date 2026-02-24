@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-export type BarrilLocalizacao = 'FABRICA' | 'LOJA' | 'CLIENTE';
+export type BarrilLocalizacao = 'FABRICA' | 'LOJA' | 'CLIENTE' | 'DATTA_VALE' | 'ASHBY';
 export type BarrilStatusConteudo = 'CHEIO' | 'VAZIO';
 export type BarrilTipoMovimento = 'ENTRADA' | 'SAIDA' | 'RETORNO' | 'ENCHIMENTO';
 
@@ -99,11 +99,13 @@ export function useBarrisStats() {
       const now = new Date();
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       
+      const isFabrica = (loc: string) => loc === 'FABRICA' || loc === 'DATTA_VALE' || loc === 'ASHBY';
+      
       const stats: BarrisStats = {
         total: data.length,
-        naFabrica: data.filter(b => b.localizacao === 'FABRICA').length,
-        naFabricaCheia: data.filter(b => b.localizacao === 'FABRICA' && b.status_conteudo === 'CHEIO').length,
-        naFabricaVazia: data.filter(b => b.localizacao === 'FABRICA' && b.status_conteudo === 'VAZIO').length,
+        naFabrica: data.filter(b => isFabrica(b.localizacao)).length,
+        naFabricaCheia: data.filter(b => isFabrica(b.localizacao) && b.status_conteudo === 'CHEIO').length,
+        naFabricaVazia: data.filter(b => isFabrica(b.localizacao) && b.status_conteudo === 'VAZIO').length,
         naLoja: data.filter(b => b.localizacao === 'LOJA').length,
         naLojaCheia: data.filter(b => b.localizacao === 'LOJA' && b.status_conteudo === 'CHEIO').length,
         naLojaVazia: data.filter(b => b.localizacao === 'LOJA' && b.status_conteudo === 'VAZIO').length,

@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Barril, useBarrilMovimentacoes } from '@/hooks/useBarris';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowRight, Package, User, Store, Droplet } from 'lucide-react';
+import { ArrowRight, Package, User, Store, Droplet, Factory } from 'lucide-react';
 
 interface MovimentacoesSheetProps {
   barril: Barril | null;
@@ -84,20 +84,30 @@ export function MovimentacoesSheet({ barril, open, onOpenChange }: Movimentacoes
                   <div className="flex items-center gap-2 text-sm my-3">
                     <div className="flex items-center gap-1">
                       {mov.localizacao_anterior === 'LOJA' ? (
-                        <Store className="h-4 w-4 text-muted-foreground" />
+                        <><Store className="h-4 w-4 text-muted-foreground" /><span>Loja</span></>
+                      ) : mov.localizacao_anterior === 'DATTA_VALE' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Datta Vale</span></>
+                      ) : mov.localizacao_anterior === 'ASHBY' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Ashby</span></>
+                      ) : mov.localizacao_anterior === 'FABRICA' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Fábrica</span></>
                       ) : (
-                        <User className="h-4 w-4 text-muted-foreground" />
+                        <><User className="h-4 w-4 text-muted-foreground" /><span>Cliente</span></>
                       )}
-                      <span>{mov.localizacao_anterior === 'LOJA' ? 'Loja' : 'Cliente'}</span>
                     </div>
                     <ArrowRight className="h-4 w-4 text-muted-foreground" />
                     <div className="flex items-center gap-1">
                       {mov.localizacao_nova === 'LOJA' ? (
-                        <Store className="h-4 w-4 text-muted-foreground" />
+                        <><Store className="h-4 w-4 text-muted-foreground" /><span>Loja</span></>
+                      ) : mov.localizacao_nova === 'DATTA_VALE' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Datta Vale</span></>
+                      ) : mov.localizacao_nova === 'ASHBY' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Ashby</span></>
+                      ) : mov.localizacao_nova === 'FABRICA' ? (
+                        <><Factory className="h-4 w-4 text-muted-foreground" /><span>Fábrica</span></>
                       ) : (
-                        <User className="h-4 w-4 text-muted-foreground" />
+                        <><User className="h-4 w-4 text-muted-foreground" /><span>Cliente</span></>
                       )}
-                      <span>{mov.localizacao_nova === 'LOJA' ? 'Loja' : 'Cliente'}</span>
                     </div>
                   </div>
 

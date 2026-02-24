@@ -21,6 +21,8 @@ export default function Barris() {
     setMovimentacoesOpen(true);
   };
 
+  const isFabrica = (loc: string) => loc === 'FABRICA' || loc === 'DATTA_VALE' || loc === 'ASHBY';
+  const naFabricaTotal = stats?.naFabrica || 0;
   const naFabricaCheios = stats?.naFabricaCheia || 0;
   const naFabricaVazios = stats?.naFabricaVazia || 0;
   const naLojaCheios = stats?.naLojaCheia || 0;
@@ -54,7 +56,7 @@ export default function Barris() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Na Fábrica</CardTitle>
+            <CardTitle className="text-sm font-medium">Nas Fábricas</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -143,8 +145,11 @@ export default function Barris() {
                 <TabsTrigger value="todos" className="text-xs sm:text-sm">
                   Todos ({barris?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="fabrica" className="text-xs sm:text-sm">
-                  Fábrica ({naFabricaCheios + naFabricaVazios})
+                <TabsTrigger value="datta_vale" className="text-xs sm:text-sm">
+                  Datta Vale ({(barris || []).filter(b => b.localizacao === 'DATTA_VALE').length})
+                </TabsTrigger>
+                <TabsTrigger value="ashby" className="text-xs sm:text-sm">
+                  Ashby ({(barris || []).filter(b => b.localizacao === 'ASHBY').length})
                 </TabsTrigger>
                 <TabsTrigger value="loja" className="text-xs sm:text-sm">
                   Loja ({naLojaCheios + naLojaVazios})
@@ -162,9 +167,16 @@ export default function Barris() {
               />
             </TabsContent>
             
-            <TabsContent value="fabrica">
+            <TabsContent value="datta_vale">
               <BarrisTable 
-                barris={(barris || []).filter(b => b.localizacao === 'FABRICA')} 
+                barris={(barris || []).filter(b => b.localizacao === 'DATTA_VALE')} 
+                onViewHistory={handleViewMovimentacoes}
+              />
+            </TabsContent>
+            
+            <TabsContent value="ashby">
+              <BarrisTable 
+                barris={(barris || []).filter(b => b.localizacao === 'ASHBY')} 
                 onViewHistory={handleViewMovimentacoes}
               />
             </TabsContent>

@@ -13,6 +13,13 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, Package, RefreshCw, Plus, Factory, Store, Info } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useBarrisMutations } from '@/hooks/useBarrisMutations';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -36,6 +43,7 @@ export function ProcessarChoppBoletoDialog({
   onProcessed
 }: ProcessarChoppBoletoDialogProps) {
   const [modo, setModo] = useState<'criar' | 'encher'>('encher');
+  const [fabricaSelecionada, setFabricaSelecionada] = useState<'DATTA_VALE' | 'ASHBY'>('DATTA_VALE');
   const [barrisVaziosDisponiveis, setBarrisVaziosDisponiveis] = useState<Record<number, number>>({});
   const [isLoadingCheck, setIsLoadingCheck] = useState(false);
   const { processarEntradaChopp, isLoading } = useBarrisMutations();
@@ -75,7 +83,7 @@ export function ProcessarChoppBoletoDialog({
   const handleProcessar = async () => {
     try {
       for (const item of items) {
-        await processarEntradaChopp(item.quantidade, item.capacidade, modo);
+        await processarEntradaChopp(item.quantidade, item.capacidade, modo, fabricaSelecionada);
       }
       onOpenChange(false);
       onProcessed?.();
@@ -176,6 +184,30 @@ export function ProcessarChoppBoletoDialog({
                 </label>
               </div>
             </RadioGroup>
+
+            {/* Seleção de fábrica quando modo = criar */}
+            {modo === 'criar' && (
+              <div className="space-y-2 pl-7">
+                <Label className="text-sm">De qual fábrica?</Label>
+                <Select value={fabricaSelecionada} onValueChange={(v) => setFabricaSelecionada(v as 'DATTA_VALE' | 'ASHBY')}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DATTA_VALE">
+                      <span className="flex items-center gap-2">
+                        <Factory className="h-4 w-4" /> Datta Vale
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="ASHBY">
+                      <span className="flex items-center gap-2">
+                        <Factory className="h-4 w-4" /> Ashby
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Aviso se não tem barris suficientes */}
             {modo === 'encher' && !temBarrisSuficientes && !isLoadingCheck && (
