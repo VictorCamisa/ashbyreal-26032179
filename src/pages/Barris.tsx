@@ -20,15 +20,25 @@ export default function Barris() {
     setMovimentacoesOpen(true);
   };
 
+  const [fabricaSub, setFabricaSub] = useState<string>('todas');
+
   const computed = useMemo(() => {
     const all = barris || [];
     const fabrica = all.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA');
+    const fabricaAshby = all.filter(b => b.localizacao === 'ASHBY');
+    const fabricaDtv = all.filter(b => b.localizacao === 'DATTA_VALE');
     const loja = all.filter(b => b.localizacao === 'LOJA');
     const clientes = all.filter(b => b.localizacao === 'CLIENTE');
     const clientesUnicos = new Set(clientes.filter(b => b.cliente_id).map(b => b.cliente_id)).size;
 
-    return { fabrica, loja, clientes, clientesUnicos };
+    return { fabrica, fabricaAshby, fabricaDtv, loja, clientes, clientesUnicos };
   }, [barris]);
+
+  const fabricaFiltered = useMemo(() => {
+    if (fabricaSub === 'ashby') return computed.fabricaAshby;
+    if (fabricaSub === 'datta_vale') return computed.fabricaDtv;
+    return computed.fabrica;
+  }, [fabricaSub, computed]);
 
   return (
     <PageLayout 
@@ -117,7 +127,27 @@ export default function Barris() {
               <BarrisTable barris={barris || []} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
             <TabsContent value="fabrica">
-              <BarrisTable barris={computed.fabrica} onViewHistory={handleViewMovimentacoes} />
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setFabricaSub('todas')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'todas' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                >
+                  Todas ({computed.fabrica.length})
+                </button>
+                <button
+                  onClick={() => setFabricaSub('ashby')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'ashby' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                >
+                  🔵 Ashby ({computed.fabricaAshby.length})
+                </button>
+                <button
+                  onClick={() => setFabricaSub('datta_vale')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'datta_vale' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                >
+                  🟡 Datta Vale ({computed.fabricaDtv.length})
+                </button>
+              </div>
+              <BarrisTable barris={fabricaFiltered} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
             <TabsContent value="loja">
               <BarrisTable barris={computed.loja} onViewHistory={handleViewMovimentacoes} />
