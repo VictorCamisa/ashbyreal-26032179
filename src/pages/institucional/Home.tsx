@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring, AnimatePresence } from 'framer-motion';
 import { 
   Beer, Award, Truck, Clock, ChevronRight, Star, MapPin, Phone, Mail,
   MessageCircle, Calculator, Users, Minus, Plus, Send, Instagram,
-  Loader2, ShoppingCart, ArrowDown
+  Loader2, ShoppingCart, ArrowDown, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,6 @@ import choppPilsen from '@/assets/chopp-pilsen.jpg';
 import choppAle from '@/assets/chopp-ale.jpg';
 import choppIpa from '@/assets/chopp-ipa.jpg';
 import choppWeiss from '@/assets/chopp-weiss.jpg';
-import heroBanner from '@/assets/hero-banner.jpg';
 
 const PHONE_NUMBER = '+55 12 3432-6712';
 const WHATSAPP_NUMBER = '551234326712';
@@ -135,6 +134,46 @@ function WaveDivider({ flip = false, className = '' }: { flip?: boolean; classNa
   );
 }
 
+// ── Typewriter hook ──
+const PHRASES = [
+  'Chopp premium para seu evento',
+  'A tradição Ashby na sua festa',
+  'Entrega rápida em Taubaté e região',
+  'Em breve novidades...',
+  'Mas um spoiler: teremos muita CERVEJA por aqui 🍺',
+  'Distribuidor oficial Ashby',
+  'Qualidade que transforma eventos',
+];
+
+function useTypewriter(phrases: string[], typeSpeed = 60, deleteSpeed = 30, pauseTime = 2000) {
+  const [text, setText] = useState('');
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentPhrase = phrases[phraseIndex];
+    
+    const timeout = setTimeout(() => {
+      if (!isDeleting) {
+        setText(currentPhrase.slice(0, text.length + 1));
+        if (text.length + 1 === currentPhrase.length) {
+          setTimeout(() => setIsDeleting(true), pauseTime);
+        }
+      } else {
+        setText(currentPhrase.slice(0, text.length - 1));
+        if (text.length === 0) {
+          setIsDeleting(false);
+          setPhraseIndex((prev) => (prev + 1) % phrases.length);
+        }
+      }
+    }, isDeleting ? deleteSpeed : typeSpeed);
+
+    return () => clearTimeout(timeout);
+  }, [text, isDeleting, phraseIndex, phrases, typeSpeed, deleteSpeed, pauseTime]);
+
+  return text;
+}
+
 const products = [
   { name: 'Pilsen Clássica', desc: 'Leveza e refrescância com sabor autêntico.', tag: 'Mais Vendido', image: choppPilsen },
   { name: 'Pale Ale', desc: 'Eleita melhor do mundo em 2017. Amargor equilibrado.', tag: 'Premiada', image: choppAle },
@@ -175,6 +214,7 @@ export default function InstitucionalHome() {
   const { scrollYProgress } = useScroll();
   const navBg = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
   const heroParallax = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
+  const typedText = useTypewriter(PHRASES, 55, 25, 2200);
 
   const litrosPorPessoa = duracao <= 3 ? 0.8 : duracao <= 5 ? 1.0 : 1.5;
   const totalLitros = Math.ceil(numPessoas * litrosPorPessoa);
@@ -235,11 +275,10 @@ export default function InstitucionalHome() {
 
       {/* ── Navbar ── */}
       <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 border-b border-transparent"
+        className="fixed top-0 left-0 right-0 z-50"
         style={{
-          backgroundColor: useTransform(navBg, (v) => `hsl(var(--background) / ${0.6 + v * 0.35})`),
-          borderColor: useTransform(navBg, (v) => `hsl(var(--border) / ${v * 0.5})`),
-          backdropFilter: 'blur(20px)',
+          backgroundColor: useTransform(navBg, (v) => `hsl(var(--background) / ${0.5 + v * 0.45})`),
+          backdropFilter: 'blur(24px)',
         }}
         initial={{ y: -80 }}
         animate={{ y: 0 }}
@@ -249,115 +288,138 @@ export default function InstitucionalHome() {
           <Link to="/" className="flex items-center gap-3 group">
             <motion.img
               src={logoTaubateChopp} alt="Taubaté Chopp"
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-primary/30 group-hover:ring-primary/60 transition-all duration-300"
-              whileHover={{ scale: 1.1, rotate: 5 }}
+              className="h-8 w-8 rounded-full object-cover ring-1 ring-primary/20 group-hover:ring-primary/50 transition-all duration-300"
+              whileHover={{ scale: 1.1 }}
               transition={{ type: "spring", stiffness: 300 }}
             />
-            <span className="font-bold text-lg tracking-tight hidden sm:block">Taubaté Chopp</span>
+            <span className="font-semibold text-sm tracking-tight hidden sm:block text-foreground/90">Taubaté Chopp</span>
           </Link>
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center">
             {['produtos', 'calculadora', 'sobre', 'faq', 'contato'].map((s) => (
               <a key={s} href={`#${s}`}
-                className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded-full transition-all duration-300 capitalize"
+                className="relative px-4 py-2 text-xs font-medium text-muted-foreground/70 hover:text-foreground tracking-wide uppercase transition-colors duration-300 group"
               >
                 {s}
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-primary group-hover:w-3/4 transition-all duration-300" />
               </a>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Link to="/ecommerce">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground group">
-                <ShoppingCart className="w-4 h-4 mr-1.5 group-hover:scale-110 transition-transform" /> Loja
+              <Button variant="ghost" size="sm" className="text-muted-foreground/60 hover:text-foreground text-xs gap-1.5">
+                <ShoppingCart className="w-3.5 h-3.5" /> Loja
               </Button>
             </Link>
             <Link to="/auth">
-              <MagneticWrap>
-                <Button size="sm" className="bg-primary text-primary-foreground font-semibold rounded-full px-5 shadow-md shadow-primary/20 hover:shadow-primary/40 hover:scale-105 transition-all duration-300">
-                  Sistema
-                </Button>
-              </MagneticWrap>
+              <Button size="sm" className="bg-foreground text-background font-medium rounded-full px-5 text-xs hover:bg-foreground/90 transition-all duration-300 h-8">
+                Sistema
+              </Button>
             </Link>
           </div>
         </div>
       </motion.nav>
 
       {/* ══════════════════════════════════════════════════
-          HERO
+          HERO — Minimal, abstract, modern
       ══════════════════════════════════════════════════ */}
-      <section className="relative min-h-[92vh] flex items-center pt-16 overflow-hidden">
-        <motion.div
-          className="absolute inset-0"
-          initial={{ scale: 1.15 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 2, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <img src={heroBanner} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/30" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/50" />
-          {/* Animated shimmer */}
+      <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+        {/* Abstract background */}
+        <div className="absolute inset-0">
+          {/* Gradient mesh */}
+          <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/[0.08]" />
+          
+          {/* Floating abstract shapes */}
           <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/[0.03] to-transparent"
-            animate={{ x: ['-100%', '100%'] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", repeatDelay: 3 }}
+            className="absolute top-1/4 right-[15%] w-[400px] h-[400px] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.12) 0%, transparent 70%)',
+            }}
+            animate={{ 
+              scale: [1, 1.2, 1],
+              x: [0, 20, 0],
+              y: [0, -15, 0],
+            }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
-        </motion.div>
+          <motion.div
+            className="absolute bottom-1/4 left-[10%] w-[300px] h-[300px] rounded-full"
+            style={{
+              background: 'radial-gradient(circle, hsl(var(--primary) / 0.08) 0%, transparent 70%)',
+            }}
+            animate={{ 
+              scale: [1, 1.15, 1],
+              x: [0, -15, 0],
+              y: [0, 20, 0],
+            }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          />
+          
+          {/* Subtle grain texture overlay */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          }} />
 
-        <motion.div style={{ y: heroParallax }} className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32 w-full">
-          <motion.div initial="hidden" animate="visible" variants={stagger} className="max-w-3xl">
-            <motion.p variants={fadeUp} custom={0}
-              className="text-primary font-semibold text-sm tracking-widest uppercase mb-5 flex items-center gap-2"
-            >
-              <motion.span
-                className="inline-block w-8 h-px bg-primary"
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-              />
-              Distribuidor Oficial Ashby
-            </motion.p>
+          {/* Thin decorative lines */}
+          <motion.div 
+            className="absolute top-[30%] left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/10 to-transparent"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 2, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          />
+          <motion.div 
+            className="absolute top-[70%] left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/5 to-transparent"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ duration: 2, delay: 1, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </div>
 
-            <motion.h1 variants={fadeUp} custom={1}
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-6"
-            >
-              Chopp premium{' '}
-              <motion.span
-                className="text-primary inline-block"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              >
-                para seu evento
-              </motion.span>
-            </motion.h1>
+        <motion.div style={{ y: heroParallax }} className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          <motion.div initial="hidden" animate="visible" variants={stagger}>
+            {/* Badge */}
+            <motion.div variants={fadeUp} custom={0} className="flex justify-center mb-8">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-medium tracking-wider">
+                <Sparkles className="w-3 h-3" />
+                DISTRIBUIDOR OFICIAL ASHBY
+              </div>
+            </motion.div>
 
+            {/* Typewriter text */}
+            <motion.div variants={fadeUp} custom={1} className="min-h-[120px] sm:min-h-[160px] md:min-h-[200px] flex items-center justify-center">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight text-foreground">
+                {typedText}
+                <motion.span
+                  className="inline-block w-[3px] h-[0.85em] bg-primary ml-1 align-middle"
+                  animate={{ opacity: [1, 0] }}
+                  transition={{ duration: 0.6, repeat: Infinity, ease: "steps(1)" }}
+                />
+              </h1>
+            </motion.div>
+
+            {/* Subtitle */}
             <motion.p variants={fadeUp} custom={2}
-              className="text-lg sm:text-xl text-muted-foreground max-w-xl mb-10 leading-relaxed"
+              className="text-base sm:text-lg text-muted-foreground/70 max-w-lg mx-auto mb-12 leading-relaxed font-light"
             >
-              A qualidade da primeira microcervejaria do Brasil na sua festa.
-              Entrega rápida em Taubaté e região.
+              A qualidade da primeira microcervejaria do Brasil — 
+              direto para a sua festa.
             </motion.p>
 
-            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-3">
+            {/* CTAs */}
+            <motion.div variants={fadeUp} custom={3} className="flex flex-col sm:flex-row gap-3 justify-center">
               <MagneticWrap>
                 <Button
                   size="lg"
-                  className="bg-primary text-primary-foreground font-bold px-8 h-13 rounded-full shadow-lg shadow-primary/25 hover:shadow-primary/50 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+                  className="bg-foreground text-background font-semibold px-8 h-12 rounded-full hover:bg-foreground/90 active:scale-[0.98] transition-all duration-300 text-sm"
                   onClick={() => document.getElementById('contato')?.scrollIntoView({ behavior: 'smooth' })}
                 >
                   Solicitar Orçamento
-                  <motion.span
-                    className="ml-1"
-                    animate={{ x: [0, 4, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </motion.span>
+                  <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </MagneticWrap>
               <Button
                 size="lg"
                 variant="outline"
-                className="rounded-full px-8 h-13 border-border hover:border-primary/40 hover:bg-primary/5 transition-all duration-300"
+                className="rounded-full px-8 h-12 border-border/50 hover:border-foreground/20 hover:bg-foreground/5 transition-all duration-300 text-sm font-medium"
                 onClick={() => document.getElementById('calculadora')?.scrollIntoView({ behavior: 'smooth' })}
               >
                 <Calculator className="mr-2 w-4 h-4" />
@@ -366,22 +428,17 @@ export default function InstitucionalHome() {
             </motion.div>
           </motion.div>
 
-          {/* Stats */}
+          {/* Stats — minimal inline */}
           <motion.div
             initial="hidden" animate="visible" variants={stagger}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-20 pt-10 border-t border-border/30"
+            className="flex flex-wrap justify-center gap-8 sm:gap-12 mt-20 pt-8 border-t border-border/20"
           >
             {stats.map((s, i) => (
-              <motion.div key={s.label} variants={fadeUp} custom={i}
-                className="text-center sm:text-left group cursor-default"
-              >
-                <motion.p
-                  className="text-3xl sm:text-4xl font-extrabold text-foreground group-hover:text-primary transition-colors duration-300"
-                  whileHover={{ scale: 1.05 }}
-                >
+              <motion.div key={s.label} variants={fadeUp} custom={i} className="text-center group cursor-default">
+                <p className="text-2xl sm:text-3xl font-bold text-foreground/90 group-hover:text-primary transition-colors duration-300 tabular-nums">
                   {s.value}
-                </motion.p>
-                <p className="text-sm text-muted-foreground mt-1">{s.label}</p>
+                </p>
+                <p className="text-xs text-muted-foreground/50 mt-1 tracking-wide">{s.label}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -397,10 +454,10 @@ export default function InstitucionalHome() {
           <motion.div
             animate={{ y: [0, 8, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="flex flex-col items-center gap-2 text-muted-foreground/50"
+            className="flex flex-col items-center gap-2 text-muted-foreground/30"
           >
-            <span className="text-[10px] uppercase tracking-[0.2em]">Scroll</span>
-            <ArrowDown className="w-4 h-4" />
+            <span className="text-[10px] uppercase tracking-[0.25em] font-light">Scroll</span>
+            <ArrowDown className="w-3.5 h-3.5" />
           </motion.div>
         </motion.div>
       </section>
