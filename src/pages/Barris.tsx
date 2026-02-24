@@ -146,10 +146,10 @@ export default function Barris() {
                   Todos ({barris?.length || 0})
                 </TabsTrigger>
                 <TabsTrigger value="datta_vale" className="text-xs sm:text-sm">
-                  Datta Vale ({(barris || []).filter(b => b.localizacao === 'DATTA_VALE').length})
+                  Datta Vale ({(barris || []).filter(b => b.codigo.startsWith('DTV')).length})
                 </TabsTrigger>
                 <TabsTrigger value="ashby" className="text-xs sm:text-sm">
-                  Ashby ({(barris || []).filter(b => b.localizacao === 'ASHBY').length})
+                  Ashby ({(barris || []).filter(b => b.codigo.startsWith('ASH')).length})
                 </TabsTrigger>
                 <TabsTrigger value="loja" className="text-xs sm:text-sm">
                   Loja ({naLojaCheios + naLojaVazios})
@@ -169,14 +169,14 @@ export default function Barris() {
             
             <TabsContent value="datta_vale">
               <BarrisTable 
-                barris={(barris || []).filter(b => b.localizacao === 'DATTA_VALE')} 
+                barris={(barris || []).filter(b => b.codigo.startsWith('DTV'))} 
                 onViewHistory={handleViewMovimentacoes}
               />
             </TabsContent>
             
             <TabsContent value="ashby">
               <BarrisTable 
-                barris={(barris || []).filter(b => b.localizacao === 'ASHBY')} 
+                barris={(barris || []).filter(b => b.codigo.startsWith('ASH'))} 
                 onViewHistory={handleViewMovimentacoes}
               />
             </TabsContent>
