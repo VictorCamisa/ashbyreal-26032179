@@ -252,9 +252,9 @@ async function syncSingleCard(
   // Batch insert in chunks of 50
   for (let i = 0; i < toInsert.length; i += 50) {
     const chunk = toInsert.slice(i, i + 50);
-    const { error: batchError, count } = await supabaseAdmin
+    const { error: batchError } = await supabaseAdmin
       .from('credit_card_transactions')
-      .upsert(chunk, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      .insert(chunk);
     
     if (batchError) {
       console.error('Batch insert error:', batchError);
@@ -304,7 +304,7 @@ async function syncSingleCard(
     const chunk = futureToInsert.slice(i, i + 50);
     const { error } = await supabaseAdmin
       .from('credit_card_transactions')
-      .upsert(chunk, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      .insert(chunk);
     if (error) console.error('Future batch error:', error);
   }
 
