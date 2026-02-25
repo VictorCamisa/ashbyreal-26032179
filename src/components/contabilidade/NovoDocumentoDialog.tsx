@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FileText, Plus, Search } from 'lucide-react';
+import { FileText, Plus, Send, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,8 @@ import { useDocumentoFiscalMutations, DocumentoFiscalTipo, DocumentoFiscalDireca
 import { useClientes } from '@/hooks/useClientes';
 import { useLojistas } from '@/hooks/useLojistas';
 import { useEntities } from '@/hooks/useEntities';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   tipo: z.enum(['NFE', 'NFSE', 'CFE_SAT', 'NFCE']),
@@ -63,6 +65,7 @@ interface NovoDocumentoDialogProps {
 
 export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogProps) {
   const [direcao, setDirecao] = useState<'ENTRADA' | 'SAIDA'>('SAIDA');
+  const [isEmitting, setIsEmitting] = useState(false);
   const { createDocumento } = useDocumentoFiscalMutations();
   const { clientes } = useClientes();
   const { lojistas } = useLojistas();
@@ -71,7 +74,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      tipo: 'NFE',
+      tipo: 'NFCE',
       direcao: 'SAIDA',
       natureza_operacao: 'Venda de mercadoria',
       valor_produtos: 0,
@@ -82,16 +85,26 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const tipoAtual = form.watch('tipo');
+
+  const buildPayload = (data: FormData) => {
     const valorTotal = 
       (data.valor_produtos || 0) + 
       (data.valor_servicos || 0) + 
       (data.valor_frete || 0) - 
       (data.valor_desconto || 0);
 
-    createDocumento.mutate({
+    return {
       ...data,
       valor_total: valorTotal,
+      valor_outras: 0,
+    };
+  };
+
+  const onSubmit = (data: FormData) => {
+    const payload = buildPayload(data);
+    createDocumento.mutate({
+      ...payload,
       status: data.numero ? 'EMITIDA' : 'RASCUNHO',
       data_emissao: data.numero ? new Date().toISOString() : undefined,
     } as any, {
@@ -100,6 +113,66 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
         form.reset();
       }
     });
+  };
+
+  const onSaveAndEmit = async (data: FormData) => {
+    const payload = buildPayload(data);
+    setIsEmitting(true);
+    
+    try {
+      // 1. Create doc as draft
+      const { data: doc, error: docErr } = await supabase
+        .from('documentos_fiscais')
+        .insert({
+          ...payload,
+          status: 'RASCUNHO',
+          valor_outras: 0,
+        } as any)
+        .select()
+        .single();
+
+      if (docErr) throw docErr;
+
+      // 2. Create a default item if no items (single-line based on valor_produtos)
+      if (payload.valor_produtos > 0) {
+        await supabase.from('documento_fiscal_itens').insert({
+          documento_id: doc.id,
+          descricao: payload.natureza_operacao || 'Produto',
+          quantidade: 1,
+          valor_unitario: payload.valor_produtos,
+          valor_total: payload.valor_produtos,
+          unidade: 'UN',
+          ncm: '22030000',
+          cfop: '5102',
+        });
+      }
+
+      // 3. Emit via Focus NFe
+      const action = data.tipo === 'NFCE' ? 'emitir_nfce' : 'emitir_nfe';
+      const { data: focusData, error: focusErr } = await supabase.functions.invoke('focus-nfe', {
+        body: { action, documento_id: doc.id, ambiente: 'PRODUCAO' },
+      });
+
+      if (focusErr) throw new Error(focusErr.message);
+      if (focusData && !focusData.success) throw new Error(focusData.error);
+
+      toast({ 
+        title: `🧾 ${data.tipo === 'NFCE' ? 'NFC-e' : 'NF-e'} emitida com sucesso!`,
+        description: focusData?.chave_nfe ? `Chave: ${focusData.chave_nfe.substring(0, 20)}...` : undefined,
+      });
+
+      if (focusData?.danfe_url) {
+        window.open(focusData.danfe_url, '_blank');
+      }
+
+      onOpenChange(false);
+      form.reset();
+    } catch (err: any) {
+      console.error('Erro ao emitir:', err);
+      toast({ title: 'Erro ao emitir documento', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsEmitting(false);
+    }
   };
 
   const handleDirecaoChange = (value: 'ENTRADA' | 'SAIDA') => {
@@ -121,7 +194,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
             Novo Documento Fiscal
           </DialogTitle>
           <DialogDescription>
-            Registre um novo documento fiscal ou nota já emitida externamente.
+            Crie um documento e emita diretamente via Focus NFe, ou registre uma nota já emitida.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,17 +214,17 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="NFE">NF-e (Produto)</SelectItem>
+                        <SelectItem value="NFCE">NFC-e (Cupom Fiscal)</SelectItem>
+                        <SelectItem value="NFE">NF-e (Nota Fiscal)</SelectItem>
                         <SelectItem value="NFSE">NFS-e (Serviço)</SelectItem>
                         <SelectItem value="CFE_SAT">CF-e / SAT</SelectItem>
-                        <SelectItem value="NFCE">NFC-e (Consumidor)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -374,14 +447,28 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
               )}
             />
 
-            <DialogFooter>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createDocumento.isPending}>
+              <Button type="submit" variant="secondary" disabled={createDocumento.isPending}>
                 <Plus className="h-4 w-4 mr-2" />
-                Salvar Documento
+                Salvar Rascunho
               </Button>
+              {direcao === 'SAIDA' && (tipoAtual === 'NFE' || tipoAtual === 'NFCE') && (
+                <Button 
+                  type="button" 
+                  disabled={isEmitting}
+                  onClick={form.handleSubmit(onSaveAndEmit)}
+                >
+                  {isEmitting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  {isEmitting ? 'Emitindo...' : `Salvar e Emitir ${tipoAtual === 'NFCE' ? 'NFC-e' : 'NF-e'}`}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </Form>

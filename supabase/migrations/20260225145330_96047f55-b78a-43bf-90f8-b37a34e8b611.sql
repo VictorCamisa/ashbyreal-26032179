@@ -1,0 +1,1 @@
+INSERT INTO contabilidade_config (cnpj, ambiente, regime_tributario) VALUES ('23.623.470/0001-07', 'PRODUCAO', 'SIMPLES_NACIONAL');
