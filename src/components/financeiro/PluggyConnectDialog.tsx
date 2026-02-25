@@ -233,13 +233,13 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
   };
 
   const handleSaveMappings = async () => {
-    const validMappings = mappings.filter(m => m.creditCardId);
+    const validMappings = mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip');
     if (validMappings.length === 0) {
       toast.error('Selecione ao menos um cartão para vincular.');
       return;
     }
 
-    // Check for duplicate card selections
+    // Check for duplicate card selections (only among actually selected cards)
     const cardIds = validMappings.map(m => m.creditCardId);
     if (new Set(cardIds).size !== cardIds.length) {
       toast.error('Cada cartão só pode ser vinculado a uma conta.');
