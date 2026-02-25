@@ -550,7 +550,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-y-auto">
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle className="flex items-center gap-2.5 text-lg">
             <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
