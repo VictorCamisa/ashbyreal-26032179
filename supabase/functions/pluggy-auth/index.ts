@@ -107,26 +107,40 @@ serve(async (req) => {
 
       // If list fails, try to get items from our DB and fetch each one
       const errBody = await itemsResponse.text();
-      console.log(`List items failed [${itemsResponse.status}]: ${errBody}, trying individual fetch...`);
+      console.log(`List items failed [${itemsResponse.status}]: ${errBody}, trying DB fallback...`);
 
-      // If a specific itemId was provided, try fetching it directly
-      if (body.pluggyItemId) {
-        const singleResponse = await fetch(`${PLUGGY_API_URL}/items/${body.pluggyItemId}`, {
-          headers: { 'X-API-KEY': apiKey },
-        });
+      // Query our pluggy_items table for known items
+      const serviceClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
 
-        if (!singleResponse.ok) {
-          const singleErr = await singleResponse.text();
-          throw new Error(`Pluggy get item failed [${singleResponse.status}]: ${singleErr}`);
+      const { data: dbItems } = await serviceClient
+        .from('pluggy_items')
+        .select('pluggy_item_id')
+        .not('pluggy_item_id', 'is', null);
+
+      const fetchedItems = [];
+      for (const dbItem of (dbItems || [])) {
+        try {
+          const singleResponse = await fetch(`${PLUGGY_API_URL}/items/${dbItem.pluggy_item_id}`, {
+            headers: { 'X-API-KEY': apiKey },
+          });
+          if (singleResponse.ok) {
+            fetchedItems.push(await singleResponse.json());
+          } else {
+            await singleResponse.text(); // consume body
+            console.log(`Could not fetch item ${dbItem.pluggy_item_id}`);
+          }
+        } catch (e) {
+          console.log(`Error fetching item ${dbItem.pluggy_item_id}:`, e);
         }
-
-        const item = await singleResponse.json();
-        return new Response(JSON.stringify({ results: [item] }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
       }
 
-      throw new Error(`Pluggy list items failed [${itemsResponse.status}]: ${errBody}`);
+      console.log(`Fetched ${fetchedItems.length} items from DB fallback`);
+      return new Response(JSON.stringify({ results: fetchedItems }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (action === 'get-accounts') {
