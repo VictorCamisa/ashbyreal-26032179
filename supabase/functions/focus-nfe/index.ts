@@ -44,11 +44,13 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
-      const ref = `nfe-${documento_id.substring(0, 8)}`;
+      // Ref ÚNICA por tentativa para evitar cache do Focus NFe
+      const ts = Date.now().toString(36);
+      const ref = `nfe-${documento_id.substring(0, 8)}-${ts}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
-        const qty = Number(item.quantidade) || 1;
-        const unitPrice = Number(item.valor_unitario) || 0;
-        // SEFAZ exige que valor_bruto = quantidade * valor_unitario_comercial EXATAMENTE
+        const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
+        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(10));
+        // SEFAZ exige: valor_bruto = quantidade * valor_unitario_comercial (precisão 2 casas)
         const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
         return {
           numero_item: String(idx + 1),
@@ -68,6 +70,7 @@ Deno.serve(async (req) => {
           cofins_situacao_tributaria: '07',
         };
       });
+      console.log('NF-e itens payload:', JSON.stringify(itens));
 
       // Build NF-e payload for Focus NFe
       const nfePayload: any = {
@@ -207,10 +210,11 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
-      const ref = `nfce-${documento_id.substring(0, 8)}`;
+      const ts2 = Date.now().toString(36);
+      const ref = `nfce-${documento_id.substring(0, 8)}-${ts2}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
-        const qty = Number(item.quantidade) || 1;
-        const unitPrice = Number(item.valor_unitario) || 0;
+        const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
+        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(10));
         const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
         return {
           numero_item: String(idx + 1),
