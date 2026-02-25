@@ -3,11 +3,26 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+export interface PluggyAccount {
+  id: string;
+  name: string;
+  type: string;
+  subtype?: string;
+  number?: string;
+  creditData?: {
+    level?: string;
+    brand?: string;
+    balanceCloseDate?: string;
+    balanceDueDate?: string;
+    availableCreditLimit?: number;
+    creditLimit?: number;
+  };
+}
+
 export function usePluggy() {
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Fetch pluggy items linked to credit cards
   const { data: pluggyItems, isLoading } = useQuery({
     queryKey: ['pluggy-items'],
     queryFn: async () => {
@@ -20,7 +35,6 @@ export function usePluggy() {
     },
   });
 
-  // Get connect token for Pluggy widget
   const getConnectToken = async (itemId?: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Not authenticated');
@@ -33,10 +47,21 @@ export function usePluggy() {
     return data.accessToken;
   };
 
-  // Link a Pluggy item to a credit card
+  // Fetch accounts for a Pluggy item (to discover all credit cards in the institution)
+  const getAccounts = async (itemId: string): Promise<PluggyAccount[]> => {
+    const { data, error } = await supabase.functions.invoke('pluggy-auth', {
+      body: { action: 'get-accounts', itemId },
+    });
+
+    if (error) throw error;
+    return data.results || [];
+  };
+
+  // Link a single Pluggy account to a credit card
   const linkItemMutation = useMutation({
-    mutationFn: async ({ pluggyItemId, creditCardId, connectorName }: { 
+    mutationFn: async ({ pluggyItemId, pluggyAccountId, creditCardId, connectorName }: { 
       pluggyItemId: string; 
+      pluggyAccountId: string;
       creditCardId: string;
       connectorName?: string;
     }) => {
@@ -44,6 +69,7 @@ export function usePluggy() {
         .from('pluggy_items')
         .insert({
           pluggy_item_id: pluggyItemId,
+          pluggy_account_id: pluggyAccountId,
           credit_card_id: creditCardId,
           connector_name: connectorName,
           status: 'ACTIVE',
@@ -56,14 +82,37 @@ export function usePluggy() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pluggy-items'] });
-      toast.success('Conta bancária conectada com sucesso!');
     },
     onError: (error) => {
-      toast.error(`Erro ao conectar: ${error.message}`);
+      toast.error(`Erro ao vincular: ${error.message}`);
     },
   });
 
-  // Trigger manual sync
+  // Link multiple accounts at once (one per card mapping)
+  const linkMultipleItems = async (mappings: Array<{
+    pluggyItemId: string;
+    pluggyAccountId: string;
+    creditCardId: string;
+    connectorName?: string;
+  }>) => {
+    const rows = mappings.map(m => ({
+      pluggy_item_id: m.pluggyItemId,
+      pluggy_account_id: m.pluggyAccountId,
+      credit_card_id: m.creditCardId,
+      connector_name: m.connectorName,
+      status: 'ACTIVE',
+    }));
+
+    const { error } = await supabase
+      .from('pluggy_items')
+      .insert(rows);
+
+    if (error) throw error;
+
+    queryClient.invalidateQueries({ queryKey: ['pluggy-items'] });
+    toast.success(`${rows.length} cartão(ões) vinculado(s) com sucesso!`);
+  };
+
   const syncCard = async (creditCardId: string) => {
     setIsSyncing(true);
     try {
@@ -87,7 +136,6 @@ export function usePluggy() {
     }
   };
 
-  // Remove Pluggy link
   const unlinkMutation = useMutation({
     mutationFn: async (pluggyItemDbId: string) => {
       const { error } = await supabase
@@ -102,7 +150,6 @@ export function usePluggy() {
     },
   });
 
-  // Get linked item for a specific card
   const getCardPluggyItem = (creditCardId: string) => {
     return pluggyItems?.find(item => item.credit_card_id === creditCardId);
   };
@@ -112,7 +159,9 @@ export function usePluggy() {
     isLoading,
     isSyncing,
     getConnectToken,
+    getAccounts,
     linkItem: linkItemMutation.mutate,
+    linkMultipleItems,
     isLinking: linkItemMutation.isPending,
     unlinkItem: unlinkMutation.mutate,
     syncCard,

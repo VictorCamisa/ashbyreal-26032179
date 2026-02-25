@@ -17,7 +17,6 @@ serve(async (req) => {
 
     const { event, itemId } = body;
 
-    // Only process relevant events
     if (!['item/updated', 'item/created'].includes(event)) {
       console.log(`Ignoring event: ${event}`);
       return new Response(JSON.stringify({ ok: true, ignored: true }), {
@@ -36,21 +35,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check if this item is linked to a credit card
-    const { data: mapping } = await supabaseAdmin
+    // Check if ANY cards are linked to this item (multiple cards possible)
+    const { data: mappings } = await supabaseAdmin
       .from('pluggy_items')
       .select('credit_card_id')
-      .eq('pluggy_item_id', itemId)
-      .single();
+      .eq('pluggy_item_id', itemId);
 
-    if (!mapping) {
+    if (!mappings || mappings.length === 0) {
       console.log(`No mapping found for Pluggy item ${itemId}`);
       return new Response(JSON.stringify({ ok: true, noMapping: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Trigger sync
+    // Trigger sync for the entire item (will sync all linked cards)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -62,7 +60,6 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         pluggyItemId: itemId,
-        creditCardId: mapping.credit_card_id,
         isWebhook: true,
       }),
     });

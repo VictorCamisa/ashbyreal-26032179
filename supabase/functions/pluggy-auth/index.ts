@@ -14,7 +14,6 @@ serve(async (req) => {
   }
 
   try {
-    // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
@@ -32,7 +31,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
-    const { action } = await req.json();
+    // Parse body once
+    const body = await req.json().catch(() => ({}));
+    const { action, itemId } = body;
 
     const PLUGGY_CLIENT_ID = Deno.env.get('PLUGGY_CLIENT_ID');
     const PLUGGY_CLIENT_SECRET = Deno.env.get('PLUGGY_CLIENT_SECRET');
@@ -41,14 +42,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Pluggy credentials not configured' }), { status: 500, headers: corsHeaders });
     }
 
-    // Step 1: Get API Key from Pluggy
+    // Get API Key from Pluggy
     const authResponse = await fetch(`${PLUGGY_API_URL}/auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientId: PLUGGY_CLIENT_ID,
-        clientSecret: PLUGGY_CLIENT_SECRET,
-      }),
+      body: JSON.stringify({ clientId: PLUGGY_CLIENT_ID, clientSecret: PLUGGY_CLIENT_SECRET }),
     });
 
     if (!authResponse.ok) {
@@ -59,11 +57,6 @@ serve(async (req) => {
     const { apiKey } = await authResponse.json();
 
     if (action === 'connect-token') {
-      // Parse optional params
-      const body = await req.json().catch(() => ({}));
-      const itemId = body.itemId;
-
-      // Get webhook URL
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const webhookUrl = `${supabaseUrl}/functions/v1/pluggy-webhook`;
 
@@ -81,10 +74,7 @@ serve(async (req) => {
 
       const connectResponse = await fetch(`${PLUGGY_API_URL}/connect_token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': apiKey,
-        },
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
         body: JSON.stringify(connectTokenBody),
       });
 
@@ -94,7 +84,6 @@ serve(async (req) => {
       }
 
       const connectData = await connectResponse.json();
-
       return new Response(JSON.stringify({ accessToken: connectData.accessToken }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -117,9 +106,6 @@ serve(async (req) => {
     }
 
     if (action === 'get-accounts') {
-      const body = await req.json().catch(() => ({}));
-      const itemId = body.itemId;
-
       if (!itemId) {
         return new Response(JSON.stringify({ error: 'itemId required' }), { status: 400, headers: corsHeaders });
       }
