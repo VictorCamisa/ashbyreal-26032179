@@ -125,10 +125,18 @@ export function DocumentosFiscaisTable() {
 
       if (error) throw error;
       
+      const isSuccess = data?.status === 'autorizado';
       toast({
-        title: `Status: ${data?.status || 'desconhecido'}`,
-        description: data?.chave_nfe ? `Chave: ${data.chave_nfe.substring(0, 25)}...` : 'Consulta realizada.',
+        title: isSuccess ? '✅ NF Autorizada!' : `Status: ${data?.status || 'desconhecido'}`,
+        description: data?.user_message || 'Consulta realizada.',
+        variant: isSuccess ? 'default' : 'destructive',
       });
+
+      // If DANFE available, offer to open
+      if (data?.caminho_danfe) {
+        window.open(data.caminho_danfe, '_blank');
+      }
+
       refetch();
     } catch (err: any) {
       toast({ title: 'Erro ao consultar', description: err.message, variant: 'destructive' });
@@ -322,7 +330,7 @@ export function DocumentosFiscaisTable() {
                               )}
 
                               {/* Consultar status na SEFAZ */}
-                              {doc.status === 'PENDENTE_EMISSAO' && (doc.tipo === 'NFE' || doc.tipo === 'NFCE') && (
+                              {(doc.tipo === 'NFE' || doc.tipo === 'NFCE') && doc.status !== 'RASCUNHO' && doc.status !== 'CANCELADA' && (
                                 <DropdownMenuItem onClick={() => handleConsultar(doc)}>
                                   <RefreshCw className="h-4 w-4 mr-2" />
                                   Consultar Status SEFAZ
@@ -333,7 +341,7 @@ export function DocumentosFiscaisTable() {
                               {doc.pdf_url && (
                                 <DropdownMenuItem onClick={() => handleDownloadPdf(doc)}>
                                   <Download className="h-4 w-4 mr-2" />
-                                  Download DANFE (PDF)
+                                  Visualizar DANFE (PDF)
                                 </DropdownMenuItem>
                               )}
 

@@ -287,20 +287,40 @@ Deno.serve(async (req) => {
       });
 
       const focusData = await focusRes.json();
+      console.log('Focus NFe consulta response:', JSON.stringify(focusData));
 
-      // If now authorized, update doc
-      if (focusData.status === 'autorizado' && documento_id) {
-        const updateData: any = { status: 'EMITIDA' };
+      if (documento_id) {
+        const updateData: any = {};
+
+        // Map Focus NFe status to our status
+        if (focusData.status === 'autorizado') {
+          updateData.status = 'EMITIDA';
+        } else if (['erro_autorizacao', 'rejeitado', 'cancelado'].includes(focusData.status)) {
+          updateData.status = focusData.status === 'cancelado' ? 'CANCELADA' : 'REJEITADA';
+        }
+
         if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
         if (focusData.numero) updateData.numero = String(focusData.numero);
         if (focusData.caminho_danfe) updateData.pdf_url = focusData.caminho_danfe;
+        if (focusData.caminho_xml_nota_fiscal) updateData.xml_content = focusData.caminho_xml_nota_fiscal;
 
-        await supabase.from('documentos_fiscais').update(updateData).eq('id', documento_id);
+        if (Object.keys(updateData).length > 0) {
+          await supabase.from('documentos_fiscais').update(updateData).eq('id', documento_id);
+        }
       }
+
+      // Build user-friendly message
+      const statusMessages: Record<string, string> = {
+        autorizado: 'NF autorizada pela SEFAZ!',
+        processando_autorizacao: 'NF ainda está sendo processada pela SEFAZ. Tente novamente em alguns segundos.',
+        erro_autorizacao: `NF rejeitada pela SEFAZ: ${focusData.mensagem_sefaz || focusData.motivo || 'Verifique os dados do documento.'}`,
+        cancelado: 'NF cancelada.',
+      };
 
       return new Response(JSON.stringify({
         success: true,
         ...focusData,
+        user_message: statusMessages[focusData.status] || `Status: ${focusData.status}`,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
