@@ -1,0 +1,1 @@
+UPDATE public.contabilidade_config SET csc_id = '000001', csc_token = '60765d1a-baac-48ea-85cf-d1564b2432c2' WHERE id = 'f12f1039-c59c-499e-b96f-07f3263e9db5';
