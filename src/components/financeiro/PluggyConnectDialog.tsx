@@ -333,47 +333,45 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
               </div>
             )}
 
-            {/* Connect new institution */}
-            {unlinkedCards.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Conectar Instituição</h4>
-                <p className="text-xs text-muted-foreground">
-                  Ao conectar um banco, todos os cartões de crédito dessa instituição serão detectados 
-                  e você poderá vinculá-los aos cartões já cadastrados.
-                </p>
-                <Button
-                  className="w-full gap-2"
-                  onClick={handleStartConnect}
-                  disabled={isLoadingToken || isLoadingAccounts}
-                >
-                  {isLoadingToken || isLoadingAccounts ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Link className="h-4 w-4" />
-                  )}
-                  {isLoadingToken ? 'Carregando...' : isLoadingAccounts ? 'Buscando contas...' : 'Conectar via Open Finance'}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={handleRecoverItems}
-                  disabled={isRecovering || isLoadingAccounts}
-                >
-                  {isRecovering ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {isRecovering ? 'Buscando...' : 'Recuperar conexões pendentes'}
-                </Button>
-              </div>
-            )}
-
-            {unlinkedCards.length === 0 && linkedCards.length > 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Todos os cartões já estão conectados! 🎉
+            {/* Connect new institution - always show */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-muted-foreground">Conectar Instituição</h4>
+              <p className="text-xs text-muted-foreground">
+                Ao conectar um banco, todos os cartões de crédito dessa instituição serão detectados 
+                e você poderá vinculá-los aos cartões já cadastrados.
               </p>
-            )}
+              {unlinkedCards.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠️ Todos os cartões já estão vinculados. Para conectar outra instituição, 
+                  cadastre o cartão primeiro na aba Cartões.
+                </p>
+              )}
+              <Button
+                className="w-full gap-2"
+                onClick={handleStartConnect}
+                disabled={isLoadingToken || isLoadingAccounts}
+              >
+                {isLoadingToken || isLoadingAccounts ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Link className="h-4 w-4" />
+                )}
+                {isLoadingToken ? 'Carregando...' : isLoadingAccounts ? 'Buscando contas...' : 'Conectar via Open Finance'}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleRecoverItems}
+                disabled={isRecovering || isLoadingAccounts}
+              >
+                {isRecovering ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {isRecovering ? 'Buscando...' : 'Recuperar conexões pendentes'}
+              </Button>
+            </div>
 
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
               <p>• Uma conexão por banco pode trazer múltiplos cartões</p>
