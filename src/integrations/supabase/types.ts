@@ -2149,6 +2149,59 @@ export type Database = {
           },
         ]
       }
+      pluggy_items: {
+        Row: {
+          connector_id: number | null
+          connector_name: string | null
+          created_at: string
+          credit_card_id: string | null
+          id: string
+          last_sync_at: string | null
+          last_sync_status: string | null
+          pluggy_account_id: string | null
+          pluggy_item_id: string
+          status: string | null
+          sync_error: string | null
+          updated_at: string
+        }
+        Insert: {
+          connector_id?: number | null
+          connector_name?: string | null
+          created_at?: string
+          credit_card_id?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          pluggy_account_id?: string | null
+          pluggy_item_id: string
+          status?: string | null
+          sync_error?: string | null
+          updated_at?: string
+        }
+        Update: {
+          connector_id?: number | null
+          connector_name?: string | null
+          created_at?: string
+          credit_card_id?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          pluggy_account_id?: string | null
+          pluggy_item_id?: string
+          status?: string | null
+          sync_error?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pluggy_items_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       produtos: {
         Row: {
           ativo: boolean | null
