@@ -35,9 +35,6 @@ function cleanDescription(desc: string): string {
     .trim();
 }
 
-// Calculate competencia using DUE MONTH logic (matches import-card-statement)
-// Purchases on or before closing day → closes THIS month → due NEXT month
-// Purchases after closing day → closes NEXT month → due 2 months later
 function calculateCompetencia(purchaseDate: string, closingDay: number): string {
   const date = new Date(purchaseDate + 'T12:00:00Z');
   const day = date.getUTCDate();
@@ -89,7 +86,6 @@ async function syncSingleCard(
   creditCardId: string,
   resync: boolean = false,
 ) {
-  // Get credit card details
   const { data: card } = await supabaseAdmin
     .from('credit_cards')
     .select('*')
@@ -107,14 +103,12 @@ async function syncSingleCard(
   if (resync) {
     console.log(`RESYNC mode: deleting existing Pluggy transactions for card ${creditCardId}`);
     
-    // Delete PROJETADO transactions (future installments we created)
     const { count: projectedDeleted } = await supabaseAdmin
       .from('credit_card_transactions')
       .delete({ count: 'exact' })
       .eq('credit_card_id', creditCardId)
       .eq('item_status', 'PROJETADO');
     
-    // Delete IMPORTADO transactions that came from Pluggy (have dedupe_key and notes starting with "Pluggy")
     const { count: importedDeleted } = await supabaseAdmin
       .from('credit_card_transactions')
       .delete({ count: 'exact' })
@@ -124,29 +118,32 @@ async function syncSingleCard(
     
     console.log(`Resync deleted: ${projectedDeleted || 0} projected, ${importedDeleted || 0} imported`);
     
-    // Delete invoices that have no remaining transactions
-    // (we'll recreate them with correct totals)
+    // Delete invoices with no remaining transactions
     const { data: invoices } = await supabaseAdmin
       .from('credit_card_invoices')
       .select('id, competencia')
       .eq('credit_card_id', creditCardId);
     
-    for (const inv of (invoices || [])) {
-      const { count } = await supabaseAdmin
+    if (invoices && invoices.length > 0) {
+      // Single query to check all competencias
+      const { data: txWithComp } = await supabaseAdmin
         .from('credit_card_transactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('credit_card_id', creditCardId)
-        .eq('competencia', inv.competencia);
+        .select('competencia')
+        .eq('credit_card_id', creditCardId);
       
-      if (count === 0) {
+      const activeComps = new Set((txWithComp || []).map((t: any) => t.competencia));
+      const emptyInvoiceIds = invoices
+        .filter((inv: any) => !activeComps.has(inv.competencia))
+        .map((inv: any) => inv.id);
+      
+      if (emptyInvoiceIds.length > 0) {
         await supabaseAdmin
           .from('credit_card_invoices')
           .delete()
-          .eq('id', inv.id);
+          .in('id', emptyInvoiceIds);
       }
     }
   }
-
 
   // ========== 1. FETCH TRANSACTIONS ==========
   const now = new Date();
@@ -167,7 +164,7 @@ async function syncSingleCard(
   const txData = await txRes.json();
   const transactions = txData.results || [];
 
-  // ========== 2. FETCH BILLS (invoice totals from bank) ==========
+  // ========== 2. FETCH BILLS ==========
   let bills: any[] = [];
   try {
     const billsRes = await fetch(
@@ -178,19 +175,26 @@ async function syncSingleCard(
       const billsData = await billsRes.json();
       bills = billsData.results || [];
       console.log(`Fetched ${bills.length} bills from Pluggy`);
-    } else {
-      console.warn(`Bills API returned ${billsRes.status}, will calculate totals from transactions`);
     }
   } catch (e) {
-    console.warn('Bills API failed, will calculate totals from transactions:', e);
+    console.warn('Bills API failed:', e);
   }
 
-  // ========== 3. INSERT TRANSACTIONS (filtering payments) ==========
+  // ========== 3. BATCH INSERT TRANSACTIONS ==========
+  // First, get ALL existing dedupe keys for this card in one query
+  const { data: existingKeys } = await supabaseAdmin
+    .from('credit_card_transactions')
+    .select('dedupe_key')
+    .eq('credit_card_id', creditCardId)
+    .not('dedupe_key', 'is', null);
+
+  const existingKeySet = new Set((existingKeys || []).map((r: any) => r.dedupe_key));
+
   let inserted = 0;
   let skipped = 0;
   let paymentsFiltered = 0;
 
-  // Track installment purchases for future projection
+  const toInsert: any[] = [];
   const installmentPurchases: Array<{
     description: string;
     amount: number;
@@ -207,7 +211,6 @@ async function syncSingleCard(
     const amount = Math.abs(tx.amount || 0);
     const description = tx.description || tx.descriptionRaw || 'Sem descrição';
 
-    // Filter payment lines
     if (isPaymentLine(description)) {
       paymentsFiltered++;
       console.log(`Filtered payment: ${description} | ${amount}`);
@@ -217,54 +220,52 @@ async function syncSingleCard(
     const competencia = calculateCompetencia(purchaseDate, closingDay);
     const dedupeKey = generateDedupeKey(description, amount, purchaseDate);
 
+    if (existingKeySet.has(dedupeKey)) { skipped++; continue; }
+
     const installmentNumber = tx.creditCardMetadata?.installmentNumber || 1;
     const totalInstallments = tx.creditCardMetadata?.totalInstallments || 1;
 
-    const { data: existing } = await supabaseAdmin
-      .from('credit_card_transactions')
-      .select('id')
-      .eq('credit_card_id', creditCardId)
-      .eq('dedupe_key', dedupeKey)
-      .maybeSingle();
+    toInsert.push({
+      credit_card_id: creditCardId,
+      description,
+      amount,
+      purchase_date: purchaseDate,
+      competencia,
+      dedupe_key: dedupeKey,
+      installment_number: installmentNumber,
+      total_installments: totalInstallments,
+      item_status: 'IMPORTADO',
+      notes: `Pluggy sync - ${tx.id}`,
+    });
 
-    if (existing) { skipped++; continue; }
+    // Mark dedupe key as used to avoid duplicates within batch
+    existingKeySet.add(dedupeKey);
 
-    const { error: insertError } = await supabaseAdmin
-      .from('credit_card_transactions')
-      .insert({
-        credit_card_id: creditCardId,
-        description,
-        amount,
-        purchase_date: purchaseDate,
-        competencia,
-        dedupe_key: dedupeKey,
-        installment_number: installmentNumber,
-        total_installments: totalInstallments,
-        item_status: 'IMPORTADO',
-        notes: `Pluggy sync - ${tx.id}`,
+    if (totalInstallments > 1 && installmentNumber < totalInstallments) {
+      installmentPurchases.push({
+        description, amount, purchaseDate,
+        installmentNumber, totalInstallments, competencia,
       });
-
-    if (insertError) { console.error('Insert error:', insertError); }
-    else {
-      inserted++;
-      // Track for future installment projection
-      if (totalInstallments > 1 && installmentNumber < totalInstallments) {
-        installmentPurchases.push({
-          description,
-          amount,
-          purchaseDate,
-          installmentNumber,
-          totalInstallments,
-          competencia,
-        });
-      }
     }
   }
 
+  // Batch insert in chunks of 50
+  for (let i = 0; i < toInsert.length; i += 50) {
+    const chunk = toInsert.slice(i, i + 50);
+    const { error: batchError, count } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .upsert(chunk, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    
+    if (batchError) {
+      console.error('Batch insert error:', batchError);
+    }
+  }
+  inserted = toInsert.length;
+
   console.log(`Transactions: ${inserted} inserted, ${skipped} skipped, ${paymentsFiltered} payments filtered`);
 
-  // ========== 4. GENERATE FUTURE INSTALLMENTS ==========
-  let futureInstallmentsCreated = 0;
+  // ========== 4. GENERATE FUTURE INSTALLMENTS (BATCH) ==========
+  const futureToInsert: any[] = [];
 
   for (const purchase of installmentPurchases) {
     const remaining = purchase.totalInstallments - purchase.installmentNumber;
@@ -272,7 +273,6 @@ async function syncSingleCard(
     for (let i = 1; i <= remaining; i++) {
       const futureInstallment = purchase.installmentNumber + i;
       
-      // Calculate future competencia (each installment is 1 month apart)
       const baseComp = new Date(purchase.competencia + 'T12:00:00Z');
       const futureMonth = baseComp.getUTCMonth() + i;
       const futureYear = baseComp.getUTCFullYear() + Math.floor(futureMonth / 12);
@@ -281,38 +281,36 @@ async function syncSingleCard(
 
       const futureDedupeKey = `${cleanDescription(purchase.description).toLowerCase().replace(/\s+/g, '_')}|${Math.abs(purchase.amount).toFixed(2)}|${purchase.purchaseDate}|inst${futureInstallment}`;
 
-      const { data: existingFuture } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .select('id')
-        .eq('credit_card_id', creditCardId)
-        .eq('dedupe_key', futureDedupeKey)
-        .maybeSingle();
+      if (existingKeySet.has(futureDedupeKey)) continue;
+      existingKeySet.add(futureDedupeKey);
 
-      if (existingFuture) continue;
-
-      const { error: futureError } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .insert({
-          credit_card_id: creditCardId,
-          description: purchase.description,
-          amount: purchase.amount,
-          purchase_date: purchase.purchaseDate,
-          competencia: futureCompetencia,
-          dedupe_key: futureDedupeKey,
-          installment_number: futureInstallment,
-          total_installments: purchase.totalInstallments,
-          item_status: 'PROJETADO',
-          notes: `Pluggy sync - parcela futura ${futureInstallment}/${purchase.totalInstallments}`,
-        });
-
-      if (!futureError) futureInstallmentsCreated++;
+      futureToInsert.push({
+        credit_card_id: creditCardId,
+        description: purchase.description,
+        amount: purchase.amount,
+        purchase_date: purchase.purchaseDate,
+        competencia: futureCompetencia,
+        dedupe_key: futureDedupeKey,
+        installment_number: futureInstallment,
+        total_installments: purchase.totalInstallments,
+        item_status: 'PROJETADO',
+        notes: `Pluggy sync - parcela futura ${futureInstallment}/${purchase.totalInstallments}`,
+      });
     }
   }
 
-  console.log(`Future installments created: ${futureInstallmentsCreated}`);
+  // Batch insert future installments
+  for (let i = 0; i < futureToInsert.length; i += 50) {
+    const chunk = futureToInsert.slice(i, i + 50);
+    const { error } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .upsert(chunk, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    if (error) console.error('Future batch error:', error);
+  }
 
-  // ========== 5. CREATE/UPDATE INVOICES ==========
-  // Get all unique competencias from transactions in DB
+  console.log(`Future installments created: ${futureToInsert.length}`);
+
+  // ========== 5. CREATE/UPDATE INVOICES (BATCH) ==========
   const { data: allTx } = await supabaseAdmin
     .from('credit_card_transactions')
     .select('competencia, amount')
@@ -320,65 +318,74 @@ async function syncSingleCard(
 
   const compMap = new Map<string, number>();
   for (const t of (allTx || [])) {
-    const comp = t.competencia;
-    compMap.set(comp, (compMap.get(comp) || 0) + (t.amount || 0));
+    compMap.set(t.competencia, (compMap.get(t.competencia) || 0) + (t.amount || 0));
   }
 
-  // Build a map of bill totals from Pluggy (keyed by competencia)
   const billTotalByComp = new Map<string, number>();
   for (const bill of bills) {
     if (!bill.dueDate || bill.totalAmount == null) continue;
     const dueDate = new Date(bill.dueDate);
     const comp = `${dueDate.getUTCFullYear()}-${String(dueDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
-    // Bills API returns negative for debts, we want positive
     billTotalByComp.set(comp, Math.abs(bill.totalAmount));
-    console.log(`Bill: due=${bill.dueDate} → comp=${comp}, total=${Math.abs(bill.totalAmount)}`);
   }
 
+  // Get all existing invoices in one query
+  const { data: existingInvoices } = await supabaseAdmin
+    .from('credit_card_invoices')
+    .select('id, competencia')
+    .eq('credit_card_id', creditCardId);
+
+  const invoiceByComp = new Map<string, string>();
+  for (const inv of (existingInvoices || [])) {
+    invoiceByComp.set(inv.competencia, inv.id);
+  }
+
+  const invoicesToUpdate: Array<{ id: string; total_value: number }> = [];
+  const invoicesToCreate: any[] = [];
+
   for (const [comp, txTotal] of compMap) {
-    // Prefer bill total from Pluggy API, fallback to sum of transactions
     const invoiceTotal = billTotalByComp.get(comp) ?? txTotal;
+    const existingId = invoiceByComp.get(comp);
 
-    const { data: existingInvoice } = await supabaseAdmin
-      .from('credit_card_invoices')
-      .select('id')
-      .eq('credit_card_id', creditCardId)
-      .eq('competencia', comp)
-      .maybeSingle();
-
-    let invoiceId: string;
-
-    if (existingInvoice) {
-      invoiceId = existingInvoice.id;
-      await supabaseAdmin
-        .from('credit_card_invoices')
-        .update({ total_value: invoiceTotal, updated_at: new Date().toISOString() })
-        .eq('id', existingInvoice.id);
+    if (existingId) {
+      invoicesToUpdate.push({ id: existingId, total_value: invoiceTotal });
     } else {
       const compDate = new Date(comp);
       const dueDay = card.due_day || 20;
       const dueDate = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
-
-      // Determine status: if due date is in the past and we have bill data, might be paid
-      const isPast = new Date(dueDate) < new Date();
-      const hasBillData = billTotalByComp.has(comp);
-      
-      const { data: newInvoice } = await supabaseAdmin
-        .from('credit_card_invoices')
-        .insert({
-          credit_card_id: creditCardId,
-          competencia: comp,
-          total_value: invoiceTotal,
-          due_date: dueDate,
-          status: 'ABERTA',
-        })
-        .select('id')
-        .single();
-      
-      invoiceId = newInvoice?.id;
+      invoicesToCreate.push({
+        credit_card_id: creditCardId,
+        competencia: comp,
+        total_value: invoiceTotal,
+        due_date: dueDate,
+        status: 'ABERTA',
+      });
     }
+  }
 
-    // Link all transactions of this competencia to the invoice
+  // Batch update existing invoices
+  for (const upd of invoicesToUpdate) {
+    await supabaseAdmin
+      .from('credit_card_invoices')
+      .update({ total_value: upd.total_value, updated_at: new Date().toISOString() })
+      .eq('id', upd.id);
+  }
+
+  // Batch insert new invoices
+  if (invoicesToCreate.length > 0) {
+    const { data: newInvoices } = await supabaseAdmin
+      .from('credit_card_invoices')
+      .insert(invoicesToCreate)
+      .select('id, competencia');
+
+    for (const inv of (newInvoices || [])) {
+      invoiceByComp.set(inv.competencia, inv.id);
+    }
+  }
+
+  // Link transactions to invoices in batch (one update per competencia)
+  for (const [comp] of compMap) {
+    const invoiceId = invoiceByComp.get(comp);
     if (invoiceId) {
       await supabaseAdmin
         .from('credit_card_transactions')
@@ -393,7 +400,7 @@ async function syncSingleCard(
     inserted,
     skipped,
     paymentsFiltered,
-    futureInstallmentsCreated,
+    futureInstallmentsCreated: futureToInsert.length,
     total: transactions.length,
     billsFound: bills.length,
     competencias: compMap.size,
@@ -413,7 +420,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // If not a webhook call, validate auth
     if (!isWebhook) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
@@ -433,7 +439,7 @@ serve(async (req) => {
 
     const apiKey = await getPluggyApiKey();
 
-    // CASE 1: Sync a specific card by creditCardId
+    // CASE 1: Sync a specific card
     if (creditCardId && !pluggyItemId) {
       const { data: mapping } = await supabaseAdmin
         .from('pluggy_items')
