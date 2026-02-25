@@ -84,56 +84,19 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
       const pluggyUrl = `https://connect.pluggy.ai/?connect_token=${token}`;
       const popup = window.open(pluggyUrl, 'pluggy-connect', 'width=500,height=700,left=200,top=100');
 
-      const handleMessage = async (event: MessageEvent) => {
-        if (event.data?.type === 'pluggy-connect' && event.data?.item) {
-          const item = event.data.item;
-          window.removeEventListener('message', handleMessage);
-          popup?.close();
+      if (!popup) {
+        toast.error('Não foi possível abrir o popup. Verifique se popups estão permitidos.');
+        return;
+      }
 
-          // After connecting, fetch all accounts and go to mapping step
-          setPendingItemId(item.id);
-          setPendingConnectorName(item.connector?.name || '');
-          setIsLoadingAccounts(true);
-
-          try {
-            const accounts = await getAccounts(item.id);
-            const creditAccounts = accounts.filter(a => a.type === 'CREDIT');
-
-            if (creditAccounts.length === 0) {
-              toast.error('Nenhum cartão de crédito encontrado nessa instituição.');
-              setStep('overview');
-              return;
-            }
-
-            // If only 1 credit account and 1 unlinked card, auto-map
-            if (creditAccounts.length === 1 && unlinkedCards.length === 1) {
-              await linkMultipleItems([{
-                pluggyItemId: item.id,
-                pluggyAccountId: creditAccounts[0].id,
-                creditCardId: unlinkedCards[0].id,
-                connectorName: item.connector?.name,
-              }]);
-              setStep('overview');
-              return;
-            }
-
-            setPluggyAccounts(creditAccounts);
-            setMappings(creditAccounts.map(a => ({ pluggyAccountId: a.id, creditCardId: '' })));
-            setStep('mapping');
-          } catch (err: any) {
-            toast.error(`Erro ao buscar contas: ${err.message}`);
-          } finally {
-            setIsLoadingAccounts(false);
-          }
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-
-      const checkClosed = setInterval(() => {
+      // Poll until popup closes, then recover the new item
+      const checkClosed = setInterval(async () => {
         if (popup?.closed) {
           clearInterval(checkClosed);
-          window.removeEventListener('message', handleMessage);
+          toast.info('Popup fechado. Buscando conexão...');
+          // Wait a bit for Pluggy to process
+          await new Promise(r => setTimeout(r, 2000));
+          await handleRecoverItems();
         }
       }, 1000);
     } catch (error: any) {
