@@ -181,8 +181,8 @@ Deno.serve(async (req) => {
       if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
       if (focusData.numero) updateData.numero = String(focusData.numero);
       if (focusData.serie) updateData.serie = String(focusData.serie);
-      if (focusData.caminho_danfe) updateData.pdf_url = focusData.caminho_danfe;
-      if (focusData.caminho_xml_nota_fiscal) updateData.xml_content = focusData.caminho_xml_nota_fiscal;
+      if (focusData.caminho_danfe) updateData.pdf_url = `https://api.focusnfe.com.br${focusData.caminho_danfe}`;
+      if (focusData.caminho_xml_nota_fiscal) updateData.xml_content = `https://api.focusnfe.com.br${focusData.caminho_xml_nota_fiscal}`;
 
       await supabase.from('documentos_fiscais').update(updateData).eq('id', documento_id);
 
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
         status: focusData.status,
         ref,
         chave_nfe: focusData.chave_nfe,
-        danfe_url: focusData.caminho_danfe,
+        danfe_url: focusData.caminho_danfe ? `https://api.focusnfe.com.br${focusData.caminho_danfe}` : null,
         message: focusData.status === 'autorizado' 
           ? 'NF-e emitida com sucesso!' 
           : 'NF-e enviada para processamento. Consulte em alguns segundos.',
@@ -312,7 +312,8 @@ Deno.serve(async (req) => {
 
       if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
       if (focusData.numero) updateData.numero = String(focusData.numero);
-      if (focusData.caminho_danfe) updateData.pdf_url = focusData.caminho_danfe;
+      if (focusData.caminho_danfe) updateData.pdf_url = `https://api.focusnfe.com.br${focusData.caminho_danfe}`;
+      if (focusData.qrcode_url) updateData.xml_content = focusData.qrcode_url;
 
       await supabase.from('documentos_fiscais').update(updateData).eq('id', documento_id);
 
@@ -325,7 +326,8 @@ Deno.serve(async (req) => {
         status: 'autorizado',
         ref,
         chave_nfe: focusData.chave_nfe,
-        danfe_url: focusData.caminho_danfe,
+        danfe_url: focusData.caminho_danfe ? `https://api.focusnfe.com.br${focusData.caminho_danfe}` : null,
+        qrcode_url: focusData.qrcode_url || null,
         message: 'NFC-e emitida com sucesso!',
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
@@ -369,8 +371,8 @@ Deno.serve(async (req) => {
 
         if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
         if (focusData.numero) updateData.numero = String(focusData.numero);
-        if (focusData.caminho_danfe) updateData.pdf_url = focusData.caminho_danfe;
-        if (focusData.caminho_xml_nota_fiscal) updateData.xml_content = focusData.caminho_xml_nota_fiscal;
+        if (focusData.caminho_danfe) updateData.pdf_url = `https://api.focusnfe.com.br${focusData.caminho_danfe}`;
+        if (focusData.caminho_xml_nota_fiscal) updateData.xml_content = `https://api.focusnfe.com.br${focusData.caminho_xml_nota_fiscal}`;
 
         if (Object.keys(updateData).length > 0) {
           await supabase.from('documentos_fiscais').update(updateData).eq('id', documento_id);
