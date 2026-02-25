@@ -87,24 +87,53 @@ Deno.serve(async (req) => {
       // Destinatário
       if (doc.cliente) {
         nfePayload.nome_destinatario = doc.cliente.nome;
+        nfePayload.indicador_inscricao_estadual_destinatario = '9'; // Non-contributor
         if (doc.cliente.cpf_cnpj) {
           const cpfCnpj = doc.cliente.cpf_cnpj.replace(/\D/g, '');
           if (cpfCnpj.length === 11) {
             nfePayload.cpf_destinatario = cpfCnpj;
-          } else {
+          } else if (cpfCnpj.length === 14) {
             nfePayload.cnpj_destinatario = cpfCnpj;
           }
         }
-        const end = doc.cliente.endereco as any;
-        if (end && (end.rua || end.logradouro)) {
-          nfePayload.logradouro_destinatario = end.rua || end.logradouro || '';
-          nfePayload.numero_destinatario = end.numero || 'S/N';
-          nfePayload.bairro_destinatario = end.bairro || '';
-          nfePayload.municipio_destinatario = end.cidade || '';
-          nfePayload.uf_destinatario = end.estado || 'SP';
-          nfePayload.cep_destinatario = (end.cep || '').replace(/\D/g, '');
+        // If no CPF/CNPJ, omit destinatario entirely for consumer sales
+        if (!nfePayload.cpf_destinatario && !nfePayload.cnpj_destinatario) {
+          // For NF-e without identified consumer, remove name to avoid schema error
+          delete nfePayload.nome_destinatario;
+          delete nfePayload.indicador_inscricao_estadual_destinatario;
         } else {
-          // NF-e requires address - use placeholder
+          const end = doc.cliente.endereco as any;
+          if (end && (end.rua || end.logradouro)) {
+            nfePayload.logradouro_destinatario = end.rua || end.logradouro || '';
+            nfePayload.numero_destinatario = end.numero || 'S/N';
+            nfePayload.bairro_destinatario = end.bairro || '';
+            nfePayload.municipio_destinatario = end.cidade || '';
+            nfePayload.uf_destinatario = end.estado || 'SP';
+            nfePayload.cep_destinatario = (end.cep || '').replace(/\D/g, '');
+          } else {
+            nfePayload.logradouro_destinatario = 'NAO INFORMADO';
+            nfePayload.numero_destinatario = 'S/N';
+            nfePayload.bairro_destinatario = 'NAO INFORMADO';
+            nfePayload.municipio_destinatario = 'Taubate';
+            nfePayload.uf_destinatario = 'SP';
+            nfePayload.cep_destinatario = '12000000';
+          }
+        }
+      } else if (doc.razao_social) {
+        nfePayload.nome_destinatario = doc.razao_social;
+        nfePayload.indicador_inscricao_estadual_destinatario = '9';
+        if (doc.cnpj_cpf) {
+          const cpfCnpj = doc.cnpj_cpf.replace(/\D/g, '');
+          if (cpfCnpj.length === 11) {
+            nfePayload.cpf_destinatario = cpfCnpj;
+          } else if (cpfCnpj.length === 14) {
+            nfePayload.cnpj_destinatario = cpfCnpj;
+          }
+        }
+        if (!nfePayload.cpf_destinatario && !nfePayload.cnpj_destinatario) {
+          delete nfePayload.nome_destinatario;
+          delete nfePayload.indicador_inscricao_estadual_destinatario;
+        } else {
           nfePayload.logradouro_destinatario = 'NAO INFORMADO';
           nfePayload.numero_destinatario = 'S/N';
           nfePayload.bairro_destinatario = 'NAO INFORMADO';
@@ -112,33 +141,8 @@ Deno.serve(async (req) => {
           nfePayload.uf_destinatario = 'SP';
           nfePayload.cep_destinatario = '12000000';
         }
-      } else if (doc.razao_social) {
-        nfePayload.nome_destinatario = doc.razao_social;
-        if (doc.cnpj_cpf) {
-          const cpfCnpj = doc.cnpj_cpf.replace(/\D/g, '');
-          if (cpfCnpj.length === 11) {
-            nfePayload.cpf_destinatario = cpfCnpj;
-          } else {
-            nfePayload.cnpj_destinatario = cpfCnpj;
-          }
-        }
-        // Address fallback for manual entries
-        nfePayload.logradouro_destinatario = 'NAO INFORMADO';
-        nfePayload.numero_destinatario = 'S/N';
-        nfePayload.bairro_destinatario = 'NAO INFORMADO';
-        nfePayload.municipio_destinatario = 'Taubate';
-        nfePayload.uf_destinatario = 'SP';
-        nfePayload.cep_destinatario = '12000000';
-      } else {
-        // No client at all - still provide required fields
-        nfePayload.nome_destinatario = 'CONSUMIDOR NAO IDENTIFICADO';
-        nfePayload.logradouro_destinatario = 'NAO INFORMADO';
-        nfePayload.numero_destinatario = 'S/N';
-        nfePayload.bairro_destinatario = 'NAO INFORMADO';
-        nfePayload.municipio_destinatario = 'Taubate';
-        nfePayload.uf_destinatario = 'SP';
-        nfePayload.cep_destinatario = '12000000';
       }
+      // If no client/razao_social at all, no destinatario block is sent (valid for consumer NF-e)
 
       // Valores globais
       if (doc.valor_frete > 0) nfePayload.valor_frete = doc.valor_frete;
