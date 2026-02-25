@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
         finalidade_emissao: '1',
         consumidor_final: '1',
         presenca_comprador: '1',
+        modalidade_frete: '9',
         informacoes_adicionais_contribuinte: doc.informacoes_adicionais || '',
         items: itens,
       };
@@ -211,6 +212,7 @@ Deno.serve(async (req) => {
         finalidade_emissao: '1',
         consumidor_final: '1',
         presenca_comprador: '1',
+        modalidade_frete: '9',
         items: itens,
         formas_pagamento: [{
           forma_pagamento: '01', // Dinheiro
