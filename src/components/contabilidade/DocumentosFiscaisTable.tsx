@@ -9,8 +9,11 @@ import {
   XCircle, 
   ArrowDownCircle, 
   ArrowUpCircle,
-  Filter,
-  Download
+  Download,
+  Receipt,
+  Loader2,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +30,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -46,6 +50,8 @@ import {
 } from '@/hooks/useContabilidade';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NovoDocumentoDialog } from './NovoDocumentoDialog';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const tipoLabels: Record<DocumentoFiscalTipo, string> = {
   NFE: 'NF-e',
@@ -68,6 +74,8 @@ export function DocumentosFiscaisTable() {
   const [direcaoFilter, setDirecaoFilter] = useState<DocumentoFiscalDirecao | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<DocumentoFiscalStatus | 'all'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [emittingId, setEmittingId] = useState<string | null>(null);
+  const [consultingId, setConsultingId] = useState<string | null>(null);
 
   const filters = {
     tipo: tipoFilter !== 'all' ? tipoFilter : undefined,
@@ -75,26 +83,90 @@ export function DocumentosFiscaisTable() {
     status: statusFilter !== 'all' ? statusFilter : undefined,
   };
 
-  const { data: documentos, isLoading } = useDocumentosFiscais(filters);
+  const { data: documentos, isLoading, refetch } = useDocumentosFiscais(filters);
   const { emitirDocumento, cancelarDocumento } = useDocumentoFiscalMutations();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const handleEmitir = (doc: DocumentoFiscal, useFocusNfe = false) => {
-    const msg = useFocusNfe 
-      ? 'Deseja emitir este documento via Focus NFe (SEFAZ)?' 
-      : 'Deseja marcar este documento como emitido?';
-    if (confirm(msg)) {
-      emitirDocumento.mutate({ id: doc.id, useFocusNfe, ambiente: 'PRODUCAO' });
+  const handleEmitirFocus = async (doc: DocumentoFiscal) => {
+    const tipoLabel = doc.tipo === 'NFCE' ? 'NFC-e (Cupom Fiscal)' : 'NF-e';
+    if (!confirm(`Emitir ${tipoLabel} via Focus NFe (SEFAZ)?\n\nValor: ${formatCurrency(doc.valor_total)}`)) return;
+    
+    setEmittingId(doc.id);
+    try {
+      const result = await emitirDocumento.mutateAsync({ id: doc.id, useFocusNfe: true, ambiente: 'PRODUCAO' });
+      if (result?.danfe_url) {
+        window.open(result.danfe_url, '_blank');
+      }
+    } finally {
+      setEmittingId(null);
     }
   };
 
-  const handleCancelar = (doc: DocumentoFiscal) => {
-    const motivo = prompt('Informe o motivo do cancelamento:');
-    if (motivo) {
+  const handleEmitirManual = (doc: DocumentoFiscal) => {
+    if (confirm('Deseja marcar este documento como emitido manualmente?')) {
+      emitirDocumento.mutate({ id: doc.id, useFocusNfe: false });
+    }
+  };
+
+  const handleConsultar = async (doc: DocumentoFiscal) => {
+    if (!doc.chave_acesso && !doc.id) return;
+    setConsultingId(doc.id);
+    try {
+      const ref = doc.tipo === 'NFCE' 
+        ? `nfce-${doc.id.substring(0, 8)}` 
+        : `nfe-${doc.id.substring(0, 8)}`;
+      
+      const { data, error } = await supabase.functions.invoke('focus-nfe', {
+        body: { action: 'consultar', documento_id: doc.id, ref, tipo: doc.tipo, ambiente: 'PRODUCAO' },
+      });
+
+      if (error) throw error;
+      
+      toast({
+        title: `Status: ${data?.status || 'desconhecido'}`,
+        description: data?.chave_nfe ? `Chave: ${data.chave_nfe.substring(0, 25)}...` : 'Consulta realizada.',
+      });
+      refetch();
+    } catch (err: any) {
+      toast({ title: 'Erro ao consultar', description: err.message, variant: 'destructive' });
+    } finally {
+      setConsultingId(null);
+    }
+  };
+
+  const handleCancelar = async (doc: DocumentoFiscal) => {
+    const motivo = prompt('Informe o motivo do cancelamento (mínimo 15 caracteres):');
+    if (!motivo || motivo.length < 15) {
+      if (motivo) toast({ title: 'Motivo muito curto', description: 'Mínimo 15 caracteres.', variant: 'destructive' });
+      return;
+    }
+
+    // If has chave_acesso, cancel via Focus NFe too
+    if (doc.chave_acesso) {
+      const ref = doc.tipo === 'NFCE' 
+        ? `nfce-${doc.id.substring(0, 8)}` 
+        : `nfe-${doc.id.substring(0, 8)}`;
+      
+      try {
+        await supabase.functions.invoke('focus-nfe', {
+          body: { action: 'cancelar', documento_id: doc.id, ref, justificativa: motivo, tipo: doc.tipo, ambiente: 'PRODUCAO' },
+        });
+        toast({ title: 'Documento cancelado na SEFAZ!' });
+        refetch();
+      } catch (err: any) {
+        toast({ title: 'Erro ao cancelar na SEFAZ', description: err.message, variant: 'destructive' });
+      }
+    } else {
       cancelarDocumento.mutate({ id: doc.id, motivo });
+    }
+  };
+
+  const handleDownloadPdf = (doc: DocumentoFiscal) => {
+    if (doc.pdf_url) {
+      window.open(doc.pdf_url, '_blank');
     }
   };
 
@@ -107,10 +179,16 @@ export function DocumentosFiscaisTable() {
               <FileText className="h-5 w-5" />
               Documentos Fiscais
             </CardTitle>
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <FileText className="h-4 w-4 mr-2" />
-              Novo Documento
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Atualizar
+              </Button>
+              <Button size="sm" onClick={() => setDialogOpen(true)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Novo Documento
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -150,6 +228,7 @@ export function DocumentosFiscaisTable() {
                 <SelectItem value="PENDENTE_EMISSAO">Pendente</SelectItem>
                 <SelectItem value="EMITIDA">Emitida</SelectItem>
                 <SelectItem value="CANCELADA">Cancelada</SelectItem>
+                <SelectItem value="REJEITADA">Rejeitada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -164,6 +243,7 @@ export function DocumentosFiscaisTable() {
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>Nenhum documento fiscal encontrado</p>
+              <p className="text-sm mt-1">Crie um novo documento ou emita um cupom fiscal</p>
             </div>
           ) : (
             <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -183,6 +263,8 @@ export function DocumentosFiscaisTable() {
                 <TableBody>
                   {documentos.map((doc) => {
                     const status = statusConfig[doc.status];
+                    const isEmitting = emittingId === doc.id;
+                    const isConsulting = consultingId === doc.id;
                     return (
                       <TableRow key={doc.id}>
                         <TableCell>
@@ -193,9 +275,9 @@ export function DocumentosFiscaisTable() {
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {doc.direcao === 'ENTRADA' ? (
-                            <ArrowDownCircle className="h-4 w-4 text-emerald-500" />
+                            <ArrowDownCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
-                            <ArrowUpCircle className="h-4 w-4 text-red-500" />
+                            <ArrowUpCircle className="h-4 w-4 text-destructive" />
                           )}
                         </TableCell>
                         <TableCell className="max-w-[150px] truncate">
@@ -213,39 +295,69 @@ export function DocumentosFiscaisTable() {
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
+                              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isEmitting || isConsulting}>
+                                {isEmitting || isConsulting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MoreHorizontal className="h-4 w-4" />
+                                )}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="h-4 w-4 mr-2" />
-                                Visualizar
-                              </DropdownMenuItem>
-                              {(doc.status === 'RASCUNHO' || doc.status === 'PENDENTE_EMISSAO') && (
+                              {/* Emissão via Focus NFe */}
+                              {(doc.status === 'RASCUNHO' || doc.status === 'PENDENTE_EMISSAO' || doc.status === 'REJEITADA') && doc.direcao === 'SAIDA' && (
                                 <>
-                                  <DropdownMenuItem onClick={() => handleEmitir(doc, true)}>
-                                    <Send className="h-4 w-4 mr-2" />
-                                    Emitir via Focus NFe
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleEmitir(doc, false)}>
+                                  {(doc.tipo === 'NFE' || doc.tipo === 'NFCE') && (
+                                    <DropdownMenuItem onClick={() => handleEmitirFocus(doc)}>
+                                      <Send className="h-4 w-4 mr-2" />
+                                      Emitir {doc.tipo === 'NFCE' ? 'NFC-e' : 'NF-e'} via Focus NFe
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => handleEmitirManual(doc)}>
                                     <FileText className="h-4 w-4 mr-2" />
                                     Marcar como Emitido
                                   </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                 </>
                               )}
+
+                              {/* Consultar status na SEFAZ */}
+                              {doc.status === 'PENDENTE_EMISSAO' && (doc.tipo === 'NFE' || doc.tipo === 'NFCE') && (
+                                <DropdownMenuItem onClick={() => handleConsultar(doc)}>
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  Consultar Status SEFAZ
+                                </DropdownMenuItem>
+                              )}
+
+                              {/* Download PDF / DANFE */}
+                              {doc.pdf_url && (
+                                <DropdownMenuItem onClick={() => handleDownloadPdf(doc)}>
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download DANFE (PDF)
+                                </DropdownMenuItem>
+                              )}
+
+                              {/* Chave de acesso */}
+                              {doc.chave_acesso && (
+                                <DropdownMenuItem onClick={() => {
+                                  navigator.clipboard.writeText(doc.chave_acesso!);
+                                  toast({ title: 'Chave copiada!' });
+                                }}>
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Copiar Chave de Acesso
+                                </DropdownMenuItem>
+                              )}
+
+                              {/* Cancelar */}
                               {doc.status === 'EMITIDA' && (
                                 <>
-                                  <DropdownMenuItem>
-                                    <Download className="h-4 w-4 mr-2" />
-                                    Download PDF
-                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem 
                                     className="text-destructive"
                                     onClick={() => handleCancelar(doc)}
                                   >
                                     <XCircle className="h-4 w-4 mr-2" />
-                                    Cancelar
+                                    Cancelar Documento
                                   </DropdownMenuItem>
                                 </>
                               )}

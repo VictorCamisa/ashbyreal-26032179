@@ -36,6 +36,7 @@ export interface DocumentoFiscal {
   informacoes_adicionais: string | null;
   razao_social: string | null;
   cnpj_cpf: string | null;
+  pdf_url: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
