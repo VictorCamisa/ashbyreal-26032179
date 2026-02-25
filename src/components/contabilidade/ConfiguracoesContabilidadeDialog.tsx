@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Building2, Bell, FileText, Key, Upload, Loader2 } from 'lucide-react';
+import { Building2, Bell, FileText, Key } from 'lucide-react';
 
 interface ConfiguracoesContabilidadeDialogProps {
   open: boolean;
@@ -483,7 +483,13 @@ export function ConfiguracoesContabilidadeDialog({
                         />
                       </div>
                     </div>
-                    <SyncCSCButton ambiente={formData.ambiente} />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      ⚠️ O CSC deve ser configurado diretamente no{' '}
+                      <a href="https://app.focusnfe.com.br" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                        painel da Focus NFe
+                      </a>
+                      {' '}na seção da empresa. Os valores aqui são apenas para referência.
+                    </p>
                   </div>
                 )}
               </div>
@@ -508,39 +514,3 @@ export function ConfiguracoesContabilidadeDialog({
   );
 }
 
-function SyncCSCButton({ ambiente }: { ambiente: string }) {
-  const [syncing, setSyncing] = useState(false);
-
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('focus-nfe', {
-        body: { action: 'configurar_csc', ambiente: ambiente === 'producao' ? 'PRODUCAO' : 'HOMOLOGACAO' },
-      });
-      if (error) throw error;
-      if (data?.success) {
-        toast.success(data.message || 'CSC sincronizado com Focus NFe!');
-      } else {
-        throw new Error(data?.error || 'Erro desconhecido');
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Erro ao sincronizar CSC');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="mt-2 gap-2"
-      onClick={handleSync}
-      disabled={syncing}
-    >
-      {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-      Sincronizar CSC com Focus NFe
-    </Button>
-  );
-}
