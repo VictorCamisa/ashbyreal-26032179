@@ -90,6 +90,8 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
       }
 
       let recovered = false;
+      const openedAt = Date.now();
+      const MIN_OPEN_TIME = 10000; // 10s - popup must stay open at least this long
 
       const doRecover = async () => {
         if (recovered) return;
@@ -98,27 +100,34 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
         clearInterval(checkClosed);
         try { popup?.close(); } catch {}
         toast.info('Conexão detectada. Buscando dados...');
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 3000));
         await handleRecoverItems();
       };
 
-      // Primary: listen for postMessage from Pluggy widget
+      // Primary: listen for postMessage from Pluggy widget (strict origin check)
       const handleMessage = (event: MessageEvent) => {
-        // Pluggy sends events with type or event fields
+        if (!event.origin?.includes('pluggy.ai')) return;
         if (
-          event.origin?.includes('pluggy.ai') ||
-          event.data?.type === 'pluggy-connect' ||
           event.data?.event === 'CONNECT_COMPLETED' ||
-          event.data?.item
+          event.data?.event === 'ITEM_CREATED' ||
+          (event.data?.type === 'pluggy-connect' && event.data?.item)
         ) {
           doRecover();
         }
       };
       window.addEventListener('message', handleMessage);
 
-      // Fallback: poll until popup closes
-      const checkClosed = setInterval(async () => {
+      // Fallback: poll until popup closes, but only after minimum time
+      const checkClosed = setInterval(() => {
         if (popup?.closed) {
+          const elapsed = Date.now() - openedAt;
+          if (elapsed < MIN_OPEN_TIME) {
+            // Popup closed too fast - user cancelled or error
+            clearInterval(checkClosed);
+            window.removeEventListener('message', handleMessage);
+            toast.warning('O popup foi fechado antes de completar a conexão. Tente novamente.');
+            return;
+          }
           doRecover();
         }
       }, 1000);
