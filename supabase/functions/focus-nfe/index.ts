@@ -45,23 +45,29 @@ Deno.serve(async (req) => {
         .single();
 
       const ref = `nfe-${documento_id.substring(0, 8)}`;
-      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => ({
-        numero_item: String(idx + 1),
-        codigo_produto: item.codigo || String(idx + 1),
-        descricao: item.descricao,
-        quantidade: item.quantidade,
-        unidade_comercial: item.unidade || 'UN',
-        valor_unitario_comercial: item.valor_unitario,
-        valor_unitario_tributavel: item.valor_unitario,
-        unidade_tributavel: item.unidade || 'UN',
-        codigo_ncm: item.ncm || '22030000',
-        cfop: item.cfop || '5102',
-        valor_bruto: item.valor_total,
-        icms_origem: '0',
-        icms_situacao_tributaria: '102',
-        pis_situacao_tributaria: '07',
-        cofins_situacao_tributaria: '07',
-      }));
+      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
+        const qty = Number(item.quantidade) || 1;
+        const unitPrice = Number(item.valor_unitario) || 0;
+        // SEFAZ exige que valor_bruto = quantidade * valor_unitario_comercial EXATAMENTE
+        const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
+        return {
+          numero_item: String(idx + 1),
+          codigo_produto: item.codigo || String(idx + 1),
+          descricao: item.descricao,
+          quantidade: qty,
+          unidade_comercial: item.unidade || 'UN',
+          valor_unitario_comercial: unitPrice,
+          valor_unitario_tributavel: unitPrice,
+          unidade_tributavel: item.unidade || 'UN',
+          codigo_ncm: item.ncm || '22030000',
+          cfop: item.cfop || '5102',
+          valor_bruto: valorBruto,
+          icms_origem: '0',
+          icms_situacao_tributaria: '102',
+          pis_situacao_tributaria: '07',
+          cofins_situacao_tributaria: '07',
+        };
+      });
 
       // Build NF-e payload for Focus NFe
       const nfePayload: any = {
@@ -202,23 +208,28 @@ Deno.serve(async (req) => {
         .single();
 
       const ref = `nfce-${documento_id.substring(0, 8)}`;
-      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => ({
-        numero_item: String(idx + 1),
-        codigo_produto: item.codigo || String(idx + 1),
-        descricao: item.descricao,
-        quantidade: item.quantidade,
-        unidade_comercial: item.unidade || 'UN',
-        valor_unitario_comercial: item.valor_unitario,
-        valor_unitario_tributavel: item.valor_unitario,
-        unidade_tributavel: item.unidade || 'UN',
-        codigo_ncm: item.ncm || '22030000',
-        cfop: item.cfop || '5102',
-        valor_bruto: item.valor_total,
-        icms_origem: '0',
-        icms_situacao_tributaria: '102',
-        pis_situacao_tributaria: '07',
-        cofins_situacao_tributaria: '07',
-      }));
+      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
+        const qty = Number(item.quantidade) || 1;
+        const unitPrice = Number(item.valor_unitario) || 0;
+        const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
+        return {
+          numero_item: String(idx + 1),
+          codigo_produto: item.codigo || String(idx + 1),
+          descricao: item.descricao,
+          quantidade: qty,
+          unidade_comercial: item.unidade || 'UN',
+          valor_unitario_comercial: unitPrice,
+          valor_unitario_tributavel: unitPrice,
+          unidade_tributavel: item.unidade || 'UN',
+          codigo_ncm: item.ncm || '22030000',
+          cfop: item.cfop || '5102',
+          valor_bruto: valorBruto,
+          icms_origem: '0',
+          icms_situacao_tributaria: '102',
+          pis_situacao_tributaria: '07',
+          cofins_situacao_tributaria: '07',
+        };
+      });
 
       const nfcePayload: any = {
         natureza_operacao: doc.natureza_operacao || 'Venda de mercadoria',
