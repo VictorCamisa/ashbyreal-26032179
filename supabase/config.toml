@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.pluggy-webhook]
 verify_jwt = false
+
+[functions.focus-nfe]
+verify_jwt = false
