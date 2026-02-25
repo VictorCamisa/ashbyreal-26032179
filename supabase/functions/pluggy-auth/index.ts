@@ -64,7 +64,6 @@ serve(async (req) => {
         options: {
           webhookUrl,
           clientUserId: claimsData.user.id,
-          avoidDuplicates: true,
         },
       };
 
