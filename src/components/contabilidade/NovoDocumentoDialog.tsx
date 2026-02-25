@@ -565,8 +565,8 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
         </div>
 
         <Form {...form}>
-          <form className="flex-1 overflow-hidden flex flex-col">
-            <ScrollArea className="flex-1 px-6">
+          <form className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6">
               <div className="pb-4 min-h-[280px]">
                 {/* ──── Step 0: Tipo & Direção ──── */}
                 {step === 0 && (
@@ -767,7 +767,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
                   </div>
                 )}
               </div>
-            </ScrollArea>
+            </div>
 
             {/* ──── Footer ──── */}
             <div className="border-t px-6 py-4 flex items-center gap-2 bg-card">
