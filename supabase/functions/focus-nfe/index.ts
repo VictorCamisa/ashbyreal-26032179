@@ -48,21 +48,21 @@ Deno.serve(async (req) => {
       const ts = Date.now().toString(36);
       const ref = `nfe-${documento_id.substring(0, 8)}-${ts}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
-        const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
-        // SEFAZ exige: valor_bruto == quantidade * valor_unitario_comercial
-        // Arredondar unitário a 4 casas e calcular bruto exato a partir dele
-        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(4));
-        const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
-        // Back-calculate unit price so qty * unit == valorBruto exactly
-        const unitPriceFinal = qty > 0 ? parseFloat((valorBruto / qty).toFixed(10)) : unitPrice;
+        const qty = Number(item.quantidade || 1);
+        const rawUnit = Number(item.valor_unitario || 0);
+        // SEFAZ valida: valor_bruto == TRUNCAR(quantidade * valor_unitario_comercial, 2)
+        // Usar unitário com 2 casas decimais para garantir multiplicação exata
+        const unitPrice = Math.round(rawUnit * 100) / 100; // 2 decimal places
+        const valorBruto = Math.round(qty * unitPrice * 100) / 100; // exact 2 decimal places
         return {
           numero_item: String(idx + 1),
           codigo_produto: item.codigo || String(idx + 1),
           descricao: item.descricao,
-          quantidade: qty,
+          quantidade_comercial: qty,
+          quantidade_tributavel: qty,
           unidade_comercial: item.unidade || 'UN',
-          valor_unitario_comercial: unitPriceFinal,
-          valor_unitario_tributavel: unitPriceFinal,
+          valor_unitario_comercial: unitPrice,
+          valor_unitario_tributavel: unitPrice,
           unidade_tributavel: item.unidade || 'UN',
           codigo_ncm: item.ncm || '22030000',
           cfop: item.cfop || '5102',
@@ -217,18 +217,19 @@ Deno.serve(async (req) => {
       const ts2 = Date.now().toString(36);
       const ref = `nfce-${documento_id.substring(0, 8)}-${ts2}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
-        const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
-        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(4));
-        const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
-        const unitPriceFinal = qty > 0 ? parseFloat((valorBruto / qty).toFixed(10)) : unitPrice;
+        const qty = Number(item.quantidade || 1);
+        const rawUnit = Number(item.valor_unitario || 0);
+        const unitPrice = Math.round(rawUnit * 100) / 100;
+        const valorBruto = Math.round(qty * unitPrice * 100) / 100;
         return {
           numero_item: String(idx + 1),
           codigo_produto: item.codigo || String(idx + 1),
           descricao: item.descricao,
-          quantidade: qty,
+          quantidade_comercial: qty,
+          quantidade_tributavel: qty,
           unidade_comercial: item.unidade || 'UN',
-          valor_unitario_comercial: unitPriceFinal,
-          valor_unitario_tributavel: unitPriceFinal,
+          valor_unitario_comercial: unitPrice,
+          valor_unitario_tributavel: unitPrice,
           unidade_tributavel: item.unidade || 'UN',
           codigo_ncm: item.ncm || '22030000',
           cfop: item.cfop || '5102',
