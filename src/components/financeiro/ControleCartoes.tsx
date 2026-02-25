@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CreditCardVisual } from './CreditCardVisual';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -266,87 +267,23 @@ export function ControleCartoes() {
       <div>
         <h3 className="text-lg font-semibold mb-4">Meus Cartões</h3>
         {cartoes && cartoes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
             {cartoes.map((cartao) => {
               const currentValue = getCardCurrentValue(cartao.id);
-              const usedLimit = currentValue;
-              const limitValue = cartao.limit_value || 0;
-              const usagePercent = limitValue > 0 ? (usedLimit / limitValue) * 100 : 0;
-              const isHighUsage = usagePercent > 80;
-              
+
               return (
-                <Card 
-                  key={cartao.id} 
-                  className={cn(
-                    "glass-card cursor-pointer transition-all hover:shadow-lg group",
-                    !cartao.is_active && "opacity-60"
-                  )}
+                <CreditCardVisual
+                  key={cartao.id}
+                  name={cartao.name}
+                  lastDigits={cartao.last_digits}
+                  brand={cartao.brand}
+                  dueDay={cartao.due_day}
+                  closingDay={cartao.closing_day}
+                  isActive={cartao.is_active}
+                  limitValue={cartao.limit_value}
+                  currentValue={currentValue}
                   onClick={() => setSelectedCard(cartao)}
-                >
-                  <CardContent className="p-4">
-                    {/* Card Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "h-12 w-12 rounded-xl flex items-center justify-center",
-                          cartao.is_active ? "bg-gradient-to-br from-primary to-primary/70" : "bg-muted"
-                        )}>
-                          <CreditCard className="h-6 w-6 text-primary-foreground" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold">{cartao.name}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            Venc. dia {cartao.due_day || '-'} • Fecha dia {cartao.closing_day || '-'}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant={cartao.is_active ? 'default' : 'secondary'} className="text-xs">
-                        {cartao.is_active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </div>
-
-                    {/* Limit Usage */}
-                    {limitValue > 0 && (
-                      <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Limite usado</span>
-                          <span className={cn(
-                            "font-medium",
-                            isHighUsage ? "text-destructive" : ""
-                          )}>
-                            {usagePercent.toFixed(0)}%
-                          </span>
-                        </div>
-                        <Progress 
-                          value={Math.min(usagePercent, 100)} 
-                          className={cn(
-                            "h-2",
-                            isHighUsage && "[&>div]:bg-destructive"
-                          )}
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>R$ {usedLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                          <span>R$ {limitValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Current Fatura Info */}
-                    {currentValue > 0 && (
-                      <div className="pt-3 border-t border-border/50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">Fatura Atual</span>
-                          </div>
-                          <span className="font-semibold">
-                            R$ {currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                />
               );
             })}
           </div>
