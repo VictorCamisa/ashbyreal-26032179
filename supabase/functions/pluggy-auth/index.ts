@@ -90,19 +90,44 @@ serve(async (req) => {
     }
 
     if (action === 'list-items') {
-      const itemsResponse = await fetch(`${PLUGGY_API_URL}/items?clientUserId=${claimsData.user.id}`, {
+      // Try listing items by clientUserId first, fallback to single item retrieval
+      const listUrl = `${PLUGGY_API_URL}/items?clientUserId=${claimsData.user.id}`;
+      console.log(`Fetching items from: ${listUrl}`);
+      
+      const itemsResponse = await fetch(listUrl, {
         headers: { 'X-API-KEY': apiKey },
       });
 
-      if (!itemsResponse.ok) {
-        const errBody = await itemsResponse.text();
-        throw new Error(`Pluggy list items failed [${itemsResponse.status}]: ${errBody}`);
+      if (itemsResponse.ok) {
+        const items = await itemsResponse.json();
+        console.log(`Got ${items.results?.length || 0} items`);
+        return new Response(JSON.stringify(items), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      const items = await itemsResponse.json();
-      return new Response(JSON.stringify(items), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      // If list fails, try to get items from our DB and fetch each one
+      const errBody = await itemsResponse.text();
+      console.log(`List items failed [${itemsResponse.status}]: ${errBody}, trying individual fetch...`);
+
+      // If a specific itemId was provided, try fetching it directly
+      if (body.pluggyItemId) {
+        const singleResponse = await fetch(`${PLUGGY_API_URL}/items/${body.pluggyItemId}`, {
+          headers: { 'X-API-KEY': apiKey },
+        });
+
+        if (!singleResponse.ok) {
+          const singleErr = await singleResponse.text();
+          throw new Error(`Pluggy get item failed [${singleResponse.status}]: ${singleErr}`);
+        }
+
+        const item = await singleResponse.json();
+        return new Response(JSON.stringify({ results: [item] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      throw new Error(`Pluggy list items failed [${itemsResponse.status}]: ${errBody}`);
     }
 
     if (action === 'get-accounts') {
