@@ -40,6 +40,151 @@ function generateDedupeKey(description: string, amount: number, date: string): s
   return `${cleaned}|${Math.abs(amount).toFixed(2)}|${date}`;
 }
 
+async function syncSingleCard(
+  supabaseAdmin: any,
+  apiKey: string,
+  pluggyItemId: string,
+  pluggyAccountId: string,
+  creditCardId: string,
+) {
+  // Get credit card details
+  const { data: card } = await supabaseAdmin
+    .from('credit_cards')
+    .select('*')
+    .eq('id', creditCardId)
+    .single();
+
+  if (!card) {
+    console.error(`Credit card ${creditCardId} not found`);
+    return { inserted: 0, skipped: 0, total: 0, error: 'Card not found' };
+  }
+
+  // Fetch transactions from Pluggy
+  const now = new Date();
+  const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const from = threeMonthsAgo.toISOString().split('T')[0];
+  const to = now.toISOString().split('T')[0];
+
+  const txRes = await fetch(
+    `${PLUGGY_API_URL}/transactions?accountId=${pluggyAccountId}&from=${from}&to=${to}&pageSize=500`,
+    { headers: { 'X-API-KEY': apiKey } }
+  );
+
+  if (!txRes.ok) {
+    const err = await txRes.text();
+    throw new Error(`Failed to get transactions [${txRes.status}]: ${err}`);
+  }
+
+  const txData = await txRes.json();
+  const transactions = txData.results || [];
+
+  let inserted = 0;
+  let skipped = 0;
+  const closingDay = card.closing_day || 10;
+
+  for (const tx of transactions) {
+    const purchaseDate = tx.date?.split('T')[0];
+    if (!purchaseDate) continue;
+
+    const amount = Math.abs(tx.amount || 0);
+    const description = tx.description || tx.descriptionRaw || 'Sem descrição';
+
+    // Calculate competencia
+    const pDate = new Date(purchaseDate);
+    const pDay = pDate.getDate();
+    let compMonth: number, compYear: number;
+
+    if (pDay <= closingDay) {
+      compMonth = pDate.getMonth();
+      compYear = pDate.getFullYear();
+    } else {
+      compMonth = pDate.getMonth() + 1;
+      compYear = pDate.getFullYear();
+      if (compMonth > 11) { compMonth = 0; compYear++; }
+    }
+
+    const competencia = `${compYear}-${String(compMonth + 1).padStart(2, '0')}-01`;
+    const dedupeKey = generateDedupeKey(description, amount, purchaseDate);
+
+    const { data: existing } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .select('id')
+      .eq('credit_card_id', creditCardId)
+      .eq('dedupe_key', dedupeKey)
+      .maybeSingle();
+
+    if (existing) { skipped++; continue; }
+
+    const { error: insertError } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .insert({
+        credit_card_id: creditCardId,
+        description,
+        amount,
+        purchase_date: purchaseDate,
+        competencia,
+        dedupe_key: dedupeKey,
+        installment_number: tx.creditCardMetadata?.installmentNumber || 1,
+        total_installments: tx.creditCardMetadata?.totalInstallments || 1,
+        item_status: 'IMPORTADO',
+        notes: `Pluggy sync - ${tx.id}`,
+      });
+
+    if (insertError) { console.error('Insert error:', insertError); }
+    else { inserted++; }
+  }
+
+  // Update/create invoices for affected competencias
+  const competencias = [...new Set(transactions.map((tx: any) => {
+    const pDate = new Date(tx.date?.split('T')[0]);
+    const pDay = pDate.getDate();
+    let m = pDay <= closingDay ? pDate.getMonth() : pDate.getMonth() + 1;
+    let y = pDate.getFullYear();
+    if (m > 11) { m = 0; y++; }
+    return `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  }))];
+
+  for (const comp of competencias) {
+    const { data: txForComp } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .select('amount')
+      .eq('credit_card_id', creditCardId)
+      .eq('competencia', comp);
+
+    const total = (txForComp || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+    const { data: existingInvoice } = await supabaseAdmin
+      .from('credit_card_invoices')
+      .select('id')
+      .eq('credit_card_id', creditCardId)
+      .eq('competencia', comp)
+      .maybeSingle();
+
+    if (existingInvoice) {
+      await supabaseAdmin
+        .from('credit_card_invoices')
+        .update({ total_value: total, updated_at: new Date().toISOString() })
+        .eq('id', existingInvoice.id);
+    } else {
+      const compDate = new Date(comp);
+      const dueDay = card.due_day || 20;
+      const dueDate = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+      await supabaseAdmin
+        .from('credit_card_invoices')
+        .insert({
+          credit_card_id: creditCardId,
+          competencia: comp,
+          total_value: total,
+          due_date: dueDate,
+          status: 'ABERTA',
+        });
+    }
+  }
+
+  return { inserted, skipped, total: transactions.length, competencias: competencias.length };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -73,233 +218,105 @@ serve(async (req) => {
 
     const apiKey = await getPluggyApiKey();
 
-    // Get pluggy_item mapping if creditCardId not provided
-    let cardId = creditCardId;
-    if (!cardId && pluggyItemId) {
+    // CASE 1: Sync a specific card by creditCardId
+    if (creditCardId && !pluggyItemId) {
       const { data: mapping } = await supabaseAdmin
         .from('pluggy_items')
-        .select('credit_card_id')
-        .eq('pluggy_item_id', pluggyItemId)
+        .select('pluggy_item_id, pluggy_account_id')
+        .eq('credit_card_id', creditCardId)
         .single();
-      
-      if (mapping) cardId = mapping.credit_card_id;
-    }
 
-    if (!cardId) {
-      return new Response(JSON.stringify({ error: 'No credit card linked to this Pluggy item' }), {
-        status: 400, headers: corsHeaders,
-      });
-    }
+      if (!mapping) {
+        return new Response(JSON.stringify({ error: 'No Pluggy item linked to this card' }), {
+          status: 400, headers: corsHeaders,
+        });
+      }
 
-    // Get credit card details for competencia calculation
-    const { data: card } = await supabaseAdmin
-      .from('credit_cards')
-      .select('*')
-      .eq('id', cardId)
-      .single();
+      let accountId = mapping.pluggy_account_id;
 
-    if (!card) {
-      return new Response(JSON.stringify({ error: 'Credit card not found' }), {
-        status: 404, headers: corsHeaders,
-      });
-    }
+      // If no account ID stored, try to find one
+      if (!accountId) {
+        const accountsRes = await fetch(`${PLUGGY_API_URL}/accounts?itemId=${mapping.pluggy_item_id}&type=CREDIT`, {
+          headers: { 'X-API-KEY': apiKey },
+        });
+        const accountsData = await accountsRes.json();
+        accountId = accountsData.results?.[0]?.id;
 
-    // Fetch accounts from Pluggy to find credit card account
-    const itemIdToUse = pluggyItemId || (
+        if (accountId) {
+          await supabaseAdmin
+            .from('pluggy_items')
+            .update({ pluggy_account_id: accountId })
+            .eq('credit_card_id', creditCardId);
+        }
+      }
+
+      if (!accountId) {
+        return new Response(JSON.stringify({ error: 'No credit account found in Pluggy' }), {
+          status: 400, headers: corsHeaders,
+        });
+      }
+
+      const result = await syncSingleCard(supabaseAdmin, apiKey, mapping.pluggy_item_id, accountId, creditCardId);
+
       await supabaseAdmin
         .from('pluggy_items')
-        .select('pluggy_item_id')
-        .eq('credit_card_id', cardId)
-        .single()
-    ).data?.pluggy_item_id;
+        .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'SUCCESS', sync_error: null })
+        .eq('credit_card_id', creditCardId);
 
-    if (!itemIdToUse) {
-      return new Response(JSON.stringify({ error: 'No Pluggy item found' }), {
-        status: 400, headers: corsHeaders,
-      });
-    }
-
-    const accountsRes = await fetch(`${PLUGGY_API_URL}/accounts?itemId=${itemIdToUse}&type=CREDIT`, {
-      headers: { 'X-API-KEY': apiKey },
-    });
-
-    if (!accountsRes.ok) {
-      const err = await accountsRes.text();
-      throw new Error(`Failed to get accounts [${accountsRes.status}]: ${err}`);
-    }
-
-    const accountsData = await accountsRes.json();
-    const creditAccount = accountsData.results?.[0];
-
-    if (!creditAccount) {
-      // Update sync status
-      await supabaseAdmin
-        .from('pluggy_items')
-        .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'NO_CREDIT_ACCOUNT', sync_error: 'No credit card account found in Pluggy' })
-        .eq('pluggy_item_id', itemIdToUse);
-
-      return new Response(JSON.stringify({ error: 'No credit card account found', synced: 0 }), {
+      return new Response(JSON.stringify({ success: true, ...result }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Fetch transactions from Pluggy
-    const now = new Date();
-    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    const from = threeMonthsAgo.toISOString().split('T')[0];
-    const to = now.toISOString().split('T')[0];
+    // CASE 2: Sync ALL cards linked to a pluggyItemId (webhook or manual)
+    if (pluggyItemId) {
+      const { data: mappings } = await supabaseAdmin
+        .from('pluggy_items')
+        .select('credit_card_id, pluggy_account_id')
+        .eq('pluggy_item_id', pluggyItemId);
 
-    const txRes = await fetch(
-      `${PLUGGY_API_URL}/transactions?accountId=${creditAccount.id}&from=${from}&to=${to}&pageSize=500`,
-      { headers: { 'X-API-KEY': apiKey } }
-    );
+      if (!mappings || mappings.length === 0) {
+        return new Response(JSON.stringify({ error: 'No cards linked to this Pluggy item' }), {
+          status: 400, headers: corsHeaders,
+        });
+      }
 
-    if (!txRes.ok) {
-      const err = await txRes.text();
-      throw new Error(`Failed to get transactions [${txRes.status}]: ${err}`);
-    }
+      const results: any[] = [];
 
-    const txData = await txRes.json();
-    const transactions = txData.results || [];
+      for (const mapping of mappings) {
+        if (!mapping.pluggy_account_id) {
+          console.warn(`Skipping card ${mapping.credit_card_id} — no pluggy_account_id`);
+          continue;
+        }
 
-    let inserted = 0;
-    let skipped = 0;
+        try {
+          const result = await syncSingleCard(
+            supabaseAdmin, apiKey, pluggyItemId, mapping.pluggy_account_id, mapping.credit_card_id!
+          );
+          results.push({ creditCardId: mapping.credit_card_id, ...result });
 
-    const closingDay = card.closing_day || 10;
+          await supabaseAdmin
+            .from('pluggy_items')
+            .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'SUCCESS', sync_error: null })
+            .eq('credit_card_id', mapping.credit_card_id);
+        } catch (err: any) {
+          console.error(`Sync failed for card ${mapping.credit_card_id}:`, err);
+          results.push({ creditCardId: mapping.credit_card_id, error: err.message });
 
-    for (const tx of transactions) {
-      const purchaseDate = tx.date?.split('T')[0];
-      if (!purchaseDate) continue;
-
-      const amount = Math.abs(tx.amount || 0);
-      const description = tx.description || tx.descriptionRaw || 'Sem descrição';
-
-      // Calculate competencia
-      const pDate = new Date(purchaseDate);
-      const pDay = pDate.getDate();
-      let compMonth: number, compYear: number;
-
-      if (pDay <= closingDay) {
-        compMonth = pDate.getMonth();
-        compYear = pDate.getFullYear();
-      } else {
-        compMonth = pDate.getMonth() + 1;
-        compYear = pDate.getFullYear();
-        if (compMonth > 11) {
-          compMonth = 0;
-          compYear++;
+          await supabaseAdmin
+            .from('pluggy_items')
+            .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'ERROR', sync_error: err.message })
+            .eq('credit_card_id', mapping.credit_card_id);
         }
       }
 
-      const competencia = `${compYear}-${String(compMonth + 1).padStart(2, '0')}-01`;
-      const dedupeKey = generateDedupeKey(description, amount, purchaseDate);
-
-      // Check for existing transaction
-      const { data: existing } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .select('id')
-        .eq('credit_card_id', cardId)
-        .eq('dedupe_key', dedupeKey)
-        .maybeSingle();
-
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      // Insert transaction
-      const { error: insertError } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .insert({
-          credit_card_id: cardId,
-          description,
-          amount,
-          purchase_date: purchaseDate,
-          competencia,
-          dedupe_key: dedupeKey,
-          installment_number: tx.creditCardMetadata?.installmentNumber || 1,
-          total_installments: tx.creditCardMetadata?.totalInstallments || 1,
-          item_status: 'IMPORTADO',
-          notes: `Pluggy sync - ${tx.id}`,
-        });
-
-      if (insertError) {
-        console.error('Insert error:', insertError);
-      } else {
-        inserted++;
-      }
+      return new Response(JSON.stringify({ success: true, results }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Update/create invoices for affected competencias
-    const competencias = [...new Set(transactions.map((tx: any) => {
-      const pDate = new Date(tx.date?.split('T')[0]);
-      const pDay = pDate.getDate();
-      let m = pDay <= closingDay ? pDate.getMonth() : pDate.getMonth() + 1;
-      let y = pDate.getFullYear();
-      if (m > 11) { m = 0; y++; }
-      return `${y}-${String(m + 1).padStart(2, '0')}-01`;
-    }))];
-
-    for (const comp of competencias) {
-      // Get total for this competencia
-      const { data: txForComp } = await supabaseAdmin
-        .from('credit_card_transactions')
-        .select('amount')
-        .eq('credit_card_id', cardId)
-        .eq('competencia', comp);
-
-      const total = (txForComp || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-
-      // Upsert invoice
-      const { data: existingInvoice } = await supabaseAdmin
-        .from('credit_card_invoices')
-        .select('id')
-        .eq('credit_card_id', cardId)
-        .eq('competencia', comp)
-        .maybeSingle();
-
-      if (existingInvoice) {
-        await supabaseAdmin
-          .from('credit_card_invoices')
-          .update({ total_value: total, updated_at: new Date().toISOString() })
-          .eq('id', existingInvoice.id);
-      } else {
-        // Calculate due date
-        const compDate = new Date(comp);
-        const dueDay = card.due_day || 20;
-        const dueDate = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
-
-        await supabaseAdmin
-          .from('credit_card_invoices')
-          .insert({
-            credit_card_id: cardId,
-            competencia: comp,
-            total_value: total,
-            due_date: dueDate,
-            status: 'ABERTA',
-          });
-      }
-    }
-
-    // Update sync status
-    await supabaseAdmin
-      .from('pluggy_items')
-      .update({
-        last_sync_at: new Date().toISOString(),
-        last_sync_status: 'SUCCESS',
-        sync_error: null,
-        pluggy_account_id: creditAccount.id,
-      })
-      .eq('pluggy_item_id', itemIdToUse);
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      inserted, 
-      skipped, 
-      total: transactions.length,
-      competencias: competencias.length,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ error: 'Provide pluggyItemId or creditCardId' }), {
+      status: 400, headers: corsHeaders,
     });
 
   } catch (error) {
