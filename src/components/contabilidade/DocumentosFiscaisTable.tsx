@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -16,6 +16,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -76,6 +77,7 @@ export function DocumentosFiscaisTable() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [emittingId, setEmittingId] = useState<string | null>(null);
   const [consultingId, setConsultingId] = useState<string | null>(null);
+  const [danfeUrl, setDanfeUrl] = useState<string | null>(null);
 
   const filters = {
     tipo: tipoFilter !== 'all' ? tipoFilter : undefined,
@@ -162,11 +164,13 @@ export function DocumentosFiscaisTable() {
     }
   };
 
-  const handleDownloadPdf = (doc: DocumentoFiscal) => {
+  const handleDownloadPdf = useCallback((doc: DocumentoFiscal) => {
     if (doc.pdf_url) {
-      window.open(doc.pdf_url, '_blank');
+      // If it's a relative path (old data), prefix with Focus NFe base URL
+      const url = doc.pdf_url.startsWith('http') ? doc.pdf_url : `https://api.focusnfe.com.br${doc.pdf_url}`;
+      setDanfeUrl(url);
     }
-  };
+  }, []);
 
   return (
     <>
@@ -373,6 +377,34 @@ export function DocumentosFiscaisTable() {
       </Card>
 
       <NovoDocumentoDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      {/* DANFE Viewer Dialog */}
+      <Dialog open={!!danfeUrl} onOpenChange={(open) => !open && setDanfeUrl(null)}>
+        <DialogContent className="max-w-4xl h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="flex items-center justify-between">
+              <span>Visualizar Cupom Fiscal</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => danfeUrl && window.open(danfeUrl, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir em nova aba
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 px-4 pb-4">
+            {danfeUrl && (
+              <iframe
+                src={danfeUrl}
+                className="w-full h-full border rounded-md"
+                title="DANFE / Cupom Fiscal"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
