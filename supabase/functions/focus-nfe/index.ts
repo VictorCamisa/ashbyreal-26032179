@@ -268,18 +268,41 @@ Deno.serve(async (req) => {
 
       // NFC-e não envia CSC no payload - é configurado na empresa no painel Focus NFe
 
-      // NFC-e é síncrona na Focus NFe
-      const focusRes = await fetch(`${baseUrl}/v2/nfce?ref=${ref}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(nfcePayload),
-      });
+      // NFC-e é síncrona na Focus NFe - com retry para duplicidade
+      let focusData: any = null;
+      let currentNumero = proximoNumero;
+      const MAX_RETRIES = 3;
 
-      const focusData = await focusRes.json();
-      console.log('Focus NFe NFC-e response:', JSON.stringify(focusData));
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const attemptRef = attempt === 0 ? ref : `nfce-${documento_id.substring(0, 8)}-${Date.now().toString(36)}`;
+        nfcePayload.numero = String(currentNumero);
+
+        const focusRes = await fetch(`${baseUrl}/v2/nfce?ref=${attemptRef}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(nfcePayload),
+        });
+
+        focusData = await focusRes.json();
+        console.log(`Focus NFe NFC-e attempt ${attempt + 1}:`, JSON.stringify(focusData));
+
+        // If duplicate rejection, increment number and retry
+        if (focusData.status === 'erro_autorizacao' && focusData.mensagem_sefaz?.includes('Duplicidade')) {
+          currentNumero++;
+          await supabase.from('contabilidade_config').update({ ultimo_numero_nfce: currentNumero }).eq('id', config.id);
+          ref = attemptRef;
+          continue;
+        }
+
+        ref = attemptRef;
+        break;
+      }
+
+      // Save final number used
+      await supabase.from('contabilidade_config').update({ ultimo_numero_nfce: currentNumero }).eq('id', config.id);
 
       const updateData: any = {
         status: focusData.status === 'autorizado' ? 'EMITIDA' : 'REJEITADA',
