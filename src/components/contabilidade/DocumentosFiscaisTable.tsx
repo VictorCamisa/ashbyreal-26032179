@@ -82,9 +82,12 @@ export function DocumentosFiscaisTable() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const handleEmitir = (doc: DocumentoFiscal) => {
-    if (confirm('Deseja emitir este documento fiscal?')) {
-      emitirDocumento.mutate(doc.id);
+  const handleEmitir = (doc: DocumentoFiscal, useFocusNfe = false) => {
+    const msg = useFocusNfe 
+      ? 'Deseja emitir este documento via Focus NFe (SEFAZ)?' 
+      : 'Deseja marcar este documento como emitido?';
+    if (confirm(msg)) {
+      emitirDocumento.mutate({ id: doc.id, useFocusNfe, ambiente: 'PRODUCAO' });
     }
   };
 
@@ -220,10 +223,16 @@ export function DocumentosFiscaisTable() {
                                 Visualizar
                               </DropdownMenuItem>
                               {(doc.status === 'RASCUNHO' || doc.status === 'PENDENTE_EMISSAO') && (
-                                <DropdownMenuItem onClick={() => handleEmitir(doc)}>
-                                  <Send className="h-4 w-4 mr-2" />
-                                  Emitir
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem onClick={() => handleEmitir(doc, true)}>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Emitir via Focus NFe
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleEmitir(doc, false)}>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Marcar como Emitido
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               {doc.status === 'EMITIDA' && (
                                 <>

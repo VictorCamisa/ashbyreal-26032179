@@ -296,25 +296,45 @@ export function useDocumentoFiscalMutations() {
   });
 
   const emitirDocumento = useMutation({
-    mutationFn: async (id: string) => {
-      // TODO: Integração com API de emissão futura
-      const { data: result, error } = await supabase
-        .from('documentos_fiscais')
-        .update({ 
-          status: 'EMITIDA',
-          data_emissao: new Date().toISOString()
-        } as any)
-        .eq('id', id)
-        .select()
-        .single();
+    mutationFn: async ({ id, useFocusNfe, ambiente }: { id: string; useFocusNfe?: boolean; ambiente?: string }) => {
+      if (useFocusNfe) {
+        // Get doc tipo to decide action
+        const { data: doc, error: docErr } = await supabase
+          .from('documentos_fiscais')
+          .select('tipo')
+          .eq('id', id)
+          .single();
+        if (docErr) throw docErr;
 
-      if (error) throw error;
-      return result;
+        const action = doc.tipo === 'NFCE' ? 'emitir_nfce' : 'emitir_nfe';
+
+        const { data, error } = await supabase.functions.invoke('focus-nfe', {
+          body: { action, documento_id: id, ambiente: ambiente || 'HOMOLOGACAO' },
+        });
+
+        if (error) throw new Error(error.message || 'Erro ao chamar Focus NFe');
+        if (data && !data.success) throw new Error(data.error || 'Erro na emissão');
+        return data;
+      } else {
+        const { data: result, error } = await supabase
+          .from('documentos_fiscais')
+          .update({ 
+            status: 'EMITIDA' as any,
+            data_emissao: new Date().toISOString()
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return result;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['documentos-fiscais'] });
       queryClient.invalidateQueries({ queryKey: ['contabilidade-stats'] });
-      toast({ title: 'Documento emitido com sucesso!' });
+      const msg = variables.useFocusNfe ? 'NF enviada para emissão via Focus NFe!' : 'Documento emitido com sucesso!';
+      toast({ title: msg });
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao emitir documento', description: error.message, variant: 'destructive' });
