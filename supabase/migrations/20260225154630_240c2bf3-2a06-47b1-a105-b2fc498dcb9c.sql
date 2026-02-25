@@ -1,0 +1,1 @@
+ALTER TABLE public.documentos_fiscais ADD COLUMN focus_ref text;

@@ -112,18 +112,14 @@ export function DocumentosFiscaisTable() {
   };
 
   const handleConsultar = async (doc: DocumentoFiscal) => {
-    if (!doc.chave_acesso && !doc.id) return;
     setConsultingId(doc.id);
     try {
-      const ref = doc.tipo === 'NFCE' 
-        ? `nfce-${doc.id.substring(0, 8)}` 
-        : `nfe-${doc.id.substring(0, 8)}`;
-      
       const { data, error } = await supabase.functions.invoke('focus-nfe', {
-        body: { action: 'consultar', documento_id: doc.id, ref, tipo: doc.tipo, ambiente: 'PRODUCAO' },
+        body: { action: 'consultar', documento_id: doc.id, tipo: doc.tipo, ambiente: 'PRODUCAO' },
       });
 
       if (error) throw error;
+      if (data && !data.success) throw new Error(data.error);
       
       const isSuccess = data?.status === 'autorizado';
       toast({
@@ -132,7 +128,6 @@ export function DocumentosFiscaisTable() {
         variant: isSuccess ? 'default' : 'destructive',
       });
 
-      // If DANFE available, offer to open
       if (data?.caminho_danfe) {
         window.open(data.caminho_danfe, '_blank');
       }
@@ -152,15 +147,10 @@ export function DocumentosFiscaisTable() {
       return;
     }
 
-    // If has chave_acesso, cancel via Focus NFe too
     if (doc.chave_acesso) {
-      const ref = doc.tipo === 'NFCE' 
-        ? `nfce-${doc.id.substring(0, 8)}` 
-        : `nfe-${doc.id.substring(0, 8)}`;
-      
       try {
         await supabase.functions.invoke('focus-nfe', {
-          body: { action: 'cancelar', documento_id: doc.id, ref, justificativa: motivo, tipo: doc.tipo, ambiente: 'PRODUCAO' },
+          body: { action: 'cancelar', documento_id: doc.id, justificativa: motivo, tipo: doc.tipo, ambiente: 'PRODUCAO' },
         });
         toast({ title: 'Documento cancelado na SEFAZ!' });
         refetch();
