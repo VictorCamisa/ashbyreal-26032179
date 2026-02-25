@@ -109,12 +109,12 @@ async function syncSingleCard(
       .eq('credit_card_id', creditCardId)
       .eq('item_status', 'PROJETADO');
     
+    // Delete ALL IMPORTADO — Pluggy is the source of truth
     const { count: importedDeleted } = await supabaseAdmin
       .from('credit_card_transactions')
       .delete({ count: 'exact' })
       .eq('credit_card_id', creditCardId)
-      .eq('item_status', 'IMPORTADO')
-      .like('notes', 'Pluggy sync%');
+      .eq('item_status', 'IMPORTADO');
     
     console.log(`Resync deleted: ${projectedDeleted || 0} projected, ${importedDeleted || 0} imported`);
     
