@@ -1464,6 +1464,7 @@ export type Database = {
           emitida_por: string | null
           endereco: Json | null
           entity_id: string | null
+          focus_ref: string | null
           id: string
           informacoes_adicionais: string | null
           inscricao_estadual: string | null
@@ -1504,6 +1505,7 @@ export type Database = {
           emitida_por?: string | null
           endereco?: Json | null
           entity_id?: string | null
+          focus_ref?: string | null
           id?: string
           informacoes_adicionais?: string | null
           inscricao_estadual?: string | null
@@ -1544,6 +1546,7 @@ export type Database = {
           emitida_por?: string | null
           endereco?: Json | null
           entity_id?: string | null
+          focus_ref?: string | null
           id?: string
           informacoes_adicionais?: string | null
           inscricao_estadual?: string | null

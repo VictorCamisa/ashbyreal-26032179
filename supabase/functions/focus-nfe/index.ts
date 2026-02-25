@@ -172,6 +172,7 @@ Deno.serve(async (req) => {
       const updateData: any = {
         status: focusData.status === 'autorizado' ? 'EMITIDA' : 'PENDENTE_EMISSAO',
         data_emissao: new Date().toISOString(),
+        focus_ref: ref,
       };
 
       if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
@@ -270,6 +271,7 @@ Deno.serve(async (req) => {
       const updateData: any = {
         status: focusData.status === 'autorizado' ? 'EMITIDA' : 'REJEITADA',
         data_emissao: new Date().toISOString(),
+        focus_ref: ref,
       };
 
       if (focusData.chave_nfe) updateData.chave_acesso = focusData.chave_nfe;
@@ -294,7 +296,21 @@ Deno.serve(async (req) => {
 
     // ─── CONSULTAR STATUS ───
     if (action === 'consultar') {
-      const { ref, tipo } = payload;
+      let { ref, tipo } = payload;
+      
+      // If no ref provided, look it up from the document
+      if (!ref && documento_id) {
+        const { data: doc } = await supabase
+          .from('documentos_fiscais')
+          .select('focus_ref, tipo')
+          .eq('id', documento_id)
+          .single();
+        if (doc?.focus_ref) ref = doc.focus_ref;
+        if (doc?.tipo) tipo = doc.tipo;
+      }
+      
+      if (!ref) throw new Error('Referência Focus NFe não encontrada para este documento. Tente emitir novamente.');
+      
       const endpoint = tipo === 'NFCE' ? 'nfce' : 'nfe';
 
       const focusRes = await fetch(`${baseUrl}/v2/${endpoint}/${ref}`, {
@@ -341,7 +357,20 @@ Deno.serve(async (req) => {
 
     // ─── CANCELAR NF-e ───
     if (action === 'cancelar') {
-      const { ref, justificativa, tipo } = payload;
+      let { ref, justificativa, tipo } = payload;
+      
+      if (!ref && documento_id) {
+        const { data: doc } = await supabase
+          .from('documentos_fiscais')
+          .select('focus_ref, tipo')
+          .eq('id', documento_id)
+          .single();
+        if (doc?.focus_ref) ref = doc.focus_ref;
+        if (doc?.tipo) tipo = doc.tipo;
+      }
+      
+      if (!ref) throw new Error('Referência Focus NFe não encontrada.');
+      
       const endpoint = tipo === 'NFCE' ? 'nfce' : 'nfe';
 
       const focusRes = await fetch(`${baseUrl}/v2/${endpoint}/${ref}`, {
