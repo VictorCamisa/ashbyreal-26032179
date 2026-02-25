@@ -409,53 +409,8 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // ─── CONFIGURAR CSC NA EMPRESA ───
-    if (action === 'configurar_csc') {
-      const { data: config } = await supabase
-        .from('contabilidade_config')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (!config?.cnpj) throw new Error('CNPJ não configurado em Contabilidade');
-      if (!config?.csc_id || !config?.csc_token) throw new Error('CSC ID e Token não configurados');
-
-      const cnpj = config.cnpj.replace(/\D/g, '');
-      const isProducao = (ambiente || config.ambiente) === 'PRODUCAO';
-
-      const empresaPayload: any = {};
-      if (isProducao) {
-        empresaPayload.csc_nfce_producao = config.csc_token;
-        empresaPayload.id_token_nfce_producao = parseInt(config.csc_id);
-      } else {
-        empresaPayload.csc_nfce_homologacao = config.csc_token;
-        empresaPayload.id_token_nfce_homologacao = parseInt(config.csc_id);
-      }
-
-      console.log('Configurando CSC na empresa Focus NFe:', JSON.stringify({ cnpj, isProducao }));
-
-      const focusRes = await fetch(`${baseUrl}/v2/empresas/${cnpj}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': authHeader,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(empresaPayload),
-      });
-
-      const focusData = await focusRes.json();
-      console.log('Focus NFe empresa response:', JSON.stringify(focusData));
-
-      if (!focusRes.ok) {
-        throw new Error(`Erro ao configurar CSC: ${JSON.stringify(focusData)}`);
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: `CSC configurado com sucesso para ${isProducao ? 'produção' : 'homologação'}!`,
-        ...focusData,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+    // CSC deve ser configurado diretamente no painel Focus NFe (painel.focusnfe.com.br)
+    // A API /v2/empresas requer token de revenda e não está disponível com token padrão
 
     throw new Error(`Ação desconhecida: ${action}`);
 
