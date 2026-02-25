@@ -63,6 +63,8 @@ export function ConfiguracoesContabilidadeDialog({
     alerta_saida_sem_nf: true,
     alerta_divergencia_valor: true,
     tolerancia_divergencia: 0.01,
+    csc_id: '',
+    csc_token: '',
   });
 
   useEffect(() => {
@@ -85,6 +87,8 @@ export function ConfiguracoesContabilidadeDialog({
         alerta_saida_sem_nf: config.alerta_saida_sem_nf ?? true,
         alerta_divergencia_valor: config.alerta_divergencia_valor ?? true,
         tolerancia_divergencia: config.tolerancia_divergencia || 0.01,
+        csc_id: (config as any).csc_id || '',
+        csc_token: (config as any).csc_token || '',
       });
     }
   }, [config]);
@@ -444,6 +448,42 @@ export function ConfiguracoesContabilidadeDialog({
                       </Select>
                     </div>
                   </>
+                )}
+
+                {formData.api_provider && (
+                  <div className="mt-6 pt-4 border-t space-y-4">
+                    <div>
+                      <p className="font-medium text-sm">Credenciamento NFC-e (CSC)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Código de Segurança do Contribuinte para emissão de NFC-e (obtido na SEFAZ)
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="csc_id">ID do CSC</Label>
+                        <Input
+                          id="csc_id"
+                          value={formData.csc_id}
+                          onChange={(e) =>
+                            setFormData({ ...formData, csc_id: e.target.value })
+                          }
+                          placeholder="000001"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="csc_token">Token CSC</Label>
+                        <Input
+                          id="csc_token"
+                          type="password"
+                          value={formData.csc_token}
+                          onChange={(e) =>
+                            setFormData({ ...formData, csc_token: e.target.value })
+                          }
+                          placeholder="UUID do token CSC"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </TabsContent>

@@ -260,6 +260,12 @@ Deno.serve(async (req) => {
         nfcePayload.cnpj_emitente = config.cnpj.replace(/\D/g, '');
       }
 
+      // CSC (Código de Segurança do Contribuinte) - obrigatório para NFC-e
+      if (config?.csc_id && config?.csc_token) {
+        nfcePayload.token_csc = config.csc_token;
+        nfcePayload.id_token_csc = config.csc_id;
+      }
+
       // NFC-e é síncrona na Focus NFe
       const focusRes = await fetch(`${baseUrl}/v2/nfce?ref=${ref}`, {
         method: 'POST',
