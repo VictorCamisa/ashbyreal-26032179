@@ -463,6 +463,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
   const onSaveRascunho = async (data: FormData) => {
     const payload = {
       ...data,
+      data_competencia: new Date().toISOString().slice(0, 10),
       valor_produtos: totalItens,
       valor_servicos: 0,
       valor_total: totalNota,
@@ -481,6 +482,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
       toast({ title: '📄 Rascunho salvo!' });
       resetAndClose();
     } catch (err: any) {
+      console.error('Erro ao salvar rascunho:', err);
       toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
     }
   };
@@ -496,6 +498,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
     try {
       const payload = {
         ...data,
+        data_competencia: new Date().toISOString().slice(0, 10),
         valor_produtos: totalItens,
         valor_servicos: 0,
         valor_total: totalNota,
@@ -783,11 +786,11 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
                 </Button>
               ) : (
                 <div className="flex gap-2">
-                  <Button type="button" variant="secondary" size="sm" onClick={form.handleSubmit(onSaveRascunho)} className="gap-1.5">
+                  <Button type="button" variant="secondary" size="sm" onClick={form.handleSubmit(onSaveRascunho, (errors) => { console.error('Form errors:', errors); toast({ title: 'Campos inválidos', description: Object.values(errors).map((e: any) => e.message).join(', '), variant: 'destructive' }); })} className="gap-1.5">
                     <Plus className="h-4 w-4" /> Salvar Rascunho
                   </Button>
                   {direcao === 'SAIDA' && (tipoAtual === 'NFE' || tipoAtual === 'NFCE') && (
-                    <Button type="button" size="sm" disabled={isEmitting} onClick={form.handleSubmit(onSaveAndEmit)} className="gap-1.5">
+                    <Button type="button" size="sm" disabled={isEmitting} onClick={form.handleSubmit(onSaveAndEmit, (errors) => { console.error('Form errors:', errors); toast({ title: 'Campos inválidos', description: Object.values(errors).map((e: any) => e.message).join(', '), variant: 'destructive' }); })} className="gap-1.5">
                       {isEmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       {isEmitting ? 'Emitindo...' : `Emitir ${tipoAtual === 'NFCE' ? 'NFC-e' : 'NF-e'}`}
                     </Button>
