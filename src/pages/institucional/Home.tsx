@@ -390,8 +390,8 @@ export default function InstitucionalHome() {
                 {typedText}
                 <motion.span
                   className="inline-block w-[3px] h-[0.85em] bg-primary ml-1 align-middle"
-                  animate={{ opacity: [1, 0] }}
-                  transition={{ duration: 0.6, repeat: Infinity, ease: "steps(1)" }}
+                  animate={{ opacity: [1, 1, 0, 0] }}
+                  transition={{ duration: 1, repeat: Infinity, times: [0, 0.5, 0.5, 1] }}
                 />
               </h1>
             </motion.div>
