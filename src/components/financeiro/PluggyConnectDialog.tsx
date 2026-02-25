@@ -129,37 +129,62 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
     }
   };
 
-  // Recover unmapped items from Pluggy API
+  // Recover unmapped items - first check DB for pending items saved by webhook,
+  // then fallback to Pluggy API
   const handleRecoverItems = async () => {
     setIsRecovering(true);
     try {
-      const { data, error } = await supabase.functions.invoke('pluggy-auth', {
-        body: { action: 'list-items' },
-      });
-      if (error) throw error;
+      // First: check DB for pending items (saved by webhook when no mapping existed)
+      const { data: pendingItems } = await supabase
+        .from('pluggy_items')
+        .select('*')
+        .eq('status', 'PENDING_MAPPING')
+        .is('credit_card_id', null)
+        .order('created_at', { ascending: false });
 
-      const items = data?.results || data || [];
-      if (!Array.isArray(items) || items.length === 0) {
-        toast.info('Nenhuma conexão Pluggy encontrada.');
+      let itemToMap: { id: string; connectorName: string } | null = null;
+
+      if (pendingItems && pendingItems.length > 0) {
+        const pending = pendingItems[0];
+        itemToMap = { 
+          id: pending.pluggy_item_id, 
+          connectorName: pending.connector_name || 'Instituição' 
+        };
+      } else {
+        // Fallback: try API (may fail with 401 on some plans)
+        try {
+          const { data, error } = await supabase.functions.invoke('pluggy-auth', {
+            body: { action: 'list-items' },
+          });
+          if (error) throw error;
+
+          const items = data?.results || data || [];
+          if (Array.isArray(items) && items.length > 0) {
+            const mappedPluggyIds = new Set(pluggyItems?.map(p => p.pluggy_item_id) || []);
+            const unmappedItems = items.filter((item: any) => !mappedPluggyIds.has(item.id));
+            if (unmappedItems.length > 0) {
+              const item = unmappedItems[0];
+              itemToMap = { 
+                id: item.id, 
+                connectorName: item.connector?.name || item.connectorName || 'Instituição' 
+              };
+            }
+          }
+        } catch {
+          // API failed, no pending items in DB either
+        }
+      }
+
+      if (!itemToMap) {
+        toast.info('Nenhuma conexão pendente encontrada. Aguarde alguns segundos e tente novamente.');
         return;
       }
 
-      // Find items not yet mapped
-      const mappedPluggyIds = new Set(pluggyItems?.map(p => p.pluggy_item_id) || []);
-      const unmappedItems = items.filter((item: any) => !mappedPluggyIds.has(item.id));
-
-      if (unmappedItems.length === 0) {
-        toast.info('Todas as conexões já estão mapeadas.');
-        return;
-      }
-
-      // Use the first unmapped item, fetch its accounts
-      const item = unmappedItems[0];
-      setPendingItemId(item.id);
-      setPendingConnectorName(item.connector?.name || item.connectorName || 'Instituição');
+      setPendingItemId(itemToMap.id);
+      setPendingConnectorName(itemToMap.connectorName);
       setIsLoadingAccounts(true);
 
-      const accounts = await getAccounts(item.id);
+      const accounts = await getAccounts(itemToMap.id);
       const creditAccounts = accounts.filter((a: PluggyAccount) => a.type === 'CREDIT');
 
       if (creditAccounts.length === 0) {
@@ -170,11 +195,13 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
       // Auto-map if 1 account and 1 unlinked card
       if (creditAccounts.length === 1 && unlinkedCards.length === 1) {
         await linkMultipleItems([{
-          pluggyItemId: item.id,
+          pluggyItemId: itemToMap.id,
           pluggyAccountId: creditAccounts[0].id,
           creditCardId: unlinkedCards[0].id,
-          connectorName: item.connector?.name || item.connectorName,
+          connectorName: itemToMap.connectorName,
         }]);
+        // Clean up pending record
+        await supabase.from('pluggy_items').delete().eq('pluggy_item_id', itemToMap.id).is('credit_card_id', null);
         toast.success('Cartão vinculado automaticamente!');
         return;
       }
@@ -220,6 +247,8 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
           connectorName: pendingConnectorName,
         }))
       );
+      // Clean up pending record from webhook
+      await supabase.from('pluggy_items').delete().eq('pluggy_item_id', pendingItemId!).is('credit_card_id', null);
       setStep('overview');
     } catch (err: any) {
       toast.error(`Erro ao salvar: ${err.message}`);

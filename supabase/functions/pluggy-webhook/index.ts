@@ -38,12 +38,36 @@ serve(async (req) => {
     // Check if ANY cards are linked to this item (multiple cards possible)
     const { data: mappings } = await supabaseAdmin
       .from('pluggy_items')
-      .select('credit_card_id')
+      .select('credit_card_id, pluggy_item_id')
       .eq('pluggy_item_id', itemId);
 
     if (!mappings || mappings.length === 0) {
-      console.log(`No mapping found for Pluggy item ${itemId}`);
-      return new Response(JSON.stringify({ ok: true, noMapping: true }), {
+      console.log(`No mapping found for Pluggy item ${itemId}, saving as pending...`);
+      
+      // Save as pending (no credit_card_id) so frontend can recover it
+      const { error: insertError } = await supabaseAdmin
+        .from('pluggy_items')
+        .insert({
+          pluggy_item_id: itemId,
+          credit_card_id: null,
+          connector_name: null,
+          status: 'PENDING_MAPPING',
+        });
+      
+      if (insertError) {
+        console.log(`Could not save pending item: ${insertError.message}`);
+      }
+      
+      return new Response(JSON.stringify({ ok: true, savedPending: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Skip items that are pending mapping (no credit_card_id yet)
+    const linkedMappings = mappings.filter(m => m.credit_card_id !== null);
+    if (linkedMappings.length === 0) {
+      console.log(`Item ${itemId} exists but has no card linked yet, skipping sync`);
+      return new Response(JSON.stringify({ ok: true, pendingMapping: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
