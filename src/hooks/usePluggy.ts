@@ -88,7 +88,7 @@ export function usePluggy() {
     },
   });
 
-  // Link multiple accounts at once (one per card mapping)
+  // Link multiple accounts at once (one per card mapping) and auto-sync
   const linkMultipleItems = async (mappings: Array<{
     pluggyItemId: string;
     pluggyAccountId: string;
@@ -110,7 +110,22 @@ export function usePluggy() {
     if (error) throw error;
 
     queryClient.invalidateQueries({ queryKey: ['pluggy-items'] });
-    toast.success(`${rows.length} cartão(ões) vinculado(s) com sucesso!`);
+    toast.success(`${rows.length} cartão(ões) vinculado(s)! Sincronizando transações...`);
+
+    // Auto-trigger sync for each linked card
+    for (const m of mappings) {
+      try {
+        await supabase.functions.invoke('pluggy-sync', {
+          body: { creditCardId: m.creditCardId },
+        });
+        toast.success(`Transações do cartão sincronizadas com sucesso!`);
+        queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      } catch (syncErr: any) {
+        toast.error(`Erro ao sincronizar: ${syncErr.message}`);
+      }
+    }
   };
 
   const syncCard = async (creditCardId: string) => {
