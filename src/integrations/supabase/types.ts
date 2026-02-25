@@ -909,6 +909,8 @@ export type Database = {
           api_provider: string | null
           cnpj: string | null
           created_at: string
+          csc_id: string | null
+          csc_token: string | null
           entity_id: string | null
           id: string
           inscricao_estadual: string | null
@@ -932,6 +934,8 @@ export type Database = {
           api_provider?: string | null
           cnpj?: string | null
           created_at?: string
+          csc_id?: string | null
+          csc_token?: string | null
           entity_id?: string | null
           id?: string
           inscricao_estadual?: string | null
@@ -955,6 +959,8 @@ export type Database = {
           api_provider?: string | null
           cnpj?: string | null
           created_at?: string
+          csc_id?: string | null
+          csc_token?: string | null
           entity_id?: string | null
           id?: string
           inscricao_estadual?: string | null
