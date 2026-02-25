@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,7 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
   const [step, setStep] = useState<'overview' | 'mapping'>('overview');
   const [isLoadingToken, setIsLoadingToken] = useState(false);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Mapping step state
@@ -138,6 +140,67 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
       toast.error(`Erro ao conectar: ${error.message}`);
     } finally {
       setIsLoadingToken(false);
+    }
+  };
+
+  // Recover unmapped items from Pluggy API
+  const handleRecoverItems = async () => {
+    setIsRecovering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('pluggy-auth', {
+        body: { action: 'list-items' },
+      });
+      if (error) throw error;
+
+      const items = data?.results || data || [];
+      if (!Array.isArray(items) || items.length === 0) {
+        toast.info('Nenhuma conexão Pluggy encontrada.');
+        return;
+      }
+
+      // Find items not yet mapped
+      const mappedPluggyIds = new Set(pluggyItems?.map(p => p.pluggy_item_id) || []);
+      const unmappedItems = items.filter((item: any) => !mappedPluggyIds.has(item.id));
+
+      if (unmappedItems.length === 0) {
+        toast.info('Todas as conexões já estão mapeadas.');
+        return;
+      }
+
+      // Use the first unmapped item, fetch its accounts
+      const item = unmappedItems[0];
+      setPendingItemId(item.id);
+      setPendingConnectorName(item.connector?.name || item.connectorName || 'Instituição');
+      setIsLoadingAccounts(true);
+
+      const accounts = await getAccounts(item.id);
+      const creditAccounts = accounts.filter((a: PluggyAccount) => a.type === 'CREDIT');
+
+      if (creditAccounts.length === 0) {
+        toast.error('Nenhum cartão de crédito encontrado nessa conexão.');
+        return;
+      }
+
+      // Auto-map if 1 account and 1 unlinked card
+      if (creditAccounts.length === 1 && unlinkedCards.length === 1) {
+        await linkMultipleItems([{
+          pluggyItemId: item.id,
+          pluggyAccountId: creditAccounts[0].id,
+          creditCardId: unlinkedCards[0].id,
+          connectorName: item.connector?.name || item.connectorName,
+        }]);
+        toast.success('Cartão vinculado automaticamente!');
+        return;
+      }
+
+      setPluggyAccounts(creditAccounts);
+      setMappings(creditAccounts.map((a: PluggyAccount) => ({ pluggyAccountId: a.id, creditCardId: '' })));
+      setStep('mapping');
+    } catch (err: any) {
+      toast.error(`Erro ao recuperar conexões: ${err.message}`);
+    } finally {
+      setIsRecovering(false);
+      setIsLoadingAccounts(false);
     }
   };
 
@@ -274,6 +337,19 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
                     <Link className="h-4 w-4" />
                   )}
                   {isLoadingToken ? 'Carregando...' : isLoadingAccounts ? 'Buscando contas...' : 'Conectar via Open Finance'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={handleRecoverItems}
+                  disabled={isRecovering || isLoadingAccounts}
+                >
+                  {isRecovering ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {isRecovering ? 'Buscando...' : 'Recuperar conexões pendentes'}
                 </Button>
               </div>
             )}
