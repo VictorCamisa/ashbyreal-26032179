@@ -97,6 +97,7 @@ export function ValidarDadosEmissaoDialog({
   const getMissingFields = (): MissingField[] => {
     const missing: MissingField[] = [];
 
+    // CPF/CNPJ is required for NF-e, optional for NFC-e
     if (tipo === 'NFE') {
       const cpf = formData.cpf_cnpj.replace(/\D/g, '');
       if (!cpf || (cpf.length !== 11 && cpf.length !== 14)) {
@@ -104,7 +105,7 @@ export function ValidarDadosEmissaoDialog({
       }
     }
 
-    // Address is optional for NFC-e, recommended for NF-e
+    // Address is recommended for NF-e
     if (tipo === 'NFE') {
       if (!formData.rua) missing.push({ key: 'rua', label: 'Rua/Logradouro', required: false, group: 'address' });
       if (!formData.bairro) missing.push({ key: 'bairro', label: 'Bairro', required: false, group: 'address' });
@@ -119,13 +120,15 @@ export function ValidarDadosEmissaoDialog({
   const hasRequiredMissing = missingFields.some(f => f.required);
   const hasAnyMissing = missingFields.length > 0;
 
+  // Check if CPF/CNPJ is valid (for button state)
+  const cpfDigits = formData.cpf_cnpj.replace(/\D/g, '');
+  const isCpfValid = cpfDigits.length === 11 || cpfDigits.length === 14;
+
   const handleSaveAndContinue = async () => {
-    if (hasRequiredMissing) {
-      const cpf = formData.cpf_cnpj.replace(/\D/g, '');
-      if (tipo === 'NFE' && (!cpf || (cpf.length !== 11 && cpf.length !== 14))) {
-        toast({ title: 'CPF/CNPJ inválido', description: 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.', variant: 'destructive' });
-        return;
-      }
+    // Validate CPF/CNPJ for NFE
+    if (tipo === 'NFE' && !isCpfValid) {
+      toast({ title: 'CPF/CNPJ inválido', description: 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.', variant: 'destructive' });
+      return;
     }
 
     if (!clienteId) {
@@ -137,10 +140,12 @@ export function ValidarDadosEmissaoDialog({
     try {
       const updateData: any = {};
       
-      if (formData.cpf_cnpj) {
-        updateData.cpf_cnpj = formData.cpf_cnpj;
+      // Always save CPF if provided
+      if (formData.cpf_cnpj.trim()) {
+        updateData.cpf_cnpj = formData.cpf_cnpj.trim();
       }
 
+      // Save address if any field is filled
       if (formData.rua || formData.bairro || formData.cidade || formData.cep) {
         const currentEndereco = (cliente?.endereco as any) || {};
         updateData.endereco = {
@@ -160,17 +165,39 @@ export function ValidarDadosEmissaoDialog({
           .update(updateData)
           .eq('id', clienteId);
         if (error) throw error;
+
+        // Verify the data was actually saved by re-fetching
+        const { data: verified, error: verifyErr } = await supabase
+          .from('clientes')
+          .select('cpf_cnpj')
+          .eq('id', clienteId)
+          .single();
+
+        if (verifyErr) throw verifyErr;
+
+        // For NFE, verify CPF/CNPJ was actually persisted
+        if (tipo === 'NFE') {
+          const savedCpf = (verified?.cpf_cnpj || '').replace(/\D/g, '');
+          if (!savedCpf || (savedCpf.length !== 11 && savedCpf.length !== 14)) {
+            throw new Error('CPF/CNPJ não foi salvo corretamente. Tente novamente.');
+          }
+        }
+
         toast({ title: '✅ Dados do cliente atualizados!' });
       }
 
       onOpenChange(false);
-      onValidated();
+      // Small delay to ensure DB consistency before emission
+      setTimeout(() => onValidated(), 300);
     } catch (err: any) {
       toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
+
+  // Determine if the CPF/CNPJ field should be shown
+  const showCpfField = tipo === 'NFE' && (!formData.cpf_cnpj.trim() || hasRequiredMissing);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -223,7 +250,7 @@ export function ValidarDadosEmissaoDialog({
               </div>
             </div>
 
-            {!hasAnyMissing ? (
+            {!hasAnyMissing && !showCpfField ? (
               <div className="text-center py-4">
                 <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
                 <p className="text-sm font-medium">Todos os dados estão preenchidos!</p>
@@ -242,8 +269,8 @@ export function ValidarDadosEmissaoDialog({
                   </div>
                 )}
 
-                {/* CPF/CNPJ */}
-                {(tipo === 'NFE' || formData.cpf_cnpj === '') && (
+                {/* CPF/CNPJ - always show for NFE if not filled */}
+                {showCpfField && (
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2 text-sm">
                       CPF/CNPJ
@@ -253,7 +280,13 @@ export function ValidarDadosEmissaoDialog({
                       placeholder="000.000.000-00 ou 00.000.000/0001-00"
                       value={formData.cpf_cnpj}
                       onChange={e => setFormData(p => ({ ...p, cpf_cnpj: e.target.value }))}
+                      autoFocus
                     />
+                    {formData.cpf_cnpj && !isCpfValid && (
+                      <p className="text-xs text-destructive">
+                        Informe um CPF (11 dígitos) ou CNPJ (14 dígitos)
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -285,10 +318,10 @@ export function ValidarDadosEmissaoDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button
                 onClick={handleSaveAndContinue}
-                disabled={saving || (hasRequiredMissing && !formData.cpf_cnpj.replace(/\D/g, ''))}
+                disabled={saving || (tipo === 'NFE' && !isCpfValid)}
               >
                 {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                {hasAnyMissing ? 'Salvar e Emitir' : 'Continuar Emissão'}
+                {hasAnyMissing || showCpfField ? 'Salvar e Emitir' : 'Continuar Emissão'}
               </Button>
             </DialogFooter>
           </div>
