@@ -2,25 +2,22 @@ import { useState, useMemo } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Store, Users, Factory } from "lucide-react";
-import { useBarris, useBarrisStats, Barril } from "@/hooks/useBarris";
+import { Store, Users, Factory, Droplet } from "lucide-react";
+import { useBarris, Barril } from "@/hooks/useBarris";
 import { BarrisTable } from "@/components/barris/BarrisTable";
 import { MovimentacoesSheet } from "@/components/barris/MovimentacoesSheet";
 
 export default function Barris() {
   const [selectedBarril, setSelectedBarril] = useState<Barril | null>(null);
   const [movimentacoesOpen, setMovimentacoesOpen] = useState(false);
-
   const { data: barris, isLoading } = useBarris();
-  const { data: stats } = useBarrisStats();
 
   const handleViewMovimentacoes = (barril: Barril) => {
     setSelectedBarril(barril);
     setMovimentacoesOpen(true);
   };
-
-  const [fabricaSub, setFabricaSub] = useState<string>('todas');
 
   const computed = useMemo(() => {
     const all = barris || [];
@@ -28,22 +25,31 @@ export default function Barris() {
     const ashby = all.filter(b => b.codigo.startsWith('ASH'));
     const dtv = all.filter(b => b.codigo.startsWith('DTV'));
     // Por localização física
-    const naFabrica = all.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA');
     const loja = all.filter(b => b.localizacao === 'LOJA');
     const clientes = all.filter(b => b.localizacao === 'CLIENTE');
+
+    const ashbyCheios = ashby.filter(b => b.status_conteudo === 'CHEIO').length;
+    const ashbyNaFabrica = ashby.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'FABRICA').length;
+    const ashbyNaLoja = ashby.filter(b => b.localizacao === 'LOJA').length;
+    const ashbyComCliente = ashby.filter(b => b.localizacao === 'CLIENTE').length;
+
+    const dtvCheios = dtv.filter(b => b.status_conteudo === 'CHEIO').length;
+    const dtvNaFabrica = dtv.filter(b => b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA').length;
+    const dtvNaLoja = dtv.filter(b => b.localizacao === 'LOJA').length;
+    const dtvComCliente = dtv.filter(b => b.localizacao === 'CLIENTE').length;
+
     const clientesUnicos = new Set(
-      all.filter(b => b.localizacao === 'CLIENTE' && (b.cliente_id || b.lojista_id))
+      clientes.filter(b => b.cliente_id || b.lojista_id)
         .map(b => b.cliente_id || b.lojista_id)
     ).size;
 
-    return { ashby, dtv, naFabrica, loja, clientes, clientesUnicos };
+    return {
+      ashby, dtv, loja, clientes,
+      ashbyCheios, ashbyNaFabrica, ashbyNaLoja, ashbyComCliente,
+      dtvCheios, dtvNaFabrica, dtvNaLoja, dtvComCliente,
+      clientesUnicos,
+    };
   }, [barris]);
-
-  const fabricaFiltered = useMemo(() => {
-    if (fabricaSub === 'ashby') return computed.ashby;
-    if (fabricaSub === 'datta_vale') return computed.dtv;
-    return [...computed.ashby, ...computed.dtv];
-  }, [fabricaSub, computed]);
 
   return (
     <PageLayout 
@@ -51,43 +57,54 @@ export default function Barris() {
       subtitle="Gerencie o estoque e movimentação dos barris"
     >
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        {/* Ashby */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{barris?.length || 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Na Fábrica</CardTitle>
+            <CardTitle className="text-sm font-medium">🔵 Ashby</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{computed.naFabrica.length}</div>
+              <>
+                <div className="text-2xl font-bold">{computed.ashby.length}</div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Droplet className="h-3 w-3 text-blue-500" /> {computed.ashbyCheios} cheios
+                  </span>
+                  <span>🏭 {computed.ashbyNaFabrica} fábrica</span>
+                  <span>🏪 {computed.ashbyNaLoja} loja</span>
+                  <span>👤 {computed.ashbyComCliente} clientes</span>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
 
+        {/* Datta Vale */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Na Loja</CardTitle>
-            <Store className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">🟡 Datta Vale</CardTitle>
+            <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-2xl font-bold">{computed.loja.length}</div>
+              <>
+                <div className="text-2xl font-bold">{computed.dtv.length}</div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Droplet className="h-3 w-3 text-blue-500" /> {computed.dtvCheios} cheios
+                  </span>
+                  <span>🏭 {computed.dtvNaFabrica} fábrica</span>
+                  <span>🏪 {computed.dtvNaLoja} loja</span>
+                  <span>👤 {computed.dtvComCliente} clientes</span>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
-        
+
+        {/* Com Clientes */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Com Clientes</CardTitle>
@@ -97,67 +114,46 @@ export default function Barris() {
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
                 <div className="text-2xl font-bold">{computed.clientes.length}</div>
-                <p className="text-xs text-muted-foreground">{computed.clientesUnicos} clientes</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {computed.clientesUnicos} clientes · {computed.clientes.filter(b => b.status_conteudo === 'CHEIO').length} cheios
+                </p>
               </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs por Local + Tabela */}
+      {/* Tabs: Ashby | Datta Vale | Na Loja | Com Clientes */}
       <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Lista de Barris</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="todos" className="w-full">
+        <CardContent className="pt-6">
+          <Tabs defaultValue="ashby" className="w-full">
             <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <TabsList className="mb-4 w-max sm:w-auto">
-                <TabsTrigger value="todos" className="text-xs sm:text-sm">
-                  Todos ({barris?.length || 0})
+                <TabsTrigger value="ashby" className="text-xs sm:text-sm">
+                  🔵 Ashby ({computed.ashby.length})
                 </TabsTrigger>
-                <TabsTrigger value="fabrica" className="text-xs sm:text-sm">
-                  🏭 Fábrica ({computed.ashby.length + computed.dtv.length})
+                <TabsTrigger value="datta_vale" className="text-xs sm:text-sm">
+                  🟡 Datta Vale ({computed.dtv.length})
                 </TabsTrigger>
                 <TabsTrigger value="loja" className="text-xs sm:text-sm">
-                  🏪 Loja ({computed.loja.length})
+                  🏪 Na Loja ({computed.loja.length})
                 </TabsTrigger>
-                <TabsTrigger value="cliente" className="text-xs sm:text-sm">
+                <TabsTrigger value="clientes" className="text-xs sm:text-sm">
                   👤 Clientes ({computed.clientes.length})
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <TabsContent value="todos">
-              <BarrisTable barris={barris || []} onViewHistory={handleViewMovimentacoes} />
+            <TabsContent value="ashby">
+              <BarrisTable barris={computed.ashby} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
-            <TabsContent value="fabrica">
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setFabricaSub('todas')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'todas' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-                >
-                  Todas ({computed.ashby.length + computed.dtv.length})
-                </button>
-                <button
-                  onClick={() => setFabricaSub('ashby')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'ashby' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-                >
-                  🔵 Ashby ({computed.ashby.length})
-                </button>
-                <button
-                  onClick={() => setFabricaSub('datta_vale')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${fabricaSub === 'datta_vale' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-                >
-                  🟡 Datta Vale ({computed.dtv.length})
-                </button>
-              </div>
-              <BarrisTable barris={fabricaFiltered} onViewHistory={handleViewMovimentacoes} />
+            <TabsContent value="datta_vale">
+              <BarrisTable barris={computed.dtv} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
             <TabsContent value="loja">
               <BarrisTable barris={computed.loja} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
-            <TabsContent value="cliente">
+            <TabsContent value="clientes">
               <BarrisTable barris={computed.clientes} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
           </Tabs>
