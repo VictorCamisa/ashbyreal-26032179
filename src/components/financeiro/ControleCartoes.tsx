@@ -19,6 +19,7 @@ import {
   BarChart3,
   LayoutGrid,
   Repeat,
+  Zap,
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
@@ -36,6 +37,7 @@ import { TodasFaturasSheet } from './TodasFaturasSheet';
 import { CartoesAnalytics } from './CartoesAnalytics';
 import { DespesasFixasAnalytics } from './DespesasFixasAnalytics';
 import { NovaDespesaFixaDialog } from './NovaDespesaFixaDialog';
+import { PluggyConnectDialog } from './PluggyConnectDialog';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +56,7 @@ export function ControleCartoes() {
   const [showNovaDespesaFixa, setShowNovaDespesaFixa] = useState(false);
   const [editingExpense, setEditingExpense] = useState<RecurringExpense | null>(null);
   const [selectedCard, setSelectedCard] = useState<any>(null);
+  const [showPluggyConnect, setShowPluggyConnect] = useState(false);
   const [viewMode, setViewMode] = useState<'analytics' | 'cards' | 'despesas'>('analytics');
 
   // Flag para evitar múltiplas sincronizações
@@ -156,6 +159,10 @@ export function ControleCartoes() {
               <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" size="sm" className="gap-2">
                 <FileText className="h-4 w-4" />
                 <span className="hidden sm:inline">Ver Faturas</span>
+              </Button>
+              <Button onClick={() => setShowPluggyConnect(true)} variant="outline" size="sm" className="gap-2 border-primary/30 text-primary">
+                <Zap className="h-4 w-4" />
+                <span className="hidden sm:inline">Pluggy</span>
               </Button>
               <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
@@ -534,6 +541,11 @@ export function ControleCartoes() {
           setEditingExpense(null);
         }}
         isLoading={isCreatingExpense}
+      />
+
+      <PluggyConnectDialog
+        open={showPluggyConnect}
+        onOpenChange={setShowPluggyConnect}
       />
     </div>
   );
