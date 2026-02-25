@@ -311,14 +311,28 @@ async function syncSingleCard(
   console.log(`Future installments created: ${futureToInsert.length}`);
 
   // ========== 5. CREATE/UPDATE INVOICES (BATCH) ==========
+  // Fetch all transactions with status to separate IMPORTADO vs PROJETADO
   const { data: allTx } = await supabaseAdmin
     .from('credit_card_transactions')
-    .select('competencia, amount')
+    .select('competencia, amount, item_status')
     .eq('credit_card_id', creditCardId);
 
-  const compMap = new Map<string, number>();
+  // Build two maps: one for IMPORTADO totals, one for all totals
+  const importadoMap = new Map<string, number>();
+  const allMap = new Map<string, number>();
   for (const t of (allTx || [])) {
-    compMap.set(t.competencia, (compMap.get(t.competencia) || 0) + (t.amount || 0));
+    allMap.set(t.competencia, (allMap.get(t.competencia) || 0) + (t.amount || 0));
+    if (t.item_status === 'IMPORTADO') {
+      importadoMap.set(t.competencia, (importadoMap.get(t.competencia) || 0) + (t.amount || 0));
+    }
+  }
+
+  // For invoice totals: prefer IMPORTADO-only total when real data exists,
+  // otherwise fall back to all (which means only PROJETADO for future months)
+  const compMap = new Map<string, number>();
+  for (const [comp, total] of allMap) {
+    const importadoTotal = importadoMap.get(comp);
+    compMap.set(comp, importadoTotal != null ? importadoTotal : total);
   }
 
   const billTotalByComp = new Map<string, number>();
