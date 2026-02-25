@@ -49,17 +49,20 @@ Deno.serve(async (req) => {
       const ref = `nfe-${documento_id.substring(0, 8)}-${ts}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
         const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
-        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(10));
-        // SEFAZ exige: valor_bruto = quantidade * valor_unitario_comercial (precisão 2 casas)
+        // SEFAZ exige: valor_bruto == quantidade * valor_unitario_comercial
+        // Arredondar unitário a 4 casas e calcular bruto exato a partir dele
+        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(4));
         const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
+        // Back-calculate unit price so qty * unit == valorBruto exactly
+        const unitPriceFinal = qty > 0 ? parseFloat((valorBruto / qty).toFixed(10)) : unitPrice;
         return {
           numero_item: String(idx + 1),
           codigo_produto: item.codigo || String(idx + 1),
           descricao: item.descricao,
           quantidade: qty,
           unidade_comercial: item.unidade || 'UN',
-          valor_unitario_comercial: unitPrice,
-          valor_unitario_tributavel: unitPrice,
+          valor_unitario_comercial: unitPriceFinal,
+          valor_unitario_tributavel: unitPriceFinal,
           unidade_tributavel: item.unidade || 'UN',
           codigo_ncm: item.ncm || '22030000',
           cfop: item.cfop || '5102',
@@ -215,16 +218,17 @@ Deno.serve(async (req) => {
       const ref = `nfce-${documento_id.substring(0, 8)}-${ts2}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
         const qty = parseFloat(Number(item.quantidade || 1).toFixed(4));
-        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(10));
+        const unitPrice = parseFloat(Number(item.valor_unitario || 0).toFixed(4));
         const valorBruto = parseFloat((qty * unitPrice).toFixed(2));
+        const unitPriceFinal = qty > 0 ? parseFloat((valorBruto / qty).toFixed(10)) : unitPrice;
         return {
           numero_item: String(idx + 1),
           codigo_produto: item.codigo || String(idx + 1),
           descricao: item.descricao,
           quantidade: qty,
           unidade_comercial: item.unidade || 'UN',
-          valor_unitario_comercial: unitPrice,
-          valor_unitario_tributavel: unitPrice,
+          valor_unitario_comercial: unitPriceFinal,
+          valor_unitario_tributavel: unitPriceFinal,
           unidade_tributavel: item.unidade || 'UN',
           codigo_ncm: item.ncm || '22030000',
           cfop: item.cfop || '5102',
