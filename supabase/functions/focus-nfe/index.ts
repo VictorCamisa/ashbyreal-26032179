@@ -95,14 +95,22 @@ Deno.serve(async (req) => {
             nfePayload.cnpj_destinatario = cpfCnpj;
           }
         }
-        if (doc.cliente.endereco) {
-          const end = doc.cliente.endereco as any;
+        const end = doc.cliente.endereco as any;
+        if (end && (end.rua || end.logradouro)) {
           nfePayload.logradouro_destinatario = end.rua || end.logradouro || '';
           nfePayload.numero_destinatario = end.numero || 'S/N';
           nfePayload.bairro_destinatario = end.bairro || '';
           nfePayload.municipio_destinatario = end.cidade || '';
           nfePayload.uf_destinatario = end.estado || 'SP';
           nfePayload.cep_destinatario = (end.cep || '').replace(/\D/g, '');
+        } else {
+          // NF-e requires address - use placeholder
+          nfePayload.logradouro_destinatario = 'NAO INFORMADO';
+          nfePayload.numero_destinatario = 'S/N';
+          nfePayload.bairro_destinatario = 'NAO INFORMADO';
+          nfePayload.municipio_destinatario = 'Taubate';
+          nfePayload.uf_destinatario = 'SP';
+          nfePayload.cep_destinatario = '12000000';
         }
       } else if (doc.razao_social) {
         nfePayload.nome_destinatario = doc.razao_social;
@@ -114,6 +122,22 @@ Deno.serve(async (req) => {
             nfePayload.cnpj_destinatario = cpfCnpj;
           }
         }
+        // Address fallback for manual entries
+        nfePayload.logradouro_destinatario = 'NAO INFORMADO';
+        nfePayload.numero_destinatario = 'S/N';
+        nfePayload.bairro_destinatario = 'NAO INFORMADO';
+        nfePayload.municipio_destinatario = 'Taubate';
+        nfePayload.uf_destinatario = 'SP';
+        nfePayload.cep_destinatario = '12000000';
+      } else {
+        // No client at all - still provide required fields
+        nfePayload.nome_destinatario = 'CONSUMIDOR NAO IDENTIFICADO';
+        nfePayload.logradouro_destinatario = 'NAO INFORMADO';
+        nfePayload.numero_destinatario = 'S/N';
+        nfePayload.bairro_destinatario = 'NAO INFORMADO';
+        nfePayload.municipio_destinatario = 'Taubate';
+        nfePayload.uf_destinatario = 'SP';
+        nfePayload.cep_destinatario = '12000000';
       }
 
       // Valores globais
