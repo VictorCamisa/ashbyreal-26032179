@@ -36,14 +36,13 @@ function cleanDescription(desc: string): string {
 }
 
 // Calculate competencia using DUE MONTH logic (matches import-card-statement)
-// Banks name invoices by their DUE month, not closing month
-// Purchases on or before closing day → closes THIS month → due NEXT month → competencia = next month
-// Purchases after closing day → closes NEXT month → due 2 months later → competencia = 2 months later
+// Purchases on or before closing day → closes THIS month → due NEXT month
+// Purchases after closing day → closes NEXT month → due 2 months later
 function calculateCompetencia(purchaseDate: string, closingDay: number): string {
   const date = new Date(purchaseDate + 'T12:00:00Z');
   const day = date.getUTCDate();
   const year = date.getUTCFullYear();
-  const month = date.getUTCMonth(); // 0-indexed
+  const month = date.getUTCMonth();
 
   let competenciaMonth: number;
   let competenciaYear: number;
@@ -69,6 +68,19 @@ function generateDedupeKey(description: string, amount: number, date: string): s
   return `${cleaned}|${Math.abs(amount).toFixed(2)}|${date}`;
 }
 
+function isPaymentLine(description: string): boolean {
+  const d = String(description ?? '').toLowerCase().trim();
+  return (
+    /^pagamento\b/.test(d) ||
+    d.includes('pagto') ||
+    d.includes('pgto') ||
+    d.includes('pagamento efetuado') ||
+    d.includes('pagamento fatura') ||
+    d.includes('pagamento da fatura') ||
+    d.includes('pagamento de fatura')
+  );
+}
+
 async function syncSingleCard(
   supabaseAdmin: any,
   apiKey: string,
@@ -88,7 +100,9 @@ async function syncSingleCard(
     return { inserted: 0, skipped: 0, total: 0, error: 'Card not found' };
   }
 
-  // Fetch transactions from Pluggy
+  const closingDay = card.closing_day || 10;
+
+  // ========== 1. FETCH TRANSACTIONS ==========
   const now = new Date();
   const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
   const from = threeMonthsAgo.toISOString().split('T')[0];
@@ -107,9 +121,38 @@ async function syncSingleCard(
   const txData = await txRes.json();
   const transactions = txData.results || [];
 
+  // ========== 2. FETCH BILLS (invoice totals from bank) ==========
+  let bills: any[] = [];
+  try {
+    const billsRes = await fetch(
+      `${PLUGGY_API_URL}/bills?accountId=${pluggyAccountId}`,
+      { headers: { 'X-API-KEY': apiKey } }
+    );
+    if (billsRes.ok) {
+      const billsData = await billsRes.json();
+      bills = billsData.results || [];
+      console.log(`Fetched ${bills.length} bills from Pluggy`);
+    } else {
+      console.warn(`Bills API returned ${billsRes.status}, will calculate totals from transactions`);
+    }
+  } catch (e) {
+    console.warn('Bills API failed, will calculate totals from transactions:', e);
+  }
+
+  // ========== 3. INSERT TRANSACTIONS (filtering payments) ==========
   let inserted = 0;
   let skipped = 0;
-  const closingDay = card.closing_day || 10;
+  let paymentsFiltered = 0;
+
+  // Track installment purchases for future projection
+  const installmentPurchases: Array<{
+    description: string;
+    amount: number;
+    purchaseDate: string;
+    installmentNumber: number;
+    totalInstallments: number;
+    competencia: string;
+  }> = [];
 
   for (const tx of transactions) {
     const purchaseDate = tx.date?.split('T')[0];
@@ -118,11 +161,18 @@ async function syncSingleCard(
     const amount = Math.abs(tx.amount || 0);
     const description = tx.description || tx.descriptionRaw || 'Sem descrição';
 
-    // Calculate competencia using DUE MONTH logic (same as import-card-statement)
-    // Purchases on or before closing day → closes THIS month → due NEXT month
-    // Purchases after closing day → closes NEXT month → due in 2 months
+    // Filter payment lines
+    if (isPaymentLine(description)) {
+      paymentsFiltered++;
+      console.log(`Filtered payment: ${description} | ${amount}`);
+      continue;
+    }
+
     const competencia = calculateCompetencia(purchaseDate, closingDay);
     const dedupeKey = generateDedupeKey(description, amount, purchaseDate);
+
+    const installmentNumber = tx.creditCardMetadata?.installmentNumber || 1;
+    const totalInstallments = tx.creditCardMetadata?.totalInstallments || 1;
 
     const { data: existing } = await supabaseAdmin
       .from('credit_card_transactions')
@@ -142,30 +192,106 @@ async function syncSingleCard(
         purchase_date: purchaseDate,
         competencia,
         dedupe_key: dedupeKey,
-        installment_number: tx.creditCardMetadata?.installmentNumber || 1,
-        total_installments: tx.creditCardMetadata?.totalInstallments || 1,
+        installment_number: installmentNumber,
+        total_installments: totalInstallments,
         item_status: 'IMPORTADO',
         notes: `Pluggy sync - ${tx.id}`,
       });
 
     if (insertError) { console.error('Insert error:', insertError); }
-    else { inserted++; }
+    else {
+      inserted++;
+      // Track for future installment projection
+      if (totalInstallments > 1 && installmentNumber < totalInstallments) {
+        installmentPurchases.push({
+          description,
+          amount,
+          purchaseDate,
+          installmentNumber,
+          totalInstallments,
+          competencia,
+        });
+      }
+    }
   }
 
-  // Update/create invoices for affected competencias and link transactions
-  const competencias = [...new Set(transactions.map((tx: any) => {
-    const purchaseDate = tx.date?.split('T')[0];
-    return calculateCompetencia(purchaseDate, closingDay);
-  }))];
+  console.log(`Transactions: ${inserted} inserted, ${skipped} skipped, ${paymentsFiltered} payments filtered`);
 
-  for (const comp of competencias) {
-    const { data: txForComp } = await supabaseAdmin
-      .from('credit_card_transactions')
-      .select('amount')
-      .eq('credit_card_id', creditCardId)
-      .eq('competencia', comp);
+  // ========== 4. GENERATE FUTURE INSTALLMENTS ==========
+  let futureInstallmentsCreated = 0;
 
-    const total = (txForComp || []).reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+  for (const purchase of installmentPurchases) {
+    const remaining = purchase.totalInstallments - purchase.installmentNumber;
+    
+    for (let i = 1; i <= remaining; i++) {
+      const futureInstallment = purchase.installmentNumber + i;
+      
+      // Calculate future competencia (each installment is 1 month apart)
+      const baseComp = new Date(purchase.competencia + 'T12:00:00Z');
+      const futureMonth = baseComp.getUTCMonth() + i;
+      const futureYear = baseComp.getUTCFullYear() + Math.floor(futureMonth / 12);
+      const futureMonthNorm = futureMonth % 12;
+      const futureCompetencia = `${futureYear}-${String(futureMonthNorm + 1).padStart(2, '0')}-01`;
+
+      const futureDedupeKey = `${cleanDescription(purchase.description).toLowerCase().replace(/\s+/g, '_')}|${Math.abs(purchase.amount).toFixed(2)}|${purchase.purchaseDate}|inst${futureInstallment}`;
+
+      const { data: existingFuture } = await supabaseAdmin
+        .from('credit_card_transactions')
+        .select('id')
+        .eq('credit_card_id', creditCardId)
+        .eq('dedupe_key', futureDedupeKey)
+        .maybeSingle();
+
+      if (existingFuture) continue;
+
+      const { error: futureError } = await supabaseAdmin
+        .from('credit_card_transactions')
+        .insert({
+          credit_card_id: creditCardId,
+          description: purchase.description,
+          amount: purchase.amount,
+          purchase_date: purchase.purchaseDate,
+          competencia: futureCompetencia,
+          dedupe_key: futureDedupeKey,
+          installment_number: futureInstallment,
+          total_installments: purchase.totalInstallments,
+          item_status: 'PROJETADO',
+          notes: `Pluggy sync - parcela futura ${futureInstallment}/${purchase.totalInstallments}`,
+        });
+
+      if (!futureError) futureInstallmentsCreated++;
+    }
+  }
+
+  console.log(`Future installments created: ${futureInstallmentsCreated}`);
+
+  // ========== 5. CREATE/UPDATE INVOICES ==========
+  // Get all unique competencias from transactions in DB
+  const { data: allTx } = await supabaseAdmin
+    .from('credit_card_transactions')
+    .select('competencia, amount')
+    .eq('credit_card_id', creditCardId);
+
+  const compMap = new Map<string, number>();
+  for (const t of (allTx || [])) {
+    const comp = t.competencia;
+    compMap.set(comp, (compMap.get(comp) || 0) + (t.amount || 0));
+  }
+
+  // Build a map of bill totals from Pluggy (keyed by competencia)
+  const billTotalByComp = new Map<string, number>();
+  for (const bill of bills) {
+    if (!bill.dueDate || bill.totalAmount == null) continue;
+    const dueDate = new Date(bill.dueDate);
+    const comp = `${dueDate.getUTCFullYear()}-${String(dueDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
+    // Bills API returns negative for debts, we want positive
+    billTotalByComp.set(comp, Math.abs(bill.totalAmount));
+    console.log(`Bill: due=${bill.dueDate} → comp=${comp}, total=${Math.abs(bill.totalAmount)}`);
+  }
+
+  for (const [comp, txTotal] of compMap) {
+    // Prefer bill total from Pluggy API, fallback to sum of transactions
+    const invoiceTotal = billTotalByComp.get(comp) ?? txTotal;
 
     const { data: existingInvoice } = await supabaseAdmin
       .from('credit_card_invoices')
@@ -180,19 +306,23 @@ async function syncSingleCard(
       invoiceId = existingInvoice.id;
       await supabaseAdmin
         .from('credit_card_invoices')
-        .update({ total_value: total, updated_at: new Date().toISOString() })
+        .update({ total_value: invoiceTotal, updated_at: new Date().toISOString() })
         .eq('id', existingInvoice.id);
     } else {
       const compDate = new Date(comp);
       const dueDay = card.due_day || 20;
       const dueDate = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
 
+      // Determine status: if due date is in the past and we have bill data, might be paid
+      const isPast = new Date(dueDate) < new Date();
+      const hasBillData = billTotalByComp.has(comp);
+      
       const { data: newInvoice } = await supabaseAdmin
         .from('credit_card_invoices')
         .insert({
           credit_card_id: creditCardId,
           competencia: comp,
-          total_value: total,
+          total_value: invoiceTotal,
           due_date: dueDate,
           status: 'ABERTA',
         })
@@ -213,7 +343,15 @@ async function syncSingleCard(
     }
   }
 
-  return { inserted, skipped, total: transactions.length, competencias: competencias.length };
+  return {
+    inserted,
+    skipped,
+    paymentsFiltered,
+    futureInstallmentsCreated,
+    total: transactions.length,
+    billsFound: bills.length,
+    competencias: compMap.size,
+  };
 }
 
 serve(async (req) => {
@@ -265,7 +403,6 @@ serve(async (req) => {
 
       let accountId = mapping.pluggy_account_id;
 
-      // If no account ID stored, try to find one
       if (!accountId) {
         const accountsRes = await fetch(`${PLUGGY_API_URL}/accounts?itemId=${mapping.pluggy_item_id}&type=CREDIT`, {
           headers: { 'X-API-KEY': apiKey },
@@ -299,7 +436,7 @@ serve(async (req) => {
       });
     }
 
-    // CASE 2: Sync ALL cards linked to a pluggyItemId (webhook or manual)
+    // CASE 2: Sync ALL cards linked to a pluggyItemId
     if (pluggyItemId) {
       const { data: mappings } = await supabaseAdmin
         .from('pluggy_items')
