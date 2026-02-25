@@ -391,64 +391,106 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
         )}
 
         {step === 'mapping' && (
-          <div className="space-y-6">
-            <div className="rounded-lg bg-muted/50 p-3">
-              <p className="text-sm font-medium">{pendingConnectorName || 'Instituição conectada'}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {pluggyAccounts.length} cartão(ões) de crédito encontrado(s). 
-                Vincule cada um ao cartão correspondente no sistema.
-              </p>
+          <div className="space-y-5">
+            {/* Header card with institution info */}
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{pendingConnectorName || 'Instituição conectada'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {pluggyAccounts.length} {pluggyAccounts.length === 1 ? 'cartão detectado' : 'cartões detectados'}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {pluggyAccounts.map((account, idx) => {
+            {/* Mapping cards */}
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Vincular contas aos cartões
+              </p>
+              {pluggyAccounts.map((account) => {
                 const currentMapping = mappings.find(m => m.pluggyAccountId === account.id);
+                const isSkipped = currentMapping?.creditCardId === 'skip';
+                const isMapped = currentMapping?.creditCardId && !isSkipped;
                 const selectedCardIds = mappings
-                  .filter(m => m.pluggyAccountId !== account.id && m.creditCardId)
+                  .filter(m => m.pluggyAccountId !== account.id && m.creditCardId && m.creditCardId !== 'skip')
                   .map(m => m.creditCardId);
 
                 return (
-                  <div key={account.id} className="flex items-center gap-3 p-3 rounded-lg border">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium truncate">{getAccountLabel(account)}</span>
+                  <div 
+                    key={account.id} 
+                    className={cn(
+                      "rounded-xl border p-4 transition-all duration-200",
+                      isMapped && "border-primary/30 bg-primary/5 shadow-sm",
+                      isSkipped && "opacity-50",
+                      !isMapped && !isSkipped && "border-border hover:border-primary/20"
+                    )}
+                  >
+                    {/* Account info row */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className={cn(
+                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                        isMapped ? "bg-primary/10" : "bg-muted"
+                      )}>
+                        <CreditCard className={cn("h-4 w-4", isMapped ? "text-primary" : "text-muted-foreground")} />
                       </div>
-                      {account.creditData?.creditLimit && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Limite: R$ {account.creditData.creditLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{getAccountLabel(account)}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {account.creditData?.creditLimit && (
+                            <span className="text-xs text-muted-foreground">
+                              Limite: R$ {account.creditData.creditLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          )}
+                          {isMapped && (
+                            <Badge variant="default" className="text-[10px] h-4 px-1.5">
+                              Vinculado
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-
-                    <Select 
-                      value={currentMapping?.creditCardId || ''} 
-                      onValueChange={(v) => updateMapping(account.id, v)}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Selecionar cartão" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="skip">— Não vincular</SelectItem>
-                        {availableCardsForMapping
-                          .filter(c => !selectedCardIds.includes(c.id))
-                          .map(card => (
-                            <SelectItem key={card.id} value={card.id}>
-                              {card.name} {card.last_digits ? `(****${card.last_digits})` : ''}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    {/* Select row */}
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Select 
+                        value={currentMapping?.creditCardId || ''} 
+                        onValueChange={(v) => updateMapping(account.id, v)}
+                      >
+                        <SelectTrigger className={cn(
+                          "flex-1 h-9 text-sm",
+                          isMapped && "border-primary/30"
+                        )}>
+                          <SelectValue placeholder="Selecionar cartão..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="skip">
+                            <span className="text-muted-foreground">Não vincular</span>
+                          </SelectItem>
+                          {availableCardsForMapping
+                            .filter(c => !selectedCardIds.includes(c.id))
+                            .map(card => (
+                              <SelectItem key={card.id} value={card.id}>
+                                {card.name} {card.last_digits ? `· ****${card.last_digits}` : ''}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            <div className="flex gap-2">
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1" onClick={() => setStep('overview')}>
-                Cancelar
+                Voltar
               </Button>
               <Button 
                 className="flex-1 gap-2" 
@@ -456,7 +498,9 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
                 disabled={isSaving || !mappings.some(m => m.creditCardId && m.creditCardId !== 'skip')}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Vincular Cartões
+                Vincular {mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length > 0 
+                  ? `(${mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length})` 
+                  : ''}
               </Button>
             </div>
           </div>
