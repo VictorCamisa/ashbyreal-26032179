@@ -128,19 +128,23 @@ export function usePluggy() {
     }
   };
 
-  const syncCard = async (creditCardId: string) => {
+  const syncCard = async (creditCardId: string, resync: boolean = false) => {
     setIsSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('pluggy-sync', {
-        body: { creditCardId },
+        body: { creditCardId, resync },
       });
 
       if (error) throw error;
 
-      toast.success(`Sincronização concluída! ${data.inserted} novas transações importadas.`);
+      const msg = resync 
+        ? `Re-sincronização concluída! ${data.inserted} transações reimportadas.`
+        : `Sincronização concluída! ${data.inserted} novas transações importadas.`;
+      toast.success(msg);
       queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
       queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] });
       queryClient.invalidateQueries({ queryKey: ['pluggy-items'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
 
       return data;
     } catch (error: any) {
