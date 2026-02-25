@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
       // NFC-e é síncrona na Focus NFe - com retry para duplicidade
       let focusData: any = null;
       let currentNumero = proximoNumero;
-      const MAX_RETRIES = 3;
+      const MAX_RETRIES = 10;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         const attemptRef = attempt === 0 ? ref : `nfce-${documento_id.substring(0, 8)}-${Date.now().toString(36)}`;
