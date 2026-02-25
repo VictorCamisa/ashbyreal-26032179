@@ -8,6 +8,7 @@ import cardItauEmpresas from '@/assets/card-itau-empresas.png';
 import cardLatamPass from '@/assets/card-latam-pass.png';
 import cardMercadoPago from '@/assets/card-mercado-pago.png';
 import cardSantanderSmiles from '@/assets/card-santander-smiles.png';
+import cardAmexPlatinum from '@/assets/card-amex-platinum.png';
 
 interface CreditCardVisualProps {
   name: string;
@@ -27,6 +28,7 @@ function getCardImage(name: string): string | null {
   if (lower.includes('latam')) return cardLatamPass;
   if ((lower.includes('itau') || lower.includes('itaú')) && lower.includes('empres')) return cardItauEmpresas;
   if (lower.includes('mercado')) return cardMercadoPago;
+  if (lower.includes('amex') || lower.includes('american express') || lower.includes('platinum')) return cardAmexPlatinum;
   if (lower.includes('santander')) return cardSantanderSmiles;
   // Fallback for other Itaú cards
   if (lower.includes('itau') || lower.includes('itaú')) return cardItauEmpresas;
