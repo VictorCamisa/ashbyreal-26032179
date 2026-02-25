@@ -35,6 +35,35 @@ function cleanDescription(desc: string): string {
     .trim();
 }
 
+// Calculate competencia using DUE MONTH logic (matches import-card-statement)
+// Banks name invoices by their DUE month, not closing month
+// Purchases on or before closing day → closes THIS month → due NEXT month → competencia = next month
+// Purchases after closing day → closes NEXT month → due 2 months later → competencia = 2 months later
+function calculateCompetencia(purchaseDate: string, closingDay: number): string {
+  const date = new Date(purchaseDate + 'T12:00:00Z');
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth(); // 0-indexed
+
+  let competenciaMonth: number;
+  let competenciaYear: number;
+
+  if (day <= closingDay) {
+    competenciaMonth = month + 1;
+    competenciaYear = year;
+  } else {
+    competenciaMonth = month + 2;
+    competenciaYear = year;
+  }
+
+  if (competenciaMonth > 11) {
+    competenciaYear += Math.floor(competenciaMonth / 12);
+    competenciaMonth = competenciaMonth % 12;
+  }
+
+  return `${competenciaYear}-${String(competenciaMonth + 1).padStart(2, '0')}-01`;
+}
+
 function generateDedupeKey(description: string, amount: number, date: string): string {
   const cleaned = cleanDescription(description).toLowerCase().replace(/\s+/g, '_');
   return `${cleaned}|${Math.abs(amount).toFixed(2)}|${date}`;
@@ -89,21 +118,10 @@ async function syncSingleCard(
     const amount = Math.abs(tx.amount || 0);
     const description = tx.description || tx.descriptionRaw || 'Sem descrição';
 
-    // Calculate competencia
-    const pDate = new Date(purchaseDate);
-    const pDay = pDate.getDate();
-    let compMonth: number, compYear: number;
-
-    if (pDay <= closingDay) {
-      compMonth = pDate.getMonth();
-      compYear = pDate.getFullYear();
-    } else {
-      compMonth = pDate.getMonth() + 1;
-      compYear = pDate.getFullYear();
-      if (compMonth > 11) { compMonth = 0; compYear++; }
-    }
-
-    const competencia = `${compYear}-${String(compMonth + 1).padStart(2, '0')}-01`;
+    // Calculate competencia using DUE MONTH logic (same as import-card-statement)
+    // Purchases on or before closing day → closes THIS month → due NEXT month
+    // Purchases after closing day → closes NEXT month → due in 2 months
+    const competencia = calculateCompetencia(purchaseDate, closingDay);
     const dedupeKey = generateDedupeKey(description, amount, purchaseDate);
 
     const { data: existing } = await supabaseAdmin
@@ -136,12 +154,8 @@ async function syncSingleCard(
 
   // Update/create invoices for affected competencias and link transactions
   const competencias = [...new Set(transactions.map((tx: any) => {
-    const pDate = new Date(tx.date?.split('T')[0]);
-    const pDay = pDate.getDate();
-    let m = pDay <= closingDay ? pDate.getMonth() : pDate.getMonth() + 1;
-    let y = pDate.getFullYear();
-    if (m > 11) { m = 0; y++; }
-    return `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    const purchaseDate = tx.date?.split('T')[0];
+    return calculateCompetencia(purchaseDate, closingDay);
   }))];
 
   for (const comp of competencias) {
