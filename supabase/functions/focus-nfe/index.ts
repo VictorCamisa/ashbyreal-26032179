@@ -296,10 +296,11 @@ Deno.serve(async (req) => {
 
     // ─── CONSULTAR STATUS ───
     if (action === 'consultar') {
-      let { ref, tipo } = payload;
+      let tipo = payload.tipo;
+      let ref: string | null = null;
       
-      // If no ref provided, look it up from the document
-      if (!ref && documento_id) {
+      // Always look up ref from the document in DB (ignore any ref from payload)
+      if (documento_id) {
         const { data: doc } = await supabase
           .from('documentos_fiscais')
           .select('focus_ref, tipo')
@@ -309,7 +310,7 @@ Deno.serve(async (req) => {
         if (doc?.tipo) tipo = doc.tipo;
       }
       
-      if (!ref) throw new Error('Referência Focus NFe não encontrada para este documento. Tente emitir novamente.');
+      if (!ref) throw new Error('Este documento ainda não foi enviado ao Focus NFe. Emita primeiro.');
       
       const endpoint = tipo === 'NFCE' ? 'nfce' : 'nfe';
 
@@ -341,25 +342,29 @@ Deno.serve(async (req) => {
       }
 
       // Build user-friendly message
+      const focusStatus = focusData.status || focusData.codigo || 'desconhecido';
       const statusMessages: Record<string, string> = {
         autorizado: 'NF autorizada pela SEFAZ!',
         processando_autorizacao: 'NF ainda está sendo processada pela SEFAZ. Tente novamente em alguns segundos.',
         erro_autorizacao: `NF rejeitada pela SEFAZ: ${focusData.mensagem_sefaz || focusData.motivo || 'Verifique os dados do documento.'}`,
         cancelado: 'NF cancelada.',
+        nao_encontrado: 'NF não encontrada no Focus NFe. Pode ter sido emitida com outra referência.',
       };
 
       return new Response(JSON.stringify({
-        success: true,
+        success: focusStatus !== 'nao_encontrado',
         ...focusData,
-        user_message: statusMessages[focusData.status] || `Status: ${focusData.status}`,
+        status: focusStatus,
+        user_message: statusMessages[focusStatus] || `Status: ${focusStatus}`,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // ─── CANCELAR NF-e ───
     if (action === 'cancelar') {
-      let { ref, justificativa, tipo } = payload;
+      let { justificativa, tipo } = payload;
+      let ref: string | null = null;
       
-      if (!ref && documento_id) {
+      if (documento_id) {
         const { data: doc } = await supabase
           .from('documentos_fiscais')
           .select('focus_ref, tipo')
