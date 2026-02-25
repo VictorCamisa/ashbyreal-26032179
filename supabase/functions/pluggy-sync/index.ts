@@ -337,10 +337,12 @@ async function syncSingleCard(
 
   const billTotalByComp = new Map<string, number>();
   for (const bill of bills) {
+    console.log(`[BILL RAW] id=${bill.id} dueDate=${bill.dueDate} totalAmount=${bill.totalAmount} totalBalance=${bill.totalBalance} state=${bill.state}`);
     if (!bill.dueDate || bill.totalAmount == null) continue;
     const dueDate = new Date(bill.dueDate);
     const comp = `${dueDate.getUTCFullYear()}-${String(dueDate.getUTCMonth() + 1).padStart(2, '0')}-01`;
     billTotalByComp.set(comp, Math.abs(bill.totalAmount));
+    console.log(`[BILL MAPPED] comp=${comp} total=${Math.abs(bill.totalAmount)}`);
   }
 
   // Get all existing invoices in one query
@@ -358,7 +360,9 @@ async function syncSingleCard(
   const invoicesToCreate: any[] = [];
 
   for (const [comp, txTotal] of compMap) {
-    const invoiceTotal = billTotalByComp.get(comp) ?? txTotal;
+    const billTotal = billTotalByComp.get(comp);
+    const invoiceTotal = billTotal ?? txTotal;
+    console.log(`[INVOICE DECISION] comp=${comp} txTotal=${txTotal} billTotal=${billTotal ?? 'N/A'} → using=${invoiceTotal}`);
     const existingId = invoiceByComp.get(comp);
 
     if (existingId) {
