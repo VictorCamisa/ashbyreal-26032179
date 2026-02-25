@@ -134,7 +134,7 @@ async function syncSingleCard(
     else { inserted++; }
   }
 
-  // Update/create invoices for affected competencias
+  // Update/create invoices for affected competencias and link transactions
   const competencias = [...new Set(transactions.map((tx: any) => {
     const pDate = new Date(tx.date?.split('T')[0]);
     const pDay = pDate.getDate();
@@ -160,7 +160,10 @@ async function syncSingleCard(
       .eq('competencia', comp)
       .maybeSingle();
 
+    let invoiceId: string;
+
     if (existingInvoice) {
+      invoiceId = existingInvoice.id;
       await supabaseAdmin
         .from('credit_card_invoices')
         .update({ total_value: total, updated_at: new Date().toISOString() })
@@ -170,7 +173,7 @@ async function syncSingleCard(
       const dueDay = card.due_day || 20;
       const dueDate = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
 
-      await supabaseAdmin
+      const { data: newInvoice } = await supabaseAdmin
         .from('credit_card_invoices')
         .insert({
           credit_card_id: creditCardId,
@@ -178,7 +181,21 @@ async function syncSingleCard(
           total_value: total,
           due_date: dueDate,
           status: 'ABERTA',
-        });
+        })
+        .select('id')
+        .single();
+      
+      invoiceId = newInvoice?.id;
+    }
+
+    // Link all transactions of this competencia to the invoice
+    if (invoiceId) {
+      await supabaseAdmin
+        .from('credit_card_transactions')
+        .update({ invoice_id: invoiceId })
+        .eq('credit_card_id', creditCardId)
+        .eq('competencia', comp)
+        .is('invoice_id', null);
     }
   }
 
