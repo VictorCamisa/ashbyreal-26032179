@@ -214,6 +214,10 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
+      // Incrementar número da NFC-e
+      const proximoNumero = (config?.ultimo_numero_nfce || 0) + 1;
+      await supabase.from('contabilidade_config').update({ ultimo_numero_nfce: proximoNumero }).eq('id', config.id);
+
       const ts2 = Date.now().toString(36);
       const ref = `nfce-${documento_id.substring(0, 8)}-${ts2}`;
       const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
@@ -249,6 +253,8 @@ Deno.serve(async (req) => {
         consumidor_final: '1',
         presenca_comprador: '1',
         modalidade_frete: '9',
+        numero: String(proximoNumero),
+        serie: config?.serie_nfce || '1',
         items: itens,
         formas_pagamento: [{
           forma_pagamento: '01', // Dinheiro
