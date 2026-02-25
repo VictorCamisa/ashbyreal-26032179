@@ -51,6 +51,7 @@ import {
 } from '@/hooks/useContabilidade';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NovoDocumentoDialog } from './NovoDocumentoDialog';
+import { ValidarDadosEmissaoDialog } from './ValidarDadosEmissaoDialog';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -78,6 +79,7 @@ export function DocumentosFiscaisTable() {
   const [emittingId, setEmittingId] = useState<string | null>(null);
   const [consultingId, setConsultingId] = useState<string | null>(null);
   const [danfeUrl, setDanfeUrl] = useState<string | null>(null);
+  const [validacaoDoc, setValidacaoDoc] = useState<DocumentoFiscal | null>(null);
 
   const filters = {
     tipo: tipoFilter !== 'all' ? tipoFilter : undefined,
@@ -93,6 +95,11 @@ export function DocumentosFiscaisTable() {
   };
 
   const handleEmitirFocus = async (doc: DocumentoFiscal) => {
+    // Show validation dialog first
+    setValidacaoDoc(doc);
+  };
+
+  const executeEmitirFocus = async (doc: DocumentoFiscal) => {
     const tipoLabel = doc.tipo === 'NFCE' ? 'NFC-e (Cupom Fiscal)' : 'NF-e';
     if (!confirm(`Emitir ${tipoLabel} via Focus NFe (SEFAZ)?\n\nValor: ${formatCurrency(doc.valor_total)}`)) return;
     
@@ -405,6 +412,20 @@ export function DocumentosFiscaisTable() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Validação pré-emissão */}
+      <ValidarDadosEmissaoDialog
+        open={!!validacaoDoc}
+        onOpenChange={(open) => !open && setValidacaoDoc(null)}
+        tipo={(validacaoDoc?.tipo as 'NFE' | 'NFCE') || 'NFCE'}
+        clienteId={validacaoDoc?.cliente_id}
+        onValidated={() => {
+          if (validacaoDoc) {
+            executeEmitirFocus(validacaoDoc);
+            setValidacaoDoc(null);
+          }
+        }}
+      />
     </>
   );
 }
