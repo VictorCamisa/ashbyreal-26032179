@@ -57,6 +57,7 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState('');
 
   // Mapping step state
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
@@ -239,7 +240,6 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
       return;
     }
 
-    // Check for duplicate card selections (only among actually selected cards)
     const cardIds = validMappings.map(m => m.creditCardId);
     if (new Set(cardIds).size !== cardIds.length) {
       toast.error('Cada cartão só pode ser vinculado a uma conta.');
@@ -247,22 +247,44 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
     }
 
     setIsSaving(true);
+    setSavingStatus('Vinculando cartões...');
     try {
-      await linkMultipleItems(
-        validMappings.map(m => ({
-          pluggyItemId: pendingItemId!,
-          pluggyAccountId: m.pluggyAccountId,
-          creditCardId: m.creditCardId,
-          connectorName: pendingConnectorName,
-        }))
-      );
-      // Clean up pending record from webhook
+      // Insert mappings
+      const rows = validMappings.map(m => ({
+        pluggy_item_id: pendingItemId!,
+        pluggy_account_id: m.pluggyAccountId,
+        credit_card_id: m.creditCardId,
+        connector_name: pendingConnectorName,
+        status: 'ACTIVE',
+      }));
+
+      const { error } = await supabase.from('pluggy_items').insert(rows);
+      if (error) throw error;
+
       await supabase.from('pluggy_items').delete().eq('pluggy_item_id', pendingItemId!).is('credit_card_id', null);
+
+      toast.success(`${rows.length} cartão(ões) vinculado(s)! Sincronizando em segundo plano...`);
+      
+      // Close dialog immediately
+      setIsSaving(false);
+      setSavingStatus('');
       setStep('overview');
+      onOpenChange(false);
+
+      // Sync in background (fire-and-forget)
+      for (const m of validMappings) {
+        supabase.functions.invoke('pluggy-sync', {
+          body: { creditCardId: m.creditCardId },
+        }).then(() => {
+          toast.success('Transações sincronizadas com sucesso!');
+        }).catch((syncErr: any) => {
+          toast.error(`Erro ao sincronizar: ${syncErr.message}`);
+        });
+      }
     } catch (err: any) {
       toast.error(`Erro ao salvar: ${err.message}`);
-    } finally {
       setIsSaving(false);
+      setSavingStatus('');
     }
   };
 
@@ -498,9 +520,11 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
                 disabled={isSaving || !mappings.some(m => m.creditCardId && m.creditCardId !== 'skip')}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Vincular {mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length > 0 
-                  ? `(${mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length})` 
-                  : ''}
+                {isSaving ? (savingStatus || 'Salvando...') : (
+                  `Vincular${mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length > 0 
+                    ? ` (${mappings.filter(m => m.creditCardId && m.creditCardId !== 'skip').length})` 
+                    : ''}`
+                )}
               </Button>
             </div>
           </div>
