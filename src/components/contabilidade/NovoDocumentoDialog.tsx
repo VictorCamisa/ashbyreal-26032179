@@ -7,6 +7,7 @@ import {
   Trash2, Package, ArrowRight, ArrowLeft, Receipt, Building2,
   User, ShoppingBag, FileCheck
 } from 'lucide-react';
+import { ValidarDadosEmissaoDialog } from './ValidarDadosEmissaoDialog';
 import {
   Dialog,
   DialogContent,
@@ -410,6 +411,8 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
   const [direcao, setDirecao] = useState<'ENTRADA' | 'SAIDA'>('SAIDA');
   const [items, setItems] = useState<ItemNF[]>([]);
   const [isEmitting, setIsEmitting] = useState(false);
+  const [showValidacao, setShowValidacao] = useState(false);
+  const [pendingEmitData, setPendingEmitData] = useState<FormData | null>(null);
   const { createDocumento } = useDocumentoFiscalMutations();
   const { clientes } = useClientes();
   const { data: entities } = useEntities();
@@ -494,6 +497,17 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
       return;
     }
 
+    // Show validation dialog before emitting
+    if (data.tipo === 'NFE' || data.tipo === 'NFCE') {
+      setPendingEmitData(data);
+      setShowValidacao(true);
+      return;
+    }
+
+    await executeEmit(data);
+  };
+
+  const executeEmit = async (data: FormData) => {
     setIsEmitting(true);
     try {
       const payload = {
@@ -552,6 +566,7 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-y-auto">
         <DialogHeader className="px-6 pt-6 pb-0">
@@ -802,5 +817,19 @@ export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogP
         </Form>
       </DialogContent>
     </Dialog>
+
+    <ValidarDadosEmissaoDialog
+      open={showValidacao}
+      onOpenChange={setShowValidacao}
+      tipo={pendingEmitData?.tipo as 'NFE' | 'NFCE' || 'NFCE'}
+      clienteId={pendingEmitData?.cliente_id}
+      onValidated={() => {
+        if (pendingEmitData) {
+          executeEmit(pendingEmitData);
+          setPendingEmitData(null);
+        }
+      }}
+    />
+    </>
   );
 }
