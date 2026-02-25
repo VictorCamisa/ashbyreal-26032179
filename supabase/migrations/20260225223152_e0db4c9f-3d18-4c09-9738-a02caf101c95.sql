@@ -1,0 +1,1 @@
+UPDATE contabilidade_config SET ultimo_numero_nfce = 5 WHERE id = 'f12f1039-c59c-499e-b96f-07f3263e9db5';
