@@ -120,58 +120,55 @@ export function ControleCartoes() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Alerts */}
       {cartoes && faturas && (
         <CartaoAlerts cartoes={cartoes} faturas={faturas} />
       )}
 
       {/* View Mode Tabs + Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'analytics' | 'cards' | 'despesas')} className="w-auto">
-          <TabsList>
-            <TabsTrigger value="analytics" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
+          <TabsList className="h-9">
+            <TabsTrigger value="analytics" className="gap-1.5 text-xs px-3">
+              <BarChart3 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
-            <TabsTrigger value="cards" className="gap-2">
-              <LayoutGrid className="h-4 w-4" />
+            <TabsTrigger value="cards" className="gap-1.5 text-xs px-3">
+              <LayoutGrid className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Cartões</span>
             </TabsTrigger>
-            <TabsTrigger value="despesas" className="gap-2">
-              <Repeat className="h-4 w-4" />
+            <TabsTrigger value="despesas" className="gap-1.5 text-xs px-3">
+              <Repeat className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Despesas Fixas</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {/* Action Bar */}
-        <div className="flex flex-wrap gap-2">
-          {viewMode !== 'despesas' && (
-            <>
-              <Button onClick={() => setShowNovoGasto(true)} className="gap-2" size="sm">
-                <ShoppingCart className="h-4 w-4" />
-                <span className="hidden sm:inline">Lançar Gasto</span>
-              </Button>
-              <Button onClick={() => setShowImportarFatura(true)} variant="success" size="sm" className="gap-2">
-                <Upload className="h-4 w-4" />
-                <span className="hidden sm:inline">Importar Fatura</span>
-              </Button>
-              <Button onClick={() => setShowTodasFaturas(true)} variant="secondary" size="sm" className="gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Ver Faturas</span>
-              </Button>
-              <Button onClick={() => setShowPluggyConnect(true)} variant="outline" size="sm" className="gap-2 border-primary/30 text-primary">
-                <Zap className="h-4 w-4" />
-                <span className="hidden sm:inline">Pluggy</span>
-              </Button>
-              <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Novo Cartão</span>
-              </Button>
-            </>
-          )}
-        </div>
+        {/* Action Bar - cleaner with grouped actions */}
+        {viewMode !== 'despesas' && (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
+            <Button onClick={() => setShowNovoGasto(true)} size="sm" className="gap-1.5 shrink-0">
+              <ShoppingCart className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Lançar Gasto</span>
+            </Button>
+            <Button onClick={() => setShowImportarFatura(true)} variant="secondary" size="sm" className="gap-1.5 shrink-0">
+              <Upload className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Importar</span>
+            </Button>
+            <Button onClick={() => setShowTodasFaturas(true)} variant="ghost" size="sm" className="gap-1.5 shrink-0">
+              <FileText className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Faturas</span>
+            </Button>
+            <Button onClick={() => setShowPluggyConnect(true)} variant="ghost" size="sm" className="gap-1.5 text-primary shrink-0">
+              <Zap className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Pluggy</span>
+            </Button>
+            <Button onClick={() => setShowNovoCartao(true)} variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Analytics View */}
@@ -203,110 +200,82 @@ export function ControleCartoes() {
       {/* Cards View */}
       {viewMode === 'cards' && (
         <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="glass-card border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Faturas em Aberto</p>
-                <p className="text-2xl font-bold mt-1">
-                  R$ {totalFaturasAbertas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          {/* Summary Strip */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="border-l-2 border-l-primary">
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[11px] text-muted-foreground">Faturas em Aberto</p>
+                <p className="text-lg sm:text-xl font-bold mt-0.5">
+                  R$ {totalFaturasAbertas.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {faturasAbertas.length} {faturasAbertas.length === 1 ? 'fatura' : 'faturas'}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Wallet className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <p className="text-[10px] text-muted-foreground">{faturasAbertas.length} fatura(s)</p>
+              </CardContent>
+            </Card>
 
-        <Card className="glass-card border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Próximos 6 Meses</p>
-                <p className="text-2xl font-bold mt-1">
-                  R$ {totalProximos6Meses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <Card className="border-l-2 border-l-amber-500">
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[11px] text-muted-foreground">Próx. 6 Meses</p>
+                <p className="text-lg sm:text-xl font-bold mt-0.5">
+                  R$ {totalProximos6Meses.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Gastos previstos
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-amber-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <p className="text-[10px] text-muted-foreground">Previstos</p>
+              </CardContent>
+            </Card>
 
-        <Card className="glass-card border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Cartões Ativos</p>
-                <p className="text-2xl font-bold mt-1">
+            <Card className="border-l-2 border-l-emerald-500">
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[11px] text-muted-foreground">Cartões Ativos</p>
+                <p className="text-lg sm:text-xl font-bold mt-0.5">
                   {cartoes?.filter(c => c.is_active).length || 0}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  de {cartoes?.length || 0} cadastrados
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-emerald-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Cards Grid */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Meus Cartões</h3>
-        {cartoes && cartoes.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-            {cartoes.map((cartao) => {
-              const currentValue = getCardCurrentValue(cartao.id);
-
-              return (
-                <CreditCardVisual
-                  key={cartao.id}
-                  name={cartao.name}
-                  lastDigits={cartao.last_digits}
-                  brand={cartao.brand}
-                  dueDay={cartao.due_day}
-                  closingDay={cartao.closing_day}
-                  isActive={cartao.is_active}
-                  limitValue={cartao.limit_value}
-                  currentValue={currentValue}
-                  onClick={() => setSelectedCard(cartao)}
-                />
-              );
-            })}
+                <p className="text-[10px] text-muted-foreground">de {cartoes?.length || 0}</p>
+              </CardContent>
+            </Card>
           </div>
-        ) : (
-          <Card className="glass-card">
-            <CardContent className="p-8 text-center">
-              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground mb-4">Nenhum cartão cadastrado</p>
-              <Button onClick={() => setShowNovoCartao(true)} variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Cadastrar Cartão
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+
+          {/* Cards Grid */}
+          <div>
+            <h3 className="text-base font-semibold mb-3">Meus Cartões</h3>
+            {cartoes && cartoes.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {cartoes.map((cartao) => {
+                  const currentValue = getCardCurrentValue(cartao.id);
+                  return (
+                    <CreditCardVisual
+                      key={cartao.id}
+                      name={cartao.name}
+                      lastDigits={cartao.last_digits}
+                      brand={cartao.brand}
+                      dueDay={cartao.due_day}
+                      closingDay={cartao.closing_day}
+                      isActive={cartao.is_active}
+                      limitValue={cartao.limit_value}
+                      currentValue={currentValue}
+                      onClick={() => setSelectedCard(cartao)}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground mb-3">Nenhum cartão cadastrado</p>
+                  <Button onClick={() => setShowNovoCartao(true)} variant="outline" size="sm">
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Cadastrar Cartão
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
       {/* Faturas por Cartão */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
-            Faturas por Cartão
+            Faturas Pendentes
           </CardTitle>
         </CardHeader>
         <CardContent>
