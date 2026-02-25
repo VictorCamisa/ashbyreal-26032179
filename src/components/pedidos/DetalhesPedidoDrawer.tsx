@@ -37,6 +37,8 @@ import {
   ExternalLink,
   Trash2,
   Undo2,
+  Receipt,
+  Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
@@ -125,6 +127,7 @@ export function DetalhesPedidoDrawer({
   const [transaction, setTransaction] = useState<TransactionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDevolucao, setShowDevolucao] = useState(false);
+  const [isEmittingCupom, setIsEmittingCupom] = useState(false);
   const { toast } = useToast();
   const { deletePedido, isLoading: isDeleting } = usePedidosMutations();
 
@@ -240,6 +243,82 @@ export function DetalhesPedidoDrawer({
         `Olá ${cliente.nome}! Seu pedido #${pedido.numero_pedido} está ${pedido.status}. Valor: R$ ${pedido.valor_total.toFixed(2)}`
       );
       window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+    }
+  };
+
+  const handleEmitirCupom = async () => {
+    if (!pedido || !pedidoId) return;
+    setIsEmittingCupom(true);
+    try {
+      // 1. Create documento fiscal (NFC-e) from pedido
+      const itensParaDoc = items.map(item => ({
+        descricao: item.produtos?.nome || 'Produto',
+        codigo: item.produtos?.sku || undefined,
+        quantidade: item.quantidade,
+        valor_unitario: item.preco_unitario,
+        valor_total: item.subtotal,
+        unidade: 'UN',
+        ncm: '22030000',
+        cfop: '5102',
+      }));
+
+      const { data: doc, error: docErr } = await supabase
+        .from('documentos_fiscais')
+        .insert({
+          tipo: 'NFCE' as any,
+          direcao: 'SAIDA' as any,
+          status: 'RASCUNHO' as any,
+          pedido_id: pedidoId,
+          cliente_id: pedido.cliente_id,
+          natureza_operacao: 'Venda de mercadoria',
+          valor_produtos: pedido.valor_total,
+          valor_total: pedido.valor_total,
+          valor_servicos: 0,
+          valor_desconto: 0,
+          valor_frete: 0,
+          valor_outras: 0,
+        })
+        .select()
+        .single();
+
+      if (docErr) throw docErr;
+
+      // 2. Insert items
+      if (itensParaDoc.length > 0) {
+        const { error: itensErr } = await supabase
+          .from('documento_fiscal_itens')
+          .insert(itensParaDoc.map(item => ({
+            ...item,
+            documento_id: doc.id,
+          })));
+        if (itensErr) throw itensErr;
+      }
+
+      // 3. Emit via Focus NFe
+      const { data: focusData, error: focusErr } = await supabase.functions.invoke('focus-nfe', {
+        body: { action: 'emitir_nfce', documento_id: doc.id, ambiente: 'PRODUCAO' },
+      });
+
+      if (focusErr) throw new Error(focusErr.message);
+      if (focusData && !focusData.success) throw new Error(focusData.error);
+
+      toast({ 
+        title: '🧾 Cupom Fiscal emitido!', 
+        description: focusData?.chave_nfe ? `Chave: ${focusData.chave_nfe.substring(0, 20)}...` : 'NFC-e processada com sucesso.' 
+      });
+
+      if (focusData?.danfe_url) {
+        window.open(focusData.danfe_url, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Erro ao emitir cupom:', error);
+      toast({ 
+        title: 'Erro ao emitir cupom fiscal', 
+        description: error.message || 'Tente novamente',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsEmittingCupom(false);
     }
   };
 
@@ -532,6 +611,23 @@ export function DetalhesPedidoDrawer({
 
         {/* Quick Actions */}
         <div className="p-4 border-t bg-muted/20 space-y-3">
+          {/* Emitir Cupom - Destaque */}
+          {pedido && (pedido.status === 'pago' || pedido.status === 'entregue') && (
+            <Button
+              onClick={handleEmitirCupom}
+              disabled={isEmittingCupom}
+              className="w-full gap-2"
+              size="sm"
+            >
+              {isEmittingCupom ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Receipt className="h-4 w-4" />
+              )}
+              {isEmittingCupom ? 'Emitindo Cupom...' : 'Emitir Cupom Fiscal (NFC-e)'}
+            </Button>
+          )}
+
           <div className="grid grid-cols-4 gap-2">
             <Button
               variant="outline"
