@@ -22,6 +22,7 @@ import {
   CreditCard,
   ArrowRight,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -348,8 +349,21 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
                           variant="ghost" size="icon" className="h-8 w-8"
                           onClick={() => syncCard(card.id)}
                           disabled={isSyncing}
+                          title="Sincronizar"
                         >
                           <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => {
+                            if (confirm('Re-sincronizar vai reimportar todas as transações da Pluggy com a competência recalculada. Continuar?')) {
+                              syncCard(card.id, true);
+                            }
+                          }}
+                          disabled={isSyncing}
+                          title="Re-sincronizar (reimportar tudo)"
+                        >
+                          <RotateCcw className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost" size="icon" className="h-8 w-8 text-destructive"

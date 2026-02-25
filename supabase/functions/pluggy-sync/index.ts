@@ -87,6 +87,7 @@ async function syncSingleCard(
   pluggyItemId: string,
   pluggyAccountId: string,
   creditCardId: string,
+  resync: boolean = false,
 ) {
   // Get credit card details
   const { data: card } = await supabaseAdmin
@@ -101,6 +102,51 @@ async function syncSingleCard(
   }
 
   const closingDay = card.closing_day || 10;
+
+  // ========== 0. RESYNC: DELETE OLD DATA ==========
+  if (resync) {
+    console.log(`RESYNC mode: deleting existing Pluggy transactions for card ${creditCardId}`);
+    
+    // Delete PROJETADO transactions (future installments we created)
+    const { count: projectedDeleted } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .delete({ count: 'exact' })
+      .eq('credit_card_id', creditCardId)
+      .eq('item_status', 'PROJETADO');
+    
+    // Delete IMPORTADO transactions that came from Pluggy (have dedupe_key and notes starting with "Pluggy")
+    const { count: importedDeleted } = await supabaseAdmin
+      .from('credit_card_transactions')
+      .delete({ count: 'exact' })
+      .eq('credit_card_id', creditCardId)
+      .eq('item_status', 'IMPORTADO')
+      .like('notes', 'Pluggy sync%');
+    
+    console.log(`Resync deleted: ${projectedDeleted || 0} projected, ${importedDeleted || 0} imported`);
+    
+    // Delete invoices that have no remaining transactions
+    // (we'll recreate them with correct totals)
+    const { data: invoices } = await supabaseAdmin
+      .from('credit_card_invoices')
+      .select('id, competencia')
+      .eq('credit_card_id', creditCardId);
+    
+    for (const inv of (invoices || [])) {
+      const { count } = await supabaseAdmin
+        .from('credit_card_transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('credit_card_id', creditCardId)
+        .eq('competencia', inv.competencia);
+      
+      if (count === 0) {
+        await supabaseAdmin
+          .from('credit_card_invoices')
+          .delete()
+          .eq('id', inv.id);
+      }
+    }
+  }
+
 
   // ========== 1. FETCH TRANSACTIONS ==========
   const now = new Date();
@@ -360,7 +406,7 @@ serve(async (req) => {
   }
 
   try {
-    const { pluggyItemId, creditCardId, isWebhook } = await req.json();
+    const { pluggyItemId, creditCardId, isWebhook, resync } = await req.json();
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -424,7 +470,7 @@ serve(async (req) => {
         });
       }
 
-      const result = await syncSingleCard(supabaseAdmin, apiKey, mapping.pluggy_item_id, accountId, creditCardId);
+      const result = await syncSingleCard(supabaseAdmin, apiKey, mapping.pluggy_item_id, accountId, creditCardId, resync);
 
       await supabaseAdmin
         .from('pluggy_items')
@@ -459,7 +505,7 @@ serve(async (req) => {
 
         try {
           const result = await syncSingleCard(
-            supabaseAdmin, apiKey, pluggyItemId, mapping.pluggy_account_id, mapping.credit_card_id!
+            supabaseAdmin, apiKey, pluggyItemId, mapping.pluggy_account_id, mapping.credit_card_id!, resync
           );
           results.push({ creditCardId: mapping.credit_card_id, ...result });
 
