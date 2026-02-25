@@ -124,30 +124,29 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
     inv.competencia.startsWith(monthStr)
   );
 
-  // Fetch transactions for this card by invoice_id
+  // Fetch transactions for this card by competencia (works regardless of invoice_id linkage)
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['card-transactions', cartao?.id, currentInvoice?.id],
+    queryKey: ['card-transactions', cartao?.id, monthStr],
     queryFn: async () => {
       if (!cartao?.id) return [];
       
-      if (currentInvoice?.id) {
-        const { data, error } = await supabase
-          .from('credit_card_transactions')
-          .select(`
-            *,
-            categories(name, group),
-            subcategories(name)
-          `)
-          .eq('invoice_id', currentInvoice.id)
-          .order('purchase_date', { ascending: true });
-
-        if (error) throw error;
-        return data || [];
-      }
+      const competenciaDate = `${monthStr}-01`;
       
-      return [];
+      const { data, error } = await supabase
+        .from('credit_card_transactions')
+        .select(`
+          *,
+          categories(name, group),
+          subcategories(name)
+        `)
+        .eq('credit_card_id', cartao.id)
+        .eq('competencia', competenciaDate)
+        .order('purchase_date', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
     },
-    enabled: open && !!cartao?.id && invoices !== undefined,
+    enabled: open && !!cartao?.id,
   });
 
   // Filter transactions
