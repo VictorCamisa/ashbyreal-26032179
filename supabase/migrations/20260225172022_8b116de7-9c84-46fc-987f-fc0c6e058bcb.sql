@@ -1,0 +1,1 @@
+UPDATE credit_cards SET closing_day = 26 WHERE id = 'c2478444-b02b-4d2a-887e-13771017ec5e';
