@@ -1,0 +1,1 @@
+UPDATE contabilidade_config SET ultimo_numero_nfce = 2 WHERE ultimo_numero_nfce <= 2;
