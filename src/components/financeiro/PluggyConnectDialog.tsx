@@ -89,14 +89,37 @@ export function PluggyConnectDialog({ open, onOpenChange, preselectedCardId }: P
         return;
       }
 
-      // Poll until popup closes, then recover the new item
+      let recovered = false;
+
+      const doRecover = async () => {
+        if (recovered) return;
+        recovered = true;
+        window.removeEventListener('message', handleMessage);
+        clearInterval(checkClosed);
+        try { popup?.close(); } catch {}
+        toast.info('Conexão detectada. Buscando dados...');
+        await new Promise(r => setTimeout(r, 2000));
+        await handleRecoverItems();
+      };
+
+      // Primary: listen for postMessage from Pluggy widget
+      const handleMessage = (event: MessageEvent) => {
+        // Pluggy sends events with type or event fields
+        if (
+          event.origin?.includes('pluggy.ai') ||
+          event.data?.type === 'pluggy-connect' ||
+          event.data?.event === 'CONNECT_COMPLETED' ||
+          event.data?.item
+        ) {
+          doRecover();
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      // Fallback: poll until popup closes
       const checkClosed = setInterval(async () => {
         if (popup?.closed) {
-          clearInterval(checkClosed);
-          toast.info('Popup fechado. Buscando conexão...');
-          // Wait a bit for Pluggy to process
-          await new Promise(r => setTimeout(r, 2000));
-          await handleRecoverItems();
+          doRecover();
         }
       }, 1000);
     } catch (error: any) {
