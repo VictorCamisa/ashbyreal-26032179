@@ -44,6 +44,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PedidoStatusWorkflow } from './PedidoStatusWorkflow';
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
 import { RegistrarDevolucaoDialog } from './RegistrarDevolucaoDialog';
+import { ValidarDadosEmissaoDialog } from '@/components/contabilidade/ValidarDadosEmissaoDialog';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -128,6 +129,7 @@ export function DetalhesPedidoDrawer({
   const [isLoading, setIsLoading] = useState(true);
   const [showDevolucao, setShowDevolucao] = useState(false);
   const [isEmittingCupom, setIsEmittingCupom] = useState(false);
+  const [showValidacao, setShowValidacao] = useState(false);
   const { toast } = useToast();
   const { deletePedido, isLoading: isDeleting } = usePedidosMutations();
 
@@ -244,6 +246,12 @@ export function DetalhesPedidoDrawer({
       );
       window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
     }
+  };
+
+  const handleEmitirCupomClick = () => {
+    if (!pedido || !pedidoId) return;
+    // Show validation dialog before emitting
+    setShowValidacao(true);
   };
 
   const handleEmitirCupom = async () => {
@@ -614,7 +622,7 @@ export function DetalhesPedidoDrawer({
           {/* Emitir Cupom - Destaque */}
           {pedido && (pedido.status === 'pago' || pedido.status === 'entregue') && (
             <Button
-              onClick={handleEmitirCupom}
+              onClick={handleEmitirCupomClick}
               disabled={isEmittingCupom}
               className="w-full gap-2"
               size="sm"
@@ -727,6 +735,18 @@ export function DetalhesPedidoDrawer({
             }}
           />
         )}
+
+        {/* Validação pré-emissão */}
+        <ValidarDadosEmissaoDialog
+          open={showValidacao}
+          onOpenChange={setShowValidacao}
+          tipo="NFE"
+          clienteId={pedido?.cliente_id}
+          onValidated={() => {
+            setShowValidacao(false);
+            handleEmitirCupom();
+          }}
+        />
       </SheetContent>
     </Sheet>
   );
