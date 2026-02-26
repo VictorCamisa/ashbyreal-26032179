@@ -1,101 +1,74 @@
 
-# Auditoria e Plano de Melhoria do Ecommerce -- De Nota 0 a Nota 10
+# Plano: Corrigir Cupom Fiscal (NFC-e) e Criar PDV
 
-## Diagnostico Atual (O que um dev profissional diria)
+## Problema Atual
 
-### Problemas Criticos
-1. **0 produtos exibidos** -- A loja filtra `tipo_produto = 'CHOPP'` mas provavelmente nenhum produto no banco tem esse tipo. Uma loja sem produtos e uma loja morta.
-2. **Sem animacoes nem micro-interacoes** -- A Home foi toda animada com parallax, orbs flutuantes e transicoes fluidas, mas o Ecommerce ficou estatico e frio.
-3. **Hero fraco** -- Apenas texto e um background. Falta CTA forte, contagem animada, ou algo que convide a comprar.
-4. **Sem secao de destaque/promocao** -- Nenhum produto em destaque, nenhum banner promocional, nenhuma urgencia.
-5. **Sem prova social** -- Nao ha avaliacoes, depoimentos ou contagem de pedidos.
-6. **Trust section generica** -- Icones simples sem impacto visual.
-7. **Sem transicao entre secoes** -- Cortes bruscos, nada fluido como a Home agora tem.
-8. **Footer minimalista demais** -- Sem informacoes uteis.
-9. **Empty state ruim** -- Quando nao ha produtos, a tela fica vazia e abandonada.
-10. **Sem CTA secundario** -- Nao oferece alternativa (ex: WhatsApp direto) quando o catalogo esta vazio.
+O botao "Emitir Cupom Fiscal (NFC-e)" na tela de detalhes do pedido esta configurado incorretamente como NF-e (Modelo 55), que exige CPF/CNPJ. Cupom fiscal (NFC-e, Modelo 65) nao exige CPF do cliente -- e para consumidor final.
 
----
+Especificamente em `DetalhesPedidoDrawer.tsx`:
+- Linha 748: `tipo="NFE"` deveria ser `tipo="NFCE"`
+- Linha 276: o documento e inserido como `tipo: 'NFE'` deveria ser `tipo: 'NFCE'`
+- Linha 312: a action chamada e `emitir_nfe`, deveria ser `emitir_nfce` para cupom fiscal
 
-## Plano de Implementacao
+## Alteracoes Planejadas
 
-### 1. Garantir que produtos aparecam
-- Verificar no banco se existem produtos com `tipo_produto = 'CHOPP'` e `ativo = true`
-- Se nao existirem, ajustar o filtro para mostrar todos os produtos ativos ou criar um fallback visual com os dados mock/imagens ja existentes no codigo
+### 1. Corrigir emissao de cupom no Drawer do pedido
+**Arquivo:** `src/components/pedidos/DetalhesPedidoDrawer.tsx`
 
-### 2. Hero Cinematografico
-- Parallax com `useScroll` + `useTransform` (mesmo padrao da Home)
-- Animacao de entrada com scale + fade
-- Badge animado "Distribuidor Oficial"
-- Stats animados no hero (ex: "500+ eventos", "7 estilos")
-- CTA duplo: "Ver Catalogo" (scroll suave) + "Pedir pelo WhatsApp"
+- Mudar `ValidarDadosEmissaoDialog` de `tipo="NFE"` para `tipo="NFCE"`
+- Mudar o insert em `documentos_fiscais` de `tipo: 'NFE'` para `tipo: 'NFCE'`
+- Mudar a action do edge function de `emitir_nfe` para `emitir_nfce`
+- Com isso, a validacao vai pular a exigencia de CPF/CNPJ automaticamente (o dialog ja trata isso)
 
-### 3. Secao de Destaques / Banner Promocional
-- Carrossel horizontal com os produtos mais vendidos (badge "Mais Vendido", "Exclusivo")
-- Cards grandes com hover 3D (rotateX/Y com useMotionValue)
-- Fundo com gradiente animado
+### 2. Criar PDV (Ponto de Venda) na aba Pedidos
+**Novo arquivo:** `src/components/pedidos/PDVPanel.tsx`
 
-### 4. Grid de Produtos com Vida
-- Cards com hover lift + shadow glow amber
-- Imagem com zoom suave no hover
-- Animacao stagger no scroll (cada card entra com delay)
-- Skeleton loading animado enquanto carrega
-- Contador de estoque com barra de progresso visual
-- Botao "Adicionar" com feedback haptico (scale spring)
+Componente de venda rapida com:
+- Busca de produtos por nome/SKU com grid visual
+- Carrinho lateral com quantidade editavel
+- Selecao opcional de cliente (nao obrigatorio para NFC-e)
+- Selecao de metodo de pagamento (Pix, Cartao, Dinheiro)
+- Botao "Finalizar e Emitir Cupom" que:
+  1. Cria o pedido no banco
+  2. Cria o documento fiscal (NFC-e)
+  3. Insere os itens do documento
+  4. Chama o edge function `focus-nfe` com action `emitir_nfce`
+  5. Exibe o cupom/DANFE no visualizador in-app
 
-### 5. Transicoes Fluidas entre Secoes
-- `FloatingOrb` no background (mesmo componente da Home)
-- `WaveDivider` SVG entre secoes
-- Gradientes verticais de conexao
-- `Section` wrapper com `useInView` para reveal animado
+### 3. Adicionar aba PDV na pagina de Pedidos
+**Arquivo:** `src/pages/Pedidos.tsx`
 
-### 6. Prova Social
-- Secao com avaliacoes/estrelas animadas
-- Contador animado: "500+ clientes satisfeitos"
-- Mini depoimentos com avatar
-
-### 7. Trust Section Premium
-- Cards com glassmorphism + hover glow
-- Icones com animacao de rotacao sutil
-- Numeros animados (countUp)
-
-### 8. CTA Final / Faixa de Conversao
-- Faixa fullwidth com gradiente amber
-- "Nao encontrou o que procura?" + botao WhatsApp
-- Animacao de entrada com slide
-
-### 9. Footer Completo
-- Links uteis, redes sociais, horario de atendimento
-- Mini mapa ou endereco
-- Logo com hover glow
-
-### 10. Mobile Premium
-- Barra flutuante de carrinho com spring animation e pulse
-- Cards adaptados para 1 coluna com area de toque generosa
-- Filtros com scroll horizontal suave
-
----
+- Adicionar nova aba "PDV" com icone de caixa registradora
+- Renderizar o componente `PDVPanel` quando a aba PDV estiver ativa
 
 ## Detalhes Tecnicos
 
-### Componentes reutilizados da Home
-- `FloatingOrb` -- orbs de background animados
-- `WaveDivider` -- transicao SVG entre secoes
-- `Section` wrapper com `useInView` + `useScroll`
-- Variantes de animacao: `fadeUp`, `stagger`, `scaleIn`, `slideFromLeft`
+### Fluxo NFC-e vs NF-e
+- **NFC-e (Cupom Fiscal):** Consumidor final, CPF opcional, usa action `emitir_nfce` no edge function, sem endereco obrigatorio
+- **NF-e (Nota Fiscal):** Exige CPF/CNPJ, endereco recomendado, usa action `emitir_nfe`
 
-### Estrutura do arquivo
-Tudo sera feito em `src/pages/institucional/Ecommerce.tsx`, mantendo:
-- Logica de carrinho (cart state, addToCart, updateQuantity, removeFromCart, sendToWhatsApp)
-- Query de produtos do Supabase (com fallback se 0 produtos)
-- Filtros por categoria
-- Sheet do carrinho com AnimatePresence
-- Barra flutuante mobile
+### PDV - Estrutura do componente
+```text
++------------------------------------------+
+|  [Busca de Produtos]                     |
+|  +--------+ +--------+ +--------+       |
+|  | Prod 1 | | Prod 2 | | Prod 3 |       |
+|  | R$10   | | R$15   | | R$20   |       |
+|  +--------+ +--------+ +--------+       |
+|                                          |
+|  --- Carrinho ---                        |
+|  Chopp Pilsen    2x  R$30,00    [x]     |
+|  Chopp IPA       1x  R$20,00    [x]     |
+|                                          |
+|  Cliente: (opcional) [Buscar...]         |
+|  Pagamento: [Pix] [Cartao] [Dinheiro]   |
+|                                          |
+|  Total: R$ 50,00                         |
+|  [Finalizar e Emitir Cupom Fiscal]       |
++------------------------------------------+
+```
 
-### Dependencias
-Nenhuma nova -- tudo com `framer-motion`, `lucide-react`, e componentes UI ja instalados.
-
----
-
-## Resultado Esperado
-Uma loja que parece viva: com fundo organico que respira, cards que reagem ao toque, transicoes suaves entre secoes, prova social que gera confianca, e um fluxo de compra fluido do hero ate o checkout via WhatsApp.
+### Arquivos modificados
+1. `src/components/pedidos/DetalhesPedidoDrawer.tsx` -- corrigir NFE -> NFCE
+2. `src/components/pedidos/PDVPanel.tsx` -- novo componente PDV
+3. `src/pages/Pedidos.tsx` -- adicionar aba PDV
