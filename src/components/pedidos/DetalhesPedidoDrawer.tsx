@@ -300,7 +300,12 @@ export function DetalhesPedidoDrawer({
             documento_id: doc.id,
           })));
         if (itensErr) throw itensErr;
+      } else {
+        throw new Error('Pedido não possui itens para emitir nota fiscal.');
       }
+
+      // Small delay to ensure items are committed before edge function reads them
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // 3. Emit via Focus NFe
       const { data: focusData, error: focusErr } = await supabase.functions.invoke('focus-nfe', {
