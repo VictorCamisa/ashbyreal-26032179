@@ -37,6 +37,22 @@ Deno.serve(async (req) => {
 
       if (docErr || !doc) throw new Error('Documento não encontrado: ' + docErr?.message);
 
+      // If no items found via join, try explicit query (race condition safeguard)
+      let docItens = doc.documento_fiscal_itens || [];
+      if (docItens.length === 0) {
+        console.log('No items found via join, trying explicit query...');
+        const { data: explicitItens } = await supabase
+          .from('documento_fiscal_itens')
+          .select('*')
+          .eq('documento_id', documento_id);
+        docItens = explicitItens || [];
+        console.log('Explicit query found items:', docItens.length);
+      }
+
+      if (docItens.length === 0) {
+        throw new Error('Nenhum item encontrado para este documento fiscal. Adicione itens antes de emitir.');
+      }
+
       // Get config for CNPJ emitente
       const { data: config } = await supabase
         .from('contabilidade_config')
@@ -47,7 +63,7 @@ Deno.serve(async (req) => {
       // Ref ÚNICA por tentativa para evitar cache do Focus NFe
       const ts = Date.now().toString(36);
       const ref = `nfe-${documento_id.substring(0, 8)}-${ts}`;
-      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
+      const itens = docItens.map((item: any, idx: number) => {
         const qty = Number(item.quantidade || 1);
         const rawUnit = Number(item.valor_unitario || 0);
         // SEFAZ valida: valor_bruto == TRUNCAR(quantidade * valor_unitario_comercial, 2)
@@ -208,6 +224,20 @@ Deno.serve(async (req) => {
 
       if (docErr || !doc) throw new Error('Documento não encontrado');
 
+      // If no items found via join, try explicit query
+      let docItens = doc.documento_fiscal_itens || [];
+      if (docItens.length === 0) {
+        const { data: explicitItens } = await supabase
+          .from('documento_fiscal_itens')
+          .select('*')
+          .eq('documento_id', documento_id);
+        docItens = explicitItens || [];
+      }
+
+      if (docItens.length === 0) {
+        throw new Error('Nenhum item encontrado para este documento fiscal. Adicione itens antes de emitir.');
+      }
+
       const { data: config } = await supabase
         .from('contabilidade_config')
         .select('*')
@@ -220,7 +250,7 @@ Deno.serve(async (req) => {
 
       const ts2 = Date.now().toString(36);
       let ref = `nfce-${documento_id.substring(0, 8)}-${ts2}`;
-      const itens = (doc.documento_fiscal_itens || []).map((item: any, idx: number) => {
+      const itens = docItens.map((item: any, idx: number) => {
         const qty = Number(item.quantidade || 1);
         const rawUnit = Number(item.valor_unitario || 0);
         const unitPrice = Math.round(rawUnit * 100) / 100;
