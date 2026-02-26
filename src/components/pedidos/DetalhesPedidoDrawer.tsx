@@ -273,7 +273,7 @@ export function DetalhesPedidoDrawer({
       const { data: doc, error: docErr } = await supabase
         .from('documentos_fiscais')
         .insert({
-          tipo: 'NFE' as any,
+          tipo: 'NFCE' as any,
           direcao: 'SAIDA' as any,
           status: 'RASCUNHO' as any,
           pedido_id: pedidoId,
@@ -309,15 +309,15 @@ export function DetalhesPedidoDrawer({
 
       // 3. Emit via Focus NFe
       const { data: focusData, error: focusErr } = await supabase.functions.invoke('focus-nfe', {
-        body: { action: 'emitir_nfe', documento_id: doc.id, ambiente: 'PRODUCAO' },
+        body: { action: 'emitir_nfce', documento_id: doc.id, ambiente: 'PRODUCAO' },
       });
 
       if (focusErr) throw new Error(focusErr.message);
       if (focusData && !focusData.success) throw new Error(focusData.error);
 
       toast({ 
-        title: '🧾 Nota Fiscal emitida!', 
-        description: focusData?.chave_nfe ? `Chave: ${focusData.chave_nfe.substring(0, 20)}...` : 'NF-e processada com sucesso.' 
+          title: '🧾 Cupom Fiscal emitido!', 
+          description: focusData?.chave_nfe ? `Chave: ${focusData.chave_nfe.substring(0, 20)}...` : 'NFC-e processada com sucesso.'
       });
 
       if (focusData?.danfe_url) {
@@ -745,7 +745,7 @@ export function DetalhesPedidoDrawer({
         <ValidarDadosEmissaoDialog
           open={showValidacao}
           onOpenChange={setShowValidacao}
-          tipo="NFE"
+          tipo="NFCE"
           clienteId={pedido?.cliente_id}
           onValidated={() => {
             setShowValidacao(false);

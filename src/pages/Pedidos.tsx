@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, ShoppingCart, Eye, Filter, BarChart3, List } from 'lucide-react';
+import { Search, ShoppingCart, Eye, Filter, BarChart3, List, Monitor } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { EscanearPedidoDialog } from '@/components/pedidos/EscanearPedidoDialog';
@@ -28,6 +28,7 @@ import { VendasPeriodoChart } from '@/components/pedidos/VendasPeriodoChart';
 import { VendasCategoriaChart } from '@/components/pedidos/VendasCategoriaChart';
 import { RankingClientes } from '@/components/pedidos/RankingClientes';
 import { TopProdutos } from '@/components/pedidos/TopProdutos';
+import { PDVPanel } from '@/components/pedidos/PDVPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { DataPagination } from '@/components/ui/data-pagination';
@@ -46,6 +47,7 @@ interface PedidoItemWithProduto {
 }
 
 const tabs = [
+  { id: 'pdv', label: 'PDV', icon: Monitor },
   { id: 'lista', label: 'Lista de Pedidos', icon: List },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
 ];
@@ -53,7 +55,7 @@ const tabs = [
 const ITEMS_PER_PAGE = 15;
 
 export default function Pedidos() {
-  const [activeTab, setActiveTab] = useState('lista');
+  const [activeTab, setActiveTab] = useState('pdv');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
@@ -149,6 +151,8 @@ export default function Pedidos() {
       <div className="space-y-6">
         {/* KPIs */}
         <PedidosKPIs pedidos={pedidos} />
+
+        {activeTab === 'pdv' && <PDVPanel />}
 
         {activeTab === 'lista' && (
           <>
