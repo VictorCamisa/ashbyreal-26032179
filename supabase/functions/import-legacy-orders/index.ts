@@ -346,7 +346,7 @@ serve(async (req) => {
 
         processed++;
       } catch (e) {
-        logs.push(`Erro inesperado pedido ${order.numeroPedido}: ${e.message}`);
+        logs.push(`Erro inesperado pedido ${order.numeroPedido}: ${(e as Error).message}`);
       }
     }
 
@@ -356,7 +356,7 @@ serve(async (req) => {
     );
   } catch (e) {
     return new Response(
-      JSON.stringify({ success: false, error: e.message }),
+      JSON.stringify({ success: false, error: (e as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

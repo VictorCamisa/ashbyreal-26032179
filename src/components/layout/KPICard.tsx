@@ -30,37 +30,37 @@ export function KPICard({
   return (
     <div 
       className={cn(
-        "rounded-2xl bg-card border border-border/50 p-3.5 sm:p-5 kpi-glow transition-all animate-fade-in opacity-0",
+        "rounded-xl bg-card border border-border p-4 sm:p-5 transition-shadow hover:shadow-medium animate-fade-in opacity-0",
         className
       )}
       style={{ animationDelay: `${animationDelay}ms`, animationFillMode: 'forwards' }}
     >
-      <div className="flex items-start justify-between gap-2 sm:gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+          <div className="flex items-center gap-1.5 mb-2">
             {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-            <span className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+            <span className="text-xs font-medium text-muted-foreground truncate">
               {label}
             </span>
           </div>
           
-          <p className="text-xl sm:text-2xl font-extrabold tabular-nums tracking-tight truncate">
+          <p className="text-xl sm:text-2xl font-semibold tabular-nums tracking-tight truncate">
             {value}
           </p>
           
           {(trend || subtitle) && (
-            <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 flex-wrap">
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
               {trend && (
                 <span className={cn(
-                  "inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded-md shrink-0",
+                  "inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-md shrink-0",
                   trend.isPositive ? "text-success bg-success/10" : "text-destructive bg-destructive/10"
                 )}>
-                  <TrendIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                  <TrendIcon className="h-3 w-3" />
                   {trend.value.toFixed(1)}%
                 </span>
               )}
               {subtitle && (
-                <span className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</span>
+                <span className="text-xs text-muted-foreground truncate">{subtitle}</span>
               )}
             </div>
           )}
@@ -83,7 +83,7 @@ export function KPIGrid({ children, columns = 4 }: KPIGridProps) {
   };
 
   return (
-    <div className={cn("grid gap-2.5 sm:gap-4", gridCols[columns])}>
+    <div className={cn("grid gap-3 sm:gap-4", gridCols[columns])}>
       {children}
     </div>
   );

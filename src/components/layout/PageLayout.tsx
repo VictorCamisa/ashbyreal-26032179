@@ -33,10 +33,10 @@ export function PageLayout({
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-4 sm:mb-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-3 sm:mb-5">
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">{title}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight">{title}</h1>
             {subtitle && (
               <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{subtitle}</p>
             )}
@@ -50,21 +50,25 @@ export function PageLayout({
         </div>
 
         {tabs && tabs.length > 0 && (
-          <div className="flex gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto scrollbar-none -mx-1 px-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange?.(tab.id)}
-                className={cn(
-                  "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap flex-shrink-0",
-                  activeTab === tab.id 
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/50" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex gap-1 border-b border-border overflow-x-auto scrollbar-none">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => onTabChange?.(tab.id)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 border-b-2 -mb-px flex items-center gap-1.5",
+                    activeTab === tab.id 
+                      ? "border-primary text-foreground" 
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  )}
+                >
+                  {Icon && <Icon className="h-3.5 w-3.5" />}
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
