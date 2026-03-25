@@ -3,13 +3,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const cardVariants = cva(
-  "rounded-xl bg-card border border-border/60 transition-shadow",
+  "rounded-2xl bg-card border transition-all duration-300 ease-out",
   {
     variants: {
       variant: {
-        default: "shadow-sm hover:shadow-md",
+        default: "border-border/40 shadow-soft hover:shadow-medium",
         flat: "shadow-none border-transparent",
         ghost: "border-transparent bg-transparent shadow-none",
+        interactive: "border-border/40 shadow-soft hover:shadow-elevated hover:border-primary/20 hover:-translate-y-0.5 cursor-pointer",
       },
     },
     defaultVariants: {
@@ -35,7 +36,7 @@ Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("p-5 pb-0", className)} {...props} />
+    <div ref={ref} className={cn("p-5 pb-2", className)} {...props} />
   ),
 );
 CardHeader.displayName = "CardHeader";
