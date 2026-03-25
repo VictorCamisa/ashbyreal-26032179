@@ -151,9 +151,6 @@ export default function Pedidos() {
       }
     >
       <div className="space-y-6">
-        {/* KPIs */}
-        <PedidosKPIs pedidos={pedidos} />
-
         {activeTab === 'semana' && (
           <SemanaPanel
             pedidos={pedidos}
@@ -162,6 +159,8 @@ export default function Pedidos() {
             onRefetch={refetch}
           />
         )}
+
+        {activeTab !== 'semana' && <PedidosKPIs pedidos={pedidos} />}
 
         {activeTab === 'pdv' && <PDVPanel />}
 
