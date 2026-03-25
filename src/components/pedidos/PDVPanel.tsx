@@ -75,7 +75,7 @@ export function PDVPanel() {
   const { produtos, isLoading, refetch: refetchProdutos } = useProdutos();
   const { toast } = useToast();
 
-  // Group products by category, filtering to top categories
+  // Group products by classified category
   const categorizedProducts = useMemo(() => {
     const filtered = search.trim()
       ? produtos.filter(
@@ -85,25 +85,24 @@ export function PDVPanel() {
         )
       : produtos;
 
-    // Group by category
     const groups: Record<string, typeof produtos> = {};
     filtered.forEach((p) => {
-      const cat = p.categoria || 'Outros';
-      // Match against top categories (case-insensitive partial match)
-      const matchedCat = TOP_CATEGORIES.find(tc => cat.toLowerCase().includes(tc.toLowerCase()));
-      const groupName = matchedCat || (search.trim() ? cat : null);
-      if (!groupName) return; // Hide non-top categories unless searching
+      const groupName = classifyProduct(p);
+      if (!groupName) return;
+      // By default show only Pilsen, IPA, Ale; when searching show all
+      if (!search.trim() && !DEFAULT_CATEGORIES.includes(groupName)) return;
       if (!groups[groupName]) groups[groupName] = [];
       groups[groupName].push(p);
     });
 
-    // Sort by TOP_CATEGORIES order
-    return TOP_CATEGORIES
+    // Sort: default categories first, then alphabetical
+    return DEFAULT_CATEGORIES
       .filter(cat => groups[cat])
       .map(cat => ({ category: cat, products: groups[cat] }))
       .concat(
         Object.entries(groups)
-          .filter(([cat]) => !TOP_CATEGORIES.includes(cat))
+          .filter(([cat]) => !DEFAULT_CATEGORIES.includes(cat))
+          .sort(([a], [b]) => a.localeCompare(b))
           .map(([category, products]) => ({ category, products }))
       );
   }, [produtos, search]);
