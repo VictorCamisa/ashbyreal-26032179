@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    /* Fluid Minimalist — warm neutral + deep blue */
-    --background: 220 14% 96%;
+    /* Fluid Minimalist — warm off-white + deep blue */
+    --background: 36 33% 97%;
     --foreground: 224 24% 12%;
     
     --card: 0 0% 100%;
