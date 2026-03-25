@@ -46,24 +46,12 @@ const App = () => (
                 {/* Hub - main entry after login */}
                 <Route path="/hub" element={<ProtectedRoute><Hub /></ProtectedRoute>} />
 
-                {/* WhatsApp has its own fullscreen layout */}
-                <Route path="/whatsapp" element={<ProtectedRoute><WhatsApp /></ProtectedRoute>} />
-
-                {/* All module pages inside the Layout (no sidebar, with back button) */}
+                {/* All module pages inside the Layout */}
                 <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/analise-financeira" element={<AnaliseFinanceira />} />
                   <Route path="/crm" element={<CRM />} />
-                  <Route path="/clientes" element={<Clientes />} />
-                  <Route path="/cliente/:id" element={<ClienteDetalhes />} />
                   <Route path="/pedidos" element={<Pedidos />} />
-                  <Route path="/barris" element={<Barris />} />
-                  <Route path="/estoque" element={<Estoque />} />
-                  <Route path="/suporte" element={<Suporte />} />
                   <Route path="/financeiro" element={<Financeiro />} />
                   <Route path="/contabilidade" element={<Contabilidade />} />
-                  <Route path="/agente-ia" element={<AgenteIA />} />
-                  <Route path="/marketing" element={<Marketing />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
                 </Route>
 
