@@ -104,24 +104,24 @@ export function SemanaPanel({ pedidos, clientesMap, onViewDetails, onRefetch }: 
       {/* KPIs */}
       <KPIGrid>
         <KPICard
-          title="Pedidos da Semana"
+          label="Pedidos da Semana"
           value={totalPedidos}
           icon={Package}
           subtitle={`${pedidosPendentes} pendentes`}
         />
         <KPICard
-          title="Valor Total"
+          label="Valor Total"
           value={`R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={DollarSign}
         />
         <KPICard
-          title="Confirmados"
+          label="Confirmados"
           value={pedidosPagos}
           icon={CheckCircle2}
           subtitle={`de ${totalPedidos} pedidos`}
         />
         <KPICard
-          title="Prazo"
+          label="Prazo"
           value={deadlinePassed ? 'Encerrado' : 'Aberto'}
           icon={Clock}
           subtitle={`Quarta ${format(wednesday, "dd/MM")}`}
