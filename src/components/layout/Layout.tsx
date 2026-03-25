@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { NavLink } from 'react-router-dom';
-import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
 const MODULE_LABELS: Record<string, string> = {
   '/pedidos': 'Pedidos',
