@@ -132,6 +132,18 @@
   .card-elevated {
     @apply bg-card rounded-xl border border-border shadow-sm;
   }
+
+  .glass-panel {
+    @apply bg-background/80 backdrop-blur-sm;
+  }
+
+  .kpi-glow {
+    @apply shadow-soft;
+  }
+
+  .kpi-glow:hover {
+    @apply shadow-medium;
+  }
   
   .gradient-text {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70;
