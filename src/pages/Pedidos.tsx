@@ -57,7 +57,7 @@ const tabs = [
 const ITEMS_PER_PAGE = 15;
 
 export default function Pedidos() {
-  const [activeTab, setActiveTab] = useState('pdv');
+  const [activeTab, setActiveTab] = useState('semana');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
