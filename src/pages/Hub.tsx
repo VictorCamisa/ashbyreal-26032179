@@ -1,20 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { useMemo } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  Target,
   ShoppingCart,
-  Package,
   Wallet,
-  MessageCircle,
-  HeadphonesIcon,
   Settings,
   LogOut,
   Calculator,
-  Bot,
-  Circle,
-  Megaphone,
+  Target,
   ArrowRight,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,19 +33,10 @@ interface ModuleItem {
 
 const moduleGroups: { label: string; items: ModuleItem[] }[] = [
   {
-    label: 'Principal',
+    label: 'Vendas',
     items: [
-      { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Visão completa do negócio' },
       { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart, description: 'Vendas e entregas' },
-      { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users, description: 'Base de clientes' },
       { key: 'crm', label: 'CRM', href: '/crm', icon: Target, description: 'Pipeline e oportunidades' },
-    ],
-  },
-  {
-    label: 'Operações',
-    items: [
-      { key: 'barris', label: 'Barris', href: '/barris', icon: Circle, description: 'Rastreamento de barris' },
-      { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Package, description: 'Produtos e inventário' },
     ],
   },
   {
@@ -61,15 +44,6 @@ const moduleGroups: { label: string; items: ModuleItem[] }[] = [
     items: [
       { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet, description: 'Transações e fluxo de caixa' },
       { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator, description: 'Notas fiscais e DRE' },
-    ],
-  },
-  {
-    label: 'Ferramentas',
-    items: [
-      { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle, description: 'Mensagens e conversas' },
-      { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone, description: 'Campanhas e disparos' },
-      { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HeadphonesIcon, description: 'Tickets e atendimento' },
-      { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot, description: 'Automação inteligente' },
     ],
   },
 ];
@@ -93,7 +67,6 @@ export default function Hub() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header — clean and flat */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
@@ -144,9 +117,7 @@ export default function Hub() {
         </div>
       </header>
 
-      {/* Content */}
       <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
-        {/* Welcome */}
         <div className="mb-10">
           <p className="text-sm text-muted-foreground mb-1">Olá, {firstName}</p>
           <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">
@@ -154,7 +125,6 @@ export default function Hub() {
           </h2>
         </div>
 
-        {/* Module Groups */}
         <div className="space-y-10">
           {filteredGroups.map((group) => (
             <section key={group.label}>
