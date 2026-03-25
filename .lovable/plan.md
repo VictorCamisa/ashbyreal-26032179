@@ -1,74 +1,65 @@
 
-# Plano: Corrigir Cupom Fiscal (NFC-e) e Criar PDV
 
-## Problema Atual
+# Plano: Adaptacao do Sistema ao Fluxo Real de Trabalho
 
-O botao "Emitir Cupom Fiscal (NFC-e)" na tela de detalhes do pedido esta configurado incorretamente como NF-e (Modelo 55), que exige CPF/CNPJ. Cupom fiscal (NFC-e, Modelo 65) nao exige CPF do cliente -- e para consumidor final.
+## Contexto (da mensagem do usuario)
 
-Especificamente em `DetalhesPedidoDrawer.tsx`:
-- Linha 748: `tipo="NFE"` deveria ser `tipo="NFCE"`
-- Linha 276: o documento e inserido como `tipo: 'NFE'` deveria ser `tipo: 'NFCE'`
-- Linha 312: a action chamada e `emitir_nfe`, deveria ser `emitir_nfce` para cupom fiscal
+O fluxo real do negocio e:
 
-## Alteracoes Planejadas
+1. **Pedidos:** Durante a semana, coleta pedidos de restaurantes (90% WhatsApp, 5% telefone, 5% presencial). Ate quarta-feira, finaliza todos os pedidos e consolida as vendas da semana. Envia para a logistica da Ashby, que entrega nas sextas.
 
-### 1. Corrigir emissao de cupom no Drawer do pedido
-**Arquivo:** `src/components/pedidos/DetalhesPedidoDrawer.tsx`
+2. **Financeiro:** Pagamentos sao feitos pelo app "Meu Dinheiro / Sistema Victor" no Banco Inter. Tambem controla gastos manualmente no Excel "Zero Paper Financeiro" na aba "Contas Resumo".
 
-- Mudar `ValidarDadosEmissaoDialog` de `tipo="NFE"` para `tipo="NFCE"`
-- Mudar o insert em `documentos_fiscais` de `tipo: 'NFE'` para `tipo: 'NFCE'`
-- Mudar a action do edge function de `emitir_nfe` para `emitir_nfce`
-- Com isso, a validacao vai pular a exigencia de CPF/CNPJ automaticamente (o dialog ja trata isso)
+## O que precisa ser adaptado
 
-### 2. Criar PDV (Ponto de Venda) na aba Pedidos
-**Novo arquivo:** `src/components/pedidos/PDVPanel.tsx`
+### 1. Pedidos: Adicionar visao "Pedidos da Semana"
+O sistema atual tem PDV (venda unitaria no balcao) e lista generica. Falta o fluxo principal: **consolidar pedidos da semana para enviar a Ashby**.
 
-Componente de venda rapida com:
-- Busca de produtos por nome/SKU com grid visual
-- Carrinho lateral com quantidade editavel
-- Selecao opcional de cliente (nao obrigatorio para NFC-e)
-- Selecao de metodo de pagamento (Pix, Cartao, Dinheiro)
-- Botao "Finalizar e Emitir Cupom" que:
-  1. Cria o pedido no banco
-  2. Cria o documento fiscal (NFC-e)
-  3. Insere os itens do documento
-  4. Chama o edge function `focus-nfe` com action `emitir_nfce`
-  5. Exibe o cupom/DANFE no visualizador in-app
+**Alteracoes:**
+- Criar nova aba **"Semana"** na pagina de Pedidos com:
+  - Filtro automatico: pedidos da semana atual (segunda a domingo)
+  - Resumo consolidado: total de litros, valor total, qtd pedidos
+  - Botao "Fechar Semana" que agrupa todos os pedidos pendentes e gera um resumo para envio
+  - Status visual: semana aberta (coletando pedidos) vs semana fechada (enviada para Ashby)
+  - Lista dos pedidos da semana com cliente, itens e status
 
-### 3. Adicionar aba PDV na pagina de Pedidos
-**Arquivo:** `src/pages/Pedidos.tsx`
+**Arquivo novo:** `src/components/pedidos/SemanaPanel.tsx`
+**Arquivo editado:** `src/pages/Pedidos.tsx` (adicionar aba)
 
-- Adicionar nova aba "PDV" com icone de caixa registradora
-- Renderizar o componente `PDVPanel` quando a aba PDV estiver ativa
+### 2. Pedidos: Indicar origem do pedido
+Hoje o pedido nao registra canal de origem. Adicionar campo `origem` ao criar pedido.
 
-## Detalhes Tecnicos
+**Alteracoes:**
+- Adicionar campo `origem` (WhatsApp / Telefone / Presencial) no `NovoPedidoCompletoDialog`
+- Exibir badge de origem na lista de pedidos e no detalhe
 
-### Fluxo NFC-e vs NF-e
-- **NFC-e (Cupom Fiscal):** Consumidor final, CPF opcional, usa action `emitir_nfce` no edge function, sem endereco obrigatorio
-- **NF-e (Nota Fiscal):** Exige CPF/CNPJ, endereco recomendado, usa action `emitir_nfe`
+**Arquivos editados:** `src/components/pedidos/NovoPedidoCompletoDialog.tsx`, `src/pages/Pedidos.tsx`
 
-### PDV - Estrutura do componente
-```text
-+------------------------------------------+
-|  [Busca de Produtos]                     |
-|  +--------+ +--------+ +--------+       |
-|  | Prod 1 | | Prod 2 | | Prod 3 |       |
-|  | R$10   | | R$15   | | R$20   |       |
-|  +--------+ +--------+ +--------+       |
-|                                          |
-|  --- Carrinho ---                        |
-|  Chopp Pilsen    2x  R$30,00    [x]     |
-|  Chopp IPA       1x  R$20,00    [x]     |
-|                                          |
-|  Cliente: (opcional) [Buscar...]         |
-|  Pagamento: [Pix] [Cartao] [Dinheiro]   |
-|                                          |
-|  Total: R$ 50,00                         |
-|  [Finalizar e Emitir Cupom Fiscal]       |
-+------------------------------------------+
-```
+### 3. Financeiro: Simplificar para o fluxo real
+O financeiro atual e complexo (cartoes, boletos, DRE). O usuario controla gastos no Excel e paga pelo app do banco. O sistema precisa ser mais pratico:
 
-### Arquivos modificados
-1. `src/components/pedidos/DetalhesPedidoDrawer.tsx` -- corrigir NFE -> NFCE
-2. `src/components/pedidos/PDVPanel.tsx` -- novo componente PDV
-3. `src/pages/Pedidos.tsx` -- adicionar aba PDV
+- Renomear aba "Visao Geral" para **"Contas"** -- foco em contas a pagar e receber da semana/mes
+- Adicionar destaque visual para **contas vencendo esta semana** (alerta no topo)
+- Na aba Transacoes, adicionar filtro rapido "Esta Semana" pre-selecionado
+
+**Arquivo editado:** `src/pages/Financeiro.tsx`, `src/components/financeiro/DashboardFinanceiro.tsx`
+
+### 4. CRM: Alinhar pipeline ao ciclo semanal
+O CRM trata leads genericos. No fluxo real, o ciclo e: contatar restaurante -> coletar pedido semanal -> fechar venda.
+
+- Renomear colunas do pipeline para refletir o ciclo: **"Contato" > "Pedido Coletado" > "Semana Fechada" > "Entregue"**
+- Adicionar coluna "Perdido" mantida
+
+**Arquivo editado:** `src/pages/CRM.tsx`
+
+## Resumo de arquivos
+
+| Arquivo | Acao |
+|---|---|
+| `src/components/pedidos/SemanaPanel.tsx` | Novo -- painel de pedidos da semana |
+| `src/pages/Pedidos.tsx` | Editar -- adicionar aba Semana como default |
+| `src/components/pedidos/NovoPedidoCompletoDialog.tsx` | Editar -- campo origem |
+| `src/pages/Financeiro.tsx` | Editar -- renomear aba, destaque semanal |
+| `src/components/financeiro/DashboardFinanceiro.tsx` | Editar -- alertas semanais |
+| `src/pages/CRM.tsx` | Editar -- renomear pipeline |
+
