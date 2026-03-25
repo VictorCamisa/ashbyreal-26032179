@@ -346,7 +346,7 @@ serve(async (req) => {
 
         processed++;
       } catch (e) {
-        logs.push(`Erro inesperado pedido ${order.numeroPedido}: ${e.message}`);
+        logs.push(`Erro inesperado pedido ${order.numeroPedido}: ${(e as Error).message}`);
       }
     }
 
