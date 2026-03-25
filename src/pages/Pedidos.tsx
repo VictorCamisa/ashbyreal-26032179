@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, ShoppingCart, Eye, Filter, BarChart3, List, Monitor } from 'lucide-react';
+import { Search, ShoppingCart, Eye, Filter, BarChart3, List, Monitor, CalendarDays } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { EscanearPedidoDialog } from '@/components/pedidos/EscanearPedidoDialog';
