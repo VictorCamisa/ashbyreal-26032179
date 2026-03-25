@@ -90,8 +90,9 @@ export function TransactionRow({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const isReceita = t.tipo === 'RECEBER';
-  const isOverdue = t.status === 'ATRASADO' || 
+  const isOverdue = t.status === 'ATRASADO' ||
     (t.status === 'PREVISTO' && new Date(t.due_date) < new Date());
+  const isDueSoon = t.status === 'VENCENDO';
   const isPaid = t.status === 'PAGO';
   const tags = t.tags as string[] | null;
   const isFaturaCartao = t.isFaturaCartao || t.origin === 'FATURA_CARTAO';
@@ -139,6 +140,7 @@ export function TransactionRow({
         className={cn(
           "flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors",
           isOverdue && !isPaid && "bg-destructive/5",
+          isDueSoon && !isPaid && "bg-amber-500/5",
           isSelected && "bg-primary/5"
         )}
       >
