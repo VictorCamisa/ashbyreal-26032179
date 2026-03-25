@@ -17,14 +17,22 @@ import {
   Lock,
   Unlock,
   TrendingUp,
+  TrendingDown,
   Users,
+  Droplets,
+  BarChart3,
+  Gauge,
+  Receipt,
+  MessageSquare,
+  Boxes,
+  Bot,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
-import { KPICard, KPIGrid } from '@/components/layout/KPICard';
+import { Progress } from '@/components/ui/progress';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,12 +42,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserModules } from '@/hooks/useAdminUsers';
-import { usePedidos } from '@/hooks/usePedidos';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfWeek, endOfWeek, format, isWithinInterval, isPast, eachDayOfInterval, isSameDay } from 'date-fns';
+import { startOfWeek, endOfWeek, format, isWithinInterval, isPast, eachDayOfInterval, isSameDay, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+
+const META_SEMANAL = 15000; // R$ meta semanal — pode virar config futuramente
 
 interface ModuleItem {
   key: string;
@@ -47,48 +56,77 @@ interface ModuleItem {
   href: string;
   icon: React.ElementType;
   description: string;
-  color: string;
 }
 
 const modules: ModuleItem[] = [
-  { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart, description: 'Vendas, entregas e PDV', color: 'bg-primary/10 text-primary' },
-  { key: 'crm', label: 'CRM', href: '/crm', icon: Target, description: 'Pipeline e leads', color: 'bg-success/10 text-success' },
-  { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet, description: 'Contas e fluxo de caixa', color: 'bg-warning/10 text-warning' },
-  { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator, description: 'Notas fiscais e DRE', color: 'bg-accent text-accent-foreground' },
+  { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart, description: 'Vendas e entregas' },
+  { key: 'crm', label: 'CRM', href: '/crm', icon: Target, description: 'Pipeline e leads' },
+  { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet, description: 'Contas e caixa' },
+  { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator, description: 'NFs e DRE' },
+  { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Boxes, description: 'Produtos e controle' },
+  { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users, description: 'Base de clientes' },
+  { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare, description: 'Conversas' },
+  { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot, description: 'Automação' },
 ];
 
 export default function Hub() {
   const { user, signOut } = useAuth();
   const { data: visibleModules } = useUserModules();
-  const { pedidos } = usePedidos();
 
-  // Fetch clients map
-  const { data: clientesMap = {} } = useQuery({
-    queryKey: ['clientes-map-hub'],
-    queryFn: async () => {
-      const { data } = await supabase.from('clientes').select('id, nome');
-      const map: Record<string, string> = {};
-      data?.forEach((c) => (map[c.id] = c.nome));
-      return map;
-    },
-  });
-
-  // Fetch transactions due this week
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const prevWeekStart = subWeeks(weekStart, 1);
+  const prevWeekEnd = subWeeks(weekEnd, 1);
 
-  const { data: transacoesSemana = [] } = useQuery({
-    queryKey: ['transacoes-semana-hub', format(weekStart, 'yyyy-MM-dd')],
+  // ── All data in a single query hook ──
+  const { data, isLoading } = useQuery({
+    queryKey: ['hub-dashboard', format(weekStart, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('transactions')
-        .select('id, description, amount, tipo, status, due_date')
-        .gte('due_date', weekStart.toISOString())
-        .lte('due_date', weekEnd.toISOString())
-        .neq('status', 'CANCELADO')
-        .order('due_date');
-      return data || [];
+      const [
+        pedidosSemana,
+        pedidosSemanaAnterior,
+        itensSemana,
+        itensSemanaAnterior,
+        transacoesSemana,
+        clientesMap,
+        estoqueAlertas,
+        whatsappStatus,
+      ] = await Promise.all([
+        // Pedidos da semana
+        supabase.from('pedidos').select('id, cliente_id, status, valor_total, data_pedido, numero_pedido, metodo_pagamento, observacoes')
+          .gte('data_pedido', weekStart.toISOString()).lte('data_pedido', weekEnd.toISOString()),
+        // Pedidos semana anterior (para comparação)
+        supabase.from('pedidos').select('id, valor_total')
+          .gte('data_pedido', prevWeekStart.toISOString()).lte('data_pedido', prevWeekEnd.toISOString()),
+        // Itens da semana (para litros)
+        supabase.from('pedido_itens').select('quantidade, subtotal, preco_unitario, pedido_id, produtos(nome, capacidade_barril, tipo_produto, unidade_medida)')
+          .gte('created_at', weekStart.toISOString()).lte('created_at', weekEnd.toISOString()),
+        // Itens semana anterior
+        supabase.from('pedido_itens').select('quantidade, produtos(capacidade_barril)')
+          .gte('created_at', prevWeekStart.toISOString()).lte('created_at', prevWeekEnd.toISOString()),
+        // Transações da semana
+        supabase.from('transactions').select('id, description, amount, tipo, status, due_date')
+          .gte('due_date', format(weekStart, 'yyyy-MM-dd')).lte('due_date', format(weekEnd, 'yyyy-MM-dd'))
+          .neq('status', 'CANCELADO').order('due_date'),
+        // Clientes
+        supabase.from('clientes').select('id, nome'),
+        // Estoque em alerta
+        supabase.from('produtos').select('id, nome, estoque, estoque_minimo, estoque_litros').filter('ativo', 'eq', true),
+        // WhatsApp
+        supabase.from('whatsapp_instances').select('id, status').limit(1),
+      ]);
+
+      return {
+        pedidos: pedidosSemana.data || [],
+        pedidosAnterior: pedidosSemanaAnterior.data || [],
+        itens: itensSemana.data || [],
+        itensAnterior: itensSemanaAnterior.data || [],
+        transacoes: transacoesSemana.data || [],
+        clientes: clientesMap.data || [],
+        produtos: estoqueAlertas.data || [],
+        whatsapp: whatsappStatus.data?.[0] || null,
+      };
     },
   });
 
@@ -97,18 +135,67 @@ export default function Hub() {
     return modules.filter((m) => visibleModules.includes(m.key));
   }, [visibleModules]);
 
-  // Week calculations
-  const pedidosDaSemana = useMemo(() => {
-    return pedidos.filter((p) => {
-      const d = new Date(p.dataPedido);
-      return isWithinInterval(d, { start: weekStart, end: weekEnd });
-    });
-  }, [pedidos, weekStart, weekEnd]);
+  // ── Derived calculations ──
+  const clientesMapObj = useMemo(() => {
+    const map: Record<string, string> = {};
+    data?.clientes?.forEach(c => { map[c.id] = c.nome; });
+    return map;
+  }, [data?.clientes]);
 
-  const totalValor = pedidosDaSemana.reduce((acc, p) => acc + p.valorTotal, 0);
-  const pedidosPendentes = pedidosDaSemana.filter((p) => p.status === 'pendente');
-  const pedidosConfirmados = pedidosDaSemana.filter((p) => p.status === 'pago' || p.status === 'entregue');
+  const pedidos = data?.pedidos || [];
+  const transacoes = data?.transacoes || [];
 
+  // Litros vendidos
+  const calcLitros = (itens: any[]) => {
+    return itens.reduce((acc, item) => {
+      const cap = item.produtos?.capacidade_barril;
+      if (cap && cap > 0) {
+        return acc + (item.quantidade * cap);
+      }
+      return acc;
+    }, 0);
+  };
+  const litrosSemana = calcLitros(data?.itens || []);
+  const litrosAnterior = calcLitros(data?.itensAnterior || []);
+  const litrosTrend = litrosAnterior > 0 ? ((litrosSemana - litrosAnterior) / litrosAnterior) * 100 : 0;
+
+  // Faturamento
+  const faturamento = pedidos.reduce((a, p) => a + Number(p.valor_total), 0);
+  const faturamentoAnterior = (data?.pedidosAnterior || []).reduce((a: number, p: any) => a + Number(p.valor_total), 0);
+  const metaProgress = META_SEMANAL > 0 ? Math.min((faturamento / META_SEMANAL) * 100, 100) : 0;
+  const faltaMeta = Math.max(META_SEMANAL - faturamento, 0);
+
+  // Clientes ativos (únicos que fizeram pedido)
+  const clientesAtivos = new Set(pedidos.map(p => p.cliente_id).filter(Boolean)).size;
+  const clientesAtivosAnteriorSet = new Set((data?.pedidosAnterior || []).map((p: any) => p.cliente_id).filter(Boolean));
+  const clientesAtivosAnterior = clientesAtivosAnteriorSet.size;
+  const clientesTrend = clientesAtivosAnterior > 0 ? ((clientesAtivos - clientesAtivosAnterior) / clientesAtivosAnterior) * 100 : 0;
+
+  // Ticket médio
+  const ticketMedio = pedidos.length > 0 ? faturamento / pedidos.length : 0;
+  const ticketMedioAnterior = (data?.pedidosAnterior || []).length > 0 ? faturamentoAnterior / (data?.pedidosAnterior || []).length : 0;
+  const ticketTrend = ticketMedioAnterior > 0 ? ((ticketMedio - ticketMedioAnterior) / ticketMedioAnterior) * 100 : 0;
+
+  // Status breakdown
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    pedidos.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    return counts;
+  }, [pedidos]);
+
+  const pedidosPendentes = statusCounts['pendente'] || 0;
+  const pedidosPagos = (statusCounts['pago'] || 0) + (statusCounts['entregue'] || 0);
+
+  // Financial
+  const contasAPagar = transacoes.filter(t => t.tipo === 'PAGAR' && t.status !== 'PAGO');
+  const contasAReceber = transacoes.filter(t => t.tipo === 'RECEBER' && t.status !== 'PAGO');
+  const totalPagar = contasAPagar.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+  const totalReceber = contasAReceber.reduce((a, t) => a + Math.abs(Number(t.amount)), 0);
+
+  // Estoque alerts
+  const produtosAlerta = (data?.produtos || []).filter(p => p.estoque <= p.estoque_minimo);
+
+  // Timeline
   const wednesday = new Date(weekStart);
   wednesday.setDate(wednesday.getDate() + 2);
   wednesday.setHours(23, 59, 59);
@@ -119,60 +206,71 @@ export default function Hub() {
 
   const daysOfWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  // Financial week summary
-  const contasAPagar = transacoesSemana.filter(t => t.tipo === 'PAGAR' && t.status !== 'PAGO');
-  const contasAReceber = transacoesSemana.filter(t => t.tipo === 'RECEBER' && t.status !== 'PAGO');
-  const totalPagar = contasAPagar.reduce((a, t) => a + Number(t.amount), 0);
-  const totalReceber = contasAReceber.reduce((a, t) => a + Number(t.amount), 0);
-
   const weekLabel = `${format(weekStart, "dd/MM", { locale: ptBR })} — ${format(weekEnd, "dd/MM", { locale: ptBR })}`;
-
   const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Bom dia';
-    if (hour < 18) return 'Boa tarde';
-    return 'Boa noite';
+    const h = new Date().getHours();
+    return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   }, []);
-
   const firstName = user?.email?.split('@')[0] || 'Usuário';
+
+  // Top produtos da semana
+  const topProdutos = useMemo(() => {
+    const map: Record<string, { nome: string; qtd: number; valor: number }> = {};
+    (data?.itens || []).forEach((item: any) => {
+      const nome = item.produtos?.nome || 'Produto';
+      if (!map[nome]) map[nome] = { nome, qtd: 0, valor: 0 };
+      map[nome].qtd += item.quantidade;
+      map[nome].valor += Number(item.subtotal);
+    });
+    return Object.values(map).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
+  }, [data?.itens]);
+
+  const formatCurrency = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const formatCurrencyFull = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/70 backdrop-blur-2xl border-b border-border/30">
-        <div className="mx-auto max-w-5xl px-5 sm:px-8">
-          <div className="flex items-center justify-between h-14">
-            <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
+          <div className="flex items-center justify-between h-12">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block">·</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block">{weekLabel}</span>
+            </div>
             <div className="flex items-center gap-1">
+              <Badge
+                variant={deadlinePassed ? "destructive" : "default"}
+                className="text-[10px] gap-1 h-6"
+              >
+                {deadlinePassed ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+                {deadlinePassed ? 'Fechada' : 'Aberta'}
+              </Badge>
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl">
-                    <Avatar className="h-7 w-7">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                    <Avatar className="h-6 w-6">
                       <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
                         {user?.email?.charAt(0).toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                  <div className="px-3 py-2.5">
-                    <p className="text-xs font-medium truncate text-muted-foreground">{user?.email}</p>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-3 py-2">
+                    <p className="text-xs truncate text-muted-foreground">{user?.email}</p>
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <NavLink to="/configuracoes" className="cursor-pointer text-sm">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Configurações
+                    <NavLink to="/configuracoes" className="cursor-pointer text-xs">
+                      <Settings className="h-3.5 w-3.5 mr-2" /> Configurações
                     </NavLink>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => signOut()}
-                    className="text-destructive focus:text-destructive cursor-pointer text-sm"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sair
+                  <DropdownMenuItem onClick={() => signOut()} className="text-destructive text-xs cursor-pointer">
+                    <LogOut className="h-3.5 w-3.5 mr-2" /> Sair
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -181,106 +279,153 @@ export default function Hub() {
         </div>
       </header>
 
-      {/* Content */}
-      <div className="mx-auto max-w-5xl px-5 sm:px-8 py-8 space-y-8">
-        {/* Greeting + Week Status */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 animate-fade-in">
-          <div>
-            <p className="text-sm text-muted-foreground mb-1">{greeting}, {firstName}</p>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Semana {weekLabel}
-            </h2>
-          </div>
-          <Badge
-            variant={deadlinePassed ? "destructive" : "default"}
-            className="self-start sm:self-auto text-xs gap-1.5"
-          >
-            {deadlinePassed ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-            {deadlinePassed ? 'Semana Fechada' : 'Coletando Pedidos'}
-          </Badge>
+      {/* Dense Content */}
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 space-y-4">
+        {/* Row 1: Greeting minimal */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {greeting}, <span className="font-medium text-foreground">{firstName}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {format(now, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          </p>
         </div>
 
-        {/* KPIs */}
-        <KPIGrid>
-          <KPICard
-            label="Pedidos da Semana"
-            value={pedidosDaSemana.length}
-            icon={Package}
-            subtitle={`${pedidosPendentes.length} pendentes`}
-          />
-          <KPICard
-            label="Vendas da Semana"
-            value={`R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-            icon={DollarSign}
-          />
-          <KPICard
-            label="Confirmados"
-            value={pedidosConfirmados.length}
-            icon={CheckCircle2}
-            subtitle={`de ${pedidosDaSemana.length}`}
-          />
-          <KPICard
-            label="Entrega"
-            value={format(friday, "EEE dd/MM", { locale: ptBR })}
-            icon={Truck}
-          />
-        </KPIGrid>
+        {/* Row 2: 4 KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Litros vendidos */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Droplets className="h-3.5 w-3.5 text-blue-500" />
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Litros Vendidos</span>
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{litrosSemana.toLocaleString('pt-BR')}L</p>
+            <div className="flex items-center gap-2">
+              {litrosTrend !== 0 && (
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                  litrosTrend > 0 ? "text-emerald-700 bg-emerald-500/10" : "text-red-600 bg-red-500/10"
+                )}>
+                  {litrosTrend > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {Math.abs(litrosTrend).toFixed(0)}%
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground">vs sem. anterior</span>
+            </div>
+          </div>
 
-        {/* Week Timeline + Financial side by side */}
-        <div className="grid gap-5 lg:grid-cols-5">
-          {/* Timeline */}
-          <Card className="lg:col-span-3">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Visão da Semana</CardTitle>
+          {/* Faturamento vs Meta */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Gauge className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Faturamento</span>
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{formatCurrency(faturamento)}</p>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">Meta: {formatCurrency(META_SEMANAL)}</span>
+                <span className={cn(
+                  "text-[10px] font-semibold",
+                  metaProgress >= 100 ? "text-emerald-600" : metaProgress >= 70 ? "text-amber-600" : "text-red-500"
+                )}>
+                  {metaProgress.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={metaProgress} className="h-1.5" />
+              {faltaMeta > 0 && (
+                <span className="text-[10px] text-muted-foreground">Faltam {formatCurrency(faltaMeta)}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Clientes ativos */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 text-violet-500" />
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Clientes Ativos</span>
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{clientesAtivos}</p>
+            <div className="flex items-center gap-2">
+              {clientesTrend !== 0 && (
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                  clientesTrend > 0 ? "text-emerald-700 bg-emerald-500/10" : "text-red-600 bg-red-500/10"
+                )}>
+                  {clientesTrend > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {Math.abs(clientesTrend).toFixed(0)}%
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground">{pedidos.length} pedidos</span>
+            </div>
+          </div>
+
+          {/* Ticket médio */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Receipt className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Ticket Médio</span>
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{formatCurrencyFull(ticketMedio)}</p>
+            <div className="flex items-center gap-2">
+              {ticketTrend !== 0 && (
+                <span className={cn(
+                  "inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded",
+                  ticketTrend > 0 ? "text-emerald-700 bg-emerald-500/10" : "text-red-600 bg-red-500/10"
+                )}>
+                  {ticketTrend > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {Math.abs(ticketTrend).toFixed(0)}%
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground">vs sem. anterior</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 3: Timeline + Financial + Status */}
+        <div className="grid gap-3 lg:grid-cols-12">
+          {/* Week timeline */}
+          <Card className="lg:col-span-5 border-border/60">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline da Semana</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-7 gap-1.5">
+            <CardContent className="px-4 pb-3">
+              <div className="grid grid-cols-7 gap-1">
                 {daysOfWeek.map((day) => {
                   const isToday = isSameDay(day, now);
                   const isDeadline = isSameDay(day, wednesday);
                   const isDelivery = isSameDay(day, friday);
-                  const dayPedidos = pedidosDaSemana.filter(p => isSameDay(new Date(p.dataPedido), day));
+                  const dayPedidos = pedidos.filter(p => isSameDay(new Date(p.data_pedido), day));
+                  const dayVal = dayPedidos.reduce((a, p) => a + Number(p.valor_total), 0);
 
                   return (
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "rounded-xl border p-2.5 min-h-[90px] text-center transition-colors",
-                        isToday && "border-primary/40 bg-primary/5",
-                        isDeadline && !isToday && "border-warning/40 bg-warning/5",
-                        isDelivery && !isToday && "border-success/40 bg-success/5",
-                        !isToday && !isDeadline && !isDelivery && "border-border/50"
+                        "rounded-lg border p-1.5 text-center transition-all min-h-[72px] flex flex-col items-center justify-between",
+                        isToday && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                        isDeadline && !isToday && "border-amber-400/60 bg-amber-500/5",
+                        isDelivery && !isToday && "border-emerald-400/60 bg-emerald-500/5",
+                        !isToday && !isDeadline && !isDelivery && "border-border/40"
                       )}
                     >
-                      <p className={cn(
-                        "text-xs font-semibold capitalize mb-0.5",
-                        isToday ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {format(day, 'EEE', { locale: ptBR })}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mb-2">{format(day, 'dd/MM')}</p>
-                      {isDeadline && (
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <AlertCircle className="h-3 w-3 text-warning" />
-                          <span className="text-[9px] font-medium text-warning">Prazo</span>
-                        </div>
-                      )}
-                      {isDelivery && (
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <Truck className="h-3 w-3 text-success" />
-                          <span className="text-[9px] font-medium text-success">Entrega</span>
-                        </div>
-                      )}
-                      {dayPedidos.length > 0 ? (
-                        <>
-                          <div className="text-lg font-bold text-foreground">{dayPedidos.length}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            R$ {dayPedidos.reduce((a, p) => a + p.valorTotal, 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-muted-foreground/30 mt-2">—</div>
-                      )}
+                      <div>
+                        <p className={cn("text-[10px] font-bold capitalize", isToday ? "text-primary" : "text-muted-foreground")}>
+                          {format(day, 'EEE', { locale: ptBR })}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground/70">{format(day, 'dd')}</p>
+                      </div>
+                      <div>
+                        {isDeadline && <AlertCircle className="h-3 w-3 text-amber-500 mx-auto" />}
+                        {isDelivery && <Truck className="h-3 w-3 text-emerald-500 mx-auto" />}
+                        {dayPedidos.length > 0 ? (
+                          <>
+                            <p className="text-sm font-bold">{dayPedidos.length}</p>
+                            <p className="text-[8px] text-muted-foreground">{formatCurrency(dayVal)}</p>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground/20">—</p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -288,132 +433,181 @@ export default function Hub() {
             </CardContent>
           </Card>
 
-          {/* Financial Summary */}
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Financeiro da Semana</CardTitle>
+          {/* Financial summary — compact */}
+          <Card className="lg:col-span-3 border-border/60">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Financeiro</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-3 rounded-xl bg-success/5 border border-success/20">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground">A Receber</span>
-                  <TrendingUp className="h-3.5 w-3.5 text-success" />
+            <CardContent className="px-4 pb-3 space-y-2">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">A Receber</p>
+                  <p className="text-sm font-bold text-emerald-600">{formatCurrencyFull(totalReceber)}</p>
                 </div>
-                <p className="text-lg font-bold text-success">
-                  R$ {totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-muted-foreground">{contasAReceber.length} pendente{contasAReceber.length !== 1 ? 's' : ''}</p>
+                <Badge variant="outline" className="text-[9px] h-5 border-emerald-500/30 text-emerald-600">{contasAReceber.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-red-500/5 border border-red-500/15">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">A Pagar</p>
+                  <p className="text-sm font-bold text-red-500">{formatCurrencyFull(totalPagar)}</p>
+                </div>
+                <Badge variant="outline" className="text-[9px] h-5 border-red-500/30 text-red-500">{contasAPagar.length}</Badge>
+              </div>
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border/40">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Saldo</p>
+                  <p className={cn("text-sm font-bold", (totalReceber - totalPagar) >= 0 ? "text-emerald-600" : "text-red-500")}>
+                    {formatCurrencyFull(totalReceber - totalPagar)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status + Alerts */}
+          <Card className="lg:col-span-4 border-border/60">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status Operacional</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 space-y-2">
+              {/* Pedidos status */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
+                  <p className="text-lg font-bold text-amber-600">{pedidosPendentes}</p>
+                  <p className="text-[9px] text-muted-foreground">Pendentes</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
+                  <p className="text-lg font-bold text-emerald-600">{pedidosPagos}</p>
+                  <p className="text-[9px] text-muted-foreground">Confirmados</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-primary/5 border border-primary/15">
+                  <p className="text-lg font-bold text-primary">{pedidos.length}</p>
+                  <p className="text-[9px] text-muted-foreground">Total</p>
+                </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-destructive/5 border border-destructive/20">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground">A Pagar</span>
-                  <Wallet className="h-3.5 w-3.5 text-destructive" />
-                </div>
-                <p className="text-lg font-bold text-destructive">
-                  R$ {totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-muted-foreground">{contasAPagar.length} pendente{contasAPagar.length !== 1 ? 's' : ''}</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-muted/50 border border-border/50">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-muted-foreground">Saldo da Semana</span>
-                </div>
-                <p className={cn(
-                  "text-lg font-bold",
-                  (totalReceber - totalPagar) >= 0 ? "text-success" : "text-destructive"
-                )}>
-                  R$ {(totalReceber - totalPagar).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+              {/* Alerts */}
+              <div className="space-y-1.5">
+                {pedidosPendentes > 0 && !deadlinePassed && (
+                  <NavLink to="/pedidos" className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/10 transition-colors">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <span className="text-[11px] flex-1">{pedidosPendentes} aguardando confirmação</span>
+                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                  </NavLink>
+                )}
+                {produtosAlerta.length > 0 && (
+                  <NavLink to="/estoque" className="flex items-center gap-2 p-2 rounded-lg bg-red-500/5 border border-red-500/15 hover:bg-red-500/10 transition-colors">
+                    <Package className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                    <span className="text-[11px] flex-1">{produtosAlerta.length} produto{produtosAlerta.length > 1 ? 's' : ''} em alerta de estoque</span>
+                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                  </NavLink>
+                )}
+                {data?.whatsapp && data.whatsapp.status !== 'connected' && (
+                  <NavLink to="/whatsapp" className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/40 hover:bg-muted transition-colors">
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-[11px] flex-1">WhatsApp desconectado</span>
+                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                  </NavLink>
+                )}
+                {deadlinePassed && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/15">
+                    <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="text-[11px]">Prazo encerrado — entrega {format(friday, "EEE dd/MM", { locale: ptBR })}</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Alerts */}
-        {pedidosPendentes.length > 0 && !deadlinePassed && (
-          <div className="flex items-center gap-3 p-4 rounded-xl border border-warning/30 bg-warning/5 animate-fade-in">
-            <AlertCircle className="h-5 w-5 text-warning shrink-0" />
-            <div>
-              <p className="text-sm font-medium">
-                {pedidosPendentes.length} pedido{pedidosPendentes.length > 1 ? 's' : ''} aguardando confirmação
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Confirme antes de quarta-feira para incluir na carga Ashby
-              </p>
-            </div>
-            <NavLink to="/pedidos" className="ml-auto">
-              <Button size="sm" variant="outline" className="text-xs gap-1">
-                Ver pedidos <ArrowUpRight className="h-3 w-3" />
-              </Button>
-            </NavLink>
-          </div>
-        )}
-
-        {/* Recent Orders */}
-        {pedidosDaSemana.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
+        {/* Row 4: Pedidos recentes + Top produtos */}
+        <div className="grid gap-3 lg:grid-cols-12">
+          {/* Pedidos recentes */}
+          <Card className="lg:col-span-8 border-border/60">
+            <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">Últimos Pedidos</CardTitle>
-                <NavLink to="/pedidos" className="text-xs text-primary hover:underline">Ver todos →</NavLink>
+                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pedidos da Semana</CardTitle>
+                <NavLink to="/pedidos" className="text-[10px] text-primary hover:underline font-medium">Ver todos →</NavLink>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {pedidosDaSemana.slice(0, 5).map((pedido) => {
-                  const statusColors: Record<string, string> = {
-                    pendente: 'bg-warning/10 text-warning border-warning/20',
-                    pago: 'bg-success/10 text-success border-success/20',
-                    entregue: 'bg-primary/10 text-primary border-primary/20',
-                    cancelado: 'bg-destructive/10 text-destructive border-destructive/20',
-                  };
-                  return (
-                    <NavLink
-                      key={pedido.id}
-                      to="/pedidos"
-                      className="flex items-center justify-between p-3 rounded-xl border border-border/50 hover:bg-muted/50 transition-colors"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {clientesMap[pedido.clienteId] || 'Cliente N/I'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          #{(pedido as any).numeroPedido || pedido.id.slice(0, 8)} · {format(new Date(pedido.dataPedido), "dd/MM HH:mm")}
-                        </p>
+            <CardContent className="px-4 pb-3">
+              {pedidos.length > 0 ? (
+                <div className="space-y-1">
+                  {pedidos.slice(0, 8).map((pedido) => {
+                    const statusMap: Record<string, { label: string; cls: string }> = {
+                      pendente: { label: 'Pendente', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+                      pago: { label: 'Pago', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
+                      entregue: { label: 'Entregue', cls: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
+                      cancelado: { label: 'Cancelado', cls: 'bg-red-500/10 text-red-600 border-red-500/20' },
+                    };
+                    const st = statusMap[pedido.status] || { label: pedido.status, cls: 'bg-muted text-muted-foreground' };
+
+                    return (
+                      <div
+                        key={pedido.id}
+                        className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/40 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-[10px] text-muted-foreground font-mono w-8 shrink-0">#{pedido.numero_pedido}</span>
+                          <span className="text-xs font-medium truncate">{clientesMapObj[pedido.cliente_id] || '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs font-semibold tabular-nums">{formatCurrency(Number(pedido.valor_total))}</span>
+                          <Badge className={cn("text-[9px] h-5 border", st.cls)}>{st.label}</Badge>
+                          <span className="text-[10px] text-muted-foreground">{format(new Date(pedido.data_pedido), "dd/MM")}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-primary">
-                          R$ {pedido.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                        <Badge className={cn("text-xs border", statusColors[pedido.status] || '')}>
-                          {pedido.status}
-                        </Badge>
-                      </div>
-                    </NavLink>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-6">Nenhum pedido esta semana</p>
+              )}
             </CardContent>
           </Card>
-        )}
 
-        {/* Quick Access Modules */}
+          {/* Top produtos */}
+          <Card className="lg:col-span-4 border-border/60">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Top Produtos</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              {topProdutos.length > 0 ? (
+                <div className="space-y-2">
+                  {topProdutos.map((prod, i) => (
+                    <div key={prod.nome} className="flex items-center gap-2">
+                      <span className={cn(
+                        "text-[10px] font-bold w-5 h-5 rounded flex items-center justify-center shrink-0",
+                        i === 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                      )}>
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{prod.nome}</p>
+                        <p className="text-[10px] text-muted-foreground">{prod.qtd}× · {formatCurrency(prod.valor)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-6">Sem dados</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Row 5: Quick Access */}
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Módulos</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Acesso Rápido</h3>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
             {filteredModules.map((item) => (
               <NavLink
                 key={item.key}
                 to={item.href}
-                className="group flex flex-col p-4 rounded-xl bg-card border border-border/40 hover:border-primary/25 hover:shadow-medium transition-all duration-300"
+                className="group flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border/30 hover:border-primary/20 hover:bg-primary/5 transition-all text-center"
               >
-                <div className={`p-2 rounded-lg ${item.color} w-fit mb-3 transition-transform duration-300 group-hover:scale-110`}>
-                  <item.icon className="h-4 w-4" />
-                </div>
-                <h4 className="text-sm font-semibold">{item.label}</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                <item.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                <span className="text-[10px] font-medium">{item.label}</span>
               </NavLink>
             ))}
           </div>
