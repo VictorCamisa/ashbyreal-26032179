@@ -54,11 +54,7 @@ export function Layout() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <NavLink to="/hub" className="shrink-0 hidden sm:block">
-                <img
-                  src={logoTaubateChopp}
-                  alt="Taubaté Chopp"
-                  className="h-7 w-7 rounded-lg object-cover ring-1 ring-border"
-                />
+                <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
               </NavLink>
               <div className="min-w-0">
                 <h1 className="text-sm font-semibold tracking-tight truncate">{currentLabel}</h1>
