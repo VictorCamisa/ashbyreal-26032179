@@ -1,20 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Home, 
-  LayoutDashboard, 
   ShoppingCart, 
-  Package, 
   Wallet,
   Menu,
-  Users,
-  Circle,
-  MessageCircle,
-  Bot,
   Calculator,
-  HeadphonesIcon,
   Target,
   Settings,
-  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserModules } from '@/hooks/useAdminUsers';
@@ -23,21 +15,13 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const allNavItems = [
   { key: 'hub', label: 'Início', href: '/hub', icon: Home },
-  { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
-  { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users },
   { key: 'crm', label: 'CRM', href: '/crm', icon: Target },
-  { key: 'barris', label: 'Barris', href: '/barris', icon: Circle },
-  { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Package },
   { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet },
   { key: 'contabilidade', label: 'Contab.', href: '/contabilidade', icon: Calculator },
-  { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-  { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HeadphonesIcon },
-  { key: 'agente-ia', label: 'IA', href: '/agente-ia', icon: Bot },
-  { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
 ];
 
-const priorityOrder = ['hub', 'pedidos', 'financeiro', 'clientes'];
+const priorityOrder = ['hub', 'pedidos', 'financeiro', 'crm'];
 
 export function MobileNavBar() {
   const { data: visibleModules } = useUserModules();
