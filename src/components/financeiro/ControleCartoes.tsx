@@ -21,12 +21,16 @@ import {
   LayoutGrid,
   Repeat,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { useCartoes } from '@/hooks/useCartoes';
 import { useCartoesMutations } from '@/hooks/useCartoesMutations';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import { useGastosCartaoMutations } from '@/hooks/useGastosCartaoMutations';
 import { useRecurringExpenses, RecurringExpense } from '@/hooks/useRecurringExpenses';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { NovoCartaoDialog } from './NovoCartaoDialog';
 import { NovaFaturaDialog } from './NovaFaturaDialog';
@@ -48,6 +52,25 @@ export function ControleCartoes() {
   const { createFatura, isCreating: isCreatingFatura, syncMissingTransactions } = useFaturasMutations();
   const { createGasto, isCreating: isCreatingGasto } = useGastosCartaoMutations();
   const { expenses, createExpense, toggleActive, deleteExpense, isCreating: isCreatingExpense } = useRecurringExpenses();
+  const queryClient = useQueryClient();
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  const handleBackfillPluggy = async () => {
+    setIsBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-pluggy-data');
+      if (error) throw error;
+      toast.success(`Backfill concluído! ${data.totalInserted} novas transações importadas em ${data.cardsSynced} cartão(ões).`);
+      queryClient.invalidateQueries({ queryKey: ['credit-card-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['pluggy-items'] });
+    } catch (err: any) {
+      toast.error(`Erro no backfill: ${err.message}`);
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
   
   const [showNovoCartao, setShowNovoCartao] = useState(false);
   const [showNovaFatura, setShowNovaFatura] = useState(false);
@@ -159,6 +182,17 @@ export function ControleCartoes() {
             <Button onClick={() => setShowTodasFaturas(true)} variant="ghost" size="sm" className="gap-1.5 shrink-0">
               <FileText className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Faturas</span>
+            </Button>
+            <Button
+              onClick={handleBackfillPluggy}
+              disabled={isBackfilling}
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-orange-600 shrink-0"
+              title="Ressincronizar todos os cartões com o Pluggy"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isBackfilling ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isBackfilling ? 'Sincronizando...' : 'Ressincronizar'}</span>
             </Button>
             <Button onClick={() => setShowPluggyConnect(true)} variant="ghost" size="sm" className="gap-1.5 text-primary shrink-0">
               <Zap className="h-3.5 w-3.5" />
