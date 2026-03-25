@@ -27,7 +27,7 @@ import {
 import { PageLayout } from '@/components/layout/PageLayout';
 
 const tabs = [
-  { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Contas', icon: LayoutDashboard },
   { id: 'boletos', label: 'Boletos', icon: Receipt },
   { id: 'transacoes', label: 'Transações', icon: ArrowLeftRight },
   { id: 'cartoes', label: 'Cartões', icon: CreditCard },

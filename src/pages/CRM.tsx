@@ -23,11 +23,11 @@ import { toast } from '@/hooks/use-toast';
 import type { Lead } from '@/types/lead';
 
 const pipelineColumns: PipelineColumn[] = [
-  { id: 'novo_lead', title: 'Nova', color: 'bg-blue-500' },
-  { id: 'qualificado', title: 'Qualificada', color: 'bg-amber-500' },
-  { id: 'negociacao', title: 'Negociação', color: 'bg-violet-500' },
-  { id: 'fechado', title: 'Fechada', color: 'bg-emerald-500' },
-  { id: 'perdido', title: 'Perdida', color: 'bg-red-500' },
+  { id: 'novo_lead', title: 'Contato', color: 'bg-blue-500' },
+  { id: 'qualificado', title: 'Pedido Coletado', color: 'bg-amber-500' },
+  { id: 'negociacao', title: 'Semana Fechada', color: 'bg-violet-500' },
+  { id: 'fechado', title: 'Entregue', color: 'bg-emerald-500' },
+  { id: 'perdido', title: 'Perdido', color: 'bg-red-500' },
 ];
 
 const origemColors: Record<string, string> = {

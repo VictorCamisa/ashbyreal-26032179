@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, ShoppingCart, Eye, Filter, BarChart3, List, Monitor } from 'lucide-react';
+import { Search, ShoppingCart, Eye, Filter, BarChart3, List, Monitor, CalendarDays } from 'lucide-react';
 import { usePedidos } from '@/hooks/usePedidos';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { EscanearPedidoDialog } from '@/components/pedidos/EscanearPedidoDialog';
@@ -33,6 +33,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { DataPagination } from '@/components/ui/data-pagination';
 import { cn } from '@/lib/utils';
+import { SemanaPanel } from '@/components/pedidos/SemanaPanel';
 
 interface PedidoItemWithProduto {
   id: string;
@@ -47,6 +48,7 @@ interface PedidoItemWithProduto {
 }
 
 const tabs = [
+  { id: 'semana', label: 'Semana', icon: CalendarDays },
   { id: 'pdv', label: 'PDV', icon: Monitor },
   { id: 'lista', label: 'Lista de Pedidos', icon: List },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -55,7 +57,7 @@ const tabs = [
 const ITEMS_PER_PAGE = 15;
 
 export default function Pedidos() {
-  const [activeTab, setActiveTab] = useState('pdv');
+  const [activeTab, setActiveTab] = useState('semana');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [clientesMap, setClientesMap] = useState<Record<string, string>>({});
@@ -151,6 +153,15 @@ export default function Pedidos() {
       <div className="space-y-6">
         {/* KPIs */}
         <PedidosKPIs pedidos={pedidos} />
+
+        {activeTab === 'semana' && (
+          <SemanaPanel
+            pedidos={pedidos}
+            clientesMap={clientesMap}
+            onViewDetails={handleViewDetails}
+            onRefetch={refetch}
+          />
+        )}
 
         {activeTab === 'pdv' && <PDVPanel />}
 
