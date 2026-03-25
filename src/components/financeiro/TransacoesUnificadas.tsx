@@ -220,13 +220,16 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       today.setHours(0, 0, 0, 0);
       
       bankTransactions.forEach((t) => {
-        // Compute overdue status locally instead of writing to DB
+        // Compute overdue/due-soon status locally instead of writing to DB
         let displayStatus = t.status;
         if (t.status === 'PREVISTO') {
           const dueDate = new Date(t.due_date);
           dueDate.setHours(0, 0, 0, 0);
+          const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
           if (dueDate < today) {
             displayStatus = 'ATRASADO';
+          } else if (diffDays <= 5) {
+            displayStatus = 'VENCENDO';
           }
         }
         
@@ -272,6 +275,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   };
 
   // Status color mapping
+  // 🟢 Verde = Pago | 🟡 Amarelo = Vence em breve (≤5 dias) | 🔴 Vermelho = Atrasado | ⚫ Cinza = Cancelado
   const getStatusStyle = (status: string, isOverdue: boolean) => {
     if (status === 'PAGO') {
       return 'bg-emerald-500 hover:bg-emerald-600 text-white';
@@ -279,18 +283,22 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     if (status === 'ATRASADO' || isOverdue) {
       return 'bg-destructive hover:bg-destructive/90 text-white';
     }
-    if (status === 'CANCELADO') {
-      return 'bg-muted text-muted-foreground';
+    if (status === 'VENCENDO') {
+      return 'bg-amber-500 hover:bg-amber-600 text-white';
     }
-    // PREVISTO
-    return 'bg-amber-500 hover:bg-amber-600 text-white';
+    if (status === 'CANCELADO') {
+      return 'bg-muted text-muted-foreground hover:bg-muted';
+    }
+    // PREVISTO (vencimento distante)
+    return 'bg-slate-400 hover:bg-slate-500 text-white';
   };
 
   const getStatusLabel = (status: string, isOverdue: boolean) => {
     if (status === 'PAGO') return 'Pago';
     if (status === 'ATRASADO' || isOverdue) return 'Atrasado';
+    if (status === 'VENCENDO') return 'Vence em breve';
     if (status === 'CANCELADO') return 'Cancelado';
-    return 'Pendente';
+    return 'Previsto';
   };
 
   // Get all unique tags from transactions

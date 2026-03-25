@@ -119,15 +119,22 @@ export function TransacoesList({ entityType, tipo }: TransacoesListProps) {
               </TableHeader>
               <TableBody>
                 {filteredTransacoes.map((transacao) => {
-                  const isOverdue = transacao.status === 'ATRASADO' || 
-                    (transacao.status === 'PREVISTO' && new Date(transacao.due_date) < new Date());
-                  
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const dueDate = new Date(transacao.due_date);
+                  dueDate.setHours(0, 0, 0, 0);
+                  const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+                  const isOverdue = transacao.status === 'ATRASADO' ||
+                    (transacao.status === 'PREVISTO' && dueDate < today);
+                  const isDueSoon = transacao.status === 'PREVISTO' && diffDays >= 0 && diffDays <= 5;
+
                   return (
-                    <TableRow 
+                    <TableRow
                       key={transacao.id}
                       className={cn(
                         "transition-colors",
-                        isOverdue && "bg-destructive/5"
+                        isOverdue && "bg-destructive/5",
+                        isDueSoon && "bg-amber-500/5"
                       )}
                     >
                       <TableCell className="font-medium">
@@ -163,16 +170,21 @@ export function TransacoesList({ entityType, tipo }: TransacoesListProps) {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={
-                            transacao.status === 'PAGO' ? 'default' : 
-                            transacao.status === 'PREVISTO' ? 'secondary' : 
-                            transacao.status === 'ATRASADO' ? 'destructive' :
-                            'outline'
-                          }
-                          className="text-xs"
+                        <Badge
+                          className={cn(
+                            "text-xs text-white",
+                            transacao.status === 'PAGO' && "bg-emerald-500 hover:bg-emerald-600",
+                            isOverdue && "bg-destructive hover:bg-destructive/90",
+                            isDueSoon && !isOverdue && "bg-amber-500 hover:bg-amber-600",
+                            !isOverdue && !isDueSoon && transacao.status === 'PREVISTO' && "bg-slate-400 hover:bg-slate-500",
+                            transacao.status === 'CANCELADO' && "bg-muted text-muted-foreground hover:bg-muted",
+                          )}
                         >
-                          {transacao.status}
+                          {transacao.status === 'PAGO' && 'Pago'}
+                          {isOverdue && 'Atrasado'}
+                          {isDueSoon && !isOverdue && 'Vence em breve'}
+                          {!isOverdue && !isDueSoon && transacao.status === 'PREVISTO' && 'Previsto'}
+                          {transacao.status === 'CANCELADO' && 'Cancelado'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
