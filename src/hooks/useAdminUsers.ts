@@ -4,18 +4,10 @@ import { useToast } from '@/hooks/use-toast';
 
 // Available modules in the system
 export const ALL_MODULES = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  { key: 'clientes', label: 'Clientes', icon: 'Users' },
-  { key: 'crm', label: 'CRM', icon: 'Target' },
   { key: 'pedidos', label: 'Pedidos', icon: 'ShoppingCart' },
-  { key: 'barris', label: 'Barris', icon: 'Circle' },
-  { key: 'estoque', label: 'Estoque', icon: 'Package' },
+  { key: 'crm', label: 'CRM', icon: 'Target' },
   { key: 'financeiro', label: 'Financeiro', icon: 'Wallet' },
   { key: 'contabilidade', label: 'Contabilidade', icon: 'Calculator' },
-  { key: 'whatsapp', label: 'WhatsApp', icon: 'MessageCircle' },
-  { key: 'suporte', label: 'Suporte', icon: 'HeadphonesIcon' },
-  { key: 'marketing', label: 'Marketing', icon: 'Megaphone' },
-  { key: 'agente-ia', label: 'Agente IA', icon: 'Bot' },
 ] as const;
 
 export type ModuleKey = typeof ALL_MODULES[number]['key'];
