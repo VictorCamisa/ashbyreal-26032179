@@ -32,7 +32,7 @@ export function ChatPanel({ conversation, messages, isLoading, onSendMessage, is
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
