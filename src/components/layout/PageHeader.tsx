@@ -34,27 +34,27 @@ export function PageHeader({
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && (
-            <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+            <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
           )}
         </div>
         
         {actions && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {actions}
           </div>
         )}
       </div>
 
       {tabs && tabs.length > 0 && (
-        <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg w-fit">
+        <div className="flex gap-1 bg-secondary/60 p-1 rounded-xl w-fit">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onTabChange?.(tab.id)}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
+                "px-3.5 py-2 text-sm font-medium rounded-lg transition-all duration-200",
                 activeTab === tab.id 
-                  ? "bg-background text-foreground shadow-sm" 
+                  ? "bg-card text-foreground shadow-soft" 
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
