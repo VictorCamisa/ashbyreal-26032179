@@ -33,6 +33,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { DataPagination } from '@/components/ui/data-pagination';
 import { cn } from '@/lib/utils';
+import { SemanaPanel } from '@/components/pedidos/SemanaPanel';
 
 interface PedidoItemWithProduto {
   id: string;
