@@ -7,299 +7,692 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Complete system knowledge base
-const SYSTEM_KNOWLEDGE = `
-# SISTEMA TAUBATÉ CHOPP - MANUAL COMPLETO
+// --- MODULE TOOLS DEFINITIONS ---
 
-## VISÃO GERAL
-Este é um sistema ERP completo para gestão de uma distribuidora de chopp, incluindo:
-- Gestão de pedidos e vendas
-- Controle de estoque e barris
-- Gestão financeira completa
-- CRM e gestão de leads
-- Integração com WhatsApp
-- Contabilidade e notas fiscais
-- Agentes de IA para atendimento
+const PEDIDOS_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "criar_pedido",
+      description: "Cria um novo pedido para um cliente. Use quando o usuário pedir para criar/registrar um pedido ou venda.",
+      parameters: {
+        type: "object",
+        properties: {
+          cliente_nome: { type: "string", description: "Nome do cliente (busca parcial)" },
+          produtos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                nome_produto: { type: "string", description: "Nome do produto" },
+                quantidade: { type: "number", description: "Quantidade" },
+              },
+              required: ["nome_produto", "quantidade"],
+            },
+            description: "Lista de produtos e quantidades",
+          },
+          data_entrega: { type: "string", description: "Data de entrega (YYYY-MM-DD). Se não informado, usa amanhã." },
+          observacoes: { type: "string", description: "Observações do pedido" },
+        },
+        required: ["cliente_nome", "produtos"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "alterar_status_pedido",
+      description: "Altera o status de um pedido existente. Use quando o usuário pedir para mudar status, marcar como entregue, cancelar, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          pedido_identificador: { type: "string", description: "ID parcial ou número do pedido" },
+          novo_status: { type: "string", enum: ["pendente", "em_separacao", "em_rota", "entregue", "cancelado"], description: "Novo status" },
+        },
+        required: ["pedido_identificador", "novo_status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_pedidos",
+      description: "Lista pedidos com filtros. Use quando o usuário perguntar sobre pedidos do dia, pendentes, de um cliente, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pendente", "em_separacao", "em_rota", "entregue", "cancelado"], description: "Filtrar por status" },
+          cliente_nome: { type: "string", description: "Filtrar por nome do cliente" },
+          periodo: { type: "string", enum: ["hoje", "semana", "mes"], description: "Período. Default: hoje" },
+          limite: { type: "number", description: "Máximo de resultados. Default: 10" },
+        },
+      },
+    },
+  },
+];
 
----
+const CRM_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "criar_oportunidade",
+      description: "Cria uma nova oportunidade/lead no CRM. Use quando o usuário pedir para registrar lead, oportunidade ou contato de venda.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome: { type: "string", description: "Nome do contato/empresa" },
+          telefone: { type: "string", description: "Telefone" },
+          email: { type: "string", description: "Email" },
+          valor_estimado: { type: "number", description: "Valor estimado do negócio" },
+          observacoes: { type: "string", description: "Notas sobre a oportunidade" },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "mover_lead",
+      description: "Move um lead para outra etapa do funil. Use quando o usuário pedir para qualificar, avançar ou mover um lead.",
+      parameters: {
+        type: "object",
+        properties: {
+          lead_nome: { type: "string", description: "Nome do lead para buscar" },
+          nova_etapa: { type: "string", enum: ["novo_lead", "em_contato", "qualificado", "proposta", "negociacao", "convertido", "perdido"], description: "Nova etapa do funil" },
+        },
+        required: ["lead_nome", "nova_etapa"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_leads",
+      description: "Lista leads/oportunidades do CRM com filtros.",
+      parameters: {
+        type: "object",
+        properties: {
+          etapa: { type: "string", enum: ["novo_lead", "em_contato", "qualificado", "proposta", "negociacao", "convertido", "perdido"] },
+          limite: { type: "number", description: "Máximo de resultados. Default: 10" },
+        },
+      },
+    },
+  },
+];
 
-## MÓDULO: DASHBOARD
+const FINANCEIRO_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "criar_transacao",
+      description: "Cria uma nova transação financeira (receita ou despesa). Use quando o usuário pedir para lançar receita, despesa, pagamento, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          descricao: { type: "string", description: "Descrição da transação" },
+          valor: { type: "number", description: "Valor em reais" },
+          tipo: { type: "string", enum: ["RECEBER", "PAGAR"], description: "RECEBER = receita, PAGAR = despesa" },
+          vencimento: { type: "string", description: "Data de vencimento (YYYY-MM-DD)" },
+          categoria_nome: { type: "string", description: "Nome da categoria (ex: Aluguel, Vendas, etc)" },
+          status: { type: "string", enum: ["PREVISTO", "PAGO"], description: "Status. Default: PREVISTO" },
+        },
+        required: ["descricao", "valor", "tipo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "resumo_financeiro",
+      description: "Retorna resumo financeiro do período (receitas, despesas, saldo). Use quando o usuário perguntar sobre balanço, quanto entrou/saiu, situação financeira.",
+      parameters: {
+        type: "object",
+        properties: {
+          periodo: { type: "string", enum: ["semana", "mes", "trimestre"], description: "Período. Default: mes" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_contas_vencer",
+      description: "Lista contas a pagar/receber próximas do vencimento. Use quando o usuário perguntar o que tem pra pagar, o que vence essa semana, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: ["RECEBER", "PAGAR"], description: "Filtrar por tipo" },
+          dias: { type: "number", description: "Próximos N dias. Default: 7" },
+        },
+      },
+    },
+  },
+];
 
-### Como funciona
-O Dashboard é a página inicial que exibe KPIs em tempo real:
-- Receita do mês atual
-- Número de pedidos
-- Ticket médio
-- Clientes ativos
+const CONTABILIDADE_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "listar_pendencias",
+      description: "Lista pendências fiscais (transações sem nota, divergências). Use quando o usuário perguntar sobre pendências, problemas fiscais, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: ["sem_nota", "divergencia", "todas"], description: "Tipo de pendência. Default: todas" },
+          status: { type: "string", enum: ["pendente", "resolvido"], description: "Default: pendente" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listar_documentos_fiscais",
+      description: "Lista documentos fiscais (NF-e, NFC-e, NFS-e). Use quando o usuário perguntar sobre notas emitidas, documentos fiscais, etc.",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: ["NFE", "NFCE", "NFSE"] },
+          periodo: { type: "string", enum: ["semana", "mes", "trimestre"], description: "Default: mes" },
+          limite: { type: "number", description: "Default: 10" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "resolver_pendencia",
+      description: "Marca uma pendência fiscal como resolvida. Use quando o usuário pedir para resolver, fechar ou ignorar uma pendência.",
+      parameters: {
+        type: "object",
+        properties: {
+          pendencia_id: { type: "string", description: "ID da pendência" },
+          notas: { type: "string", description: "Notas de resolução" },
+        },
+        required: ["pendencia_id"],
+      },
+    },
+  },
+];
 
-### Como usar
-1. Acesse pelo menu principal ou logo
-2. Use os filtros de período no topo
-3. Clique nos cards para detalhes
-4. Acompanhe alertas na lateral
+function getToolsForModule(moduleName: string) {
+  switch (moduleName) {
+    case "Pedidos": return PEDIDOS_TOOLS;
+    case "CRM": return CRM_TOOLS;
+    case "Financeiro": return FINANCEIRO_TOOLS;
+    case "Contabilidade": return CONTABILIDADE_TOOLS;
+    default: return [];
+  }
+}
 
----
+// --- TOOL EXECUTION ---
 
-## MÓDULO: PEDIDOS
+async function executeTool(supabase: any, toolName: string, args: any): Promise<string> {
+  try {
+    switch (toolName) {
+      // --- PEDIDOS ---
+      case "criar_pedido": {
+        // Find client
+        const { data: clientes } = await supabase
+          .from("clientes")
+          .select("id, nome")
+          .ilike("nome", `%${args.cliente_nome}%`)
+          .limit(1);
 
-### Criar um novo pedido
-1. Clique no botão "Novo Pedido" (canto superior direito)
-2. Busque e selecione o cliente
-3. Adicione produtos ao carrinho
-4. Defina data de entrega
-5. Escolha forma de pagamento
-6. Confirme o pedido
+        if (!clientes?.length) return JSON.stringify({ error: true, message: `Cliente "${args.cliente_nome}" não encontrado. Verifique o nome.` });
+        const cliente = clientes[0];
 
-### Alterar status do pedido
-1. Abra o pedido clicando nele
-2. Use os botões de status no topo
-3. Status disponíveis: Pendente → Em Separação → Em Rota → Entregue
+        // Find products
+        const itens = [];
+        for (const p of args.produtos) {
+          const { data: produtos } = await supabase
+            .from("produtos")
+            .select("id, nome, preco_venda")
+            .ilike("nome", `%${p.nome_produto}%`)
+            .eq("ativo", true)
+            .limit(1);
 
-### Registrar devolução
-1. Abra o pedido desejado
-2. Clique em "Registrar Devolução"
-3. Selecione os itens devolvidos
-4. Informe a quantidade e motivo
-5. Confirme - o estoque será atualizado automaticamente
+          if (!produtos?.length) return JSON.stringify({ error: true, message: `Produto "${p.nome_produto}" não encontrado.` });
+          itens.push({ produto: produtos[0], quantidade: p.quantidade });
+        }
 
-### Enviar comprovante de entrega
-1. No pedido "Entregue", clique em "Comprovante"
-2. Defina data e período da entrega
-3. Envie para o cliente assinar digitalmente
+        const valorTotal = itens.reduce((s, i) => s + (i.produto.preco_venda * i.quantidade), 0);
+        const dataEntrega = args.data_entrega || new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
----
+        // Create order
+        const { data: pedido, error: pedidoErr } = await supabase
+          .from("pedidos")
+          .insert({
+            cliente_id: cliente.id,
+            nome_cliente: cliente.nome,
+            valor_total: valorTotal,
+            status: "pendente",
+            data_pedido: new Date().toISOString(),
+            data_entrega: dataEntrega,
+            observacoes: args.observacoes || null,
+          })
+          .select("id")
+          .single();
 
-## MÓDULO: CLIENTES
+        if (pedidoErr) throw pedidoErr;
 
-### Cadastrar novo cliente
-1. Clique em "Novo Cliente"
-2. Preencha: Nome, Telefone, Email
-3. Adicione endereço completo (CEP auto-completa)
-4. Selecione a origem (WhatsApp, Indicação, etc)
-5. Salve
+        // Create items
+        for (const item of itens) {
+          await supabase.from("pedido_itens").insert({
+            pedido_id: pedido.id,
+            produto_id: item.produto.id,
+            nome_produto: item.produto.nome,
+            quantidade: item.quantidade,
+            preco_unitario: item.produto.preco_venda,
+            subtotal: item.produto.preco_venda * item.quantidade,
+          });
+        }
 
-### Importar clientes em massa
-1. Clique em "Importar"
-2. Baixe o modelo de planilha
-3. Preencha com seus dados
-4. Faça upload do arquivo
-5. Confirme a importação
+        return JSON.stringify({
+          success: true,
+          message: `Pedido criado com sucesso!`,
+          pedido_id: pedido.id.slice(0, 8),
+          cliente: cliente.nome,
+          valor_total: valorTotal,
+          itens: itens.map(i => `${i.quantidade}x ${i.produto.nome}`),
+          entrega: dataEntrega,
+        });
+      }
 
-### Extrair leads do Google Maps
-1. Clique em "Extrair Leads"
-2. Digite a busca (ex: "bares em Taubaté")
-3. Aguarde a extração
-4. Revise e importe os contatos encontrados
+      case "alterar_status_pedido": {
+        const { data: pedidos } = await supabase
+          .from("pedidos")
+          .select("id, nome_cliente, status")
+          .or(`id.ilike.%${args.pedido_identificador}%`)
+          .limit(1);
 
----
+        if (!pedidos?.length) return JSON.stringify({ error: true, message: `Pedido "${args.pedido_identificador}" não encontrado.` });
 
-## MÓDULO: FINANCEIRO
+        const { error } = await supabase
+          .from("pedidos")
+          .update({ status: args.novo_status })
+          .eq("id", pedidos[0].id);
 
-### Lançar transação manual
-1. Clique em "Nova Transação"
-2. Selecione: Receita ou Despesa
-3. Preencha descrição e valor
-4. Escolha a categoria
-5. Defina vencimento e pagamento
-6. Salve
+        if (error) throw error;
 
-### Processar boleto com OCR
-1. Clique em "Novo Boleto"
-2. Faça upload da foto/PDF
-3. O sistema extrai automaticamente os dados
-4. Revise: valor, vencimento, beneficiário
-5. Aprove para criar a transação
+        return JSON.stringify({
+          success: true,
+          message: `Status do pedido #${pedidos[0].id.slice(0, 8)} (${pedidos[0].nome_cliente}) alterado de "${pedidos[0].status}" para "${args.novo_status}".`,
+        });
+      }
 
-### Importar fatura de cartão
-1. Acesse a aba "Cartões"
-2. Selecione o cartão
-3. Clique em "Importar Fatura"
-4. Faça upload do PDF/Excel da fatura
-5. Confira os lançamentos e confirme
+      case "listar_pedidos": {
+        let query = supabase
+          .from("pedidos")
+          .select("id, nome_cliente, valor_total, status, data_pedido, data_entrega")
+          .order("data_pedido", { ascending: false })
+          .limit(args.limite || 10);
 
-### Criar despesa recorrente
-1. Acesse "Despesas Fixas"
-2. Clique em "Nova Despesa Fixa"
-3. Preencha: descrição, valor, categoria
-4. Defina frequência (mensal, semanal, etc)
-5. Escolha o dia do vencimento
-6. Salve
+        if (args.status) query = query.eq("status", args.status);
+        if (args.cliente_nome) query = query.ilike("nome_cliente", `%${args.cliente_nome}%`);
 
----
+        const now = new Date();
+        if (args.periodo === "hoje" || !args.periodo) {
+          query = query.gte("data_pedido", now.toISOString().split("T")[0]);
+        } else if (args.periodo === "semana") {
+          const weekAgo = new Date(now.getTime() - 7 * 86400000);
+          query = query.gte("data_pedido", weekAgo.toISOString());
+        } else if (args.periodo === "mes") {
+          const monthAgo = new Date(now.getTime() - 30 * 86400000);
+          query = query.gte("data_pedido", monthAgo.toISOString());
+        }
 
-## MÓDULO: CRM
+        const { data: pedidos, error } = await query;
+        if (error) throw error;
 
-### Gerenciar pipeline de leads
-O CRM usa visualização Kanban com colunas:
-- Novo Lead
-- Em Contato
-- Qualificado
-- Proposta
-- Negociação
-- Convertido
+        return JSON.stringify({
+          total: pedidos?.length || 0,
+          pedidos: (pedidos || []).map(p => ({
+            id: p.id.slice(0, 8),
+            cliente: p.nome_cliente,
+            valor: `R$ ${Number(p.valor_total).toFixed(2)}`,
+            status: p.status,
+            data: p.data_pedido?.split("T")[0],
+            entrega: p.data_entrega,
+          })),
+        });
+      }
 
-### Mover lead entre etapas
-1. Arraste o card do lead para a coluna desejada
-2. Ou clique no lead e altere o status manualmente
+      // --- CRM ---
+      case "criar_oportunidade": {
+        const { data, error } = await supabase
+          .from("clientes")
+          .insert({
+            nome: args.nome,
+            telefone: args.telefone || "",
+            email: args.email || "",
+            origem: "crm",
+            status: "lead",
+            observacoes: args.observacoes || (args.valor_estimado ? `Valor estimado: R$ ${args.valor_estimado}` : null),
+          })
+          .select("id, nome")
+          .single();
 
-### Adicionar nova oportunidade
-1. Clique em "Nova Oportunidade"
-2. Preencha nome, telefone, email
-3. Defina valor estimado
-4. Adicione observações
-5. Salve
+        if (error) throw error;
 
----
+        return JSON.stringify({
+          success: true,
+          message: `Lead "${args.nome}" criado com sucesso no CRM!`,
+          id: data.id.slice(0, 8),
+          valor_estimado: args.valor_estimado ? `R$ ${args.valor_estimado}` : "Não definido",
+        });
+      }
 
-## MÓDULO: ESTOQUE
+      case "mover_lead": {
+        const statusMap: Record<string, string> = {
+          novo_lead: "lead",
+          em_contato: "em_contato",
+          qualificado: "qualificado",
+          proposta: "proposta",
+          negociacao: "negociacao",
+          convertido: "ativo",
+          perdido: "inativo",
+        };
 
-### Cadastrar produto
-1. Clique em "Novo Produto"
-2. Preencha: nome, SKU, categoria
-3. Defina preço de venda e custo
-4. Configure estoque inicial e mínimo
-5. Para chopp: marque tipo e capacidade do barril
-6. Salve
+        const { data: leads } = await supabase
+          .from("clientes")
+          .select("id, nome, status")
+          .ilike("nome", `%${args.lead_nome}%`)
+          .limit(1);
 
-### Dar entrada de chopp
-1. Clique em "Entrada de Chopp"
-2. Selecione o produto (chopp)
-3. Informe quantidade em litros
-4. Adicione observações se necessário
-5. Confirme
+        if (!leads?.length) return JSON.stringify({ error: true, message: `Lead "${args.lead_nome}" não encontrado.` });
 
-### Ajustar estoque manualmente
-1. Clique no produto
-2. Use "Editar"
-3. Altere a quantidade em estoque
-4. Salve - uma movimentação será registrada
+        const novoStatus = statusMap[args.nova_etapa] || args.nova_etapa;
+        const { error } = await supabase
+          .from("clientes")
+          .update({ status: novoStatus })
+          .eq("id", leads[0].id);
 
----
+        if (error) throw error;
 
-## MÓDULO: BARRIS
+        return JSON.stringify({
+          success: true,
+          message: `Lead "${leads[0].nome}" movido para "${args.nova_etapa}".`,
+          status_anterior: leads[0].status,
+        });
+      }
 
-### Cadastrar barril
-1. Clique em "Novo Barril"
-2. Informe o código identificador
-3. Defina capacidade (30L, 50L)
-4. Selecione localização inicial
-5. Salve
+      case "listar_leads": {
+        let query = supabase
+          .from("clientes")
+          .select("id, nome, telefone, email, status, created_at")
+          .in("status", ["lead", "em_contato", "qualificado", "proposta", "negociacao"])
+          .order("created_at", { ascending: false })
+          .limit(args.limite || 10);
 
-### Registrar movimentação
-1. Selecione o barril
-2. Clique em "Movimentação"
-3. Escolha o tipo (saída para cliente, retorno, etc)
-4. Defina nova localização
-5. Vincule a um cliente/pedido se aplicável
-6. Confirme
+        if (args.etapa) {
+          const statusMap: Record<string, string> = {
+            novo_lead: "lead", em_contato: "em_contato", qualificado: "qualificado",
+            proposta: "proposta", negociacao: "negociacao",
+          };
+          query = query.eq("status", statusMap[args.etapa] || args.etapa);
+        }
 
-### Vincular barris a pedido
-1. No pedido, acesse aba "Barris"
-2. Selecione os barris que serão enviados
-3. Eles ficam vinculados ao pedido
-4. No retorno, registre a devolução
+        const { data, error } = await query;
+        if (error) throw error;
 
----
+        return JSON.stringify({
+          total: data?.length || 0,
+          leads: (data || []).map(l => ({
+            id: l.id.slice(0, 8),
+            nome: l.nome,
+            telefone: l.telefone,
+            status: l.status,
+            desde: l.created_at?.split("T")[0],
+          })),
+        });
+      }
 
-## MÓDULO: WHATSAPP
+      // --- FINANCEIRO ---
+      case "criar_transacao": {
+        let categoryId = null;
+        if (args.categoria_nome) {
+          const { data: cats } = await supabase
+            .from("categories")
+            .select("id")
+            .ilike("name", `%${args.categoria_nome}%`)
+            .limit(1);
+          categoryId = cats?.[0]?.id || null;
+        }
 
-### Conectar número do WhatsApp
-1. Acesse "Instâncias"
-2. Clique em "Nova Instância"
-3. Nomeie a instância
-4. Escaneie o QR Code com o celular
-5. Aguarde conexão (ficará verde)
+        const { data: entityData } = await supabase
+          .from("entities")
+          .select("id")
+          .eq("name", "LOJA")
+          .single();
 
-### Enviar mensagem individual
-1. Acesse a aba "Chat"
-2. Selecione ou busque o contato
-3. Digite a mensagem
-4. Envie
+        const { data, error } = await supabase
+          .from("transactions")
+          .insert({
+            description: args.descricao,
+            amount: args.valor,
+            tipo: args.tipo,
+            status: args.status || "PREVISTO",
+            due_date: args.vencimento || new Date().toISOString().split("T")[0],
+            category_id: categoryId,
+            entity_id: entityData?.id,
+            origin: "MANUAL",
+          })
+          .select("id")
+          .single();
 
-### Criar campanha de disparo
-1. Acesse "Disparos"
-2. Clique em "Nova Campanha"
-3. Nomeie a campanha
-4. Filtre os destinatários (por status, região, etc)
-5. Escreva a mensagem
-6. Adicione mídia se desejar
-7. Agende ou envie imediatamente
+        if (error) throw error;
 
-### Ativar agente IA (Lara)
-1. Acesse o módulo "Agente IA"
-2. Verifique se existe um agente configurado
-3. Ative o toggle "Ativo"
-4. Vincule a uma instância do WhatsApp
-5. A Lara começará a responder automaticamente
+        return JSON.stringify({
+          success: true,
+          message: `Transação criada: ${args.tipo === "RECEBER" ? "📈 Receita" : "📉 Despesa"} de R$ ${args.valor.toFixed(2)} - "${args.descricao}"`,
+          id: data.id.slice(0, 8),
+        });
+      }
 
----
+      case "resumo_financeiro": {
+        const now = new Date();
+        let startDate: string;
+        if (args.periodo === "semana") {
+          startDate = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
+        } else if (args.periodo === "trimestre") {
+          startDate = new Date(now.getTime() - 90 * 86400000).toISOString().split("T")[0];
+        } else {
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+        }
 
-## MÓDULO: CONTABILIDADE
+        const { data: transactions } = await supabase
+          .from("transactions")
+          .select("amount, tipo, status")
+          .gte("due_date", startDate)
+          .neq("status", "CANCELADO");
 
-### Criar nota fiscal
-1. Acesse "Documentos Fiscais"
-2. Clique em "Nova Nota"
-3. Selecione o tipo (NF-e, NFC-e, NFS-e)
-4. Escolha direção (Entrada ou Saída)
-5. Preencha dados do cliente/fornecedor
-6. Adicione os itens
-7. Revise impostos
-8. Emita
+        const receitas = (transactions || []).filter(t => t.tipo === "RECEBER").reduce((s, t) => s + Number(t.amount), 0);
+        const despesas = (transactions || []).filter(t => t.tipo === "PAGAR").reduce((s, t) => s + Number(t.amount), 0);
+        const receitasPagas = (transactions || []).filter(t => t.tipo === "RECEBER" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
+        const despesasPagas = (transactions || []).filter(t => t.tipo === "PAGAR" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
 
-### Importar nota de entrada
-1. Clique em "Nova Nota"
-2. Selecione direção "Entrada"
-3. Cole o XML ou preencha manualmente
-4. Vincule ao boleto/transação correspondente
-5. Salve
+        return JSON.stringify({
+          periodo: args.periodo || "mes",
+          receitas_previstas: `R$ ${receitas.toFixed(2)}`,
+          receitas_realizadas: `R$ ${receitasPagas.toFixed(2)}`,
+          despesas_previstas: `R$ ${despesas.toFixed(2)}`,
+          despesas_pagas: `R$ ${despesasPagas.toFixed(2)}`,
+          saldo_previsto: `R$ ${(receitas - despesas).toFixed(2)}`,
+          saldo_realizado: `R$ ${(receitasPagas - despesasPagas).toFixed(2)}`,
+          total_transacoes: transactions?.length || 0,
+        });
+      }
 
-### Ver pendências fiscais
-1. Acesse a aba "Pendências"
-2. Veja transações sem nota vinculada
-3. Veja notas com divergência de valor
-4. Resolva cada pendência individualmente
+      case "listar_contas_vencer": {
+        const dias = args.dias || 7;
+        const endDate = new Date(Date.now() + dias * 86400000).toISOString().split("T")[0];
+        const today = new Date().toISOString().split("T")[0];
 
----
+        let query = supabase
+          .from("transactions")
+          .select("id, description, amount, tipo, due_date, status")
+          .eq("status", "PREVISTO")
+          .gte("due_date", today)
+          .lte("due_date", endDate)
+          .order("due_date", { ascending: true })
+          .limit(20);
 
-## MÓDULO: CONFIGURAÇÕES
+        if (args.tipo) query = query.eq("tipo", args.tipo);
 
-### Criar novo usuário
-1. Acesse "Gestão de Usuários"
-2. Clique em "Novo Usuário"
-3. Preencha email
-4. Defina se é Admin (acesso total)
-5. Ou selecione módulos específicos
-6. Salve
+        const { data, error } = await query;
+        if (error) throw error;
 
-### Alterar permissões
-1. Na lista de usuários, clique no usuário
-2. Ative/desative o toggle Admin
-3. Ou selecione/deselecione módulos
-4. Salve
+        return JSON.stringify({
+          periodo: `Próximos ${dias} dias`,
+          total: data?.length || 0,
+          contas: (data || []).map(t => ({
+            id: t.id.slice(0, 8),
+            descricao: t.description,
+            valor: `R$ ${Number(t.amount).toFixed(2)}`,
+            tipo: t.tipo === "RECEBER" ? "A Receber" : "A Pagar",
+            vencimento: t.due_date,
+          })),
+        });
+      }
 
----
+      // --- CONTABILIDADE ---
+      case "listar_pendencias": {
+        let query = supabase
+          .from("contabilidade_alertas")
+          .select("id, titulo, descricao, tipo, prioridade, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(15);
 
-## DICAS GERAIS
+        if (args.status === "resolvido") {
+          query = query.eq("status", "resolvido");
+        } else if (args.status !== "todas") {
+          query = query.eq("status", "pendente");
+        }
 
-### Atalhos úteis
-- Use a busca no topo para encontrar clientes/pedidos
-- Clique no logo para voltar ao Dashboard
-- Use o menu mobile na parte inferior (celular)
+        if (args.tipo === "sem_nota") {
+          query = query.in("tipo", ["saida_sem_nota", "entrada_sem_nota"]);
+        } else if (args.tipo === "divergencia") {
+          query = query.eq("tipo", "divergencia_valor");
+        }
 
-### Filtros
-- Quase todas as listas têm filtros
-- Use período, status, categoria para refinar
-- Os filtros são salvos durante a sessão
+        const { data, error } = await query;
+        if (error) throw error;
 
-### Alertas
-- Vermelho: ação urgente necessária
-- Amarelo: atenção recomendada
-- Verde: tudo ok
+        return JSON.stringify({
+          total: data?.length || 0,
+          pendencias: (data || []).map(p => ({
+            id: p.id.slice(0, 8),
+            id_completo: p.id,
+            titulo: p.titulo,
+            tipo: p.tipo,
+            prioridade: p.prioridade,
+            status: p.status,
+            data: p.created_at?.split("T")[0],
+          })),
+        });
+      }
 
-### Mobile
-- O sistema é totalmente responsivo
-- Use o menu inferior no celular
-- Tabelas têm scroll horizontal quando necessário
+      case "listar_documentos_fiscais": {
+        const now = new Date();
+        let startDate: string;
+        if (args.periodo === "semana") {
+          startDate = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
+        } else if (args.periodo === "trimestre") {
+          startDate = new Date(now.getTime() - 90 * 86400000).toISOString().split("T")[0];
+        } else {
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+        }
+
+        let query = supabase
+          .from("documentos_fiscais")
+          .select("id, numero, tipo, direcao, valor_total, status, data_emissao, destinatario_nome")
+          .gte("data_emissao", startDate)
+          .order("data_emissao", { ascending: false })
+          .limit(args.limite || 10);
+
+        if (args.tipo) query = query.eq("tipo", args.tipo);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        return JSON.stringify({
+          total: data?.length || 0,
+          documentos: (data || []).map(d => ({
+            numero: d.numero,
+            tipo: d.tipo,
+            direcao: d.direcao,
+            valor: `R$ ${Number(d.valor_total).toFixed(2)}`,
+            status: d.status,
+            data: d.data_emissao,
+            destinatario: d.destinatario_nome,
+          })),
+        });
+      }
+
+      case "resolver_pendencia": {
+        const { error } = await supabase
+          .from("contabilidade_alertas")
+          .update({
+            status: "resolvido",
+            resolvido_em: new Date().toISOString(),
+            resolucao_notas: args.notas || "Resolvido via assistente IA",
+          })
+          .eq("id", args.pendencia_id);
+
+        if (error) throw error;
+
+        return JSON.stringify({
+          success: true,
+          message: `Pendência resolvida com sucesso.`,
+        });
+      }
+
+      default:
+        return JSON.stringify({ error: true, message: `Ação "${toolName}" não reconhecida.` });
+    }
+  } catch (err: any) {
+    console.error(`[tool:${toolName}] Error:`, err);
+    return JSON.stringify({ error: true, message: `Erro ao executar "${toolName}": ${err.message}` });
+  }
+}
+
+// --- SYSTEM PROMPT ---
+
+const SYSTEM_KNOWLEDGE_COMPACT = `
+Você é o Assistente IA do Sistema Taubaté Chopp. Você pode EXECUTAR AÇÕES no sistema, não apenas conversar.
+
+## CAPACIDADES POR MÓDULO
+
+### Pedidos
+- Criar pedidos (precisa do nome do cliente e produtos)
+- Alterar status de pedidos (pendente → em_separacao → em_rota → entregue / cancelado)
+- Listar pedidos com filtros (hoje, semana, mês, por status, por cliente)
+
+### CRM
+- Criar leads/oportunidades
+- Mover leads entre etapas do funil
+- Listar leads com filtros
+
+### Financeiro
+- Lançar receitas e despesas
+- Ver resumo financeiro (receitas, despesas, saldo)
+- Listar contas a vencer
+
+### Contabilidade
+- Listar pendências fiscais
+- Listar documentos fiscais emitidos
+- Resolver pendências
+
+## REGRAS
+1. SEMPRE use as ferramentas quando o usuário pedir uma ação - não diga "vá ao menu X", FAÇA a ação.
+2. Se faltar informação para executar, pergunte ao usuário.
+3. Após executar, confirme com detalhes do que foi feito.
+4. Para consultas, apresente os dados de forma clara e organizada.
+5. Seja direto e prático. Use **negrito** para destaques.
+6. Se o módulo atual não tem a ferramenta necessária, explique que a ação pertence a outro módulo.
 `;
 
 serve(async (req) => {
@@ -312,102 +705,43 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-
+    const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     const { message, module_name, module_context, conversation_history = [] } = await req.json();
 
     console.log(`[system-assistant] Module: ${module_name}, Message: ${message?.substring(0, 100)}`);
 
-    // Fetch real-time system stats for context
-    let systemStats = "";
-    try {
-      const { count: pedidosCount } = await supabase
-        .from("pedidos")
-        .select("*", { count: "exact", head: true })
-        .gte("data_pedido", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+    const tools = getToolsForModule(module_name);
 
-      const { count: clientesCount } = await supabase
-        .from("clientes")
-        .select("*", { count: "exact", head: true });
+    const systemPrompt = `${SYSTEM_KNOWLEDGE_COMPACT}
 
-      const { count: produtosCount } = await supabase
-        .from("produtos")
-        .select("*", { count: "exact", head: true })
-        .eq("ativo", true);
-
-      const { count: barrisCount } = await supabase
-        .from("barris")
-        .select("*", { count: "exact", head: true });
-
-      systemStats = `
---- ESTATÍSTICAS ATUAIS DO SISTEMA ---
-- Pedidos nos últimos 30 dias: ${pedidosCount || 0}
-- Total de clientes: ${clientesCount || 0}
-- Produtos ativos: ${produtosCount || 0}
-- Barris cadastrados: ${barrisCount || 0}
-`;
-    } catch (e) {
-      console.error("[system-assistant] Error fetching stats:", e);
-    }
-
-    const systemPrompt = `Você é o Assistente do Sistema Taubaté Chopp, um especialista amigável que ajuda os usuários a navegar e usar todas as funcionalidades do sistema.
-
-## SEU PAPEL
-Você está no módulo "${module_name}" e deve ajudar o usuário com:
-1. DÚVIDAS SOBRE O SISTEMA: Como usar funcionalidades, onde encontrar opções, como realizar tarefas
-2. DÚVIDAS SOBRE O NEGÓCIO: Informações sobre produtos, processos da empresa
-3. TROUBLESHOOTING: Ajudar a resolver problemas ou erros
-
-## CONTEXTO DO MÓDULO ATUAL
+## CONTEXTO ATUAL
+Módulo: ${module_name}
 ${module_context}
 
-## CONHECIMENTO COMPLETO DO SISTEMA
-${SYSTEM_KNOWLEDGE}
+${tools.length > 0
+  ? `Você tem ${tools.length} ferramentas disponíveis neste módulo. USE-AS quando o usuário pedir ações.`
+  : `Este módulo não tem ferramentas de ação. Ajude o usuário com informações e orientações.`
+}`;
 
-${systemStats}
-
-## REGRAS DE RESPOSTA
-
-1. **Seja direto e prático** - Dê instruções passo a passo quando apropriado
-2. **Use formatação** - Use **negrito** para destacar botões e ações, \`código\` para campos
-3. **Seja amigável** - Use tom conversacional mas profissional
-4. **Contextualize** - Considere que o usuário está no módulo ${module_name}
-5. **Seja conciso** - Respostas de 2-4 parágrafos no máximo
-6. **Ofereça ajuda adicional** - Pergunte se precisa de mais detalhes
-
-## EXEMPLOS DE RESPOSTAS
-
-Pergunta: "Como faço um pedido?"
-Resposta: "Para criar um novo pedido, siga estes passos:
-
-1. Clique no botão **Novo Pedido** no canto superior direito
-2. Busque e selecione o cliente
-3. Adicione os produtos desejados ao carrinho
-4. Defina a **data de entrega** e **forma de pagamento**
-5. Clique em **Confirmar Pedido**
-
-Quer que eu explique alguma etapa com mais detalhes?"
-
-Pergunta: "O que significa status pendente?"
-Resposta: "O status **Pendente** indica que o pedido foi criado mas ainda não começou a ser processado. 
-
-O fluxo completo é: **Pendente** → **Em Separação** → **Em Rota** → **Entregue**
-
-Você pode alterar o status clicando no pedido e usando os botões no topo da tela."`;
-
-    // Build messages for Lovable AI
-    const messages = [
+    const messages: any[] = [
       { role: "system", content: systemPrompt },
-      ...conversation_history.map((m: any) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      ...conversation_history.map((m: any) => ({ role: m.role, content: m.content })),
       { role: "user", content: message },
     ];
+
+    // First API call - may include tool calls
+    const apiBody: any = {
+      model: "google/gemini-2.5-flash",
+      messages,
+      temperature: 0.4,
+      max_tokens: 1500,
+    };
+    if (tools.length > 0) {
+      apiBody.tools = tools;
+      apiBody.tool_choice = "auto";
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -415,38 +749,79 @@ Você pode alterar o status clicando no pedido e usando os botões no topo da te
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
+      body: JSON.stringify(apiBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[system-assistant] Lovable AI error:", errorText);
-      
-      if (response.status === 429) {
-        throw new Error("Rate limit exceeded. Please try again later.");
-      }
-      if (response.status === 402) {
-        throw new Error("AI credits exhausted. Please add funds.");
-      }
-      throw new Error(`Lovable AI API error: ${response.status}`);
+      console.error("[system-assistant] API error:", errorText);
+      if (response.status === 429) throw new Error("Limite de requisições atingido. Tente novamente em alguns segundos.");
+      if (response.status === 402) throw new Error("Créditos de IA esgotados.");
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const data = await response.json();
-    const assistantResponse = data.choices?.[0]?.message?.content || "Desculpe, não consegui processar sua pergunta.";
+    let data = await response.json();
+    let assistantMessage = data.choices?.[0]?.message;
 
-    console.log(`[system-assistant] Response generated successfully`);
+    // Handle tool calls - execute and get final response
+    if (assistantMessage?.tool_calls?.length > 0) {
+      console.log(`[system-assistant] Tool calls: ${assistantMessage.tool_calls.map((t: any) => t.function.name).join(", ")}`);
 
+      // Add assistant message with tool calls
+      messages.push(assistantMessage);
+
+      // Execute each tool call
+      const actionResults: any[] = [];
+      for (const toolCall of assistantMessage.tool_calls) {
+        const args = JSON.parse(toolCall.function.arguments);
+        console.log(`[system-assistant] Executing: ${toolCall.function.name}`, args);
+        const result = await executeTool(supabaseAdmin, toolCall.function.name, args);
+        
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: result,
+        });
+
+        actionResults.push({ tool: toolCall.function.name, result: JSON.parse(result) });
+      }
+
+      // Second API call to get natural language response
+      const followUp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages,
+          temperature: 0.4,
+          max_tokens: 1000,
+        }),
+      });
+
+      if (!followUp.ok) throw new Error(`Follow-up API error: ${followUp.status}`);
+
+      const followUpData = await followUp.json();
+      const finalContent = followUpData.choices?.[0]?.message?.content || "Ação executada com sucesso.";
+
+      return new Response(
+        JSON.stringify({
+          response: finalContent,
+          actions_executed: actionResults,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // No tool calls - regular response
     return new Response(
-      JSON.stringify({ response: assistantResponse }),
+      JSON.stringify({ response: assistantMessage?.content || "Desculpe, não consegui processar." }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     console.error("[system-assistant] Error:", errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
