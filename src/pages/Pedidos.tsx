@@ -48,6 +48,7 @@ interface PedidoItemWithProduto {
 }
 
 const tabs = [
+  { id: 'semana', label: 'Semana', icon: CalendarDays },
   { id: 'pdv', label: 'PDV', icon: Monitor },
   { id: 'lista', label: 'Lista de Pedidos', icon: List },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
