@@ -154,6 +154,15 @@ export default function Pedidos() {
         {/* KPIs */}
         <PedidosKPIs pedidos={pedidos} />
 
+        {activeTab === 'semana' && (
+          <SemanaPanel
+            pedidos={pedidos}
+            clientesMap={clientesMap}
+            onViewDetails={handleViewDetails}
+            onRefetch={refetch}
+          />
+        )}
+
         {activeTab === 'pdv' && <PDVPanel />}
 
         {activeTab === 'lista' && (
