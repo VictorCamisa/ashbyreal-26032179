@@ -349,7 +349,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: pedidos?.length || 0,
-          pedidos: (pedidos || []).map(p => ({
+          pedidos: (pedidos || []).map((p: any) => ({
             id: p.id.slice(0, 8),
             cliente: p.nome_cliente,
             valor: `R$ ${Number(p.valor_total).toFixed(2)}`,
