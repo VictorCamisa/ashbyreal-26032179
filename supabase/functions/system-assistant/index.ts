@@ -440,7 +440,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: data?.length || 0,
-          leads: (data || []).map(l => ({
+          leads: (data || []).map((l: any) => ({
             id: l.id.slice(0, 8),
             nome: l.nome,
             telefone: l.telefone,
