@@ -349,7 +349,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: pedidos?.length || 0,
-          pedidos: (pedidos || []).map(p => ({
+          pedidos: (pedidos || []).map((p: any) => ({
             id: p.id.slice(0, 8),
             cliente: p.nome_cliente,
             valor: `R$ ${Number(p.valor_total).toFixed(2)}`,
@@ -440,7 +440,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: data?.length || 0,
-          leads: (data || []).map(l => ({
+          leads: (data || []).map((l: any) => ({
             id: l.id.slice(0, 8),
             nome: l.nome,
             telefone: l.telefone,
@@ -509,10 +509,10 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .gte("due_date", startDate)
           .neq("status", "CANCELADO");
 
-        const receitas = (transactions || []).filter(t => t.tipo === "RECEBER").reduce((s, t) => s + Number(t.amount), 0);
-        const despesas = (transactions || []).filter(t => t.tipo === "PAGAR").reduce((s, t) => s + Number(t.amount), 0);
-        const receitasPagas = (transactions || []).filter(t => t.tipo === "RECEBER" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
-        const despesasPagas = (transactions || []).filter(t => t.tipo === "PAGAR" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
+        const receitas = (transactions || []).filter((t: any) => t.tipo === "RECEBER").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const despesas = (transactions || []).filter((t: any) => t.tipo === "PAGAR").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const receitasPagas = (transactions || []).filter((t: any) => t.tipo === "RECEBER" && t.status === "PAGO").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const despesasPagas = (transactions || []).filter((t: any) => t.tipo === "PAGAR" && t.status === "PAGO").reduce((s: number, t: any) => s + Number(t.amount), 0);
 
         return JSON.stringify({
           periodo: args.periodo || "mes",
@@ -548,7 +548,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
         return JSON.stringify({
           periodo: `Próximos ${dias} dias`,
           total: data?.length || 0,
-          contas: (data || []).map(t => ({
+          contas: (data || []).map((t: any) => ({
             id: t.id.slice(0, 8),
             descricao: t.description,
             valor: `R$ ${Number(t.amount).toFixed(2)}`,
@@ -583,7 +583,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: data?.length || 0,
-          pendencias: (data || []).map(p => ({
+          pendencias: (data || []).map((p: any) => ({
             id: p.id.slice(0, 8),
             id_completo: p.id,
             titulo: p.titulo,
@@ -620,7 +620,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: data?.length || 0,
-          documentos: (data || []).map(d => ({
+          documentos: (data || []).map((d: any) => ({
             numero: d.numero,
             tipo: d.tipo,
             direcao: d.direcao,

@@ -221,7 +221,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       
       bankTransactions.forEach((t) => {
         // Compute overdue/due-soon status locally instead of writing to DB
-        let displayStatus = t.status;
+        let displayStatus: string = t.status;
         if (t.status === 'PREVISTO') {
           const dueDate = new Date(t.due_date);
           dueDate.setHours(0, 0, 0, 0);
