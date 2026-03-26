@@ -620,7 +620,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           total: data?.length || 0,
-          documentos: (data || []).map(d => ({
+          documentos: (data || []).map((d: any) => ({
             numero: d.numero,
             tipo: d.tipo,
             direcao: d.direcao,
