@@ -509,10 +509,10 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .gte("due_date", startDate)
           .neq("status", "CANCELADO");
 
-        const receitas = (transactions || []).filter(t => t.tipo === "RECEBER").reduce((s, t) => s + Number(t.amount), 0);
-        const despesas = (transactions || []).filter(t => t.tipo === "PAGAR").reduce((s, t) => s + Number(t.amount), 0);
-        const receitasPagas = (transactions || []).filter(t => t.tipo === "RECEBER" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
-        const despesasPagas = (transactions || []).filter(t => t.tipo === "PAGAR" && t.status === "PAGO").reduce((s, t) => s + Number(t.amount), 0);
+        const receitas = (transactions || []).filter((t: any) => t.tipo === "RECEBER").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const despesas = (transactions || []).filter((t: any) => t.tipo === "PAGAR").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const receitasPagas = (transactions || []).filter((t: any) => t.tipo === "RECEBER" && t.status === "PAGO").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const despesasPagas = (transactions || []).filter((t: any) => t.tipo === "PAGAR" && t.status === "PAGO").reduce((s: number, t: any) => s + Number(t.amount), 0);
 
         return JSON.stringify({
           periodo: args.periodo || "mes",
