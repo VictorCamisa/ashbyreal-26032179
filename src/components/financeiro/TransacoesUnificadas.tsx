@@ -647,7 +647,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
       const matchesEntity = entityFilter === 'todos' || t.entities?.type === entityFilter;
       // Status filter with special 'pendentes' option
       const matchesStatus = statusFilter === 'todos' || 
-        (statusFilter === 'pendentes' && (t.status === 'PREVISTO' || t.status === 'ATRASADO')) ||
+        (statusFilter === 'pendentes' && (t.status === 'PREVISTO' || t.status === 'ATRASADO' || t.status === 'VENCENDO')) ||
         t.status === statusFilter;
       
       // Tag filter
