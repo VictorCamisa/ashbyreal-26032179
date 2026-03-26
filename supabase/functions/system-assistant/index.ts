@@ -548,7 +548,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
         return JSON.stringify({
           periodo: `Próximos ${dias} dias`,
           total: data?.length || 0,
-          contas: (data || []).map(t => ({
+          contas: (data || []).map((t: any) => ({
             id: t.id.slice(0, 8),
             descricao: t.description,
             valor: `R$ ${Number(t.amount).toFixed(2)}`,
