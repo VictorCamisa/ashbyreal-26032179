@@ -247,18 +247,33 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
         // Find products
         const itens = [];
         for (const p of args.produtos) {
-          const { data: produtos } = await supabase
+          // Try exact-ish match first, then individual words
+          let { data: produtos } = await supabase
             .from("produtos")
-            .select("id, nome, preco_venda")
+            .select("id, nome, preco")
             .ilike("nome", `%${p.nome_produto}%`)
             .eq("ativo", true)
             .limit(1);
+
+          if (!produtos?.length) {
+            // Try matching first significant word
+            const words = p.nome_produto.split(/\s+/).filter((w: string) => w.length > 2);
+            for (const word of words) {
+              const { data: fallback } = await supabase
+                .from("produtos")
+                .select("id, nome, preco")
+                .ilike("nome", `%${word}%`)
+                .eq("ativo", true)
+                .limit(1);
+              if (fallback?.length) { produtos = fallback; break; }
+            }
+          }
 
           if (!produtos?.length) return JSON.stringify({ error: true, message: `Produto "${p.nome_produto}" não encontrado.` });
           itens.push({ produto: produtos[0], quantidade: p.quantidade });
         }
 
-        const valorTotal = itens.reduce((s, i) => s + (i.produto.preco_venda * i.quantidade), 0);
+        const valorTotal = itens.reduce((s, i) => s + (i.produto.preco * i.quantidade), 0);
         const dataEntrega = args.data_entrega || new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
         // Create order
@@ -266,7 +281,6 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .from("pedidos")
           .insert({
             cliente_id: cliente.id,
-            nome_cliente: cliente.nome,
             valor_total: valorTotal,
             status: "pendente",
             data_pedido: new Date().toISOString(),
@@ -276,18 +290,23 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .select("id")
           .single();
 
-        if (pedidoErr) throw pedidoErr;
+        if (pedidoErr) {
+          console.error("[criar_pedido] Insert error:", JSON.stringify(pedidoErr));
+          throw pedidoErr;
+        }
 
         // Create items
         for (const item of itens) {
-          await supabase.from("pedido_itens").insert({
+          const { error: itemErr } = await supabase.from("pedido_itens").insert({
             pedido_id: pedido.id,
             produto_id: item.produto.id,
-            nome_produto: item.produto.nome,
             quantidade: item.quantidade,
-            preco_unitario: item.produto.preco_venda,
-            subtotal: item.produto.preco_venda * item.quantidade,
+            preco_unitario: item.produto.preco,
+            subtotal: item.produto.preco * item.quantidade,
           });
+          if (itemErr) {
+            console.error("[criar_pedido] Item insert error:", JSON.stringify(itemErr));
+          }
         }
 
         return JSON.stringify({
@@ -304,7 +323,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
       case "alterar_status_pedido": {
         const { data: pedidos } = await supabase
           .from("pedidos")
-          .select("id, nome_cliente, status")
+          .select("id, cliente_id, status, clientes(nome)")
           .or(`id.ilike.%${args.pedido_identificador}%`)
           .limit(1);
 
@@ -317,21 +336,21 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         if (error) throw error;
 
+        const clienteNome = (pedidos[0] as any).clientes?.nome || "Cliente";
         return JSON.stringify({
           success: true,
-          message: `Status do pedido #${pedidos[0].id.slice(0, 8)} (${pedidos[0].nome_cliente}) alterado de "${pedidos[0].status}" para "${args.novo_status}".`,
+          message: `Status do pedido #${pedidos[0].id.slice(0, 8)} (${clienteNome}) alterado de "${pedidos[0].status}" para "${args.novo_status}".`,
         });
       }
 
       case "listar_pedidos": {
         let query = supabase
           .from("pedidos")
-          .select("id, nome_cliente, valor_total, status, data_pedido, data_entrega")
+          .select("id, cliente_id, valor_total, status, data_pedido, data_entrega, clientes(nome)")
           .order("data_pedido", { ascending: false })
           .limit(args.limite || 10);
 
         if (args.status) query = query.eq("status", args.status);
-        if (args.cliente_nome) query = query.ilike("nome_cliente", `%${args.cliente_nome}%`);
 
         const now = new Date();
         if (args.periodo === "hoje" || !args.periodo) {
@@ -344,6 +363,19 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           query = query.gte("data_pedido", monthAgo.toISOString());
         }
 
+        if (args.cliente_nome) {
+          // Filter by client name via a subquery
+          const { data: matchClientes } = await supabase
+            .from("clientes")
+            .select("id")
+            .ilike("nome", `%${args.cliente_nome}%`);
+          if (matchClientes?.length) {
+            query = query.in("cliente_id", matchClientes.map((c: any) => c.id));
+          } else {
+            return JSON.stringify({ total: 0, pedidos: [] });
+          }
+        }
+
         const { data: pedidos, error } = await query;
         if (error) throw error;
 
@@ -351,7 +383,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           total: pedidos?.length || 0,
           pedidos: (pedidos || []).map((p: any) => ({
             id: p.id.slice(0, 8),
-            cliente: p.nome_cliente,
+            cliente: p.clientes?.nome || "—",
             valor: `R$ ${Number(p.valor_total).toFixed(2)}`,
             status: p.status,
             data: p.data_pedido?.split("T")[0],
@@ -608,7 +640,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         let query = supabase
           .from("documentos_fiscais")
-          .select("id, numero, tipo, direcao, valor_total, status, data_emissao, destinatario_nome")
+          .select("id, numero, tipo, direcao, valor_total, status, data_emissao, razao_social")
           .gte("data_emissao", startDate)
           .order("data_emissao", { ascending: false })
           .limit(args.limite || 10);
@@ -627,7 +659,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
             valor: `R$ ${Number(d.valor_total).toFixed(2)}`,
             status: d.status,
             data: d.data_emissao,
-            destinatario: d.destinatario_nome,
+            destinatario: d.razao_social,
           })),
         });
       }
@@ -688,11 +720,13 @@ Você é o Assistente IA do Sistema Taubaté Chopp. Você pode EXECUTAR AÇÕES 
 
 ## REGRAS
 1. SEMPRE use as ferramentas quando o usuário pedir uma ação - não diga "vá ao menu X", FAÇA a ação.
-2. Se faltar informação para executar, pergunte ao usuário.
-3. Após executar, confirme com detalhes do que foi feito.
-4. Para consultas, apresente os dados de forma clara e organizada.
-5. Seja direto e prático. Use **negrito** para destaques.
-6. Se o módulo atual não tem a ferramenta necessária, explique que a ação pertence a outro módulo.
+2. NÃO peça confirmação ou mais dados se já tem o suficiente para executar. Se falta a data de entrega, use amanhã. Se falta status, use "pendente".
+3. EXECUTE PRIMEIRO, depois informe o resultado. Seja proativo.
+4. Após executar, confirme com detalhes do que foi feito.
+5. Para consultas, apresente os dados de forma clara e organizada.
+6. Seja direto e prático. Use **negrito** para destaques.
+7. Se o módulo atual não tem a ferramenta necessária, explique que a ação pertence a outro módulo.
+8. NUNCA pergunte "para qual data?" - use amanhã como padrão se não informado.
 `;
 
 serve(async (req) => {
