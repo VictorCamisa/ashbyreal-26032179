@@ -286,8 +286,8 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
             pedido_id: pedido.id,
             produto_id: item.produto.id,
             quantidade: item.quantidade,
-            preco_unitario: item.produto.preco_venda,
-            subtotal: item.produto.preco_venda * item.quantidade,
+            preco_unitario: item.produto.preco,
+            subtotal: item.produto.preco * item.quantidade,
           });
           if (itemErr) {
             console.error("[criar_pedido] Item insert error:", JSON.stringify(itemErr));
