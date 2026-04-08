@@ -331,12 +331,11 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
       case "listar_pedidos": {
         let query = supabase
           .from("pedidos")
-          .select("id, nome_cliente, valor_total, status, data_pedido, data_entrega")
+          .select("id, cliente_id, valor_total, status, data_pedido, data_entrega, clientes(nome)")
           .order("data_pedido", { ascending: false })
           .limit(args.limite || 10);
 
         if (args.status) query = query.eq("status", args.status);
-        if (args.cliente_nome) query = query.ilike("nome_cliente", `%${args.cliente_nome}%`);
 
         const now = new Date();
         if (args.periodo === "hoje" || !args.periodo) {
@@ -349,6 +348,19 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           query = query.gte("data_pedido", monthAgo.toISOString());
         }
 
+        if (args.cliente_nome) {
+          // Filter by client name via a subquery
+          const { data: matchClientes } = await supabase
+            .from("clientes")
+            .select("id")
+            .ilike("nome", `%${args.cliente_nome}%`);
+          if (matchClientes?.length) {
+            query = query.in("cliente_id", matchClientes.map((c: any) => c.id));
+          } else {
+            return JSON.stringify({ total: 0, pedidos: [] });
+          }
+        }
+
         const { data: pedidos, error } = await query;
         if (error) throw error;
 
@@ -356,7 +368,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           total: pedidos?.length || 0,
           pedidos: (pedidos || []).map((p: any) => ({
             id: p.id.slice(0, 8),
-            cliente: p.nome_cliente,
+            cliente: p.clientes?.nome || "—",
             valor: `R$ ${Number(p.valor_total).toFixed(2)}`,
             status: p.status,
             data: p.data_pedido?.split("T")[0],
