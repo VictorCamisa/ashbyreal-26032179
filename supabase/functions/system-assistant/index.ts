@@ -266,7 +266,6 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .from("pedidos")
           .insert({
             cliente_id: cliente.id,
-            nome_cliente: cliente.nome,
             valor_total: valorTotal,
             status: "pendente",
             data_pedido: new Date().toISOString(),
@@ -276,18 +275,23 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           .select("id")
           .single();
 
-        if (pedidoErr) throw pedidoErr;
+        if (pedidoErr) {
+          console.error("[criar_pedido] Insert error:", JSON.stringify(pedidoErr));
+          throw pedidoErr;
+        }
 
         // Create items
         for (const item of itens) {
-          await supabase.from("pedido_itens").insert({
+          const { error: itemErr } = await supabase.from("pedido_itens").insert({
             pedido_id: pedido.id,
             produto_id: item.produto.id,
-            nome_produto: item.produto.nome,
             quantidade: item.quantidade,
             preco_unitario: item.produto.preco_venda,
             subtotal: item.produto.preco_venda * item.quantidade,
           });
+          if (itemErr) {
+            console.error("[criar_pedido] Item insert error:", JSON.stringify(itemErr));
+          }
         }
 
         return JSON.stringify({
@@ -608,7 +612,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         let query = supabase
           .from("documentos_fiscais")
-          .select("id, numero, tipo, direcao, valor_total, status, data_emissao, destinatario_nome")
+          .select("id, numero, tipo, direcao, valor_total, status, data_emissao, razao_social")
           .gte("data_emissao", startDate)
           .order("data_emissao", { ascending: false })
           .limit(args.limite || 10);
@@ -627,7 +631,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
             valor: `R$ ${Number(d.valor_total).toFixed(2)}`,
             status: d.status,
             data: d.data_emissao,
-            destinatario: d.destinatario_nome,
+            destinatario: d.razao_social,
           })),
         });
       }
