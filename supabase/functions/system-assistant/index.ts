@@ -308,7 +308,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
       case "alterar_status_pedido": {
         const { data: pedidos } = await supabase
           .from("pedidos")
-          .select("id, nome_cliente, status")
+          .select("id, cliente_id, status, clientes(nome)")
           .or(`id.ilike.%${args.pedido_identificador}%`)
           .limit(1);
 
@@ -321,9 +321,10 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         if (error) throw error;
 
+        const clienteNome = (pedidos[0] as any).clientes?.nome || "Cliente";
         return JSON.stringify({
           success: true,
-          message: `Status do pedido #${pedidos[0].id.slice(0, 8)} (${pedidos[0].nome_cliente}) alterado de "${pedidos[0].status}" para "${args.novo_status}".`,
+          message: `Status do pedido #${pedidos[0].id.slice(0, 8)} (${clienteNome}) alterado de "${pedidos[0].status}" para "${args.novo_status}".`,
         });
       }
 
