@@ -249,7 +249,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
         for (const p of args.produtos) {
           const { data: produtos } = await supabase
             .from("produtos")
-            .select("id, nome, preco_venda")
+            .select("id, nome, preco")
             .ilike("nome", `%${p.nome_produto}%`)
             .eq("ativo", true)
             .limit(1);
@@ -258,7 +258,7 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
           itens.push({ produto: produtos[0], quantidade: p.quantidade });
         }
 
-        const valorTotal = itens.reduce((s, i) => s + (i.produto.preco_venda * i.quantidade), 0);
+        const valorTotal = itens.reduce((s, i) => s + (i.produto.preco * i.quantidade), 0);
         const dataEntrega = args.data_entrega || new Date(Date.now() + 86400000).toISOString().split("T")[0];
 
         // Create order
