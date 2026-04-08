@@ -247,12 +247,27 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
         // Find products
         const itens = [];
         for (const p of args.produtos) {
-          const { data: produtos } = await supabase
+          // Try exact-ish match first, then individual words
+          let { data: produtos } = await supabase
             .from("produtos")
             .select("id, nome, preco")
             .ilike("nome", `%${p.nome_produto}%`)
             .eq("ativo", true)
             .limit(1);
+
+          if (!produtos?.length) {
+            // Try matching first significant word
+            const words = p.nome_produto.split(/\s+/).filter((w: string) => w.length > 2);
+            for (const word of words) {
+              const { data: fallback } = await supabase
+                .from("produtos")
+                .select("id, nome, preco")
+                .ilike("nome", `%${word}%`)
+                .eq("ativo", true)
+                .limit(1);
+              if (fallback?.length) { produtos = fallback; break; }
+            }
+          }
 
           if (!produtos?.length) return JSON.stringify({ error: true, message: `Produto "${p.nome_produto}" não encontrado.` });
           itens.push({ produto: produtos[0], quantidade: p.quantidade });
