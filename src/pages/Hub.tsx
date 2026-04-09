@@ -27,6 +27,7 @@ import {
   Boxes,
   Bot,
 } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -600,7 +601,22 @@ export default function Hub() {
         <div>
           <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Acesso Rápido</h3>
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            {filteredModules.map((item) => (
+            {/* Atalhos fixos: Clientes e Leads */}
+            <NavLink
+              to="/clientes"
+              className="group flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border/30 hover:border-primary/20 hover:bg-primary/5 transition-all text-center"
+            >
+              <Users className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="text-[10px] font-medium">Clientes</span>
+            </NavLink>
+            <NavLink
+              to="/crm"
+              className="group flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border/30 hover:border-primary/20 hover:bg-primary/5 transition-all text-center"
+            >
+              <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="text-[10px] font-medium">Leads</span>
+            </NavLink>
+            {filteredModules.filter(item => item.key !== 'clientes' && item.key !== 'crm').map((item) => (
               <NavLink
                 key={item.key}
                 to={item.href}
