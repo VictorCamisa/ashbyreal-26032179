@@ -616,7 +616,7 @@ export default function Hub() {
               <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
               <span className="text-[10px] font-medium">Leads</span>
             </NavLink>
-            {filteredModules.map((item) => (
+            {filteredModules.filter(item => item.key !== 'clientes' && item.key !== 'crm').map((item) => (
               <NavLink
                 key={item.key}
                 to={item.href}
