@@ -610,7 +610,7 @@ export default function Hub() {
               <span className="text-[10px] font-medium">Clientes</span>
             </NavLink>
             <NavLink
-              to="/crm"
+              to="/clientes?tab=leads"
               className="group flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border/30 hover:border-primary/20 hover:bg-primary/5 transition-all text-center"
             >
               <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
