@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -35,16 +35,27 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExtrairLeads, setShowExtrairLeads] = useState(false);
   const [mainTab, setMainTab] = useState<'clientes' | 'lojistas'>('clientes');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'lead' | 'inativo'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
+
+  // Handle ?tab=leads query param
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'leads') {
+      setStatusFilter('lead');
+    }
+  }, [searchParams]);
 
   const filteredClientes = useMemo(() => 
     clientes.filter(cliente =>
-      cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.telefone.includes(searchTerm)
-    ), [clientes, searchTerm]
+      (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       cliente.telefone.includes(searchTerm)) &&
+      (statusFilter === 'todos' || cliente.status === statusFilter)
+    ), [clientes, searchTerm, statusFilter]
   );
 
   // Reset to page 1 when search changes
@@ -116,7 +127,8 @@ export default function Clientes() {
             </KPIGrid>
 
             {/* Search */}
-            <div className="relative">
+            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nome, e-mail ou telefone..."
@@ -124,6 +136,23 @@ export default function Clientes() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-11 h-11 rounded-xl"
               />
+            </div>
+            <div className="flex gap-1.5">
+              {(['todos', 'ativo', 'lead', 'inativo'] as const).map((s) => {
+                const labels: Record<string, string> = { todos: 'Todos', ativo: 'Ativos', lead: 'Leads', inativo: 'Inativos' };
+                return (
+                  <Button
+                    key={s}
+                    variant={statusFilter === s ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-11 rounded-xl text-xs"
+                    onClick={() => setStatusFilter(s)}
+                  >
+                    {labels[s]}
+                  </Button>
+                );
+              })}
+            </div>
             </div>
 
             {/* Table */}
