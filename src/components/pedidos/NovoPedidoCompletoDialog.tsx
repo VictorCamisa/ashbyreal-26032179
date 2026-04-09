@@ -110,6 +110,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [isVendaLojista, setIsVendaLojista] = useState(false);
   const [selectedLojistaId, setSelectedLojistaId] = useState<string | null>(null);
   const [lojistaSheetOpen, setLojistaSheetOpen] = useState(false);
+  const [linkingLojista, setLinkingLojista] = useState(false);
   const { lojistas } = useLojistas();
   
   // Barris state
@@ -138,6 +139,51 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const selectedLojista = useMemo(() => {
     return lojistas.find(l => l.id === selectedLojistaId);
   }, [lojistas, selectedLojistaId]);
+
+  // Auto-link lojista to a client record when selected
+  const handleSelectLojista = async (lojistaId: string) => {
+    setSelectedLojistaId(lojistaId);
+    const lojista = lojistas.find(l => l.id === lojistaId);
+    if (!lojista) return;
+
+    setLinkingLojista(true);
+    try {
+      // Try to find existing client by phone or name
+      const { data: existing } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, cpf_cnpj')
+        .or(`telefone.eq.${lojista.telefone},nome.ilike.%${lojista.nome}%`)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        setSelectedCliente(existing[0]);
+      } else {
+        // Auto-create client from lojista data
+        const { data: novo } = await supabase
+          .from('clientes')
+          .insert({
+            nome: lojista.nome_fantasia || lojista.nome,
+            telefone: lojista.telefone,
+            email: lojista.email || `${lojista.nome.toLowerCase().replace(/\s+/g, '.')}@lojista.local`,
+            cpf_cnpj: lojista.cnpj,
+            origem: 'lojista',
+            status: 'ativo',
+            empresa: lojista.nome,
+          })
+          .select('id, nome, telefone, cpf_cnpj')
+          .single();
+
+        if (novo) {
+          setSelectedCliente(novo);
+          setClientes(prev => [...prev, novo]);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao vincular lojista:', err);
+    } finally {
+      setLinkingLojista(false);
+    }
+  };
 
   const stepLabels: Record<Step, string> = {
     cliente: 'Cliente',
