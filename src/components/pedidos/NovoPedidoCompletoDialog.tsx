@@ -110,6 +110,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const [isVendaLojista, setIsVendaLojista] = useState(false);
   const [selectedLojistaId, setSelectedLojistaId] = useState<string | null>(null);
   const [lojistaSheetOpen, setLojistaSheetOpen] = useState(false);
+  const [linkingLojista, setLinkingLojista] = useState(false);
   const { lojistas } = useLojistas();
   
   // Barris state
@@ -138,6 +139,51 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const selectedLojista = useMemo(() => {
     return lojistas.find(l => l.id === selectedLojistaId);
   }, [lojistas, selectedLojistaId]);
+
+  // Auto-link lojista to a client record when selected
+  const handleSelectLojista = async (lojistaId: string) => {
+    setSelectedLojistaId(lojistaId);
+    const lojista = lojistas.find(l => l.id === lojistaId);
+    if (!lojista) return;
+
+    setLinkingLojista(true);
+    try {
+      // Try to find existing client by phone or name
+      const { data: existing } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, cpf_cnpj')
+        .or(`telefone.eq.${lojista.telefone},nome.ilike.%${lojista.nome}%`)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        setSelectedCliente(existing[0]);
+      } else {
+        // Auto-create client from lojista data
+        const { data: novo } = await supabase
+          .from('clientes')
+          .insert({
+            nome: lojista.nome_fantasia || lojista.nome,
+            telefone: lojista.telefone,
+            email: lojista.email || `${lojista.nome.toLowerCase().replace(/\s+/g, '.')}@lojista.local`,
+            cpf_cnpj: lojista.cnpj,
+            origem: 'lojista',
+            status: 'ativo',
+            empresa: lojista.nome,
+          })
+          .select('id, nome, telefone, cpf_cnpj')
+          .single();
+
+        if (novo) {
+          setSelectedCliente(novo);
+          setClientes(prev => [...prev, novo]);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao vincular lojista:', err);
+    } finally {
+      setLinkingLojista(false);
+    }
+  };
 
   const stepLabels: Record<Step, string> = {
     cliente: 'Cliente',
@@ -315,6 +361,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setSelectedBarrisRetorno([]);
     setIsVendaLojista(false);
     setSelectedLojistaId(null);
+    setLinkingLojista(false);
   };
 
   const stepIndex = steps.indexOf(step);
@@ -408,7 +455,13 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     <p className="text-sm text-muted-foreground">Ativar para vendas B2B</p>
                   </div>
                 </div>
-                <Switch checked={isVendaLojista} onCheckedChange={setIsVendaLojista} />
+                <Switch checked={isVendaLojista} onCheckedChange={(checked) => {
+                  setIsVendaLojista(checked);
+                  if (!checked) {
+                    setSelectedLojistaId(null);
+                    setSelectedCliente(null);
+                  }
+                }} />
               </div>
 
               {/* Lojista Selection */}
@@ -416,7 +469,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                 <div className="mb-4 p-4 border rounded-xl space-y-3">
                   <Label>Selecionar Lojista</Label>
                   <div className="flex gap-2">
-                    <Select value={selectedLojistaId || ''} onValueChange={setSelectedLojistaId}>
+                    <Select value={selectedLojistaId || ''} onValueChange={handleSelectLojista}>
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Escolha um lojista..." />
                       </SelectTrigger>
@@ -449,28 +502,43 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                       CNPJ: {selectedLojista.cnpj || 'N/A'} | Tel: {selectedLojista.telefone}
                     </div>
                   )}
+                  {linkingLojista && (
+                    <p className="text-sm text-muted-foreground animate-pulse">Vinculando cliente...</p>
+                  )}
+                  {selectedLojista && selectedCliente && !linkingLojista && (
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-3">
+                      <Check className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">Cliente vinculado: {selectedCliente.nome}</p>
+                        <p className="text-xs text-muted-foreground">{selectedCliente.telefone}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar cliente por nome ou telefone..."
-                  value={searchCliente}
-                  onChange={(e) => setSearchCliente(e.target.value)}
-                  className="pl-10 h-11"
-                  autoFocus={!isVendaLojista}
-                />
-              </div>
-              <ScrollArea className="flex-1 -mx-2 px-2">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {filteredClientes.map((cliente) => (
-                    <button
-                      key={cliente.id}
-                      onClick={() => {
-                        setSelectedCliente(cliente);
-                        setStep('produtos');
-                      }}
+              {/* Client search - only when NOT in lojista mode */}
+              {(!isVendaLojista || !selectedLojistaId) && (
+                <>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar cliente por nome ou telefone..."
+                      value={searchCliente}
+                      onChange={(e) => setSearchCliente(e.target.value)}
+                      className="pl-10 h-11"
+                      autoFocus={!isVendaLojista}
+                    />
+                  </div>
+                  <ScrollArea className="flex-1 -mx-2 px-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {filteredClientes.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          onClick={() => {
+                            setSelectedCliente(cliente);
+                            setStep('produtos');
+                          }}
                       className={cn(
                         'p-4 rounded-xl border text-left transition-all hover:border-primary/50 hover:bg-muted/50',
                         selectedCliente?.id === cliente.id &&
@@ -504,6 +572,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                   )}
                 </div>
               </ScrollArea>
+              </>
+              )}
 
               {/* Lojista Details Sheet */}
               <LojistaDetailsSheet
@@ -915,7 +985,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
               </span>
             )}
 
-            {step === 'cliente' && selectedCliente && (
+            {step === 'cliente' && selectedCliente && !linkingLojista && (
               <Button onClick={() => setStep('produtos')} className="gap-2">
                 Continuar
                 <ArrowRight className="h-4 w-4" />
