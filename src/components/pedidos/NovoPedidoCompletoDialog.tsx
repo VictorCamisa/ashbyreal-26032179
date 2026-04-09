@@ -361,6 +361,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
     setSelectedBarrisRetorno([]);
     setIsVendaLojista(false);
     setSelectedLojistaId(null);
+    setLinkingLojista(false);
   };
 
   const stepIndex = steps.indexOf(step);
@@ -462,7 +463,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                 <div className="mb-4 p-4 border rounded-xl space-y-3">
                   <Label>Selecionar Lojista</Label>
                   <div className="flex gap-2">
-                    <Select value={selectedLojistaId || ''} onValueChange={setSelectedLojistaId}>
+                    <Select value={selectedLojistaId || ''} onValueChange={handleSelectLojista}>
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Escolha um lojista..." />
                       </SelectTrigger>
