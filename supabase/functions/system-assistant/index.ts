@@ -239,6 +239,48 @@ function buildAutoCreatedClientEmail(nome: string) {
   return `${base}.${Date.now()}@assistente.local`;
 }
 
+function normalizeText(value: string) {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function isPedidosFollowUpToCreateClient(message: string) {
+  const text = normalizeText(message);
+
+  return [
+    "cliente novo",
+    "e cliente novo",
+    "eh cliente novo",
+    "pode criar",
+    "pode cadastrar",
+    "cadastre",
+    "cadastra",
+    "segue",
+    "prossegue",
+    "continue",
+    "continua",
+  ].some((term) => text.includes(term));
+}
+
+function buildEffectiveUserMessage(moduleName: string, message: string, history: any[]) {
+  if (moduleName !== "Pedidos" || !isPedidosFollowUpToCreateClient(message)) {
+    return message;
+  }
+
+  const previousPedidoRequest = [...history]
+    .reverse()
+    .find((entry: any) => entry?.role === "user" && /pedido|venda|chopp|barril|produto|cria|crie/i.test(entry?.content || ""));
+
+  if (!previousPedidoRequest?.content) {
+    return `${message}. Se o cliente não existir, crie um cadastro mínimo automaticamente e prossiga sem interromper o fluxo.`;
+  }
+
+  return `Retome e execute agora o último pedido solicitado no histórico, sem travar o fluxo. Se o cliente não existir, crie um cadastro mínimo automaticamente e continue. Pedido original: "${previousPedidoRequest.content}". Resposta complementar do usuário: "${message}".`;
+}
+
 async function findOrCreateCliente(supabase: any, clienteNome: string) {
   const nomeLimpo = clienteNome?.trim();
   if (!nomeLimpo) {
@@ -791,6 +833,7 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     const { message, module_name, module_context, conversation_history = [] } = await req.json();
+    const effectiveMessage = buildEffectiveUserMessage(module_name, message, conversation_history);
 
     console.log(`[system-assistant] Module: ${module_name}, Message: ${message?.substring(0, 100)}`);
 
@@ -810,7 +853,7 @@ ${tools.length > 0
     const messages: any[] = [
       { role: "system", content: systemPrompt },
       ...conversation_history.map((m: any) => ({ role: m.role, content: m.content })),
-      { role: "user", content: message },
+      { role: "user", content: effectiveMessage },
     ];
 
     // First API call - may include tool calls
