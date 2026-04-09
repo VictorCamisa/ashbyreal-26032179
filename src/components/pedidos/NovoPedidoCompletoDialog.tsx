@@ -502,28 +502,43 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                       CNPJ: {selectedLojista.cnpj || 'N/A'} | Tel: {selectedLojista.telefone}
                     </div>
                   )}
+                  {linkingLojista && (
+                    <p className="text-sm text-muted-foreground animate-pulse">Vinculando cliente...</p>
+                  )}
+                  {selectedLojista && selectedCliente && !linkingLojista && (
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-3">
+                      <Check className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">Cliente vinculado: {selectedCliente.nome}</p>
+                        <p className="text-xs text-muted-foreground">{selectedCliente.telefone}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar cliente por nome ou telefone..."
-                  value={searchCliente}
-                  onChange={(e) => setSearchCliente(e.target.value)}
-                  className="pl-10 h-11"
-                  autoFocus={!isVendaLojista}
-                />
-              </div>
-              <ScrollArea className="flex-1 -mx-2 px-2">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {filteredClientes.map((cliente) => (
-                    <button
-                      key={cliente.id}
-                      onClick={() => {
-                        setSelectedCliente(cliente);
-                        setStep('produtos');
-                      }}
+              {/* Client search - only when NOT in lojista mode */}
+              {(!isVendaLojista || !selectedLojistaId) && (
+                <>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar cliente por nome ou telefone..."
+                      value={searchCliente}
+                      onChange={(e) => setSearchCliente(e.target.value)}
+                      className="pl-10 h-11"
+                      autoFocus={!isVendaLojista}
+                    />
+                  </div>
+                  <ScrollArea className="flex-1 -mx-2 px-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {filteredClientes.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          onClick={() => {
+                            setSelectedCliente(cliente);
+                            setStep('produtos');
+                          }}
                       className={cn(
                         'p-4 rounded-xl border text-left transition-all hover:border-primary/50 hover:bg-muted/50',
                         selectedCliente?.id === cliente.id &&
