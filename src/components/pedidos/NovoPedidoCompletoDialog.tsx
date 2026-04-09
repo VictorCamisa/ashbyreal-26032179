@@ -985,7 +985,7 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
               </span>
             )}
 
-            {step === 'cliente' && selectedCliente && (
+            {step === 'cliente' && selectedCliente && !linkingLojista && (
               <Button onClick={() => setStep('produtos')} className="gap-2">
                 Continuar
                 <ArrowRight className="h-4 w-4" />
