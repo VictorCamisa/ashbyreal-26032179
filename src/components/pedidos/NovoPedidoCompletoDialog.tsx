@@ -572,6 +572,8 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                   )}
                 </div>
               </ScrollArea>
+              </>
+              )}
 
               {/* Lojista Details Sheet */}
               <LojistaDetailsSheet
