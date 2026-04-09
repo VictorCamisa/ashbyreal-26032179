@@ -455,7 +455,13 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
                     <p className="text-sm text-muted-foreground">Ativar para vendas B2B</p>
                   </div>
                 </div>
-                <Switch checked={isVendaLojista} onCheckedChange={setIsVendaLojista} />
+                <Switch checked={isVendaLojista} onCheckedChange={(checked) => {
+                  setIsVendaLojista(checked);
+                  if (!checked) {
+                    setSelectedLojistaId(null);
+                    setSelectedCliente(null);
+                  }
+                }} />
               </div>
 
               {/* Lojista Selection */}
