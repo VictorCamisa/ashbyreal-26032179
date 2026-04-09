@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -35,16 +35,27 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExtrairLeads, setShowExtrairLeads] = useState(false);
   const [mainTab, setMainTab] = useState<'clientes' | 'lojistas'>('clientes');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'lead' | 'inativo'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
+
+  // Handle ?tab=leads query param
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'leads') {
+      setStatusFilter('lead');
+    }
+  }, [searchParams]);
 
   const filteredClientes = useMemo(() => 
     clientes.filter(cliente =>
-      cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cliente.telefone.includes(searchTerm)
-    ), [clientes, searchTerm]
+      (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       cliente.telefone.includes(searchTerm)) &&
+      (statusFilter === 'todos' || cliente.status === statusFilter)
+    ), [clientes, searchTerm, statusFilter]
   );
 
   // Reset to page 1 when search changes
