@@ -127,7 +127,8 @@ export default function Clientes() {
             </KPIGrid>
 
             {/* Search */}
-            <div className="relative">
+            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nome, e-mail ou telefone..."
@@ -135,6 +136,23 @@ export default function Clientes() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-11 h-11 rounded-xl"
               />
+            </div>
+            <div className="flex gap-1.5">
+              {(['todos', 'ativo', 'lead', 'inativo'] as const).map((s) => {
+                const labels: Record<string, string> = { todos: 'Todos', ativo: 'Ativos', lead: 'Leads', inativo: 'Inativos' };
+                return (
+                  <Button
+                    key={s}
+                    variant={statusFilter === s ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-11 rounded-xl text-xs"
+                    onClick={() => setStatusFilter(s)}
+                  >
+                    {labels[s]}
+                  </Button>
+                );
+              })}
+            </div>
             </div>
 
             {/* Table */}
