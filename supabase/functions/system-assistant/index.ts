@@ -14,7 +14,7 @@ const PEDIDOS_TOOLS = [
     type: "function",
     function: {
       name: "criar_pedido",
-      description: "Cria um novo pedido para um cliente. Use quando o usuário pedir para criar/registrar um pedido ou venda.",
+      description: "Cria um novo pedido para um cliente. Use quando o usuário pedir para criar/registrar um pedido ou venda. Se o cliente ainda não existir, o sistema cria um cadastro mínimo automaticamente e continua o fluxo.",
       parameters: {
         type: "object",
         properties: {
@@ -227,6 +227,54 @@ function getToolsForModule(moduleName: string) {
   }
 }
 
+function buildAutoCreatedClientEmail(nome: string) {
+  const base = nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 40) || "cliente";
+
+  return `${base}.${Date.now()}@assistente.local`;
+}
+
+async function findOrCreateCliente(supabase: any, clienteNome: string) {
+  const nomeLimpo = clienteNome?.trim();
+  if (!nomeLimpo) {
+    return { error: true, message: "Nome do cliente não informado." };
+  }
+
+  const { data: clientes, error: clienteBuscaErro } = await supabase
+    .from("clientes")
+    .select("id, nome")
+    .ilike("nome", `%${nomeLimpo}%`)
+    .limit(1);
+
+  if (clienteBuscaErro) throw clienteBuscaErro;
+
+  if (clientes?.length) {
+    return { cliente: clientes[0], created: false };
+  }
+
+  const { data: novoCliente, error: criarClienteErro } = await supabase
+    .from("clientes")
+    .insert({
+      nome: nomeLimpo,
+      email: buildAutoCreatedClientEmail(nomeLimpo),
+      telefone: "",
+      origem: "assistente_ia",
+      status: "ativo",
+      observacoes: "Cliente criado automaticamente pelo Assistente IA durante a criação de pedido.",
+    })
+    .select("id, nome")
+    .single();
+
+  if (criarClienteErro) throw criarClienteErro;
+
+  return { cliente: novoCliente, created: true };
+}
+
 // --- TOOL EXECUTION ---
 
 async function executeTool(supabase: any, toolName: string, args: any): Promise<string> {
@@ -234,15 +282,10 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
     switch (toolName) {
       // --- PEDIDOS ---
       case "criar_pedido": {
-        // Find client
-        const { data: clientes } = await supabase
-          .from("clientes")
-          .select("id, nome")
-          .ilike("nome", `%${args.cliente_nome}%`)
-          .limit(1);
-
-        if (!clientes?.length) return JSON.stringify({ error: true, message: `Cliente "${args.cliente_nome}" não encontrado. Verifique o nome.` });
-        const cliente = clientes[0];
+        const clienteResult = await findOrCreateCliente(supabase, args.cliente_nome);
+        if (clienteResult.error) return JSON.stringify({ error: true, message: clienteResult.message });
+        const cliente = clienteResult.cliente;
+        const clienteFoiCriado = clienteResult.created;
 
         // Find products
         const itens = [];
@@ -311,9 +354,12 @@ async function executeTool(supabase: any, toolName: string, args: any): Promise<
 
         return JSON.stringify({
           success: true,
-          message: `Pedido criado com sucesso!`,
+          message: clienteFoiCriado
+            ? `Pedido criado com sucesso e o cliente "${cliente.nome}" foi cadastrado automaticamente para não travar o fluxo.`
+            : `Pedido criado com sucesso!`,
           pedido_id: pedido.id.slice(0, 8),
           cliente: cliente.nome,
+          cliente_criado_automaticamente: clienteFoiCriado,
           valor_total: valorTotal,
           itens: itens.map(i => `${i.quantidade}x ${i.produto.nome}`),
           entrega: dataEntrega,
@@ -727,6 +773,8 @@ Você é o Assistente IA do Sistema Taubaté Chopp. Você pode EXECUTAR AÇÕES 
 6. Seja direto e prático. Use **negrito** para destaques.
 7. Se o módulo atual não tem a ferramenta necessária, explique que a ação pertence a outro módulo.
 8. NUNCA pergunte "para qual data?" - use amanhã como padrão se não informado.
+9. Ao criar pedido, se o cliente não existir, prossiga sem travar: o sistema pode criar um cadastro mínimo automaticamente.
+10. Se o usuário responder algo curto como "é cliente novo", "pode criar" ou "segue", use o histórico recente para retomar a ação pendente.
 `;
 
 serve(async (req) => {
