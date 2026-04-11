@@ -173,6 +173,7 @@ export function useDashboard(mesReferencia: Date = new Date()) {
         .select('data_pedido, valor_total')
         .gte('data_pedido', inicioMes.toISOString())
         .lte('data_pedido', fimMes.toISOString())
+        .neq('status', 'cancelado')
         .order('data_pedido', { ascending: true });
 
       const vendaAgrupada: Record<string, { valor: number; quantidade: number }> = {};
