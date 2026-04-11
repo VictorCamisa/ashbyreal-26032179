@@ -160,21 +160,23 @@ export default function Hub() {
   const litrosAnterior = calcLitros(data?.itensAnterior || []);
   const litrosTrend = litrosAnterior > 0 ? ((litrosSemana - litrosAnterior) / litrosAnterior) * 100 : 0;
 
-  // Faturamento
-  const faturamento = pedidos.reduce((a, p) => a + Number(p.valor_total), 0);
-  const faturamentoAnterior = (data?.pedidosAnterior || []).reduce((a: number, p: any) => a + Number(p.valor_total), 0);
+  // Faturamento (exclui cancelados)
+  const pedidosAtivos = pedidos.filter(p => p.status !== 'cancelado');
+  const pedidosAnteriorAtivos = (data?.pedidosAnterior || []).filter((p: any) => p.status !== 'cancelado');
+  const faturamento = pedidosAtivos.reduce((a, p) => a + Number(p.valor_total), 0);
+  const faturamentoAnterior = pedidosAnteriorAtivos.reduce((a: number, p: any) => a + Number(p.valor_total), 0);
   const metaProgress = META_SEMANAL > 0 ? Math.min((faturamento / META_SEMANAL) * 100, 100) : 0;
   const faltaMeta = Math.max(META_SEMANAL - faturamento, 0);
 
-  // Clientes ativos (únicos que fizeram pedido)
-  const clientesAtivos = new Set(pedidos.map(p => p.cliente_id).filter(Boolean)).size;
-  const clientesAtivosAnteriorSet = new Set((data?.pedidosAnterior || []).map((p: any) => p.cliente_id).filter(Boolean));
+  // Clientes ativos (únicos que fizeram pedido, excluindo cancelados)
+  const clientesAtivos = new Set(pedidosAtivos.map(p => p.cliente_id).filter(Boolean)).size;
+  const clientesAtivosAnteriorSet = new Set(pedidosAnteriorAtivos.map((p: any) => p.cliente_id).filter(Boolean));
   const clientesAtivosAnterior = clientesAtivosAnteriorSet.size;
   const clientesTrend = clientesAtivosAnterior > 0 ? ((clientesAtivos - clientesAtivosAnterior) / clientesAtivosAnterior) * 100 : 0;
 
-  // Ticket médio
-  const ticketMedio = pedidos.length > 0 ? faturamento / pedidos.length : 0;
-  const ticketMedioAnterior = (data?.pedidosAnterior || []).length > 0 ? faturamentoAnterior / (data?.pedidosAnterior || []).length : 0;
+  // Ticket médio (excluindo cancelados)
+  const ticketMedio = pedidosAtivos.length > 0 ? faturamento / pedidosAtivos.length : 0;
+  const ticketMedioAnterior = pedidosAnteriorAtivos.length > 0 ? faturamentoAnterior / pedidosAnteriorAtivos.length : 0;
   const ticketTrend = ticketMedioAnterior > 0 ? ((ticketMedio - ticketMedioAnterior) / ticketMedioAnterior) * 100 : 0;
 
   // Status breakdown
