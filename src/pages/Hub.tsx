@@ -140,8 +140,6 @@ export default function Hub() {
       const [
         pedidosPeriodo,
         pedidosPeriodoAnterior,
-        itensPeriodo,
-        itensAnterior,
         transacoesPeriodo,
         clientesMap,
         estoqueAlertas,
@@ -151,10 +149,6 @@ export default function Hub() {
           .gte('data_pedido', rangeStart.toISOString()).lte('data_pedido', rangeEnd.toISOString()),
         supabase.from('pedidos').select('id, valor_total, status, cliente_id')
           .gte('data_pedido', prevStart.toISOString()).lte('data_pedido', prevEnd.toISOString()),
-        supabase.from('pedido_itens').select('quantidade, subtotal, preco_unitario, pedido_id, produtos(nome, capacidade_barril, tipo_produto, unidade_medida)')
-          .gte('created_at', rangeStart.toISOString()).lte('created_at', rangeEnd.toISOString()),
-        supabase.from('pedido_itens').select('quantidade, produtos(capacidade_barril)')
-          .gte('created_at', prevStart.toISOString()).lte('created_at', prevEnd.toISOString()),
         supabase.from('transactions').select('id, description, amount, tipo, status, due_date')
           .gte('due_date', format(rangeStart, 'yyyy-MM-dd')).lte('due_date', format(rangeEnd, 'yyyy-MM-dd'))
           .neq('status', 'CANCELADO').order('due_date'),
@@ -166,8 +160,6 @@ export default function Hub() {
       return {
         pedidos: pedidosPeriodo.data || [],
         pedidosAnterior: pedidosPeriodoAnterior.data || [],
-        itens: itensPeriodo.data || [],
-        itensAnterior: itensAnterior.data || [],
         transacoes: transacoesPeriodo.data || [],
         clientes: clientesMap.data || [],
         produtos: estoqueAlertas.data || [],
@@ -190,18 +182,6 @@ export default function Hub() {
   const pedidos = data?.pedidos || [];
   const transacoes = data?.transacoes || [];
 
-  // Litros
-  const calcLitros = (itens: any[]) => {
-    return itens.reduce((acc, item) => {
-      const cap = item.produtos?.capacidade_barril;
-      if (cap && cap > 0) return acc + (item.quantidade * cap);
-      return acc;
-    }, 0);
-  };
-  const litrosPeriodo = calcLitros(data?.itens || []);
-  const litrosAnterior = calcLitros(data?.itensAnterior || []);
-  const litrosTrend = litrosAnterior > 0 ? ((litrosPeriodo - litrosAnterior) / litrosAnterior) * 100 : 0;
-
   // Faturamento (exclui cancelados)
   const pedidosAtivos = pedidos.filter(p => p.status !== 'cancelado');
   const pedidosAnteriorAtivos = (data?.pedidosAnterior || []).filter((p: any) => p.status !== 'cancelado');
@@ -220,6 +200,38 @@ export default function Hub() {
   const ticketMedio = pedidosAtivos.length > 0 ? faturamento / pedidosAtivos.length : 0;
   const ticketMedioAnterior = pedidosAnteriorAtivos.length > 0 ? faturamentoAnterior / pedidosAnteriorAtivos.length : 0;
   const ticketTrend = ticketMedioAnterior > 0 ? ((ticketMedio - ticketMedioAnterior) / ticketMedioAnterior) * 100 : 0;
+
+  const litrosPeriodo = useMemo(() => {
+    return pedidosAtivos.reduce((acc, pedido: any) => {
+      const observacoes = String(pedido.observacoes || '');
+      const matches = observacoes.match(/(\d+(?:[\.,]\d+)?)\s*l(?:itros)?/gi);
+      if (!matches) return acc;
+
+      const litrosPedido = matches.reduce((sum, match) => {
+        const value = Number(match.replace(/[^\d,\.]/g, '').replace(',', '.'));
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0);
+
+      return acc + litrosPedido;
+    }, 0);
+  }, [pedidosAtivos]);
+
+  const litrosAnterior = useMemo(() => {
+    return pedidosAnteriorAtivos.reduce((acc, pedido: any) => {
+      const observacoes = String(pedido.observacoes || '');
+      const matches = observacoes.match(/(\d+(?:[\.,]\d+)?)\s*l(?:itros)?/gi);
+      if (!matches) return acc;
+
+      const litrosPedido = matches.reduce((sum, match) => {
+        const value = Number(match.replace(/[^\d,\.]/g, '').replace(',', '.'));
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0);
+
+      return acc + litrosPedido;
+    }, 0);
+  }, [pedidosAnteriorAtivos]);
+
+  const litrosTrend = litrosAnterior > 0 ? ((litrosPeriodo - litrosAnterior) / litrosAnterior) * 100 : 0;
 
   // Status breakdown
   const statusCounts = useMemo(() => {
@@ -263,14 +275,15 @@ export default function Hub() {
   // Top produtos
   const topProdutos = useMemo(() => {
     const map: Record<string, { nome: string; qtd: number; valor: number }> = {};
-    (data?.itens || []).forEach((item: any) => {
-      const nome = item.produtos?.nome || 'Produto';
+    pedidosAtivos.forEach((pedido: any) => {
+      const observacoes = String(pedido.observacoes || '');
+      const nome = observacoes || 'Pedido sem detalhe';
       if (!map[nome]) map[nome] = { nome, qtd: 0, valor: 0 };
-      map[nome].qtd += item.quantidade;
-      map[nome].valor += Number(item.subtotal);
+      map[nome].qtd += 1;
+      map[nome].valor += Number(pedido.valor_total);
     });
     return Object.values(map).sort((a, b) => b.qtd - a.qtd).slice(0, 5);
-  }, [data?.itens]);
+  }, [pedidosAtivos]);
 
   const formatCurrency = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   const formatCurrencyFull = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
