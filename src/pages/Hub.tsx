@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ShoppingCart,
   Wallet,
@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Boxes,
   Bot,
+  Calendar,
 } from 'lucide-react';
 import { UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -45,11 +46,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserModules } from '@/hooks/useAdminUsers';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfWeek, endOfWeek, format, isWithinInterval, isPast, eachDayOfInterval, isSameDay, subWeeks } from 'date-fns';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subWeeks, subMonths, subQuarters, format, isWithinInterval, isPast, eachDayOfInterval, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-const META_SEMANAL = 15000; // R$ meta semanal — pode virar config futuramente
+type PeriodType = 'semana' | 'mes' | 'trimestre';
+
+const METAS: Record<PeriodType, number> = {
+  semana: 15000,
+  mes: 60000,
+  trimestre: 180000,
+};
 
 interface ModuleItem {
   key: string;
@@ -70,60 +77,98 @@ const modules: ModuleItem[] = [
   { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot, description: 'Automação' },
 ];
 
+function getDateRanges(period: PeriodType, now: Date) {
+  switch (period) {
+    case 'semana': {
+      const start = startOfWeek(now, { weekStartsOn: 1 });
+      const end = endOfWeek(now, { weekStartsOn: 1 });
+      const prevStart = subWeeks(start, 1);
+      const prevEnd = subWeeks(end, 1);
+      return { start, end, prevStart, prevEnd };
+    }
+    case 'mes': {
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+      const prevStart = startOfMonth(subMonths(now, 1));
+      const prevEnd = endOfMonth(subMonths(now, 1));
+      return { start, end, prevStart, prevEnd };
+    }
+    case 'trimestre': {
+      const start = startOfQuarter(now);
+      const end = endOfQuarter(now);
+      const prevStart = startOfQuarter(subQuarters(now, 1));
+      const prevEnd = endOfQuarter(subQuarters(now, 1));
+      return { start, end, prevStart, prevEnd };
+    }
+  }
+}
+
+function getPeriodLabel(period: PeriodType, start: Date, end: Date) {
+  switch (period) {
+    case 'semana':
+      return `${format(start, "dd/MM", { locale: ptBR })} — ${format(end, "dd/MM", { locale: ptBR })}`;
+    case 'mes':
+      return format(start, "MMMM yyyy", { locale: ptBR });
+    case 'trimestre':
+      return `${format(start, "MMM", { locale: ptBR })} — ${format(end, "MMM yyyy", { locale: ptBR })}`;
+  }
+}
+
+function getComparisonLabel(period: PeriodType) {
+  switch (period) {
+    case 'semana': return 'vs sem. anterior';
+    case 'mes': return 'vs mês anterior';
+    case 'trimestre': return 'vs trim. anterior';
+  }
+}
+
 export default function Hub() {
   const { user, signOut } = useAuth();
   const { data: visibleModules } = useUserModules();
+  const [period, setPeriod] = useState<PeriodType>('semana');
 
   const now = new Date();
+  const { start: rangeStart, end: rangeEnd, prevStart, prevEnd } = getDateRanges(period, now);
+
+  // Week-specific dates (for timeline, only shown in week mode)
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-  const prevWeekStart = subWeeks(weekStart, 1);
-  const prevWeekEnd = subWeeks(weekEnd, 1);
 
-  // ── All data in a single query hook ──
   const { data, isLoading } = useQuery({
-    queryKey: ['hub-dashboard', format(weekStart, 'yyyy-MM-dd')],
+    queryKey: ['hub-dashboard', period, format(rangeStart, 'yyyy-MM-dd')],
     queryFn: async () => {
       const [
-        pedidosSemana,
-        pedidosSemanaAnterior,
-        itensSemana,
-        itensSemanaAnterior,
-        transacoesSemana,
+        pedidosPeriodo,
+        pedidosPeriodoAnterior,
+        itensPeriodo,
+        itensAnterior,
+        transacoesPeriodo,
         clientesMap,
         estoqueAlertas,
         whatsappStatus,
       ] = await Promise.all([
-        // Pedidos da semana
         supabase.from('pedidos').select('id, cliente_id, status, valor_total, data_pedido, numero_pedido, metodo_pagamento, observacoes')
-          .gte('data_pedido', weekStart.toISOString()).lte('data_pedido', weekEnd.toISOString()),
-        // Pedidos semana anterior (para comparação)
+          .gte('data_pedido', rangeStart.toISOString()).lte('data_pedido', rangeEnd.toISOString()),
         supabase.from('pedidos').select('id, valor_total, status, cliente_id')
-          .gte('data_pedido', prevWeekStart.toISOString()).lte('data_pedido', prevWeekEnd.toISOString()),
-        // Itens da semana (para litros)
+          .gte('data_pedido', prevStart.toISOString()).lte('data_pedido', prevEnd.toISOString()),
         supabase.from('pedido_itens').select('quantidade, subtotal, preco_unitario, pedido_id, produtos(nome, capacidade_barril, tipo_produto, unidade_medida)')
-          .gte('created_at', weekStart.toISOString()).lte('created_at', weekEnd.toISOString()),
-        // Itens semana anterior
+          .gte('created_at', rangeStart.toISOString()).lte('created_at', rangeEnd.toISOString()),
         supabase.from('pedido_itens').select('quantidade, produtos(capacidade_barril)')
-          .gte('created_at', prevWeekStart.toISOString()).lte('created_at', prevWeekEnd.toISOString()),
-        // Transações da semana
+          .gte('created_at', prevStart.toISOString()).lte('created_at', prevEnd.toISOString()),
         supabase.from('transactions').select('id, description, amount, tipo, status, due_date')
-          .gte('due_date', format(weekStart, 'yyyy-MM-dd')).lte('due_date', format(weekEnd, 'yyyy-MM-dd'))
+          .gte('due_date', format(rangeStart, 'yyyy-MM-dd')).lte('due_date', format(rangeEnd, 'yyyy-MM-dd'))
           .neq('status', 'CANCELADO').order('due_date'),
-        // Clientes
         supabase.from('clientes').select('id, nome'),
-        // Estoque em alerta
         supabase.from('produtos').select('id, nome, estoque, estoque_minimo, estoque_litros').filter('ativo', 'eq', true),
-        // WhatsApp
         supabase.from('whatsapp_instances').select('id, status').limit(1),
       ]);
 
       return {
-        pedidos: pedidosSemana.data || [],
-        pedidosAnterior: pedidosSemanaAnterior.data || [],
-        itens: itensSemana.data || [],
-        itensAnterior: itensSemanaAnterior.data || [],
-        transacoes: transacoesSemana.data || [],
+        pedidos: pedidosPeriodo.data || [],
+        pedidosAnterior: pedidosPeriodoAnterior.data || [],
+        itens: itensPeriodo.data || [],
+        itensAnterior: itensAnterior.data || [],
+        transacoes: transacoesPeriodo.data || [],
         clientes: clientesMap.data || [],
         produtos: estoqueAlertas.data || [],
         whatsapp: whatsappStatus.data?.[0] || null,
@@ -136,7 +181,6 @@ export default function Hub() {
     return modules.filter((m) => visibleModules.includes(m.key));
   }, [visibleModules]);
 
-  // ── Derived calculations ──
   const clientesMapObj = useMemo(() => {
     const map: Record<string, string> = {};
     data?.clientes?.forEach(c => { map[c.id] = c.nome; });
@@ -146,32 +190,30 @@ export default function Hub() {
   const pedidos = data?.pedidos || [];
   const transacoes = data?.transacoes || [];
 
-  // Litros vendidos
+  // Litros
   const calcLitros = (itens: any[]) => {
     return itens.reduce((acc, item) => {
       const cap = item.produtos?.capacidade_barril;
-      if (cap && cap > 0) {
-        return acc + (item.quantidade * cap);
-      }
+      if (cap && cap > 0) return acc + (item.quantidade * cap);
       return acc;
     }, 0);
   };
-  const litrosSemana = calcLitros(data?.itens || []);
+  const litrosPeriodo = calcLitros(data?.itens || []);
   const litrosAnterior = calcLitros(data?.itensAnterior || []);
-  const litrosTrend = litrosAnterior > 0 ? ((litrosSemana - litrosAnterior) / litrosAnterior) * 100 : 0;
+  const litrosTrend = litrosAnterior > 0 ? ((litrosPeriodo - litrosAnterior) / litrosAnterior) * 100 : 0;
 
   // Faturamento (exclui cancelados)
   const pedidosAtivos = pedidos.filter(p => p.status !== 'cancelado');
   const pedidosAnteriorAtivos = (data?.pedidosAnterior || []).filter((p: any) => p.status !== 'cancelado');
   const faturamento = pedidosAtivos.reduce((a, p) => a + Number(p.valor_total), 0);
   const faturamentoAnterior = pedidosAnteriorAtivos.reduce((a: number, p: any) => a + Number(p.valor_total), 0);
-  const metaProgress = META_SEMANAL > 0 ? Math.min((faturamento / META_SEMANAL) * 100, 100) : 0;
-  const faltaMeta = Math.max(META_SEMANAL - faturamento, 0);
+  const meta = METAS[period];
+  const metaProgress = meta > 0 ? Math.min((faturamento / meta) * 100, 100) : 0;
+  const faltaMeta = Math.max(meta - faturamento, 0);
 
-  // Clientes ativos (únicos que fizeram pedido, excluindo cancelados)
+  // Clientes ativos (excluindo cancelados)
   const clientesAtivos = new Set(pedidosAtivos.map(p => p.cliente_id).filter(Boolean)).size;
-  const clientesAtivosAnteriorSet = new Set(pedidosAnteriorAtivos.map((p: any) => p.cliente_id).filter(Boolean));
-  const clientesAtivosAnterior = clientesAtivosAnteriorSet.size;
+  const clientesAtivosAnterior = new Set(pedidosAnteriorAtivos.map((p: any) => p.cliente_id).filter(Boolean)).size;
   const clientesTrend = clientesAtivosAnterior > 0 ? ((clientesAtivos - clientesAtivosAnterior) / clientesAtivosAnterior) * 100 : 0;
 
   // Ticket médio (excluindo cancelados)
@@ -198,7 +240,7 @@ export default function Hub() {
   // Estoque alerts
   const produtosAlerta = (data?.produtos || []).filter(p => p.estoque <= p.estoque_minimo);
 
-  // Timeline
+  // Timeline (week only)
   const wednesday = new Date(weekStart);
   wednesday.setDate(wednesday.getDate() + 2);
   wednesday.setHours(23, 59, 59);
@@ -209,14 +251,16 @@ export default function Hub() {
 
   const daysOfWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const weekLabel = `${format(weekStart, "dd/MM", { locale: ptBR })} — ${format(weekEnd, "dd/MM", { locale: ptBR })}`;
+  const periodLabel = getPeriodLabel(period, rangeStart, rangeEnd);
+  const compLabel = getComparisonLabel(period);
+
   const greeting = useMemo(() => {
     const h = new Date().getHours();
     return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   }, []);
   const firstName = user?.email?.split('@')[0] || 'Usuário';
 
-  // Top produtos da semana
+  // Top produtos
   const topProdutos = useMemo(() => {
     const map: Record<string, { nome: string; qtd: number; valor: number }> = {};
     (data?.itens || []).forEach((item: any) => {
@@ -231,6 +275,12 @@ export default function Hub() {
   const formatCurrency = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   const formatCurrencyFull = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
+  const periodButtons: { value: PeriodType; label: string }[] = [
+    { value: 'semana', label: 'Semana' },
+    { value: 'mes', label: 'Mês' },
+    { value: 'trimestre', label: 'Trimestre' },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -240,16 +290,18 @@ export default function Hub() {
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
               <span className="text-[10px] text-muted-foreground hidden sm:block">·</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:block">{weekLabel}</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block capitalize">{periodLabel}</span>
             </div>
             <div className="flex items-center gap-1">
-              <Badge
-                variant={deadlinePassed ? "destructive" : "default"}
-                className="text-[10px] gap-1 h-6"
-              >
-                {deadlinePassed ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
-                {deadlinePassed ? 'Fechada' : 'Aberta'}
-              </Badge>
+              {period === 'semana' && (
+                <Badge
+                  variant={deadlinePassed ? "destructive" : "default"}
+                  className="text-[10px] gap-1 h-6"
+                >
+                  {deadlinePassed ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
+                  {deadlinePassed ? 'Fechada' : 'Aberta'}
+                </Badge>
+              )}
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -284,14 +336,32 @@ export default function Hub() {
 
       {/* Dense Content */}
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 space-y-4">
-        {/* Row 1: Greeting minimal */}
+        {/* Row 1: Greeting + Period Selector */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {greeting}, <span className="font-medium text-foreground">{firstName}</span>
           </p>
-          <p className="text-xs text-muted-foreground">
-            {format(now, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-          </p>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
+              {periodButtons.map(pb => (
+                <button
+                  key={pb.value}
+                  onClick={() => setPeriod(pb.value)}
+                  className={cn(
+                    "px-3 py-1 text-[11px] font-medium rounded-md transition-all",
+                    period === pb.value
+                      ? "bg-background text-foreground shadow-sm border border-border/60"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {pb.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground hidden sm:block">
+              {format(now, "dd/MM/yyyy")}
+            </span>
+          </div>
         </div>
 
         {/* Row 2: 4 KPIs */}
@@ -299,10 +369,10 @@ export default function Hub() {
           {/* Litros vendidos */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-1">
             <div className="flex items-center gap-1.5">
-              <Droplets className="h-3.5 w-3.5 text-blue-500" />
+              <Droplets className="h-3.5 w-3.5 text-primary" />
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Litros Vendidos</span>
             </div>
-            <p className="text-2xl font-bold tabular-nums">{litrosSemana.toLocaleString('pt-BR')}L</p>
+            <p className="text-2xl font-bold tabular-nums">{litrosPeriodo.toLocaleString('pt-BR')}L</p>
             <div className="flex items-center gap-2">
               {litrosTrend !== 0 && (
                 <span className={cn(
@@ -313,7 +383,7 @@ export default function Hub() {
                   {Math.abs(litrosTrend).toFixed(0)}%
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground">vs sem. anterior</span>
+              <span className="text-[10px] text-muted-foreground">{compLabel}</span>
             </div>
           </div>
 
@@ -326,7 +396,7 @@ export default function Hub() {
             <p className="text-2xl font-bold tabular-nums">{formatCurrency(faturamento)}</p>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">Meta: {formatCurrency(META_SEMANAL)}</span>
+                <span className="text-[10px] text-muted-foreground">Meta: {formatCurrency(meta)}</span>
                 <span className={cn(
                   "text-[10px] font-semibold",
                   metaProgress >= 100 ? "text-emerald-600" : metaProgress >= 70 ? "text-amber-600" : "text-red-500"
@@ -344,7 +414,7 @@ export default function Hub() {
           {/* Clientes ativos */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-1">
             <div className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-violet-500" />
+              <Users className="h-3.5 w-3.5 text-primary" />
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Clientes Ativos</span>
             </div>
             <p className="text-2xl font-bold tabular-nums">{clientesAtivos}</p>
@@ -358,14 +428,14 @@ export default function Hub() {
                   {Math.abs(clientesTrend).toFixed(0)}%
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground">{pedidos.length} pedidos</span>
+              <span className="text-[10px] text-muted-foreground">{pedidosAtivos.length} pedidos</span>
             </div>
           </div>
 
           {/* Ticket médio */}
           <div className="rounded-xl border border-border bg-card p-4 space-y-1">
             <div className="flex items-center gap-1.5">
-              <Receipt className="h-3.5 w-3.5 text-amber-500" />
+              <Receipt className="h-3.5 w-3.5 text-primary" />
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Ticket Médio</span>
             </div>
             <p className="text-2xl font-bold tabular-nums">{formatCurrencyFull(ticketMedio)}</p>
@@ -379,64 +449,112 @@ export default function Hub() {
                   {Math.abs(ticketTrend).toFixed(0)}%
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground">vs sem. anterior</span>
+              <span className="text-[10px] text-muted-foreground">{compLabel}</span>
             </div>
           </div>
         </div>
 
-        {/* Row 3: Timeline + Financial + Status */}
+        {/* Row 3: Timeline (week only) / Financial / Status */}
         <div className="grid gap-3 lg:grid-cols-12">
-          {/* Week timeline */}
-          <Card className="lg:col-span-5 border-border/60">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline da Semana</CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3">
-              <div className="grid grid-cols-7 gap-1">
-                {daysOfWeek.map((day) => {
-                  const isToday = isSameDay(day, now);
-                  const isDeadline = isSameDay(day, wednesday);
-                  const isDelivery = isSameDay(day, friday);
-                  const dayPedidos = pedidos.filter(p => isSameDay(new Date(p.data_pedido), day));
-                  const dayVal = dayPedidos.reduce((a, p) => a + Number(p.valor_total), 0);
+          {/* Week timeline OR period summary */}
+          {period === 'semana' ? (
+            <Card className="lg:col-span-5 border-border/60">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Timeline da Semana</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <div className="grid grid-cols-7 gap-1">
+                  {daysOfWeek.map((day) => {
+                    const isToday = isSameDay(day, now);
+                    const isDeadline = isSameDay(day, wednesday);
+                    const isDelivery = isSameDay(day, friday);
+                    const dayPedidos = pedidos.filter(p => isSameDay(new Date(p.data_pedido), day));
+                    const dayVal = dayPedidos.reduce((a, p) => a + Number(p.valor_total), 0);
 
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={cn(
-                        "rounded-lg border p-1.5 text-center transition-all min-h-[72px] flex flex-col items-center justify-between",
-                        isToday && "border-primary bg-primary/5 ring-1 ring-primary/20",
-                        isDeadline && !isToday && "border-amber-400/60 bg-amber-500/5",
-                        isDelivery && !isToday && "border-emerald-400/60 bg-emerald-500/5",
-                        !isToday && !isDeadline && !isDelivery && "border-border/40"
-                      )}
-                    >
-                      <div>
-                        <p className={cn("text-[10px] font-bold capitalize", isToday ? "text-primary" : "text-muted-foreground")}>
-                          {format(day, 'EEE', { locale: ptBR })}
-                        </p>
-                        <p className="text-[9px] text-muted-foreground/70">{format(day, 'dd')}</p>
-                      </div>
-                      <div>
-                        {isDeadline && <AlertCircle className="h-3 w-3 text-amber-500 mx-auto" />}
-                        {isDelivery && <Truck className="h-3 w-3 text-emerald-500 mx-auto" />}
-                        {dayPedidos.length > 0 ? (
-                          <>
-                            <p className="text-sm font-bold">{dayPedidos.length}</p>
-                            <p className="text-[8px] text-muted-foreground">{formatCurrency(dayVal)}</p>
-                          </>
-                        ) : (
-                          <p className="text-[10px] text-muted-foreground/20">—</p>
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className={cn(
+                          "rounded-lg border p-1.5 text-center transition-all min-h-[72px] flex flex-col items-center justify-between",
+                          isToday && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                          isDeadline && !isToday && "border-amber-400/60 bg-amber-500/5",
+                          isDelivery && !isToday && "border-emerald-400/60 bg-emerald-500/5",
+                          !isToday && !isDeadline && !isDelivery && "border-border/40"
                         )}
+                      >
+                        <div>
+                          <p className={cn("text-[10px] font-bold capitalize", isToday ? "text-primary" : "text-muted-foreground")}>
+                            {format(day, 'EEE', { locale: ptBR })}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground/70">{format(day, 'dd')}</p>
+                        </div>
+                        <div>
+                          {isDeadline && <AlertCircle className="h-3 w-3 text-amber-500 mx-auto" />}
+                          {isDelivery && <Truck className="h-3 w-3 text-emerald-500 mx-auto" />}
+                          {dayPedidos.length > 0 ? (
+                            <>
+                              <p className="text-sm font-bold">{dayPedidos.length}</p>
+                              <p className="text-[8px] text-muted-foreground">{formatCurrency(dayVal)}</p>
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground/20">—</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="lg:col-span-5 border-border/60">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Resumo do {period === 'mes' ? 'Mês' : 'Trimestre'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-primary/5 border border-primary/15 text-center">
+                    <p className="text-2xl font-bold text-primary">{pedidosAtivos.length}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Pedidos ativos</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
+                    <p className="text-2xl font-bold text-emerald-600">{formatCurrency(faturamento)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Faturamento</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                    <p className="text-2xl font-bold">{litrosPeriodo.toLocaleString('pt-BR')}L</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Litros vendidos</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/40 border border-border/40 text-center">
+                    <p className="text-2xl font-bold">{clientesAtivos}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">Clientes únicos</p>
+                  </div>
+                </div>
+                {faturamentoAnterior > 0 && (
+                  <div className="mt-3 flex items-center gap-2 text-[11px]">
+                    {faturamento >= faturamentoAnterior ? (
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                    )}
+                    <span className="text-muted-foreground">
+                      {compLabel}: {formatCurrency(faturamentoAnterior)}
+                      <span className={cn(
+                        "ml-1 font-semibold",
+                        faturamento >= faturamentoAnterior ? "text-emerald-600" : "text-red-500"
+                      )}>
+                        ({faturamento >= faturamentoAnterior ? '+' : ''}{((faturamento - faturamentoAnterior) / faturamentoAnterior * 100).toFixed(0)}%)
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Financial summary — compact */}
+          {/* Financial summary */}
           <Card className="lg:col-span-3 border-border/60">
             <CardHeader className="pb-2 pt-3 px-4">
               <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Financeiro</CardTitle>
@@ -473,7 +591,6 @@ export default function Hub() {
               <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status Operacional</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-2">
-              {/* Pedidos status */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="text-center p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
                   <p className="text-lg font-bold text-amber-600">{pedidosPendentes}</p>
@@ -489,9 +606,8 @@ export default function Hub() {
                 </div>
               </div>
 
-              {/* Alerts */}
               <div className="space-y-1.5">
-                {pedidosPendentes > 0 && !deadlinePassed && (
+                {pedidosPendentes > 0 && (period !== 'semana' || !deadlinePassed) && (
                   <NavLink to="/pedidos" className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/10 transition-colors">
                     <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     <span className="text-[11px] flex-1">{pedidosPendentes} aguardando confirmação</span>
@@ -512,7 +628,7 @@ export default function Hub() {
                     <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
                   </NavLink>
                 )}
-                {deadlinePassed && (
+                {period === 'semana' && deadlinePassed && (
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/15">
                     <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-[11px]">Prazo encerrado — entrega {format(friday, "EEE dd/MM", { locale: ptBR })}</span>
@@ -525,18 +641,19 @@ export default function Hub() {
 
         {/* Row 4: Pedidos recentes + Top produtos */}
         <div className="grid gap-3 lg:grid-cols-12">
-          {/* Pedidos recentes */}
           <Card className="lg:col-span-8 border-border/60">
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pedidos da Semana</CardTitle>
+                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Pedidos {period === 'semana' ? 'da Semana' : period === 'mes' ? 'do Mês' : 'do Trimestre'}
+                </CardTitle>
                 <NavLink to="/pedidos" className="text-[10px] text-primary hover:underline font-medium">Ver todos →</NavLink>
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-3">
               {pedidos.length > 0 ? (
                 <div className="space-y-1">
-                  {pedidos.slice(0, 8).map((pedido) => {
+                  {pedidos.slice(0, 10).map((pedido) => {
                     const statusMap: Record<string, { label: string; cls: string }> = {
                       pendente: { label: 'Pendente', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
                       pago: { label: 'Pago', cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
@@ -564,7 +681,7 @@ export default function Hub() {
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground text-center py-6">Nenhum pedido esta semana</p>
+                <p className="text-xs text-muted-foreground text-center py-6">Nenhum pedido neste período</p>
               )}
             </CardContent>
           </Card>
