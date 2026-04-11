@@ -18,14 +18,19 @@ export function PedidosKPIs({ pedidos }: PedidosKPIsProps) {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const pedidosThisMonth = pedidos.filter((p) => {
+    // Exclude cancelled from revenue calculations
+    const activePedidos = pedidos.filter(p => p.status !== 'cancelado');
+
+    const pedidosThisMonth = activePedidos.filter((p) => {
+      if (!p.dataPedido) return false;
       const date = new Date(p.dataPedido);
       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
     });
 
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const pedidosLastMonth = pedidos.filter((p) => {
+    const pedidosLastMonth = activePedidos.filter((p) => {
+      if (!p.dataPedido) return false;
       const date = new Date(p.dataPedido);
       return date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
     });

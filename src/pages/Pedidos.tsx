@@ -247,7 +247,9 @@ export default function Pedidos() {
                               })}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {new Date(pedido.dataPedido).toLocaleDateString('pt-BR')}
+                              {pedido.dataPedido 
+                                ? new Date(pedido.dataPedido).toLocaleDateString('pt-BR')
+                                : '—'}
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <PedidoStatusWorkflow
