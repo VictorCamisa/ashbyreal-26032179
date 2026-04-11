@@ -98,7 +98,7 @@ export default function Hub() {
         supabase.from('pedidos').select('id, cliente_id, status, valor_total, data_pedido, numero_pedido, metodo_pagamento, observacoes')
           .gte('data_pedido', weekStart.toISOString()).lte('data_pedido', weekEnd.toISOString()),
         // Pedidos semana anterior (para comparação)
-        supabase.from('pedidos').select('id, valor_total')
+        supabase.from('pedidos').select('id, valor_total, status, cliente_id')
           .gte('data_pedido', prevWeekStart.toISOString()).lte('data_pedido', prevWeekEnd.toISOString()),
         // Itens da semana (para litros)
         supabase.from('pedido_itens').select('quantidade, subtotal, preco_unitario, pedido_id, produtos(nome, capacidade_barril, tipo_produto, unidade_medida)')

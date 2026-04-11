@@ -56,19 +56,21 @@ export function useDashboard(mesReferencia: Date = new Date()) {
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard', format(mesReferencia, 'yyyy-MM')],
     queryFn: async () => {
-      // Vendas do mês atual
+      // Vendas do mês atual (excluindo cancelados)
       const { data: vendasMes } = await supabase
         .from('pedidos')
         .select('valor_total')
         .gte('data_pedido', inicioMes.toISOString())
-        .lte('data_pedido', fimMes.toISOString());
+        .lte('data_pedido', fimMes.toISOString())
+        .neq('status', 'cancelado');
 
-      // Vendas do mês anterior
+      // Vendas do mês anterior (excluindo cancelados)
       const { data: vendasMesAnterior } = await supabase
         .from('pedidos')
         .select('valor_total')
         .gte('data_pedido', inicioMesAnterior.toISOString())
-        .lte('data_pedido', fimMesAnterior.toISOString());
+        .lte('data_pedido', fimMesAnterior.toISOString())
+        .neq('status', 'cancelado');
 
       const totalVendas = vendasMes?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0;
       const totalVendasAnterior = vendasMesAnterior?.reduce((acc, p) => acc + Number(p.valor_total), 0) || 0;
