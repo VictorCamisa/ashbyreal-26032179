@@ -16,6 +16,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Financeiro from "./pages/Financeiro";
 import Contabilidade from "./pages/Contabilidade";
 import Clientes from "./pages/Clientes";
+import Lojistas from "./pages/Lojistas";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
@@ -54,6 +55,7 @@ const App = () => (
                   <Route path="/financeiro" element={<Financeiro />} />
                   <Route path="/contabilidade" element={<Contabilidade />} />
                   <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/lojistas" element={<Lojistas />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
                 </Route>
 
