@@ -76,7 +76,8 @@ export default function Auth() {
         // Get total pedidos
         const { count: pedidosCount } = await supabase
           .from('pedidos')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'exact', head: true })
+          .gte('data_pedido', '2023-01-01T00:00:00');
 
         // Get pedidos hoje
         const today = new Date().toISOString().split('T')[0];
@@ -106,6 +107,7 @@ export default function Auth() {
         const { data: recentPedidos } = await supabase
           .from('pedidos')
           .select('id, created_at, numero_pedido, valor_total')
+          .gte('data_pedido', '2023-01-01T00:00:00')
           .order('created_at', { ascending: false })
           .limit(5);
 
