@@ -316,8 +316,9 @@ export default function LojistaDetalhes() {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Contact Info */}
+        {/* Left: Contact & Fiscal Info */}
         <div className="space-y-4">
+          {/* Contact */}
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -325,41 +326,58 @@ export default function LojistaDetalhes() {
                 Informações de Contato
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Telefone</p>
-                  <p className="text-sm font-medium">{lojista.telefone}</p>
-                </div>
-              </div>
-              {lojista.email && (
-                <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">E-mail</p>
-                    <p className="text-sm font-medium break-all">{lojista.email}</p>
-                  </div>
-                </div>
+            <CardContent className="space-y-2.5">
+              <InfoRow icon={Phone} label="Telefone" value={lojista.telefone} />
+              {(lojista as any).telefone_secundario && (
+                <InfoRow icon={Phone} label="Telefone 2" value={(lojista as any).telefone_secundario} />
               )}
-              {lojista.contato_responsavel && (
-                <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
-                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Responsável</p>
-                    <p className="text-sm font-medium">{lojista.contato_responsavel}</p>
-                  </div>
-                </div>
-              )}
+              {lojista.email && <InfoRow icon={Mail} label="E-mail" value={lojista.email} />}
+              {lojista.contato_responsavel && <InfoRow icon={User} label="Responsável" value={lojista.contato_responsavel} />}
               {endereco && (endereco.rua || endereco.cidade) && (
                 <div className="flex items-start gap-3 p-2.5 rounded-lg bg-muted/50">
                   <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                   <div>
                     <p className="text-xs text-muted-foreground">Endereço</p>
                     <p className="text-sm font-medium">
-                      {[endereco.rua, endereco.numero, endereco.bairro, endereco.cidade, endereco.estado].filter(Boolean).join(', ')}
+                      {[endereco.rua, endereco.numero].filter(Boolean).join(', ')}
+                      {endereco.complemento && ` - ${endereco.complemento}`}
                     </p>
-                    {endereco.cep && <p className="text-xs text-muted-foreground mt-0.5">CEP: {endereco.cep}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {[endereco.bairro, endereco.cidade, endereco.estado].filter(Boolean).join(' - ')}
+                      {endereco.cep && ` | CEP: ${endereco.cep}`}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Fiscal */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Dados Fiscais
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              <FiscalRow label="CNPJ" value={lojista.cnpj} mono />
+              <FiscalRow label="Razão Social" value={(lojista as any).razao_social || lojista.nome} />
+              <FiscalRow label="Inscrição Estadual" value={(lojista as any).inscricao_estadual} placeholder="Não informada" />
+              <FiscalRow label="Inscrição Municipal" value={(lojista as any).inscricao_municipal} placeholder="Não informada" />
+              <FiscalRow label="Regime Tributário" value={formatRegime((lojista as any).regime_tributario)} />
+              <FiscalRow label="Contribuinte ICMS" value={formatContribuinte((lojista as any).contribuinte_icms)} />
+              {(lojista as any).suframa && <FiscalRow label="SUFRAMA" value={(lojista as any).suframa} mono />}
+              
+              {/* Fiscal completeness warning */}
+              {(!lojista.cnpj || !endereco?.rua || !endereco?.cidade) && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30 mt-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Dados incompletos para NF-e</p>
+                    <p className="text-[10px] text-amber-600/80 dark:text-amber-500 mt-0.5">
+                      {[!lojista.cnpj && 'CNPJ', !endereco?.rua && 'Endereço', !(lojista as any).inscricao_estadual && 'IE'].filter(Boolean).join(', ')} pendente(s)
+                    </p>
                   </div>
                 </div>
               )}
