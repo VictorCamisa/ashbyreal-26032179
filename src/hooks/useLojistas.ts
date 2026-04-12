@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getLojistaClienteMatches } from '@/lib/lojistaMatching';
 
 export interface Lojista {
   id: string;
@@ -138,46 +139,45 @@ export function useLojistaDetails(lojistaId: string | null) {
     queryFn: async () => {
       if (!lojistaId) return null;
 
-      // Fetch lojista first to get name for legacy pedido matching
-      const lojistaResult = await supabase.from('lojistas').select('*').eq('id', lojistaId).single();
+      const [lojistaResult, lojistasResult, clientesResult] = await Promise.all([
+        supabase.from('lojistas').select('*').eq('id', lojistaId).single(),
+        supabase.from('lojistas').select('id, nome, nome_fantasia, razao_social, telefone, cnpj'),
+        supabase.from('clientes').select('id, nome, empresa, telefone, cpf_cnpj'),
+      ]);
+
       if (lojistaResult.error) throw lojistaResult.error;
+      if (lojistasResult.error) throw lojistasResult.error;
+      if (clientesResult.error) throw clientesResult.error;
+
       const lojista = lojistaResult.data as Lojista;
+      const clienteIdsByLojista = getLojistaClienteMatches(lojistasResult.data || [], clientesResult.data || []);
+      const matchedClienteIds = clienteIdsByLojista[lojistaId] || [];
 
-      // Find matching cliente by name (legacy orders use cliente_id, not lojista_id)
-      const { data: matchedClientes } = await supabase
-        .from('clientes')
-        .select('id')
-        .ilike('nome', lojista.nome);
-      const matchedClienteId = matchedClientes?.[0]?.id || null;
-
-      // Fetch pedidos by lojista_id OR matched cliente_id
       let allPedidos: any[] = [];
-      
-      // By lojista_id
+
       const { data: pedidosByLojista } = await supabase
         .from('pedidos')
         .select(`*, pedido_itens (*, produtos (nome, preco))`)
         .eq('lojista_id', lojistaId)
+        .gte('data_pedido', '2023-01-01T00:00:00')
         .order('created_at', { ascending: false });
       allPedidos = pedidosByLojista || [];
 
-      // By matched cliente_id (legacy)
-      if (matchedClienteId) {
+      if (matchedClienteIds.length > 0) {
         const { data: pedidosByCliente } = await supabase
           .from('pedidos')
           .select(`*, pedido_itens (*, produtos (nome, preco))`)
-          .eq('cliente_id', matchedClienteId)
+          .in('cliente_id', matchedClienteIds)
           .is('lojista_id', null)
+          .gte('data_pedido', '2023-01-01T00:00:00')
           .order('created_at', { ascending: false });
-        
-        // Merge without duplicates
+
         const existingIds = new Set(allPedidos.map(p => p.id));
         (pedidosByCliente || []).forEach(p => {
           if (!existingIds.has(p.id)) allPedidos.push(p);
         });
       }
 
-      // Sort combined results
       allPedidos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       const [barrisResult, notasResult] = await Promise.all([
