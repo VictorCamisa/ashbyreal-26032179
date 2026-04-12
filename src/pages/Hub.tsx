@@ -750,7 +750,14 @@ export default function Hub() {
               <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
               <span className="text-[10px] font-medium">Leads</span>
             </NavLink>
-            {filteredModules.filter(item => item.key !== 'clientes' && item.key !== 'crm').map((item) => (
+            <NavLink
+              to="/lojistas"
+              className="group flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border/30 hover:border-primary/20 hover:bg-primary/5 transition-all text-center"
+            >
+              <Store className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="text-[10px] font-medium">Lojistas</span>
+            </NavLink>
+            {filteredModules.filter(item => item.key !== 'clientes' && item.key !== 'crm' && item.key !== 'lojistas').map((item) => (
               <NavLink
                 key={item.key}
                 to={item.href}
