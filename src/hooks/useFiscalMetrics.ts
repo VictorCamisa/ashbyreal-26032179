@@ -117,15 +117,16 @@ export function useFiscalMetrics(month: string) {
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr = format(endDate, 'yyyy-MM-dd');
 
-      // 1. Buscar boletos pagos no mês (= ENTRADAS adicionais)
+      // 1. Buscar TODOS os boletos do mês por due_date (= ENTRADAS)
       const { data: boletos } = await supabase
         .from('boletos')
-        .select('id, description, beneficiario, amount, paid_at, tipo_nota')
-        .eq('status', 'PAGO')
-        .gte('paid_at', startStr)
-        .lte('paid_at', endStr + 'T23:59:59');
+        .select('id, description, beneficiario, amount, due_date, paid_at, tipo_nota, status')
+        .neq('status', 'CANCELADO')
+        .neq('status', 'REJEITADO')
+        .gte('due_date', startStr)
+        .lte('due_date', endStr);
 
-      // 2. Buscar compras Ashby no mês (= ENTRADAS principais)
+      // 2. Buscar compras Ashby no mês (fallback histórico para meses sem boletos)
       const ashbyPedidos = await fetchAllAshbyPedidos(startStr, endStr);
 
       // 3. Buscar vendas (pedidos entregues) excluindo Ashby
@@ -156,19 +157,7 @@ export function useFiscalMetrics(month: string) {
       const alertasList = alertas || [];
 
       // ========== ENTRADAS (Compras) ==========
-      // Fonte 1: Compras Ashby (parseadas das observações)
-      let ashbyComNF = 0;
-      let ashbySemNF = 0;
-      let ashbyFrete = 0;
-      
-      ashbyPedidos.forEach(p => {
-        const parsed = parseAshbyObservacoes(p.observacoes);
-        ashbyComNF += parsed.comNF;
-        ashbySemNF += parsed.semNF;
-        ashbyFrete += parsed.frete;
-      });
-
-      // Fonte 2: Boletos (outras compras)
+      // Fonte principal: Boletos (integração real com Financeiro)
       const boletosComNF = boletosList
         .filter(b => b.tipo_nota === 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
@@ -176,9 +165,24 @@ export function useFiscalMetrics(month: string) {
         .filter(b => b.tipo_nota !== 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
 
+      // Fonte histórica: Ashby (apenas quando não há boletos no mês)
+      let ashbyComNF = 0;
+      let ashbySemNF = 0;
+      let ashbyFrete = 0;
+
+      if (boletosList.length === 0 && ashbyPedidos.length > 0) {
+        // Mês sem boletos → usar dados Ashby como fallback
+        ashbyPedidos.forEach(p => {
+          const parsed = parseAshbyObservacoes(p.observacoes);
+          ashbyComNF += parsed.comNF;
+          ashbySemNF += parsed.semNF;
+          ashbyFrete += parsed.frete;
+        });
+      }
+
       // Totais de entrada
-      const entradasComNF = ashbyComNF + boletosComNF;
-      const entradasSemNF = ashbySemNF + boletosSemNF;
+      const entradasComNF = boletosComNF + ashbyComNF;
+      const entradasSemNF = boletosSemNF + ashbySemNF;
       const entradasFrete = ashbyFrete;
       const totalEntradas = entradasComNF + entradasSemNF + entradasFrete;
 
