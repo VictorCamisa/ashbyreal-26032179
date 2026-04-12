@@ -780,6 +780,12 @@ export default function LojistaDetalhes() {
         onStatusChange={() => refetch()}
         onDelete={() => refetch()}
       />
+
+      <NovoDocumentoDialog
+        open={emitirNotaOpen}
+        onOpenChange={setEmitirNotaOpen}
+        defaultLojistaId={id}
+      />
     </div>
   );
 }
