@@ -8,6 +8,8 @@ import {
   Calculator,
   Target,
   ChevronsUpDown,
+  Users,
+  Store,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -39,6 +41,8 @@ import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 const salesNavItems = [
   { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
   { key: 'crm', label: 'CRM', href: '/crm', icon: Target },
+  { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users },
+  { key: 'lojistas', label: 'Lojistas', href: '/lojistas', icon: Store },
 ];
 
 const financeNavItems = [
