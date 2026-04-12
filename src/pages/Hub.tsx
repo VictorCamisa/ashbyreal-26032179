@@ -387,6 +387,22 @@ export default function Hub() {
   const formatCurrency = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   const formatCurrencyFull = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
+  // Available years/quarters
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    (data?.allPedidos || []).forEach((p: any) => {
+      if (p.data_pedido) years.add(new Date(p.data_pedido).getFullYear());
+    });
+    return Array.from(years).sort();
+  }, [data?.allPedidos]);
+
+  const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+  const handleQuarterSelect = (year: number, quarter: number) => {
+    setSelectedQuarter({ year, quarter });
+    setPeriod('trimestre');
+  };
+
   const periodButtons: { value: PeriodType; label: string }[] = [
     { value: 'semana', label: 'Semana' },
     { value: 'mes', label: 'Mês' },
