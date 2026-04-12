@@ -41,31 +41,20 @@ export function useLojistaDashboard() {
 
       if (lojError) throw lojError;
 
-      // Fetch matching clientes by name
-      const { data: clientes } = await supabase
-        .from('clientes')
-        .select('id, nome');
-
-      // Build name->cliente_id map
-      const clienteMap: Record<string, string> = {};
-      clientes?.forEach(c => {
-        clienteMap[c.nome.toUpperCase()] = c.id;
-      });
-
       // Fetch all barris with lojista_id
       const { data: barris } = await supabase
         .from('barris')
         .select('id, lojista_id, status_conteudo, localizacao');
 
-      // Fetch pedidos with matching cliente_ids
-      const clienteIds = lojistas?.map(l => clienteMap[l.nome.toUpperCase()]).filter(Boolean) || [];
+      // Fetch pedidos linked to lojistas via lojista_id
+      const lojistaIds = (lojistas || []).map(l => l.id);
       
       let pedidos: any[] = [];
-      if (clienteIds.length > 0) {
+      if (lojistaIds.length > 0) {
         const { data: pedidosData } = await supabase
           .from('pedidos')
-          .select('id, cliente_id, status, valor_total, data_pedido')
-          .in('cliente_id', clienteIds)
+          .select('id, cliente_id, lojista_id, status, valor_total, data_pedido')
+          .in('lojista_id', lojistaIds)
           .neq('status', 'cancelado');
         pedidos = pedidosData || [];
       }
