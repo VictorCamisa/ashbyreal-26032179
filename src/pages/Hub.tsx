@@ -190,18 +190,35 @@ export default function Hub() {
     return modules.filter((m) => visibleModules.includes(m.key));
   }, [visibleModules]);
 
-  const clientesMapObj = useMemo(() => {
-    const map: Record<string, string> = {};
-    data?.clientes?.forEach(c => { map[c.id] = c.nome; });
-    return map;
-  }, [data?.clientes]);
+  // Filter all pedidos by period client-side
+  const allPedidos = data?.allPedidos || [];
+  const allPedidosAtivos = allPedidos.filter(p => p.status !== 'cancelado');
 
-  const pedidos = data?.pedidos || [];
-  const transacoes = data?.transacoes || [];
+  const pedidos = useMemo(() => {
+    return allPedidos.filter(p => {
+      if (!p.data_pedido) return false;
+      const d = new Date(p.data_pedido);
+      return d >= rangeStart && d <= rangeEnd;
+    });
+  }, [allPedidos, rangeStart, rangeEnd]);
+
+  const pedidosAnterior = useMemo(() => {
+    return allPedidos.filter(p => {
+      if (!p.data_pedido) return false;
+      const d = new Date(p.data_pedido);
+      return d >= prevStart && d <= prevEnd;
+    });
+  }, [allPedidos, prevStart, prevEnd]);
+
+  const transacoes = useMemo(() => {
+    const rs = format(rangeStart, 'yyyy-MM-dd');
+    const re = format(rangeEnd, 'yyyy-MM-dd');
+    return (data?.transacoes || []).filter(t => t.due_date >= rs && t.due_date <= re);
+  }, [data?.transacoes, rangeStart, rangeEnd]);
 
   // Faturamento (exclui cancelados)
   const pedidosAtivos = pedidos.filter(p => p.status !== 'cancelado');
-  const pedidosAnteriorAtivos = (data?.pedidosAnterior || []).filter((p: any) => p.status !== 'cancelado');
+  const pedidosAnteriorAtivos = pedidosAnterior.filter((p: any) => p.status !== 'cancelado');
   const faturamento = pedidosAtivos.reduce((a, p) => a + Number(p.valor_total), 0);
   const faturamentoAnterior = pedidosAnteriorAtivos.reduce((a: number, p: any) => a + Number(p.valor_total), 0);
   const meta = METAS[period];
