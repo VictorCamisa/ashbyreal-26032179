@@ -88,12 +88,13 @@ export default function Contabilidade() {
         <TabsContent value="dashboard" className="space-y-6">
           {/* KPIs Avançados */}
           <KPIsFiscais
-            gapFiscalEntradas={metrics?.gapEntradas || 0}
-            gapFiscalSaidas={metrics?.gapSaidas || 0}
-            margemFiscal={metrics?.margemFiscal || 0}
-            creditoICMS={metrics?.creditoICMS || 0}
-            debitoICMS={metrics?.debitoICMS || 0}
-            coberturaDocumental={metrics?.coberturaDocumental || 100}
+            totalEntradas={metrics?.totalEntradas || 0}
+            entradasComNF={metrics?.entradasComNF || 0}
+            entradasSemNF={metrics?.entradasSemNF || 0}
+            totalSaidas={metrics?.totalSaidas || 0}
+            saidasComNF={(metrics?.saidasComNFe || 0) + (metrics?.saidasComCupom || 0)}
+            saidasSemNF={metrics?.saidasSemNF || 0}
+            gapFiscal={metrics?.gapFiscal || 0}
             totalPendencias={metrics?.totalPendencias || 0}
             isLoading={isLoading}
           />
