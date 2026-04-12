@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getLojistaClienteMatches } from '@/lib/lojistaMatching';
 
 const PEDIDOS_BATCH_SIZE = 1000;
+const CLIENTES_BATCH_SIZE = 1000;
 
 type DashboardPedido = {
   id: string;
@@ -35,6 +36,29 @@ async function fetchPedidosDesde2023() {
   }
 
   return pedidos.filter((pedido) => pedido.status !== 'cancelado');
+}
+
+async function fetchClientes() {
+  const clientes = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('id, nome, empresa, telefone, cpf_cnpj')
+      .order('id')
+      .range(from, from + CLIENTES_BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    const batch = data || [];
+    clientes.push(...batch);
+
+    if (batch.length < CLIENTES_BATCH_SIZE) break;
+    from += CLIENTES_BATCH_SIZE;
+  }
+
+  return clientes;
 }
 
 export interface LojistaDashboardItem {
@@ -71,7 +95,7 @@ export function useLojistaDashboard() {
     queryFn: async () => {
       const [lojistasResult, clientesResult, barrisResult, pedidos] = await Promise.all([
         supabase.from('lojistas').select('*').order('nome'),
-        supabase.from('clientes').select('id, nome, empresa, telefone, cpf_cnpj'),
+        fetchClientes(),
         supabase.from('barris').select('id, lojista_id, status_conteudo, localizacao'),
         fetchPedidosDesde2023(),
       ]);
@@ -80,10 +104,9 @@ export function useLojistaDashboard() {
 
       if (lojError) throw lojError;
 
-      if (clientesResult.error) throw clientesResult.error;
       if (barrisResult.error) throw barrisResult.error;
 
-      const clientes = clientesResult.data || [];
+      const clientes = clientesResult || [];
       const barris = barrisResult.data || [];
       const clienteIdsByLojista = getLojistaClienteMatches(lojistas || [], clientes);
 
