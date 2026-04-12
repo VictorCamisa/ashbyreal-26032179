@@ -136,23 +136,39 @@ export default function Hub() {
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
+  // Fetch ALL pedidos since 2023 with pagination (bypasses 1000-row limit)
   const { data, isLoading } = useQuery({
-    queryKey: ['hub-dashboard', period, format(rangeStart, 'yyyy-MM-dd')],
+    queryKey: ['hub-dashboard-all'],
     queryFn: async () => {
+      const BATCH = 1000;
+
+      async function fetchAllPedidos() {
+        const all: any[] = [];
+        let from = 0;
+        while (true) {
+          const { data: batch, error } = await supabase
+            .from('pedidos')
+            .select('id, cliente_id, status, valor_total, data_pedido, numero_pedido, metodo_pagamento, observacoes')
+            .gte('data_pedido', '2023-01-01T00:00:00')
+            .order('data_pedido', { ascending: false })
+            .range(from, from + BATCH - 1);
+          if (error) throw error;
+          all.push(...(batch || []));
+          if (!batch || batch.length < BATCH) break;
+          from += BATCH;
+        }
+        return all;
+      }
+
       const [
-        pedidosPeriodo,
-        pedidosPeriodoAnterior,
-        transacoesPeriodo,
-        clientesMap,
-        estoqueAlertas,
-        whatsappStatus,
+        allPedidos,
+        transacoesResult,
+        clientesResult,
+        estoqueResult,
+        whatsappResult,
       ] = await Promise.all([
-        supabase.from('pedidos').select('id, cliente_id, status, valor_total, data_pedido, numero_pedido, metodo_pagamento, observacoes')
-          .gte('data_pedido', rangeStart.toISOString()).lte('data_pedido', rangeEnd.toISOString()),
-        supabase.from('pedidos').select('id, valor_total, status, cliente_id')
-          .gte('data_pedido', prevStart.toISOString()).lte('data_pedido', prevEnd.toISOString()),
+        fetchAllPedidos(),
         supabase.from('transactions').select('id, description, amount, tipo, status, due_date')
-          .gte('due_date', format(rangeStart, 'yyyy-MM-dd')).lte('due_date', format(rangeEnd, 'yyyy-MM-dd'))
           .neq('status', 'CANCELADO').order('due_date'),
         supabase.from('clientes').select('id, nome'),
         supabase.from('produtos').select('id, nome, estoque, estoque_minimo, estoque_litros').filter('ativo', 'eq', true),
@@ -160,12 +176,11 @@ export default function Hub() {
       ]);
 
       return {
-        pedidos: pedidosPeriodo.data || [],
-        pedidosAnterior: pedidosPeriodoAnterior.data || [],
-        transacoes: transacoesPeriodo.data || [],
-        clientes: clientesMap.data || [],
-        produtos: estoqueAlertas.data || [],
-        whatsapp: whatsappStatus.data?.[0] || null,
+        allPedidos,
+        transacoes: transacoesResult.data || [],
+        clientes: clientesResult.data || [],
+        produtos: estoqueResult.data || [],
+        whatsapp: whatsappResult.data?.[0] || null,
       };
     },
   });
