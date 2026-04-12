@@ -64,11 +64,8 @@ export function useLojistaDashboard() {
 
       // Build enriched lojista list
       const items: LojistaDashboardItem[] = (lojistas || []).map(l => {
-        const clienteId = clienteMap[l.nome.toUpperCase()] || null;
         const lojistaBarris = (barris || []).filter(b => b.lojista_id === l.id);
-        const lojistaPedidos = clienteId 
-          ? pedidos.filter(p => p.cliente_id === clienteId)
-          : [];
+        const lojistaPedidos = pedidos.filter(p => p.lojista_id === l.id);
 
         return {
           id: l.id,
