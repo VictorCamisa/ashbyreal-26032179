@@ -27,6 +27,7 @@ import {
   Boxes,
   Bot,
   Calendar,
+  Store,
 } from 'lucide-react';
 import { UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -73,6 +74,7 @@ const modules: ModuleItem[] = [
   { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator, description: 'NFs e DRE' },
   { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Boxes, description: 'Produtos e controle' },
   { key: 'clientes', label: 'Clientes', href: '/clientes', icon: Users, description: 'Base de clientes' },
+  { key: 'lojistas', label: 'Lojistas', href: '/lojistas', icon: Store, description: 'Parceiros B2B' },
   { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare, description: 'Conversas' },
   { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot, description: 'Automação' },
 ];
