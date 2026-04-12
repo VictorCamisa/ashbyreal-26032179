@@ -64,10 +64,9 @@ function handleEmail(email: string | null) {
 
 export default function Lojistas() {
   const { data, isLoading } = useLojistaDashboard();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativos' | 'pendentes' | 'inativos'>('todos');
-  const [selectedLojistaId, setSelectedLojistaId] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const items = data?.items || [];
   const kpis = data?.kpis;
@@ -91,8 +90,7 @@ export default function Lojistas() {
   }, [items, searchTerm, statusFilter]);
 
   const openDetails = (id: string) => {
-    setSelectedLojistaId(id);
-    setSheetOpen(true);
+    navigate(`/lojistas/${id}`);
   };
 
   return (
@@ -300,13 +298,6 @@ export default function Lojistas() {
         <p className="text-xs text-muted-foreground">
           {filteredItems.length} de {items.length} lojista(s)
         </p>
-      </div>
-
-      <LojistaDetailsSheet
-        lojistaId={selectedLojistaId}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-      />
     </PageLayout>
   );
 }
