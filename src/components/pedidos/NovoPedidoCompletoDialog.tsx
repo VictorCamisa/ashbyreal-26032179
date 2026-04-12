@@ -48,8 +48,12 @@ import { SelecionarBarrisStep } from '@/components/barris/SelecionarBarrisStep';
 import { LojistaDetailsSheet } from '@/components/lojistas/LojistaDetailsSheet';
 import { cn } from '@/lib/utils';
 
-interface NovoPedidoCompletoDialogProps {
+export interface NovoPedidoCompletoDialogProps {
   onSuccess?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  preSelectedLojistaId?: string;
+}
 }
 
 interface Produto {
