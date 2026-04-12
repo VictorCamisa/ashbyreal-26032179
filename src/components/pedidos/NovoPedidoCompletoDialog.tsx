@@ -54,7 +54,6 @@ export interface NovoPedidoCompletoDialogProps {
   onOpenChange?: (open: boolean) => void;
   preSelectedLojistaId?: string;
 }
-}
 
 interface Produto {
   id: string;
@@ -88,8 +87,13 @@ const isCNPJ = (cpfCnpj: string | null): boolean => {
 
 type Step = 'cliente' | 'produtos' | 'barris' | 'pagamento';
 
-export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialogProps) {
-  const [open, setOpen] = useState(false);
+export function NovoPedidoCompletoDialog({ onSuccess, open: externalOpen, onOpenChange: externalOnOpenChange, preSelectedLojistaId }: NovoPedidoCompletoDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (externalOnOpenChange) externalOnOpenChange(v);
+    else setInternalOpen(v);
+  };
   const [step, setStep] = useState<Step>('cliente');
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
