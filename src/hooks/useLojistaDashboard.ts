@@ -77,7 +77,7 @@ export function useLojistaDashboard() {
           status: l.status,
           contato_responsavel: l.contato_responsavel,
           observacoes: l.observacoes,
-          cliente_id: clienteId,
+          cliente_id: lojistaPedidos.length > 0 ? lojistaPedidos[0].cliente_id : null,
           barris_count: lojistaBarris.length,
           barris_cheios: lojistaBarris.filter(b => b.status_conteudo === 'CHEIO').length,
           pedidos_pendentes: lojistaPedidos.filter(p => p.status === 'pendente').length,
