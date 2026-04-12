@@ -129,14 +129,6 @@ export default function Hub() {
   const { data: visibleModules } = useUserModules();
   const [period, setPeriod] = useState<PeriodType>('semana');
 
-  const now = new Date();
-  const { start: rangeStart, end: rangeEnd, prevStart, prevEnd } = getDateRanges(period, now);
-
-  // Week-specific dates (for timeline, only shown in week mode)
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-
-  // Fetch ALL pedidos since 2023 with pagination (bypasses 1000-row limit)
   const { data, isLoading } = useQuery({
     queryKey: ['hub-dashboard-all'],
     queryFn: async () => {
@@ -145,6 +137,7 @@ export default function Hub() {
       async function fetchAllPedidos() {
         const all: any[] = [];
         let from = 0;
+
         while (true) {
           const { data: batch, error } = await supabase
             .from('pedidos')
@@ -152,24 +145,52 @@ export default function Hub() {
             .gte('data_pedido', '2023-01-01T00:00:00')
             .order('data_pedido', { ascending: false })
             .range(from, from + BATCH - 1);
+
           if (error) throw error;
+
           all.push(...(batch || []));
           if (!batch || batch.length < BATCH) break;
           from += BATCH;
         }
+
+        return all;
+      }
+
+      async function fetchAllPedidoItens() {
+        const all: any[] = [];
+        let from = 0;
+
+        while (true) {
+          const { data: batch, error } = await supabase
+            .from('pedido_itens')
+            .select('pedido_id, quantidade, produtos(capacidade_barril, nome)')
+            .range(from, from + BATCH - 1);
+
+          if (error) throw error;
+
+          all.push(...(batch || []));
+          if (!batch || batch.length < BATCH) break;
+          from += BATCH;
+        }
+
         return all;
       }
 
       const [
         allPedidos,
+        allPedidoItens,
         transacoesResult,
         clientesResult,
         estoqueResult,
         whatsappResult,
       ] = await Promise.all([
         fetchAllPedidos(),
-        supabase.from('transactions').select('id, description, amount, tipo, status, due_date')
-          .neq('status', 'CANCELADO').order('due_date'),
+        fetchAllPedidoItens(),
+        supabase
+          .from('transactions')
+          .select('id, description, amount, tipo, status, due_date')
+          .neq('status', 'CANCELADO')
+          .order('due_date'),
         supabase.from('clientes').select('id, nome'),
         supabase.from('produtos').select('id, nome, estoque, estoque_minimo, estoque_litros').filter('ativo', 'eq', true),
         supabase.from('whatsapp_instances').select('id, status').limit(1),
@@ -177,6 +198,7 @@ export default function Hub() {
 
       return {
         allPedidos,
+        allPedidoItens,
         transacoes: transacoesResult.data || [],
         clientes: clientesResult.data || [],
         produtos: estoqueResult.data || [],
@@ -190,86 +212,104 @@ export default function Hub() {
     return modules.filter((m) => visibleModules.includes(m.key));
   }, [visibleModules]);
 
+  const referenceDate = useMemo(() => {
+    const latestPedido = data?.allPedidos?.find((pedido: any) => Boolean(pedido.data_pedido));
+    return latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+  }, [data?.allPedidos]);
+
+  const now = referenceDate;
+  const { start: rangeStart, end: rangeEnd, prevStart, prevEnd } = useMemo(
+    () => getDateRanges(period, referenceDate),
+    [period, referenceDate]
+  );
+
+  const weekStart = useMemo(() => startOfWeek(referenceDate, { weekStartsOn: 1 }), [referenceDate]);
+  const weekEnd = useMemo(() => endOfWeek(referenceDate, { weekStartsOn: 1 }), [referenceDate]);
+
   const clientesMapObj = useMemo(() => {
     const map: Record<string, string> = {};
-    data?.clientes?.forEach(c => { map[c.id] = c.nome; });
+    data?.clientes?.forEach((c) => {
+      map[c.id] = c.nome;
+    });
     return map;
   }, [data?.clientes]);
 
-  // Filter all pedidos by period client-side
-  const allPedidos = data?.allPedidos || [];
-  const allPedidosAtivos = allPedidos.filter(p => p.status !== 'cancelado');
-
   const pedidos = useMemo(() => {
-    return allPedidos.filter(p => {
+    return (data?.allPedidos || []).filter((p: any) => {
       if (!p.data_pedido) return false;
-      const d = new Date(p.data_pedido);
-      return d >= rangeStart && d <= rangeEnd;
+      const pedidoDate = new Date(p.data_pedido);
+      return pedidoDate >= rangeStart && pedidoDate <= rangeEnd;
     });
-  }, [allPedidos, rangeStart, rangeEnd]);
+  }, [data?.allPedidos, rangeStart, rangeEnd]);
 
   const pedidosAnterior = useMemo(() => {
-    return allPedidos.filter(p => {
+    return (data?.allPedidos || []).filter((p: any) => {
       if (!p.data_pedido) return false;
-      const d = new Date(p.data_pedido);
-      return d >= prevStart && d <= prevEnd;
+      const pedidoDate = new Date(p.data_pedido);
+      return pedidoDate >= prevStart && pedidoDate <= prevEnd;
     });
-  }, [allPedidos, prevStart, prevEnd]);
+  }, [data?.allPedidos, prevStart, prevEnd]);
 
   const transacoes = useMemo(() => {
-    const rs = format(rangeStart, 'yyyy-MM-dd');
-    const re = format(rangeEnd, 'yyyy-MM-dd');
-    return (data?.transacoes || []).filter(t => t.due_date >= rs && t.due_date <= re);
+    const start = format(rangeStart, 'yyyy-MM-dd');
+    const end = format(rangeEnd, 'yyyy-MM-dd');
+
+    return (data?.transacoes || []).filter((t: any) => {
+      return t.due_date && t.due_date >= start && t.due_date <= end;
+    });
   }, [data?.transacoes, rangeStart, rangeEnd]);
 
-  // Faturamento (exclui cancelados)
-  const pedidosAtivos = pedidos.filter(p => p.status !== 'cancelado');
+  const litrosPorPedido = useMemo(() => {
+    const map: Record<string, number> = {};
+
+    (data?.allPedidoItens || []).forEach((item: any) => {
+      const capacidadeBarril = Number(item.produtos?.capacidade_barril || 0);
+      const quantidade = Number(item.quantidade || 0);
+
+      if (!item.pedido_id || capacidadeBarril <= 0 || quantidade <= 0) return;
+      map[item.pedido_id] = (map[item.pedido_id] || 0) + capacidadeBarril * quantidade;
+    });
+
+    return map;
+  }, [data?.allPedidoItens]);
+
+  const extrairLitros = (pedido: any) => {
+    const litrosItens = litrosPorPedido[pedido.id] || 0;
+    if (litrosItens > 0) return litrosItens;
+
+    const observacoes = String(pedido.observacoes || '');
+    const matches = observacoes.match(/(\d+(?:[\.,]\d+)?)\s*l(?:itros)?/gi);
+    if (!matches) return 0;
+
+    return matches.reduce((sum, match) => {
+      const value = Number(match.replace(/[^\d,\.]/g, '').replace(',', '.'));
+      return Number.isFinite(value) ? sum + value : sum;
+    }, 0);
+  };
+
+  const pedidosAtivos = pedidos.filter((p) => p.status !== 'cancelado');
   const pedidosAnteriorAtivos = pedidosAnterior.filter((p: any) => p.status !== 'cancelado');
-  const faturamento = pedidosAtivos.reduce((a, p) => a + Number(p.valor_total), 0);
-  const faturamentoAnterior = pedidosAnteriorAtivos.reduce((a: number, p: any) => a + Number(p.valor_total), 0);
+  const faturamento = pedidosAtivos.reduce((a, p) => a + Number(p.valor_total || 0), 0);
+  const faturamentoAnterior = pedidosAnteriorAtivos.reduce((a: number, p: any) => a + Number(p.valor_total || 0), 0);
   const meta = METAS[period];
   const metaProgress = meta > 0 ? Math.min((faturamento / meta) * 100, 100) : 0;
   const faltaMeta = Math.max(meta - faturamento, 0);
 
-  // Clientes ativos (excluindo cancelados)
-  const clientesAtivos = new Set(pedidosAtivos.map(p => p.cliente_id).filter(Boolean)).size;
+  const clientesAtivos = new Set(pedidosAtivos.map((p) => p.cliente_id).filter(Boolean)).size;
   const clientesAtivosAnterior = new Set(pedidosAnteriorAtivos.map((p: any) => p.cliente_id).filter(Boolean)).size;
   const clientesTrend = clientesAtivosAnterior > 0 ? ((clientesAtivos - clientesAtivosAnterior) / clientesAtivosAnterior) * 100 : 0;
 
-  // Ticket médio (excluindo cancelados)
   const ticketMedio = pedidosAtivos.length > 0 ? faturamento / pedidosAtivos.length : 0;
   const ticketMedioAnterior = pedidosAnteriorAtivos.length > 0 ? faturamentoAnterior / pedidosAnteriorAtivos.length : 0;
   const ticketTrend = ticketMedioAnterior > 0 ? ((ticketMedio - ticketMedioAnterior) / ticketMedioAnterior) * 100 : 0;
 
   const litrosPeriodo = useMemo(() => {
-    return pedidosAtivos.reduce((acc, pedido: any) => {
-      const observacoes = String(pedido.observacoes || '');
-      const matches = observacoes.match(/(\d+(?:[\.,]\d+)?)\s*l(?:itros)?/gi);
-      if (!matches) return acc;
-
-      const litrosPedido = matches.reduce((sum, match) => {
-        const value = Number(match.replace(/[^\d,\.]/g, '').replace(',', '.'));
-        return Number.isFinite(value) ? sum + value : sum;
-      }, 0);
-
-      return acc + litrosPedido;
-    }, 0);
-  }, [pedidosAtivos]);
+    return pedidosAtivos.reduce((acc, pedido: any) => acc + extrairLitros(pedido), 0);
+  }, [pedidosAtivos, litrosPorPedido]);
 
   const litrosAnterior = useMemo(() => {
-    return pedidosAnteriorAtivos.reduce((acc, pedido: any) => {
-      const observacoes = String(pedido.observacoes || '');
-      const matches = observacoes.match(/(\d+(?:[\.,]\d+)?)\s*l(?:itros)?/gi);
-      if (!matches) return acc;
-
-      const litrosPedido = matches.reduce((sum, match) => {
-        const value = Number(match.replace(/[^\d,\.]/g, '').replace(',', '.'));
-        return Number.isFinite(value) ? sum + value : sum;
-      }, 0);
-
-      return acc + litrosPedido;
-    }, 0);
-  }, [pedidosAnteriorAtivos]);
+    return pedidosAnteriorAtivos.reduce((acc, pedido: any) => acc + extrairLitros(pedido), 0);
+  }, [pedidosAnteriorAtivos, litrosPorPedido]);
 
   const litrosTrend = litrosAnterior > 0 ? ((litrosPeriodo - litrosAnterior) / litrosAnterior) * 100 : 0;
 
