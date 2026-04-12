@@ -100,10 +100,14 @@ export default function Contabilidade() {
 
           {/* Painel de Reconciliação */}
           <ReconciliacaoPanel
-            totalEntradas={metrics?.totalBoletos || 0}
-            totalSaidas={metrics?.totalPedidos || 0}
-            entradasComNF={metrics?.boletosComNF || 0}
-            saidasComNF={metrics?.pedidosComNF || 0}
+            totalEntradas={metrics?.totalEntradas || 0}
+            entradasComNF={metrics?.entradasComNF || 0}
+            entradasSemNF={metrics?.entradasSemNF || 0}
+            totalSaidas={metrics?.totalSaidas || 0}
+            saidasComNFe={metrics?.saidasComNFe || 0}
+            saidasComCupom={metrics?.saidasComCupom || 0}
+            saidasSemNF={metrics?.saidasSemNF || 0}
+            gapFiscal={metrics?.gapFiscal || 0}
             isLoading={isLoading}
           />
 

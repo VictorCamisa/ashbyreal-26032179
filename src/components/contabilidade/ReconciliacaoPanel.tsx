@@ -4,30 +4,38 @@ import { ArrowDownLeft, ArrowUpRight, Scale, AlertTriangle, CheckCircle } from '
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface ReconciliacaoPanelProps {
-  totalEntradas: number;
-  totalSaidas: number;
+  // Entradas (Compras)
   entradasComNF: number;
-  saidasComNF: number;
+  entradasSemNF: number;
+  totalEntradas: number;
+  // Saídas (Vendas)
+  saidasComNFe: number;
+  saidasComCupom: number;
+  saidasSemNF: number;
+  totalSaidas: number;
+  // Gap
+  gapFiscal: number;
   isLoading?: boolean;
 }
 
 export function ReconciliacaoPanel({
-  totalEntradas,
-  totalSaidas,
   entradasComNF,
-  saidasComNF,
+  entradasSemNF,
+  totalEntradas,
+  saidasComNFe,
+  saidasComCupom,
+  saidasSemNF,
+  totalSaidas,
+  gapFiscal,
   isLoading
 }: ReconciliacaoPanelProps) {
-  const gapEntradas = totalEntradas - entradasComNF;
-  const gapSaidas = totalSaidas - saidasComNF;
-  const saldoFiscal = saidasComNF - entradasComNF;
-  const coberturaEntradas = totalEntradas > 0 ? (entradasComNF / totalEntradas) * 100 : 100;
-  const coberturaSaidas = totalSaidas > 0 ? (saidasComNF / totalSaidas) * 100 : 100;
+  const totalSaidasComNF = saidasComNFe + saidasComCupom;
 
   const formatCurrency = (value: number) => 
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+  const coberturaEntradas = totalEntradas > 0 ? (entradasComNF / totalEntradas) * 100 : 100;
+  const coberturaSaidas = totalSaidas > 0 ? (totalSaidasComNF / totalSaidas) * 100 : 100;
 
   if (isLoading) {
     return (
@@ -59,26 +67,26 @@ export function ReconciliacaoPanel({
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Entradas (Compras/Despesas) */}
+          {/* Entradas (Compras) */}
           <div className="space-y-4 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
             <div className="flex items-center gap-2">
               <ArrowDownLeft className="h-5 w-5 text-red-500" />
-              <h3 className="font-semibold">Entradas (Despesas)</h3>
+              <h3 className="font-semibold">Entradas (Compras)</h3>
             </div>
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Boletos:</span>
+                <span className="text-muted-foreground">Total Compras:</span>
                 <span className="font-medium">{formatCurrency(totalEntradas)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Com NF-e:</span>
+                <span className="text-muted-foreground">Com NF:</span>
                 <span className="font-medium text-green-600">{formatCurrency(entradasComNF)}</span>
               </div>
-              <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-muted-foreground">Gap (sem NF):</span>
-                <span className={`font-bold ${gapEntradas > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                  {formatCurrency(gapEntradas)}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Sem NF:</span>
+                <span className={`font-bold ${entradasSemNF > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {formatCurrency(entradasSemNF)}
                 </span>
               </div>
             </div>
@@ -91,33 +99,46 @@ export function ReconciliacaoPanel({
                 />
               </div>
               <Badge variant={coberturaEntradas >= 90 ? 'default' : coberturaEntradas >= 70 ? 'secondary' : 'destructive'}>
-                {formatPercent(coberturaEntradas)}
+                {coberturaEntradas.toFixed(1)}%
               </Badge>
             </div>
           </div>
 
-          {/* Saldo Central */}
+          {/* Gap Fiscal Central */}
           <div className="space-y-4 p-4 rounded-lg bg-primary/10 border border-primary/20 flex flex-col justify-center items-center">
-            <h3 className="font-semibold text-center">Saldo Fiscal</h3>
-            <div className={`text-3xl font-bold ${saldoFiscal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(saldoFiscal)}
+            <h3 className="font-semibold text-center">Gap Fiscal</h3>
+            <div className={`text-3xl font-bold ${gapFiscal <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(Math.abs(gapFiscal))}
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Saídas (vendas) - Entradas (compras)
+              Entradas c/ NF − Saídas c/ NF
             </p>
             
             <div className="flex items-center gap-2 mt-2">
-              {saldoFiscal >= 0 ? (
+              {gapFiscal <= 0 ? (
                 <>
                   <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-sm text-green-600">Resultado Positivo</span>
+                  <span className="text-sm text-green-600">
+                    {gapFiscal === 0 ? 'Equilibrado' : 'Mais NF de saída'}
+                  </span>
                 </>
               ) : (
                 <>
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm text-amber-600">Verificar Operações</span>
+                  <span className="text-sm text-amber-600">Mais NF de entrada</span>
                 </>
               )}
+            </div>
+
+            <div className="w-full mt-2 space-y-1 text-xs text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Entradas c/ NF:</span>
+                <span className="font-medium text-red-500">{formatCurrency(entradasComNF)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Saídas c/ NF:</span>
+                <span className="font-medium text-green-600">{formatCurrency(totalSaidasComNF)}</span>
+              </div>
             </div>
           </div>
 
@@ -130,17 +151,21 @@ export function ReconciliacaoPanel({
             
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Pedidos:</span>
+                <span className="text-muted-foreground">Total Vendas:</span>
                 <span className="font-medium">{formatCurrency(totalSaidas)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Com NF/Cupom:</span>
-                <span className="font-medium text-green-600">{formatCurrency(saidasComNF)}</span>
+                <span className="text-muted-foreground">Com NF-e:</span>
+                <span className="font-medium text-green-600">{formatCurrency(saidasComNFe)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Com Cupom Fiscal:</span>
+                <span className="font-medium text-green-600">{formatCurrency(saidasComCupom)}</span>
               </div>
               <div className="flex justify-between text-sm border-t pt-2">
-                <span className="text-muted-foreground">Gap (sem NF):</span>
-                <span className={`font-bold ${gapSaidas > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                  {formatCurrency(gapSaidas)}
+                <span className="text-muted-foreground">Sem NF:</span>
+                <span className={`font-bold ${saidasSemNF > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {formatCurrency(saidasSemNF)}
                 </span>
               </div>
             </div>
@@ -153,7 +178,7 @@ export function ReconciliacaoPanel({
                 />
               </div>
               <Badge variant={coberturaSaidas >= 90 ? 'default' : coberturaSaidas >= 70 ? 'secondary' : 'destructive'}>
-                {formatPercent(coberturaSaidas)}
+                {coberturaSaidas.toFixed(1)}%
               </Badge>
             </div>
           </div>
