@@ -255,13 +255,15 @@ export function useFiscalMetrics(month: string) {
         const dayStr = format(day, 'yyyy-MM-dd');
         const dayLabel = format(day, 'dd');
         
-        // Entradas do dia: boletos + ashby
+        // Entradas do dia: boletos (por due_date) + ashby fallback
         const boletosDia = boletosList
-          .filter(b => b.paid_at && b.paid_at.startsWith(dayStr))
+          .filter(b => b.due_date && b.due_date === dayStr)
           .reduce((acc, b) => acc + Number(b.amount || 0), 0);
-        const ashbyDia = ashbyPedidos
-          .filter(p => p.data_pedido && p.data_pedido.startsWith(dayStr))
-          .reduce((acc, p) => acc + Number(p.valor_total || 0), 0);
+        const ashbyDia = (boletosList.length === 0 && ashbyPedidos.length > 0)
+          ? ashbyPedidos
+              .filter(p => p.data_pedido && p.data_pedido.startsWith(dayStr))
+              .reduce((acc, p) => acc + Number(p.valor_total || 0), 0)
+          : 0;
         const entradasDia = boletosDia + ashbyDia;
         
         const saidasDia = pedidosList
