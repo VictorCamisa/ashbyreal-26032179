@@ -1,0 +1,9 @@
+
+ALTER TABLE public.lojistas
+  ADD COLUMN IF NOT EXISTS inscricao_estadual TEXT,
+  ADD COLUMN IF NOT EXISTS inscricao_municipal TEXT,
+  ADD COLUMN IF NOT EXISTS regime_tributario TEXT DEFAULT 'SIMPLES_NACIONAL',
+  ADD COLUMN IF NOT EXISTS razao_social TEXT,
+  ADD COLUMN IF NOT EXISTS suframa TEXT,
+  ADD COLUMN IF NOT EXISTS contribuinte_icms TEXT DEFAULT 'NAO_CONTRIBUINTE',
+  ADD COLUMN IF NOT EXISTS telefone_secundario TEXT;

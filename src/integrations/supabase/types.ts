@@ -1860,46 +1860,67 @@ export type Database = {
         Row: {
           cnpj: string | null
           contato_responsavel: string | null
+          contribuinte_icms: string | null
           created_at: string | null
           data_cadastro: string | null
           email: string | null
           endereco: Json | null
           id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
           nome: string
           nome_fantasia: string | null
           observacoes: string | null
+          razao_social: string | null
+          regime_tributario: string | null
           status: string | null
+          suframa: string | null
           telefone: string
+          telefone_secundario: string | null
           updated_at: string | null
         }
         Insert: {
           cnpj?: string | null
           contato_responsavel?: string | null
+          contribuinte_icms?: string | null
           created_at?: string | null
           data_cadastro?: string | null
           email?: string | null
           endereco?: Json | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
           nome: string
           nome_fantasia?: string | null
           observacoes?: string | null
+          razao_social?: string | null
+          regime_tributario?: string | null
           status?: string | null
+          suframa?: string | null
           telefone: string
+          telefone_secundario?: string | null
           updated_at?: string | null
         }
         Update: {
           cnpj?: string | null
           contato_responsavel?: string | null
+          contribuinte_icms?: string | null
           created_at?: string | null
           data_cadastro?: string | null
           email?: string | null
           endereco?: Json | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
           nome?: string
           nome_fantasia?: string | null
           observacoes?: string | null
+          razao_social?: string | null
+          regime_tributario?: string | null
           status?: string | null
+          suframa?: string | null
           telefone?: string
+          telefone_secundario?: string | null
           updated_at?: string | null
         }
         Relationships: []
