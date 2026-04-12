@@ -669,20 +669,46 @@ export function NovoDocumentoDialog({ open, onOpenChange, defaultLojistaId }: No
                   <div className="space-y-4">
                     {direcao === 'SAIDA' ? (
                       <>
-                        <FormField control={form.control} name="cliente_id" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-1.5">
-                              <User className="h-4 w-4" /> Cliente (Destinatário)
-                              {tipoAtual === 'NFE' && <Badge variant="outline" className="text-[10px] ml-1">Obrigatório para NF-e</Badge>}
-                            </FormLabel>
-                            <FormControl>
-                              <ClientePicker value={field.value} onChange={field.onChange} clientes={clientes || []} />
-                            </FormControl>
-                          </FormItem>
-                        )} />
-                        {tipoAtual === 'NFCE' && !form.watch('cliente_id') && (
+                        {defaultLojistaId ? (
+                          // Lojista pre-selected - show read-only info
+                          (() => {
+                            const loj = lojistas.find((l: any) => l.id === defaultLojistaId) as any;
+                            return loj ? (
+                              <div className="rounded-xl border-2 border-primary bg-primary/5 p-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-5 w-5 text-primary" />
+                                  <p className="font-semibold">{loj.nome_fantasia || loj.nome}</p>
+                                  <Badge variant="outline" className="text-[10px] ml-auto">Lojista</Badge>
+                                </div>
+                                {loj.cnpj && <p className="text-xs font-mono text-muted-foreground">CNPJ: {loj.cnpj}</p>}
+                                {loj.razao_social && <p className="text-xs text-muted-foreground">Razão Social: {loj.razao_social}</p>}
+                                {loj.telefone && <p className="text-xs text-muted-foreground">Tel: {loj.telefone}</p>}
+                              </div>
+                            ) : null;
+                          })()
+                        ) : (
+                          // Normal flow - show lojista picker for NF
+                          <FormField control={form.control} name="lojista_id" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-1.5">
+                                <Building2 className="h-4 w-4" /> Lojista (Destinatário)
+                                {tipoAtual === 'NFE' && <Badge variant="outline" className="text-[10px] ml-1">Obrigatório para NF-e</Badge>}
+                              </FormLabel>
+                              <FormControl>
+                                <LojistaPicker value={field.value} onChange={(id, loj) => {
+                                  field.onChange(id);
+                                  if (loj) {
+                                    form.setValue('razao_social', loj.razao_social || loj.nome || '');
+                                    form.setValue('cnpj_cpf', loj.cnpj || '');
+                                  }
+                                }} lojistas={lojistas || []} />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                        )}
+                        {tipoAtual === 'NFCE' && !form.watch('lojista_id') && !defaultLojistaId && (
                           <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                            💡 Para NFC-e, o cliente é opcional. A nota será emitida para consumidor final sem identificação.
+                            💡 Para NFC-e, o destinatário é opcional. A nota será emitida para consumidor final sem identificação.
                           </p>
                         )}
                       </>
