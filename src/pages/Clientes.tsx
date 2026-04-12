@@ -11,7 +11,7 @@ import { Search, Users, TrendingUp, Building2, ShoppingBag } from 'lucide-react'
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
 import { ImportarClientesDialog } from '@/components/clientes/ImportarClientesDialog';
-import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
+
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import { DataPagination } from '@/components/ui/data-pagination';
@@ -71,7 +71,7 @@ export default function Clientes() {
       <div className="space-y-6">
         <KPIGrid>
           <KPICard label="Total Compradores" value={stats.total} icon={Users} />
-          <KPICard label="B2B (Lojistas)" value={stats.b2b} icon={Building2} variant="info" />
+          <KPICard label="B2B (Lojistas)" value={stats.b2b} icon={Building2} variant="blue" />
           <KPICard label="B2C (Direto)" value={stats.b2c} icon={ShoppingBag} variant="success" />
           <KPICard label="Ticket Médio" value={`R$ ${stats.ticketMedio.toFixed(0)}`} icon={TrendingUp} />
         </KPIGrid>
@@ -173,7 +173,7 @@ export default function Clientes() {
         )}
       </div>
 
-      <ExtrairLeadsDialog open={showExtrairLeads} onOpenChange={setShowExtrairLeads} />
+      
     </PageLayout>
   );
 }
