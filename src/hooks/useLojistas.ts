@@ -6,8 +6,15 @@ export interface Lojista {
   id: string;
   nome: string;
   nome_fantasia: string | null;
+  razao_social: string | null;
   cnpj: string | null;
+  inscricao_estadual: string | null;
+  inscricao_municipal: string | null;
+  regime_tributario: string | null;
+  contribuinte_icms: string | null;
+  suframa: string | null;
   telefone: string;
+  telefone_secundario: string | null;
   email: string | null;
   endereco: any;
   contato_responsavel: string | null;
@@ -21,8 +28,15 @@ export interface Lojista {
 export interface LojistaInput {
   nome: string;
   nome_fantasia?: string;
+  razao_social?: string;
   cnpj?: string;
+  inscricao_estadual?: string;
+  inscricao_municipal?: string;
+  regime_tributario?: string;
+  contribuinte_icms?: string;
+  suframa?: string;
   telefone: string;
+  telefone_secundario?: string;
   email?: string;
   endereco?: any;
   contato_responsavel?: string;
