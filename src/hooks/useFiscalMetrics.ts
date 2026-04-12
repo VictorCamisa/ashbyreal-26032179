@@ -233,11 +233,11 @@ export function useFiscalMetrics(month: string) {
       const debitoICMS = docsSaida.reduce((acc, d) => acc + Number(d.valor_icms || 0), 0);
 
       // Cobertura documental
-      const totalItensEntrada = ashbyPedidos.length + boletosList.length;
-      const itensEntradaComNF = ashbyPedidos.filter(p => {
-        const parsed = parseAshbyObservacoes(p.observacoes);
-        return parsed.comNF > 0;
-      }).length + boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      const boletosComNFCount = boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      const totalItensEntrada = boletosList.length > 0 ? boletosList.length : ashbyPedidos.length;
+      const itensEntradaComNF = boletosList.length > 0 
+        ? boletosComNFCount 
+        : ashbyPedidos.filter(p => parseAshbyObservacoes(p.observacoes).comNF > 0).length;
       
       const totalItens = totalItensEntrada + pedidosList.length;
       const pedidosComDoc = pedidosList.filter(p => docsSaidaByPedido.has(p.id)).length;
