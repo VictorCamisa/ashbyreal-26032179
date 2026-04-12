@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Store, Phone, Mail, User, ArrowLeft, Pencil, Trash2, MessageSquare,
   ShoppingCart, Circle, Calendar, DollarSign, Plus, Unlink, Package,
   MapPin, FileText, MoreVertical, TrendingUp, AlertTriangle, Clock,
-  CheckCircle2, XCircle, Loader2
+  CheckCircle2, XCircle, Loader2, Receipt, ExternalLink, Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,7 @@ import { useLojistaDetails } from '@/hooks/useLojistas';
 import { useLojistas } from '@/hooks/useLojistas';
 import { useBarrisDisponiveis } from '@/hooks/useBarris';
 import { EditarLojistaDialog } from '@/components/lojistas/EditarLojistaDialog';
+import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -49,6 +50,16 @@ function getPedidoStatusBadge(status: string) {
     case 'cancelado': return { variant: 'destructive' as const, icon: XCircle, cls: 'bg-destructive/10 text-destructive border-0' };
     case 'pendente': return { variant: 'secondary' as const, icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0' };
     default: return { variant: 'secondary' as const, icon: Package, cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-0' };
+  }
+}
+
+function getNotaStatusBadge(status: string) {
+  switch (status) {
+    case 'EMITIDA': return { label: 'Emitida', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0' };
+    case 'CANCELADA': return { label: 'Cancelada', cls: 'bg-destructive/10 text-destructive border-0' };
+    case 'REJEITADA': return { label: 'Rejeitada', cls: 'bg-destructive/10 text-destructive border-0' };
+    case 'RASCUNHO': return { label: 'Rascunho', cls: 'bg-muted text-muted-foreground border-0' };
+    default: return { label: status, cls: 'bg-blue-100 text-blue-700 border-0' };
   }
 }
 
@@ -101,12 +112,15 @@ export default function LojistaDetalhes() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [vincularDialogOpen, setVincularDialogOpen] = useState(false);
+  const [novoPedidoOpen, setNovoPedidoOpen] = useState(false);
   const [selectedBarris, setSelectedBarris] = useState<string[]>([]);
   const [isVinculando, setIsVinculando] = useState(false);
+  const [pdfViewUrl, setPdfViewUrl] = useState<string | null>(null);
 
   const lojista = data?.lojista;
   const pedidos = data?.pedidos || [];
   const barris = data?.barris || [];
+  const notas = data?.notas || [];
 
   const totalVendas = pedidos.reduce((acc, p) => acc + (p.valor_total || 0), 0);
   const pedidosPendentes = pedidos.filter(p => p.status === 'pendente').length;
@@ -192,6 +206,11 @@ export default function LojistaDetalhes() {
     }
   };
 
+  const handleEmitirNota = () => {
+    // Navigate to accounting module with lojista pre-selected
+    navigate('/contabilidade', { state: { lojistaId: id, action: 'emitir_nota' } });
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -262,7 +281,13 @@ export default function LojistaDetalhes() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button size="sm" className="gap-1.5" onClick={() => setNovoPedidoOpen(true)}>
+            <ShoppingCart className="h-3.5 w-3.5" /> Novo Pedido
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleEmitirNota}>
+            <Receipt className="h-3.5 w-3.5" /> Emitir Nota
+          </Button>
           <Button variant="outline" size="sm" className="gap-1.5 text-[#075E54] border-[#25D366]/30 bg-[#25D366]/5 hover:bg-[#25D366]/10" onClick={handleWhatsApp}>
             <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
           </Button>
@@ -271,9 +296,6 @@ export default function LojistaDetalhes() {
               <Mail className="h-3.5 w-3.5" /> E-mail
             </Button>
           )}
-          <Button size="sm" className="gap-1.5" onClick={() => setEditDialogOpen(true)}>
-            <Pencil className="h-3.5 w-3.5" /> Editar
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-8 w-8">
@@ -281,8 +303,14 @@ export default function LojistaDetalhes() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                <Pencil className="h-4 w-4 mr-2" /> Editar Cadastro
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate(`/pedidos`)}>
-                <ShoppingCart className="h-4 w-4 mr-2" /> Ver Pedidos
+                <ShoppingCart className="h-4 w-4 mr-2" /> Ver Todos Pedidos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/contabilidade`)}>
+                <FileText className="h-4 w-4 mr-2" /> Ir p/ Contabilidade
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteDialogOpen(true)}>
@@ -340,12 +368,13 @@ export default function LojistaDetalhes() {
         <Card className="shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30"><TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
+              <div className="p-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30"><Receipt className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Ticket Médio</p>
-                <p className="text-2xl font-bold tabular-nums mt-0.5">
-                  R$ {pedidos.length > 0 ? (totalVendas / pedidos.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}
-                </p>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Notas Fiscais</p>
+                <p className="text-2xl font-bold tabular-nums mt-0.5">{notas.length}</p>
+                {notas.filter(n => n.status === 'EMITIDA').length > 0 && (
+                  <p className="text-xs text-muted-foreground">{notas.filter(n => n.status === 'EMITIDA').length} emitida(s)</p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -366,8 +395,8 @@ export default function LojistaDetalhes() {
             </CardHeader>
             <CardContent className="space-y-2.5">
               <InfoRow icon={Phone} label="Telefone" value={lojista.telefone} />
-              {(lojista as any).telefone_secundario && (
-                <InfoRow icon={Phone} label="Telefone 2" value={(lojista as any).telefone_secundario} />
+              {lojista.telefone_secundario && (
+                <InfoRow icon={Phone} label="Telefone 2" value={lojista.telefone_secundario} />
               )}
               {lojista.email && <InfoRow icon={Mail} label="E-mail" value={lojista.email} />}
               {lojista.contato_responsavel && <InfoRow icon={User} label="Responsável" value={lojista.contato_responsavel} />}
@@ -400,12 +429,12 @@ export default function LojistaDetalhes() {
             </CardHeader>
             <CardContent className="space-y-2.5">
               <FiscalRow label="CNPJ" value={lojista.cnpj} mono />
-              <FiscalRow label="Razão Social" value={(lojista as any).razao_social || lojista.nome} />
-              <FiscalRow label="Inscrição Estadual" value={(lojista as any).inscricao_estadual} placeholder="Não informada" />
-              <FiscalRow label="Inscrição Municipal" value={(lojista as any).inscricao_municipal} placeholder="Não informada" />
-              <FiscalRow label="Regime Tributário" value={formatRegime((lojista as any).regime_tributario)} />
-              <FiscalRow label="Contribuinte ICMS" value={formatContribuinte((lojista as any).contribuinte_icms)} />
-              {(lojista as any).suframa && <FiscalRow label="SUFRAMA" value={(lojista as any).suframa} mono />}
+              <FiscalRow label="Razão Social" value={lojista.razao_social || lojista.nome} />
+              <FiscalRow label="Inscrição Estadual" value={lojista.inscricao_estadual} placeholder="Não informada" />
+              <FiscalRow label="Inscrição Municipal" value={lojista.inscricao_municipal} placeholder="Não informada" />
+              <FiscalRow label="Regime Tributário" value={formatRegime(lojista.regime_tributario)} />
+              <FiscalRow label="Contribuinte ICMS" value={formatContribuinte(lojista.contribuinte_icms)} />
+              {lojista.suframa && <FiscalRow label="SUFRAMA" value={lojista.suframa} mono />}
               
               {/* Fiscal completeness warning */}
               {(!lojista.cnpj || !endereco?.rua || !endereco?.cidade) && (
@@ -414,7 +443,7 @@ export default function LojistaDetalhes() {
                   <div>
                     <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Dados incompletos para NF-e</p>
                     <p className="text-[10px] text-amber-600/80 dark:text-amber-500 mt-0.5">
-                      {[!lojista.cnpj && 'CNPJ', !endereco?.rua && 'Endereço', !(lojista as any).inscricao_estadual && 'IE'].filter(Boolean).join(', ')} pendente(s)
+                      {[!lojista.cnpj && 'CNPJ', !endereco?.rua && 'Endereço', !lojista.inscricao_estadual && 'IE'].filter(Boolean).join(', ')} pendente(s)
                     </p>
                   </div>
                 </div>
@@ -437,13 +466,17 @@ export default function LojistaDetalhes() {
           )}
         </div>
 
-        {/* Right: Tabs with Pedidos & Barris */}
+        {/* Right: Tabs */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="pedidos" className="w-full">
-            <TabsList className="w-full grid grid-cols-2 h-11">
+            <TabsList className="w-full grid grid-cols-3 h-11">
               <TabsTrigger value="pedidos" className="gap-2 text-sm">
                 <ShoppingCart className="h-4 w-4" />
                 Pedidos ({pedidos.length})
+              </TabsTrigger>
+              <TabsTrigger value="notas" className="gap-2 text-sm">
+                <Receipt className="h-4 w-4" />
+                Notas ({notas.length})
               </TabsTrigger>
               <TabsTrigger value="barris" className="gap-2 text-sm">
                 <Circle className="h-4 w-4" />
@@ -451,13 +484,18 @@ export default function LojistaDetalhes() {
               </TabsTrigger>
             </TabsList>
 
+            {/* == PEDIDOS TAB == */}
             <TabsContent value="pedidos" className="mt-4 space-y-3">
+              <Button onClick={() => setNovoPedidoOpen(true)} className="w-full gap-2">
+                <Plus className="h-4 w-4" /> Lançar Novo Pedido
+              </Button>
+
               {pedidos.length === 0 ? (
                 <Card className="shadow-sm">
                   <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <ShoppingCart className="h-12 w-12 mb-3 opacity-30" />
                     <p className="font-medium">Nenhum pedido encontrado</p>
-                    <p className="text-xs mt-1">Pedidos deste lojista aparecerão aqui</p>
+                    <p className="text-xs mt-1">Clique acima para lançar o primeiro pedido</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -465,7 +503,7 @@ export default function LojistaDetalhes() {
                   const statusBadge = getPedidoStatusBadge(pedido.status);
                   const StatusIcon = statusBadge.icon;
                   return (
-                    <Card key={pedido.id} className="shadow-sm hover:shadow-md transition-shadow">
+                    <Card key={pedido.id} className="shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/pedidos`)}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -492,7 +530,6 @@ export default function LojistaDetalhes() {
                             R$ {(pedido.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </p>
                         </div>
-                        {/* Items preview */}
                         {pedido.pedido_itens && pedido.pedido_itens.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-border">
                             <div className="flex flex-wrap gap-1.5">
@@ -514,6 +551,81 @@ export default function LojistaDetalhes() {
               )}
             </TabsContent>
 
+            {/* == NOTAS FISCAIS TAB == */}
+            <TabsContent value="notas" className="mt-4 space-y-3">
+              <Button onClick={handleEmitirNota} className="w-full gap-2">
+                <Plus className="h-4 w-4" /> Emitir Nova Nota Fiscal
+              </Button>
+
+              {notas.length === 0 ? (
+                <Card className="shadow-sm">
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Receipt className="h-12 w-12 mb-3 opacity-30" />
+                    <p className="font-medium">Nenhuma nota fiscal encontrada</p>
+                    <p className="text-xs mt-1">Notas emitidas para este lojista aparecerão aqui</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                notas.map(nota => {
+                  const statusBadge = getNotaStatusBadge(nota.status);
+                  return (
+                    <Card key={nota.id} className="shadow-sm hover:shadow-md transition-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-muted">
+                              <Receipt className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm">
+                                  {nota.tipo === 'NFE' ? 'NF-e' : nota.tipo === 'NFCE' ? 'NFC-e' : nota.tipo === 'NFSE' ? 'NFS-e' : nota.tipo}
+                                </span>
+                                {nota.numero && (
+                                  <span className="font-mono text-xs text-muted-foreground">#{nota.numero}</span>
+                                )}
+                                <Badge variant="outline" className={cn("text-[10px] font-semibold uppercase", statusBadge.cls)}>
+                                  {statusBadge.label}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {nota.data_emissao
+                                    ? format(new Date(nota.data_emissao), "dd/MM/yyyy", { locale: ptBR })
+                                    : format(new Date(nota.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                </span>
+                                {nota.chave_acesso && (
+                                  <span className="font-mono text-[9px] hidden sm:inline truncate max-w-[180px]">
+                                    {nota.chave_acesso}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-lg font-bold tabular-nums">
+                              R$ {(nota.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                            {nota.pdf_url && (
+                              <Button
+                                variant="ghost" size="icon" className="h-8 w-8"
+                                onClick={(e) => { e.stopPropagation(); setPdfViewUrl(nota.pdf_url); }}
+                                title="Ver PDF"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </TabsContent>
+
+            {/* == BARRIS TAB == */}
             <TabsContent value="barris" className="mt-4 space-y-4">
               <Button onClick={() => setVincularDialogOpen(true)} className="w-full gap-2" disabled={barrisDisponiveis.length === 0}>
                 <Plus className="h-4 w-4" /> Vincular Barril
@@ -577,6 +689,17 @@ export default function LojistaDetalhes() {
         }}
       />
 
+      {/* Novo Pedido Dialog */}
+      <NovoPedidoCompletoDialog
+        open={novoPedidoOpen}
+        onOpenChange={setNovoPedidoOpen}
+        onSuccess={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+        }}
+        preSelectedLojistaId={id}
+      />
+
       {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -627,6 +750,20 @@ export default function LojistaDetalhes() {
               Vincular {selectedBarris.length > 0 ? `(${selectedBarris.length})` : ''}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Viewer Dialog */}
+      <Dialog open={!!pdfViewUrl} onOpenChange={(v) => { if (!v) setPdfViewUrl(null); }}>
+        <DialogContent className="max-w-4xl h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" /> Visualizar Documento
+            </DialogTitle>
+          </DialogHeader>
+          {pdfViewUrl && (
+            <iframe src={pdfViewUrl} className="w-full flex-1 rounded-lg border" style={{ minHeight: '60vh' }} />
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -48,8 +48,11 @@ import { SelecionarBarrisStep } from '@/components/barris/SelecionarBarrisStep';
 import { LojistaDetailsSheet } from '@/components/lojistas/LojistaDetailsSheet';
 import { cn } from '@/lib/utils';
 
-interface NovoPedidoCompletoDialogProps {
+export interface NovoPedidoCompletoDialogProps {
   onSuccess?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  preSelectedLojistaId?: string;
 }
 
 interface Produto {
@@ -84,8 +87,13 @@ const isCNPJ = (cpfCnpj: string | null): boolean => {
 
 type Step = 'cliente' | 'produtos' | 'barris' | 'pagamento';
 
-export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialogProps) {
-  const [open, setOpen] = useState(false);
+export function NovoPedidoCompletoDialog({ onSuccess, open: externalOpen, onOpenChange: externalOnOpenChange, preSelectedLojistaId }: NovoPedidoCompletoDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (externalOnOpenChange) externalOnOpenChange(v);
+    else setInternalOpen(v);
+  };
   const [step, setStep] = useState<Step>('cliente');
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -120,7 +128,14 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
   const { createPedido, isLoading } = usePedidosMutations();
   const { movimentarBarris, isLoading: movingBarris } = useBarrisMutations();
 
-  // Check if cliente is CNPJ OR if it's a lojista sale (requires barrel management)
+  // Pre-select lojista when passed from external context
+  useEffect(() => {
+    if (preSelectedLojistaId && open && lojistas.length > 0 && !selectedLojistaId) {
+      setIsVendaLojista(true);
+      handleSelectLojista(preSelectedLojistaId);
+    }
+  }, [preSelectedLojistaId, open, lojistas.length]);
+
   const clienteIsCNPJ = useMemo(() => {
     if (isVendaLojista) return true;
     return selectedCliente ? isCNPJ(selectedCliente.cpf_cnpj) : false;
@@ -388,12 +403,14 @@ export function NovoPedidoCompletoDialog({ onSuccess }: NovoPedidoCompletoDialog
         if (!isOpen) resetDialog();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="lg" className="gap-2">
-          <ShoppingCart className="h-5 w-5" />
-          Nova Venda
-        </Button>
-      </DialogTrigger>
+      {externalOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button size="lg" className="gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Nova Venda
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0">
         {/* Header with Steps */}
         <DialogHeader className="px-6 py-4 border-b shrink-0">
