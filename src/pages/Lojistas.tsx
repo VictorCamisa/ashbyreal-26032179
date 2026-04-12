@@ -298,6 +298,7 @@ export default function Lojistas() {
         <p className="text-xs text-muted-foreground">
           {filteredItems.length} de {items.length} lojista(s)
         </p>
+      </div>
     </PageLayout>
   );
 }
