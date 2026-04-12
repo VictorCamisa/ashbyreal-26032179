@@ -215,6 +215,71 @@ function ClientePicker({ value, onChange, clientes }: { value?: string; onChange
   );
 }
 
+// ─── Lojista Picker ───
+function LojistaPicker({ value, onChange, lojistas }: { value?: string; onChange: (id: string, loj?: any) => void; lojistas: any[] }) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const selected = useMemo(() => lojistas?.find(l => l.id === value), [lojistas, value]);
+
+  const filtered = useMemo(() => {
+    if (!searchTerm.trim()) return lojistas?.slice(0, 6) || [];
+    const term = searchTerm.toLowerCase();
+    return (lojistas || []).filter((l: any) =>
+      l.nome?.toLowerCase().includes(term) ||
+      l.nome_fantasia?.toLowerCase().includes(term) ||
+      l.cnpj?.includes(term) ||
+      l.telefone?.includes(term)
+    ).slice(0, 6);
+  }, [lojistas, searchTerm]);
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-3 border-2 border-primary rounded-xl p-3 bg-primary/5">
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Building2 className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{(selected as any).nome_fantasia || (selected as any).nome}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {(selected as any).cnpj || (selected as any).telefone}
+          </p>
+        </div>
+        <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 hover:bg-destructive/10 hover:text-destructive" onClick={() => onChange('')}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Buscar lojista por nome, CNPJ..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+      </div>
+      {(searchTerm || filtered.length > 0) && (
+        <ScrollArea className="max-h-36 border rounded-xl">
+          <div className="p-1">
+            {filtered.length === 0 ? (
+              <div className="p-3 text-center text-sm text-muted-foreground">Nenhum lojista encontrado.</div>
+            ) : filtered.map((l: any) => (
+              <button key={l.id} type="button" className="w-full text-left p-2.5 rounded-lg hover:bg-accent/50 transition-colors flex items-center gap-2.5" onClick={() => { onChange(l.id, l); setSearchTerm(''); }}>
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{l.nome_fantasia || l.nome}</p>
+                  <p className="text-xs text-muted-foreground truncate">{l.cnpj || l.telefone}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
+    </div>
+  );
+}
+
 // ─── Item Manager ───
 function ItemManager({ items, onChange }: { items: ItemNF[]; onChange: (items: ItemNF[]) => void }) {
   const { produtos } = useProdutos();
@@ -669,20 +734,46 @@ export function NovoDocumentoDialog({ open, onOpenChange, defaultLojistaId }: No
                   <div className="space-y-4">
                     {direcao === 'SAIDA' ? (
                       <>
-                        <FormField control={form.control} name="cliente_id" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-1.5">
-                              <User className="h-4 w-4" /> Cliente (Destinatário)
-                              {tipoAtual === 'NFE' && <Badge variant="outline" className="text-[10px] ml-1">Obrigatório para NF-e</Badge>}
-                            </FormLabel>
-                            <FormControl>
-                              <ClientePicker value={field.value} onChange={field.onChange} clientes={clientes || []} />
-                            </FormControl>
-                          </FormItem>
-                        )} />
-                        {tipoAtual === 'NFCE' && !form.watch('cliente_id') && (
+                        {defaultLojistaId ? (
+                          // Lojista pre-selected - show read-only info
+                          (() => {
+                            const loj = lojistas.find((l: any) => l.id === defaultLojistaId) as any;
+                            return loj ? (
+                              <div className="rounded-xl border-2 border-primary bg-primary/5 p-4 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-5 w-5 text-primary" />
+                                  <p className="font-semibold">{loj.nome_fantasia || loj.nome}</p>
+                                  <Badge variant="outline" className="text-[10px] ml-auto">Lojista</Badge>
+                                </div>
+                                {loj.cnpj && <p className="text-xs font-mono text-muted-foreground">CNPJ: {loj.cnpj}</p>}
+                                {loj.razao_social && <p className="text-xs text-muted-foreground">Razão Social: {loj.razao_social}</p>}
+                                {loj.telefone && <p className="text-xs text-muted-foreground">Tel: {loj.telefone}</p>}
+                              </div>
+                            ) : null;
+                          })()
+                        ) : (
+                          // Normal flow - show lojista picker for NF
+                          <FormField control={form.control} name="lojista_id" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="flex items-center gap-1.5">
+                                <Building2 className="h-4 w-4" /> Lojista (Destinatário)
+                                {tipoAtual === 'NFE' && <Badge variant="outline" className="text-[10px] ml-1">Obrigatório para NF-e</Badge>}
+                              </FormLabel>
+                              <FormControl>
+                                <LojistaPicker value={field.value} onChange={(id, loj) => {
+                                  field.onChange(id);
+                                  if (loj) {
+                                    form.setValue('razao_social', loj.razao_social || loj.nome || '');
+                                    form.setValue('cnpj_cpf', loj.cnpj || '');
+                                  }
+                                }} lojistas={lojistas || []} />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                        )}
+                        {tipoAtual === 'NFCE' && !form.watch('lojista_id') && !defaultLojistaId && (
                           <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                            💡 Para NFC-e, o cliente é opcional. A nota será emitida para consumidor final sem identificação.
+                            💡 Para NFC-e, o destinatário é opcional. A nota será emitida para consumidor final sem identificação.
                           </p>
                         )}
                       </>
