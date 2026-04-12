@@ -396,12 +396,14 @@ export function NovoPedidoCompletoDialog({ onSuccess, open: externalOpen, onOpen
         if (!isOpen) resetDialog();
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="lg" className="gap-2">
-          <ShoppingCart className="h-5 w-5" />
-          Nova Venda
-        </Button>
-      </DialogTrigger>
+      {externalOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button size="lg" className="gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Nova Venda
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 gap-0">
         {/* Header with Steps */}
         <DialogHeader className="px-6 py-4 border-b shrink-0">
