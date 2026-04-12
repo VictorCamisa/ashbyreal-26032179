@@ -128,7 +128,14 @@ export function NovoPedidoCompletoDialog({ onSuccess, open: externalOpen, onOpen
   const { createPedido, isLoading } = usePedidosMutations();
   const { movimentarBarris, isLoading: movingBarris } = useBarrisMutations();
 
-  // Check if cliente is CNPJ OR if it's a lojista sale (requires barrel management)
+  // Pre-select lojista when passed from external context
+  useEffect(() => {
+    if (preSelectedLojistaId && open && lojistas.length > 0 && !selectedLojistaId) {
+      setIsVendaLojista(true);
+      handleSelectLojista(preSelectedLojistaId);
+    }
+  }, [preSelectedLojistaId, open, lojistas.length]);
+
   const clienteIsCNPJ = useMemo(() => {
     if (isVendaLojista) return true;
     return selectedCliente ? isCNPJ(selectedCliente.cpf_cnpj) : false;
