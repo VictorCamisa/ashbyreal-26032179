@@ -52,6 +52,44 @@ function getPedidoStatusBadge(status: string) {
   }
 }
 
+function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/50">
+      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium break-all">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function FiscalRow({ label, value, placeholder = '—', mono }: { label: string; value?: string | null; placeholder?: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between items-center py-1.5 border-b border-border/50 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={cn("text-xs font-medium text-right", mono && "font-mono", !value && "text-muted-foreground/50")}>
+        {value || placeholder}
+      </span>
+    </div>
+  );
+}
+
+function formatRegime(v?: string | null) {
+  const map: Record<string, string> = {
+    'SIMPLES_NACIONAL': 'Simples Nacional', 'SIMPLES_NACIONAL_EXCESSO': 'Simples Nacional - Excesso',
+    'LUCRO_PRESUMIDO': 'Lucro Presumido', 'LUCRO_REAL': 'Lucro Real', 'MEI': 'MEI',
+  };
+  return v ? (map[v] || v) : 'Não informado';
+}
+
+function formatContribuinte(v?: string | null) {
+  const map: Record<string, string> = {
+    'CONTRIBUINTE': 'Contribuinte', 'ISENTO': 'Isento', 'NAO_CONTRIBUINTE': 'Não Contribuinte',
+  };
+  return v ? (map[v] || v) : 'Não informado';
+}
+
 export default function LojistaDetalhes() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
