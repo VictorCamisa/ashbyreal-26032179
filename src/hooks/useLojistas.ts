@@ -139,7 +139,7 @@ export function useLojistaDetails(lojistaId: string | null) {
       if (!lojistaId) return null;
 
       // Fetch lojista with related data
-      const [lojistaResult, pedidosResult, barrisResult] = await Promise.all([
+      const [lojistaResult, pedidosResult, barrisResult, notasResult] = await Promise.all([
         supabase.from('lojistas').select('*').eq('id', lojistaId).single(),
         supabase
           .from('pedidos')
@@ -157,6 +157,11 @@ export function useLojistaDetails(lojistaId: string | null) {
           .select('*')
           .eq('lojista_id', lojistaId)
           .order('codigo'),
+        supabase
+          .from('documentos_fiscais')
+          .select('*')
+          .eq('lojista_id', lojistaId)
+          .order('created_at', { ascending: false }),
       ]);
 
       if (lojistaResult.error) throw lojistaResult.error;
@@ -165,6 +170,7 @@ export function useLojistaDetails(lojistaId: string | null) {
         lojista: lojistaResult.data as Lojista,
         pedidos: pedidosResult.data || [],
         barris: barrisResult.data || [],
+        notas: notasResult.data || [],
       };
     },
     enabled: !!lojistaId,
