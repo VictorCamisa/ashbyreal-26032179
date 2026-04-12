@@ -190,6 +190,12 @@ export default function Hub() {
     return modules.filter((m) => visibleModules.includes(m.key));
   }, [visibleModules]);
 
+  const clientesMapObj = useMemo(() => {
+    const map: Record<string, string> = {};
+    data?.clientes?.forEach(c => { map[c.id] = c.nome; });
+    return map;
+  }, [data?.clientes]);
+
   // Filter all pedidos by period client-side
   const allPedidos = data?.allPedidos || [];
   const allPedidosAtivos = allPedidos.filter(p => p.status !== 'cancelado');
