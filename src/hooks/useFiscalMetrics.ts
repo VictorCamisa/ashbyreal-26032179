@@ -7,6 +7,7 @@ export interface FiscalMetrics {
   totalEntradas: number;
   entradasComNF: number;
   entradasSemNF: number;
+  entradasFrete: number;
   
   // Saídas (Vendas)
   totalSaidas: number;
@@ -62,8 +63,50 @@ export interface FiscalMetrics {
   }[];
 }
 
-// ID do cliente "Faturamento Ashby" que não é cliente real
+// ID do cliente "Faturamento Ashby" - compras do fornecedor
 const ASHBY_FATURAMENTO_CLIENT_ID = '7baaaf6c-0d57-4381-af65-d7d01651c39f';
+
+// Parse "Sem NF: R$3,254.90 | Com NF: R$3,809.69 | Frete: R$490.00" from observacoes
+function parseAshbyObservacoes(obs: string | null): { comNF: number; semNF: number; frete: number } {
+  if (!obs) return { comNF: 0, semNF: 0, frete: 0 };
+  
+  const parseValue = (label: string): number => {
+    const regex = new RegExp(label + ':\\s*R\\$\\s*([\\d.,]+)', 'i');
+    const match = obs.match(regex);
+    if (!match) return 0;
+    return parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
+  };
+  
+  return {
+    comNF: parseValue('Com NF'),
+    semNF: parseValue('Sem NF'),
+    frete: parseValue('Frete'),
+  };
+}
+
+async function fetchAllAshbyPedidos(startStr: string, endStr: string) {
+  const all: any[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('id, data_pedido, valor_total, observacoes')
+      .eq('cliente_id', ASHBY_FATURAMENTO_CLIENT_ID)
+      .gte('data_pedido', startStr)
+      .lte('data_pedido', endStr + 'T23:59:59')
+      .range(from, from + pageSize - 1);
+    
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  
+  return all;
+}
 
 export function useFiscalMetrics(month: string) {
   return useQuery({
@@ -74,7 +117,7 @@ export function useFiscalMetrics(month: string) {
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr = format(endDate, 'yyyy-MM-dd');
 
-      // 1. Buscar boletos pagos no mês (= ENTRADAS / compras)
+      // 1. Buscar boletos pagos no mês (= ENTRADAS adicionais)
       const { data: boletos } = await supabase
         .from('boletos')
         .select('id, description, beneficiario, amount, paid_at, tipo_nota')
@@ -82,23 +125,26 @@ export function useFiscalMetrics(month: string) {
         .gte('paid_at', startStr)
         .lte('paid_at', endStr + 'T23:59:59');
 
-      // 2. Buscar pedidos entregues no mês (= SAÍDAS / vendas) excluindo Faturamento Ashby
+      // 2. Buscar compras Ashby no mês (= ENTRADAS principais)
+      const ashbyPedidos = await fetchAllAshbyPedidos(startStr, endStr);
+
+      // 3. Buscar vendas (pedidos entregues) excluindo Ashby
       const { data: pedidos } = await supabase
         .from('pedidos')
-        .select('id, numero_pedido, valor_total, data_entrega, cliente_id, cliente:clientes(nome)')
+        .select('id, numero_pedido, valor_total, data_entrega, data_pedido, cliente_id, cliente:clientes(nome)')
         .eq('status', 'entregue')
         .neq('cliente_id', ASHBY_FATURAMENTO_CLIENT_ID)
         .gte('data_entrega', startStr)
         .lte('data_entrega', endStr + 'T23:59:59');
 
-      // 3. Buscar documentos fiscais do mês
+      // 4. Buscar documentos fiscais do mês
       const { data: documentos } = await supabase
         .from('documentos_fiscais')
         .select('*')
         .gte('data_competencia', startStr)
         .lte('data_competencia', endStr);
 
-      // 4. Buscar alertas pendentes
+      // 5. Buscar alertas pendentes
       const { data: alertas } = await supabase
         .from('contabilidade_alertas')
         .select('*')
@@ -110,18 +156,34 @@ export function useFiscalMetrics(month: string) {
       const alertasList = alertas || [];
 
       // ========== ENTRADAS (Compras) ==========
-      // Classificação vem do campo tipo_nota do boleto
-      const entradasComNF = boletosList
+      // Fonte 1: Compras Ashby (parseadas das observações)
+      let ashbyComNF = 0;
+      let ashbySemNF = 0;
+      let ashbyFrete = 0;
+      
+      ashbyPedidos.forEach(p => {
+        const parsed = parseAshbyObservacoes(p.observacoes);
+        ashbyComNF += parsed.comNF;
+        ashbySemNF += parsed.semNF;
+        ashbyFrete += parsed.frete;
+      });
+
+      // Fonte 2: Boletos (outras compras)
+      const boletosComNF = boletosList
         .filter(b => b.tipo_nota === 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
-      const entradasSemNF = boletosList
+      const boletosSemNF = boletosList
         .filter(b => b.tipo_nota !== 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
-      const totalEntradas = entradasComNF + entradasSemNF;
+
+      // Totais de entrada
+      const entradasComNF = ashbyComNF + boletosComNF;
+      const entradasSemNF = ashbySemNF + boletosSemNF;
+      const entradasFrete = ashbyFrete;
+      const totalEntradas = entradasComNF + entradasSemNF + entradasFrete;
 
       // ========== SAÍDAS (Vendas) ==========
-      // Checar quais pedidos têm documento fiscal (NF-e ou NFC-e)
-      const docsSaidaByPedido = new Map<string, string>(); // pedido_id -> tipo
+      const docsSaidaByPedido = new Map<string, string>();
       docsList
         .filter(d => d.pedido_id && d.direcao === 'SAIDA' && d.status === 'EMITIDA')
         .forEach(d => {
@@ -148,9 +210,6 @@ export function useFiscalMetrics(month: string) {
       const totalSaidasComNF = saidasComNFe + saidasComCupom;
 
       // ========== GAP FISCAL ==========
-      // Gap = Entradas com NF - Saídas com NF
-      // Se positivo: compramos mais com NF do que vendemos com NF (crédito fiscal)
-      // Se negativo: vendemos mais com NF do que compramos (situação ideal ou débito)
       const gapFiscal = entradasComNF - totalSaidasComNF;
 
       // Docs de entrada e saída (com status EMITIDA) para DRE
@@ -158,7 +217,7 @@ export function useFiscalMetrics(month: string) {
       const docsSaida = docsList.filter(d => d.direcao === 'SAIDA' && d.status === 'EMITIDA');
 
       // DRE Fiscal
-      const receitaBruta = totalSaidas; // Receita real de vendas
+      const receitaBruta = totalSaidas;
       const impostosSaida = docsSaida.reduce((acc, d) => 
         acc + Number(d.valor_icms || 0) + Number(d.valor_pis || 0) + Number(d.valor_cofins || 0) + Number(d.valor_iss || 0), 0);
       const custoMercadorias = totalEntradas;
@@ -170,10 +229,15 @@ export function useFiscalMetrics(month: string) {
       const debitoICMS = docsSaida.reduce((acc, d) => acc + Number(d.valor_icms || 0), 0);
 
       // Cobertura documental
-      const totalItens = boletosList.length + pedidosList.length;
-      const boletosComDoc = boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      const totalItensEntrada = ashbyPedidos.length + boletosList.length;
+      const itensEntradaComNF = ashbyPedidos.filter(p => {
+        const parsed = parseAshbyObservacoes(p.observacoes);
+        return parsed.comNF > 0;
+      }).length + boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      
+      const totalItens = totalItensEntrada + pedidosList.length;
       const pedidosComDoc = pedidosList.filter(p => docsSaidaByPedido.has(p.id)).length;
-      const itensComDoc = boletosComDoc + pedidosComDoc;
+      const itensComDoc = itensEntradaComNF + pedidosComDoc;
       const coberturaDocumental = totalItens > 0 ? (itensComDoc / totalItens) * 100 : 100;
 
       // Margem
@@ -187,9 +251,14 @@ export function useFiscalMetrics(month: string) {
         const dayStr = format(day, 'yyyy-MM-dd');
         const dayLabel = format(day, 'dd');
         
-        const entradasDia = boletosList
+        // Entradas do dia: boletos + ashby
+        const boletosDia = boletosList
           .filter(b => b.paid_at && b.paid_at.startsWith(dayStr))
           .reduce((acc, b) => acc + Number(b.amount || 0), 0);
+        const ashbyDia = ashbyPedidos
+          .filter(p => p.data_pedido && p.data_pedido.startsWith(dayStr))
+          .reduce((acc, p) => acc + Number(p.valor_total || 0), 0);
+        const entradasDia = boletosDia + ashbyDia;
         
         const saidasDia = pedidosList
           .filter(p => p.data_entrega && p.data_entrega.startsWith(dayStr))
@@ -218,12 +287,12 @@ export function useFiscalMetrics(month: string) {
             referencia: b.beneficiario || b.description || 'Boleto',
             valor: Number(b.amount || 0),
             data: b.paid_at || '',
-            descricao: `Compra paga sem NF de entrada: ${b.description || 'Sem descrição'}`,
+            descricao: `Compra paga sem NF: ${b.description || 'Sem descrição'}`,
             prioridade: Number(b.amount || 0) > 5000 ? 'alta' : Number(b.amount || 0) > 1000 ? 'media' : 'baixa'
           });
         });
 
-      // Pedidos sem NF
+      // Pedidos sem NF de saída
       pedidosList
         .filter(p => !docsSaidaByPedido.has(p.id))
         .forEach(p => {
@@ -233,7 +302,7 @@ export function useFiscalMetrics(month: string) {
             referencia: `Pedido #${p.numero_pedido}`,
             valor: Number(p.valor_total || 0),
             data: p.data_entrega || '',
-            descricao: `Venda entregue sem NF/Cupom${(p as any).cliente?.nome ? ` - ${(p as any).cliente.nome}` : ''}`,
+            descricao: `Venda sem NF/Cupom${(p as any).cliente?.nome ? ` - ${(p as any).cliente.nome}` : ''}`,
             prioridade: Number(p.valor_total || 0) > 5000 ? 'alta' : Number(p.valor_total || 0) > 1000 ? 'media' : 'baixa'
           });
         });
@@ -263,6 +332,7 @@ export function useFiscalMetrics(month: string) {
         totalEntradas,
         entradasComNF,
         entradasSemNF,
+        entradasFrete,
         totalSaidas,
         saidasComNFe,
         saidasComCupom,
