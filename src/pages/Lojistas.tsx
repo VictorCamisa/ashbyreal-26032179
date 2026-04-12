@@ -10,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { NovoLojistaDialog } from '@/components/lojistas/NovoLojistaDialog';
-import { LojistaDetailsSheet } from '@/components/lojistas/LojistaDetailsSheet';
 import { useLojistaDashboard, LojistaDashboardItem } from '@/hooks/useLojistaDashboard';
 import { cn } from '@/lib/utils';
 
