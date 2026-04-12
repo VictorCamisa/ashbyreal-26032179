@@ -292,8 +292,8 @@ export function useFiscalMetrics(month: string) {
             tipo: 'boleto_sem_nf',
             referencia: b.beneficiario || b.description || 'Boleto',
             valor: Number(b.amount || 0),
-            data: b.paid_at || '',
-            descricao: `Compra paga sem NF: ${b.description || 'Sem descrição'}`,
+            data: b.due_date || '',
+            descricao: `Compra sem NF: ${b.description || b.beneficiario || 'Sem descrição'} (${b.status})`,
             prioridade: Number(b.amount || 0) > 5000 ? 'alta' : Number(b.amount || 0) > 1000 ? 'media' : 'baixa'
           });
         });
