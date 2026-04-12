@@ -117,15 +117,16 @@ export function useFiscalMetrics(month: string) {
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr = format(endDate, 'yyyy-MM-dd');
 
-      // 1. Buscar boletos pagos no mês (= ENTRADAS adicionais)
+      // 1. Buscar TODOS os boletos do mês por due_date (= ENTRADAS)
       const { data: boletos } = await supabase
         .from('boletos')
-        .select('id, description, beneficiario, amount, paid_at, tipo_nota')
-        .eq('status', 'PAGO')
-        .gte('paid_at', startStr)
-        .lte('paid_at', endStr + 'T23:59:59');
+        .select('id, description, beneficiario, amount, due_date, paid_at, tipo_nota, status')
+        .neq('status', 'CANCELADO')
+        .neq('status', 'REJEITADO')
+        .gte('due_date', startStr)
+        .lte('due_date', endStr);
 
-      // 2. Buscar compras Ashby no mês (= ENTRADAS principais)
+      // 2. Buscar compras Ashby no mês (fallback histórico para meses sem boletos)
       const ashbyPedidos = await fetchAllAshbyPedidos(startStr, endStr);
 
       // 3. Buscar vendas (pedidos entregues) excluindo Ashby
@@ -156,19 +157,7 @@ export function useFiscalMetrics(month: string) {
       const alertasList = alertas || [];
 
       // ========== ENTRADAS (Compras) ==========
-      // Fonte 1: Compras Ashby (parseadas das observações)
-      let ashbyComNF = 0;
-      let ashbySemNF = 0;
-      let ashbyFrete = 0;
-      
-      ashbyPedidos.forEach(p => {
-        const parsed = parseAshbyObservacoes(p.observacoes);
-        ashbyComNF += parsed.comNF;
-        ashbySemNF += parsed.semNF;
-        ashbyFrete += parsed.frete;
-      });
-
-      // Fonte 2: Boletos (outras compras)
+      // Fonte principal: Boletos (integração real com Financeiro)
       const boletosComNF = boletosList
         .filter(b => b.tipo_nota === 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
@@ -176,9 +165,24 @@ export function useFiscalMetrics(month: string) {
         .filter(b => b.tipo_nota !== 'COM_NOTA')
         .reduce((acc, b) => acc + Number(b.amount || 0), 0);
 
+      // Fonte histórica: Ashby (apenas quando não há boletos no mês)
+      let ashbyComNF = 0;
+      let ashbySemNF = 0;
+      let ashbyFrete = 0;
+
+      if (boletosList.length === 0 && ashbyPedidos.length > 0) {
+        // Mês sem boletos → usar dados Ashby como fallback
+        ashbyPedidos.forEach(p => {
+          const parsed = parseAshbyObservacoes(p.observacoes);
+          ashbyComNF += parsed.comNF;
+          ashbySemNF += parsed.semNF;
+          ashbyFrete += parsed.frete;
+        });
+      }
+
       // Totais de entrada
-      const entradasComNF = ashbyComNF + boletosComNF;
-      const entradasSemNF = ashbySemNF + boletosSemNF;
+      const entradasComNF = boletosComNF + ashbyComNF;
+      const entradasSemNF = boletosSemNF + ashbySemNF;
       const entradasFrete = ashbyFrete;
       const totalEntradas = entradasComNF + entradasSemNF + entradasFrete;
 
@@ -229,11 +233,11 @@ export function useFiscalMetrics(month: string) {
       const debitoICMS = docsSaida.reduce((acc, d) => acc + Number(d.valor_icms || 0), 0);
 
       // Cobertura documental
-      const totalItensEntrada = ashbyPedidos.length + boletosList.length;
-      const itensEntradaComNF = ashbyPedidos.filter(p => {
-        const parsed = parseAshbyObservacoes(p.observacoes);
-        return parsed.comNF > 0;
-      }).length + boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      const boletosComNFCount = boletosList.filter(b => b.tipo_nota === 'COM_NOTA').length;
+      const totalItensEntrada = boletosList.length > 0 ? boletosList.length : ashbyPedidos.length;
+      const itensEntradaComNF = boletosList.length > 0 
+        ? boletosComNFCount 
+        : ashbyPedidos.filter(p => parseAshbyObservacoes(p.observacoes).comNF > 0).length;
       
       const totalItens = totalItensEntrada + pedidosList.length;
       const pedidosComDoc = pedidosList.filter(p => docsSaidaByPedido.has(p.id)).length;
@@ -251,13 +255,15 @@ export function useFiscalMetrics(month: string) {
         const dayStr = format(day, 'yyyy-MM-dd');
         const dayLabel = format(day, 'dd');
         
-        // Entradas do dia: boletos + ashby
+        // Entradas do dia: boletos (por due_date) + ashby fallback
         const boletosDia = boletosList
-          .filter(b => b.paid_at && b.paid_at.startsWith(dayStr))
+          .filter(b => b.due_date && b.due_date === dayStr)
           .reduce((acc, b) => acc + Number(b.amount || 0), 0);
-        const ashbyDia = ashbyPedidos
-          .filter(p => p.data_pedido && p.data_pedido.startsWith(dayStr))
-          .reduce((acc, p) => acc + Number(p.valor_total || 0), 0);
+        const ashbyDia = (boletosList.length === 0 && ashbyPedidos.length > 0)
+          ? ashbyPedidos
+              .filter(p => p.data_pedido && p.data_pedido.startsWith(dayStr))
+              .reduce((acc, p) => acc + Number(p.valor_total || 0), 0)
+          : 0;
         const entradasDia = boletosDia + ashbyDia;
         
         const saidasDia = pedidosList
@@ -286,8 +292,8 @@ export function useFiscalMetrics(month: string) {
             tipo: 'boleto_sem_nf',
             referencia: b.beneficiario || b.description || 'Boleto',
             valor: Number(b.amount || 0),
-            data: b.paid_at || '',
-            descricao: `Compra paga sem NF: ${b.description || 'Sem descrição'}`,
+            data: b.due_date || '',
+            descricao: `Compra sem NF: ${b.description || b.beneficiario || 'Sem descrição'} (${b.status})`,
             prioridade: Number(b.amount || 0) > 5000 ? 'alta' : Number(b.amount || 0) > 1000 ? 'media' : 'baixa'
           });
         });
