@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Store, Search, Users, ShoppingCart, Circle, TrendingUp, Plus, MessageSquare, Mail, ArrowRight, Phone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -9,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { NovoLojistaDialog } from '@/components/lojistas/NovoLojistaDialog';
-import { LojistaDetailsSheet } from '@/components/lojistas/LojistaDetailsSheet';
 import { useLojistaDashboard, LojistaDashboardItem } from '@/hooks/useLojistaDashboard';
 import { cn } from '@/lib/utils';
 
@@ -63,10 +63,9 @@ function handleEmail(email: string | null) {
 
 export default function Lojistas() {
   const { data, isLoading } = useLojistaDashboard();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'ativos' | 'pendentes' | 'inativos'>('todos');
-  const [selectedLojistaId, setSelectedLojistaId] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const items = data?.items || [];
   const kpis = data?.kpis;
@@ -90,8 +89,7 @@ export default function Lojistas() {
   }, [items, searchTerm, statusFilter]);
 
   const openDetails = (id: string) => {
-    setSelectedLojistaId(id);
-    setSheetOpen(true);
+    navigate(`/lojistas/${id}`);
   };
 
   return (
@@ -300,12 +298,6 @@ export default function Lojistas() {
           {filteredItems.length} de {items.length} lojista(s)
         </p>
       </div>
-
-      <LojistaDetailsSheet
-        lojistaId={selectedLojistaId}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-      />
     </PageLayout>
   );
 }
