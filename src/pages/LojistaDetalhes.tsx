@@ -31,6 +31,7 @@ import { useBarrisDisponiveis } from '@/hooks/useBarris';
 import { EditarLojistaDialog } from '@/components/lojistas/EditarLojistaDialog';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { DetalhesPedidoDrawer } from '@/components/pedidos/DetalhesPedidoDrawer';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -116,6 +117,8 @@ export default function LojistaDetalhes() {
   const [selectedBarris, setSelectedBarris] = useState<string[]>([]);
   const [isVinculando, setIsVinculando] = useState(false);
   const [pdfViewUrl, setPdfViewUrl] = useState<string | null>(null);
+  const [detalhesPedidoId, setDetalhesPedidoId] = useState<string | null>(null);
+  const [showDetalhesPedido, setShowDetalhesPedido] = useState(false);
 
   const lojista = data?.lojista;
   const pedidos = data?.pedidos || [];
@@ -503,7 +506,7 @@ export default function LojistaDetalhes() {
                   const statusBadge = getPedidoStatusBadge(pedido.status);
                   const StatusIcon = statusBadge.icon;
                   return (
-                    <Card key={pedido.id} className="shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/pedidos`)}>
+                    <Card key={pedido.id} className="shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => { setDetalhesPedidoId(pedido.id); setShowDetalhesPedido(true); }}>
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -766,6 +769,16 @@ export default function LojistaDetalhes() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Detalhes do Pedido Drawer */}
+      <DetalhesPedidoDrawer
+        open={showDetalhesPedido}
+        onOpenChange={setShowDetalhesPedido}
+        pedidoId={detalhesPedidoId}
+        clienteNome={lojista?.nome}
+        onStatusChange={() => refetch()}
+        onDelete={() => refetch()}
+      />
     </div>
   );
 }
