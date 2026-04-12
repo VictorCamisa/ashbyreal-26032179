@@ -28,7 +28,7 @@ const ITEMS_PER_PAGE = 15;
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showExtrairLeads, setShowExtrairLeads] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'ativo' | 'cliente' | 'lead' | 'inativo'>('todos');
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
