@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -7,45 +7,36 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Users, TrendingUp, UserPlus, Activity, Download } from 'lucide-react';
+import { Search, Users, TrendingUp, Building2, ShoppingBag } from 'lucide-react';
 import { useClientes } from '@/hooks/useClientes';
 import { NovoClienteDialog } from '@/components/clientes/NovoClienteDialog';
 import { ImportarClientesDialog } from '@/components/clientes/ImportarClientesDialog';
-import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
+
 import { PageLayout } from '@/components/layout/PageLayout';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
 import { DataPagination } from '@/components/ui/data-pagination';
 
-const statusColors: Record<string, string> = {
-  ativo: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-  inativo: 'bg-muted text-muted-foreground border-border',
-  lead: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-  cliente: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+const segmentoColors: Record<string, string> = {
+  B2B: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+  B2C: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
 };
 
 const ITEMS_PER_PAGE = 15;
 
 export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showExtrairLeads, setShowExtrairLeads] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [segmentoFilter, setSegmentoFilter] = useState<string>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { clientes, isLoading, createCliente, isCreating, bulkImportClientes, isImporting } = useClientes();
-
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab === 'leads') setStatusFilter('lead');
-  }, [searchParams]);
 
   const filteredClientes = useMemo(() =>
     clientes.filter(cliente =>
       (cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
        cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
        cliente.telefone.includes(searchTerm)) &&
-      (statusFilter === 'todos' || cliente.status === statusFilter)
-    ), [clientes, searchTerm, statusFilter]
+      (segmentoFilter === 'todos' || (cliente as any).segmento === segmentoFilter)
+    ), [clientes, searchTerm, segmentoFilter]
   );
 
   useMemo(() => setCurrentPage(1), [searchTerm]);
@@ -58,8 +49,8 @@ export default function Clientes() {
 
   const stats = {
     total: clientes.length,
-    ativos: clientes.filter(c => c.status === 'ativo' || (c.status as string) === 'cliente').length,
-    leads: clientes.filter(c => c.status === 'lead').length,
+    b2b: clientes.filter(c => (c as any).segmento === 'B2B').length,
+    b2c: clientes.filter(c => (c as any).segmento === 'B2C').length,
     ticketMedio: clientes.length > 0
       ? clientes.reduce((acc, c) => acc + (c.ticketMedio || 0), 0) / clientes.length
       : 0,
@@ -72,10 +63,6 @@ export default function Clientes() {
       icon={Users}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowExtrairLeads(true)} className="gap-2">
-            <Download className="h-4 w-4" />
-            Extrair Leads
-          </Button>
           <ImportarClientesDialog onImport={bulkImportClientes} isImporting={isImporting} />
           <NovoClienteDialog onSubmit={createCliente} isCreating={isCreating} />
         </div>
@@ -83,9 +70,9 @@ export default function Clientes() {
     >
       <div className="space-y-6">
         <KPIGrid>
-          <KPICard label="Total" value={stats.total} icon={Users} />
-          <KPICard label="Ativos" value={stats.ativos} icon={Activity} variant="success" />
-          <KPICard label="Leads" value={stats.leads} icon={UserPlus} variant="warning" />
+          <KPICard label="Total Compradores" value={stats.total} icon={Users} />
+          <KPICard label="B2B (Lojistas)" value={stats.b2b} icon={Building2} variant="blue" />
+          <KPICard label="B2C (Direto)" value={stats.b2c} icon={ShoppingBag} variant="success" />
           <KPICard label="Ticket Médio" value={`R$ ${stats.ticketMedio.toFixed(0)}`} icon={TrendingUp} />
         </KPIGrid>
 
@@ -100,15 +87,15 @@ export default function Clientes() {
             />
           </div>
           <div className="flex gap-1.5">
-            {(['todos', 'ativo', 'cliente', 'lead', 'inativo'] as const).map((s) => {
-              const labels: Record<string, string> = { todos: 'Todos', ativo: 'Ativos', cliente: 'Clientes', lead: 'Leads', inativo: 'Inativos' };
+            {(['todos', 'B2B', 'B2C'] as const).map((s) => {
+              const labels: Record<string, string> = { todos: 'Todos', B2B: 'B2B (Lojistas)', B2C: 'B2C (Direto)' };
               return (
                 <Button
                   key={s}
-                  variant={statusFilter === s ? 'default' : 'outline'}
+                  variant={segmentoFilter === s ? 'default' : 'outline'}
                   size="sm"
                   className="h-11 rounded-xl text-xs"
-                  onClick={() => setStatusFilter(s)}
+                  onClick={() => setSegmentoFilter(s)}
                 >
                   {labels[s]}
                 </Button>
@@ -134,14 +121,13 @@ export default function Clientes() {
                       <TableHead className="font-medium">Telefone</TableHead>
                       <TableHead className="font-medium">Empresa</TableHead>
                       <TableHead className="font-medium">Ticket Médio</TableHead>
-                      <TableHead className="font-medium">Status</TableHead>
-                      <TableHead className="font-medium">Origem</TableHead>
+                      <TableHead className="font-medium">Segmento</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredClientes.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
+                        <TableCell colSpan={5} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
                             <Users className="h-10 w-10 text-muted-foreground/30" />
                             <p className="text-muted-foreground">
@@ -162,11 +148,10 @@ export default function Clientes() {
                           <TableCell className="text-muted-foreground">{cliente.empresa || '-'}</TableCell>
                           <TableCell>R$ {(cliente.ticketMedio || 0).toFixed(2)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={statusColors[cliente.status]}>
-                              {cliente.status}
+                            <Badge variant="outline" className={segmentoColors[(cliente as any).segmento] || ''}>
+                              {(cliente as any).segmento}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{cliente.origem}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -188,7 +173,7 @@ export default function Clientes() {
         )}
       </div>
 
-      <ExtrairLeadsDialog open={showExtrairLeads} onOpenChange={setShowExtrairLeads} />
+      
     </PageLayout>
   );
 }
