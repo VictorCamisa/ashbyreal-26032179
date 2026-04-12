@@ -91,11 +91,26 @@ export function usePedidos(clienteId?: string) {
   const fetchPedidos = async () => {
     try {
       setIsLoading(true);
+      // First, find and exclude "Faturamento Ashby" - these are supplier purchases, not customer orders
+      const { data: ashbyClientes } = await supabase
+        .from('clientes')
+        .select('id')
+        .ilike('nome', 'Faturamento Ashby');
+      
+      const excludeIds = (ashbyClientes || []).map(c => c.id);
+
       let query = supabase
         .from('pedidos')
         .select('*')
         .gte('data_pedido', '2023-01-01T00:00:00')
         .order('data_pedido', { ascending: false });
+
+      if (excludeIds.length > 0) {
+        // Exclude supplier purchase records from the orders list
+        for (const excludeId of excludeIds) {
+          query = query.neq('cliente_id', excludeId);
+        }
+      }
 
       if (clienteId) {
         query = query.eq('cliente_id', clienteId);
