@@ -15,6 +15,24 @@ type ClienteMatcher = {
   cpf_cnpj?: string | null;
 };
 
+const MANUAL_ALIAS_RULES: Array<{
+  lojistaIncludes: string[];
+  clienteIncludes: string[];
+}> = [
+  {
+    lojistaIncludes: ['SHAZZAN'],
+    clienteIncludes: ['SPAZZOU', 'SPAZZON'],
+  },
+  {
+    lojistaIncludes: ['QUIOSQUE ESQUINA'],
+    clienteIncludes: ['BUASQUA ESQUINA', 'BULOSQUA', 'BUASQUA'],
+  },
+  {
+    lojistaIncludes: ['QUIOSQUE PARQUE'],
+    clienteIncludes: ['QUIOSQUE CLEBER'],
+  },
+];
+
 const STOP_WORDS = new Set([
   'BAR',
   'BOTECO',
@@ -102,6 +120,28 @@ function scoreTokenMatch(sourceTokens: Set<string>, targetTokens: Set<string>) {
   return score;
 }
 
+function scoreManualAliasMatch(sourceAliases: string[], targetAliases: string[]) {
+  let score = 0;
+
+  for (const rule of MANUAL_ALIAS_RULES) {
+    const lojistaMatches = rule.lojistaIncludes.some((term) =>
+      sourceAliases.some((alias) => alias.includes(term))
+    );
+
+    if (!lojistaMatches) continue;
+
+    const clienteMatches = rule.clienteIncludes.some((term) =>
+      targetAliases.some((alias) => alias.includes(term))
+    );
+
+    if (clienteMatches) {
+      score = Math.max(score, 140);
+    }
+  }
+
+  return score;
+}
+
 export function getLojistaClienteMatches(
   lojistas: LojistaMatcher[],
   clientes: ClienteMatcher[]
@@ -141,6 +181,7 @@ export function getLojistaClienteMatches(
 
       score += scoreAliasMatch(candidate.aliases, aliases);
       score += scoreTokenMatch(candidate.tokens, tokens);
+      score += scoreManualAliasMatch(candidate.aliases, aliases);
 
       if (!bestMatch || score > bestMatch.score) {
         bestMatch = { lojistaId: candidate.lojista.id, score };

@@ -3,6 +3,31 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getLojistaClienteMatches } from '@/lib/lojistaMatching';
 
+const CLIENTES_BATCH_SIZE = 1000;
+
+async function fetchClientes() {
+  const clientes = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('id, nome, empresa, telefone, cpf_cnpj')
+      .order('id')
+      .range(from, from + CLIENTES_BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    const batch = data || [];
+    clientes.push(...batch);
+
+    if (batch.length < CLIENTES_BATCH_SIZE) break;
+    from += CLIENTES_BATCH_SIZE;
+  }
+
+  return clientes;
+}
+
 export interface Lojista {
   id: string;
   nome: string;
@@ -142,15 +167,13 @@ export function useLojistaDetails(lojistaId: string | null) {
       const [lojistaResult, lojistasResult, clientesResult] = await Promise.all([
         supabase.from('lojistas').select('*').eq('id', lojistaId).single(),
         supabase.from('lojistas').select('id, nome, nome_fantasia, razao_social, telefone, cnpj'),
-        supabase.from('clientes').select('id, nome, empresa, telefone, cpf_cnpj'),
+        fetchClientes(),
       ]);
 
       if (lojistaResult.error) throw lojistaResult.error;
       if (lojistasResult.error) throw lojistasResult.error;
-      if (clientesResult.error) throw clientesResult.error;
-
       const lojista = lojistaResult.data as Lojista;
-      const clienteIdsByLojista = getLojistaClienteMatches(lojistasResult.data || [], clientesResult.data || []);
+      const clienteIdsByLojista = getLojistaClienteMatches(lojistasResult.data || [], clientesResult || []);
       const matchedClienteIds = clienteIdsByLojista[lojistaId] || [];
 
       let allPedidos: any[] = [];
