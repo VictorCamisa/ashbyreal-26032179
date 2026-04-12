@@ -79,6 +79,7 @@ type FormData = z.infer<typeof formSchema>;
 interface NovoDocumentoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultLojistaId?: string;
 }
 
 // ─── Tipo Card Selector ───
@@ -406,7 +407,7 @@ function StepIndicator({ current, steps }: { current: number; steps: string[] })
 }
 
 // ─── Main Dialog ───
-export function NovoDocumentoDialog({ open, onOpenChange }: NovoDocumentoDialogProps) {
+export function NovoDocumentoDialog({ open, onOpenChange, defaultLojistaId }: NovoDocumentoDialogProps) {
   const [step, setStep] = useState(0);
   const [direcao, setDirecao] = useState<'ENTRADA' | 'SAIDA'>('SAIDA');
   const [items, setItems] = useState<ItemNF[]>([]);
