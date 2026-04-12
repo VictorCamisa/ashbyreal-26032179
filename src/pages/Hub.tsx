@@ -53,6 +53,11 @@ import { cn } from '@/lib/utils';
 
 type PeriodType = 'semana' | 'mes' | 'trimestre';
 
+interface QuarterSelection {
+  year: number;
+  quarter: number; // 1-4
+}
+
 const METAS: Record<PeriodType, number> = {
   semana: 15000,
   mes: 60000,
@@ -127,7 +132,8 @@ function getComparisonLabel(period: PeriodType) {
 export default function Hub() {
   const { user, signOut } = useAuth();
   const { data: visibleModules } = useUserModules();
-  const [period, setPeriod] = useState<PeriodType>('semana');
+  const [period, setPeriod] = useState<PeriodType>('trimestre');
+  const [selectedQuarter, setSelectedQuarter] = useState<QuarterSelection | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['hub-dashboard-all'],
@@ -213,8 +219,21 @@ export default function Hub() {
   }, [visibleModules]);
 
   const referenceDate = useMemo(() => {
+    if (selectedQuarter) {
+      // Use the selected quarter's midpoint as reference
+      return new Date(selectedQuarter.year, (selectedQuarter.quarter - 1) * 3 + 1, 15);
+    }
     const latestPedido = data?.allPedidos?.find((pedido: any) => Boolean(pedido.data_pedido));
     return latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+  }, [data?.allPedidos, selectedQuarter]);
+
+  // Auto-select current quarter on first load
+  useMemo(() => {
+    if (!selectedQuarter && data?.allPedidos?.length) {
+      const latestPedido = data.allPedidos.find((p: any) => Boolean(p.data_pedido));
+      const refDate = latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+      setSelectedQuarter({ year: refDate.getFullYear(), quarter: Math.floor(refDate.getMonth() / 3) + 1 });
+    }
   }, [data?.allPedidos]);
 
   const now = referenceDate;
@@ -368,6 +387,22 @@ export default function Hub() {
   const formatCurrency = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   const formatCurrencyFull = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
+  // Available years/quarters
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    (data?.allPedidos || []).forEach((p: any) => {
+      if (p.data_pedido) years.add(new Date(p.data_pedido).getFullYear());
+    });
+    return Array.from(years).sort();
+  }, [data?.allPedidos]);
+
+  const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+  const handleQuarterSelect = (year: number, quarter: number) => {
+    setSelectedQuarter({ year, quarter });
+    setPeriod('trimestre');
+  };
+
   const periodButtons: { value: PeriodType; label: string }[] = [
     { value: 'semana', label: 'Semana' },
     { value: 'mes', label: 'Mês' },
@@ -429,31 +464,42 @@ export default function Hub() {
 
       {/* Dense Content */}
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 space-y-4">
-        {/* Row 1: Greeting + Period Selector */}
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {greeting}, <span className="font-medium text-foreground">{firstName}</span>
-          </p>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
-              {periodButtons.map(pb => (
-                <button
-                  key={pb.value}
-                  onClick={() => setPeriod(pb.value)}
-                  className={cn(
-                    "px-3 py-1 text-[11px] font-medium rounded-md transition-all",
-                    period === pb.value
-                      ? "bg-background text-foreground shadow-sm border border-border/60"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {pb.label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[10px] text-muted-foreground hidden sm:block">
-              {format(now, "dd/MM/yyyy")}
-            </span>
+        {/* Row 1: Greeting + Quarter Selector */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {greeting}, <span className="font-medium text-foreground">{firstName}</span>
+            </p>
+            <span className="text-[10px] text-muted-foreground capitalize">{periodLabel}</span>
+          </div>
+
+          {/* Year/Quarter selector */}
+          <div className="flex flex-wrap items-center gap-3">
+            {availableYears.map(year => (
+              <div key={year} className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-muted-foreground mr-1">{year}</span>
+                <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
+                  {quarterLabels.map((ql, qi) => {
+                    const q = qi + 1;
+                    const isSelected = selectedQuarter?.year === year && selectedQuarter?.quarter === q;
+                    return (
+                      <button
+                        key={`${year}-${q}`}
+                        onClick={() => handleQuarterSelect(year, q)}
+                        className={cn(
+                          "px-2.5 py-1 text-[11px] font-medium rounded-md transition-all",
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {ql}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
