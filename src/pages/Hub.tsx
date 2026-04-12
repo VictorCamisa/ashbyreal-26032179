@@ -53,6 +53,11 @@ import { cn } from '@/lib/utils';
 
 type PeriodType = 'semana' | 'mes' | 'trimestre';
 
+interface QuarterSelection {
+  year: number;
+  quarter: number; // 1-4
+}
+
 const METAS: Record<PeriodType, number> = {
   semana: 15000,
   mes: 60000,
@@ -127,7 +132,8 @@ function getComparisonLabel(period: PeriodType) {
 export default function Hub() {
   const { user, signOut } = useAuth();
   const { data: visibleModules } = useUserModules();
-  const [period, setPeriod] = useState<PeriodType>('semana');
+  const [period, setPeriod] = useState<PeriodType>('trimestre');
+  const [selectedQuarter, setSelectedQuarter] = useState<QuarterSelection | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['hub-dashboard-all'],
@@ -213,8 +219,21 @@ export default function Hub() {
   }, [visibleModules]);
 
   const referenceDate = useMemo(() => {
+    if (selectedQuarter) {
+      // Use the selected quarter's midpoint as reference
+      return new Date(selectedQuarter.year, (selectedQuarter.quarter - 1) * 3 + 1, 15);
+    }
     const latestPedido = data?.allPedidos?.find((pedido: any) => Boolean(pedido.data_pedido));
     return latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+  }, [data?.allPedidos, selectedQuarter]);
+
+  // Auto-select current quarter on first load
+  useMemo(() => {
+    if (!selectedQuarter && data?.allPedidos?.length) {
+      const latestPedido = data.allPedidos.find((p: any) => Boolean(p.data_pedido));
+      const refDate = latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+      setSelectedQuarter({ year: refDate.getFullYear(), quarter: Math.floor(refDate.getMonth() / 3) + 1 });
+    }
   }, [data?.allPedidos]);
 
   const now = referenceDate;
