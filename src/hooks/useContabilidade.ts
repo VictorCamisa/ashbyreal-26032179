@@ -228,7 +228,8 @@ export function usePedidosSemNota() {
       const { data: pedidos, error: pedidoError } = await supabase
         .from('pedidos')
         .select('id, numero_pedido, valor_total, data_entrega, cliente:clientes(nome)')
-        .eq('status', 'entregue');
+        .eq('status', 'entregue')
+        .gte('data_pedido', '2023-01-01T00:00:00');
 
       if (pedidoError) throw pedidoError;
 

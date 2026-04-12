@@ -104,6 +104,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
       const { data: pedidos } = await supabase
         .from('pedidos')
         .select('id, valor_total, data_pedido, status, data_pagamento')
+        .gte('data_pedido', '2023-01-01T00:00:00')
         .not('status', 'eq', 'cancelado');
 
       return {
