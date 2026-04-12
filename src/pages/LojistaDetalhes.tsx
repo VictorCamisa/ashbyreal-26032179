@@ -31,6 +31,7 @@ import { useBarrisDisponiveis } from '@/hooks/useBarris';
 import { EditarLojistaDialog } from '@/components/lojistas/EditarLojistaDialog';
 import { NovoPedidoCompletoDialog } from '@/components/pedidos/NovoPedidoCompletoDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { NovoDocumentoDialog } from '@/components/contabilidade/NovoDocumentoDialog';
 import { DetalhesPedidoDrawer } from '@/components/pedidos/DetalhesPedidoDrawer';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -119,6 +120,7 @@ export default function LojistaDetalhes() {
   const [pdfViewUrl, setPdfViewUrl] = useState<string | null>(null);
   const [detalhesPedidoId, setDetalhesPedidoId] = useState<string | null>(null);
   const [showDetalhesPedido, setShowDetalhesPedido] = useState(false);
+  const [emitirNotaOpen, setEmitirNotaOpen] = useState(false);
 
   const lojista = data?.lojista;
   const pedidos = data?.pedidos || [];
@@ -210,8 +212,7 @@ export default function LojistaDetalhes() {
   };
 
   const handleEmitirNota = () => {
-    // Navigate to accounting module with lojista pre-selected
-    navigate('/contabilidade', { state: { lojistaId: id, action: 'emitir_nota' } });
+    setEmitirNotaOpen(true);
   };
 
   if (isLoading) {
@@ -778,6 +779,12 @@ export default function LojistaDetalhes() {
         clienteNome={lojista?.nome}
         onStatusChange={() => refetch()}
         onDelete={() => refetch()}
+      />
+
+      <NovoDocumentoDialog
+        open={emitirNotaOpen}
+        onOpenChange={setEmitirNotaOpen}
+        defaultLojistaId={id}
       />
     </div>
   );
