@@ -61,7 +61,7 @@ export function KPIsFiscais({
       icon: ArrowDownLeft,
       color: 'text-red-500',
       badgeLabel: `${coberturaEntradas.toFixed(0)}% c/ NF`,
-      badgeVariant: coberturaEntradas >= 80 ? 'default' : 'destructive' as const,
+      badgeVariant: coberturaEntradas >= 80 ? 'default' : 'destructive',
     },
     {
       title: 'Total Vendas (Saídas)',
@@ -71,7 +71,7 @@ export function KPIsFiscais({
       icon: ArrowUpRight,
       color: 'text-green-500',
       badgeLabel: `${coberturaSaidas.toFixed(0)}% c/ NF`,
-      badgeVariant: coberturaSaidas >= 80 ? 'default' : 'destructive' as const,
+      badgeVariant: coberturaSaidas >= 80 ? 'default' : 'destructive',
     },
     {
       title: 'Gap Fiscal',
@@ -81,7 +81,7 @@ export function KPIsFiscais({
       icon: Scale,
       color: gapFiscal === 0 ? 'text-green-500' : Math.abs(gapFiscal) < 5000 ? 'text-amber-500' : 'text-red-500',
       badgeLabel: gapFiscal === 0 ? 'Zerado' : gapFiscal > 0 ? 'Exposto' : 'Ok',
-      badgeVariant: (gapFiscal <= 0 ? 'default' : 'destructive') as const,
+      badgeVariant: gapFiscal <= 0 ? 'default' : 'destructive',
     },
     {
       title: 'Pendências',
@@ -91,7 +91,7 @@ export function KPIsFiscais({
       icon: totalPendencias === 0 ? CheckCircle2 : AlertTriangle,
       color: totalPendencias === 0 ? 'text-green-500' : totalPendencias <= 5 ? 'text-amber-500' : 'text-red-500',
       badgeLabel: totalPendencias === 0 ? 'Limpo' : 'Atenção',
-      badgeVariant: (totalPendencias === 0 ? 'default' : 'secondary') as const,
+      badgeVariant: totalPendencias === 0 ? 'default' : 'secondary',
     }
   ];
 
