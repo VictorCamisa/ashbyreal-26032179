@@ -41,20 +41,33 @@ export function useLojistaDashboard() {
 
       if (lojError) throw lojError;
 
+      // Fetch matching clientes by name (legacy orders use cliente_id, not lojista_id)
+      const { data: clientes } = await supabase
+        .from('clientes')
+        .select('id, nome');
+
+      // Build name->cliente_id map (case-insensitive)
+      const clienteMap: Record<string, string> = {};
+      clientes?.forEach(c => {
+        clienteMap[c.nome.toUpperCase()] = c.id;
+      });
+
       // Fetch all barris with lojista_id
       const { data: barris } = await supabase
         .from('barris')
         .select('id, lojista_id, status_conteudo, localizacao');
 
-      // Fetch pedidos linked to lojistas via lojista_id
-      const lojistaIds = (lojistas || []).map(l => l.id);
+      // Collect all relevant cliente_ids (matched by name) + lojista_ids
+      const matchedClienteIds = (lojistas || [])
+        .map(l => clienteMap[l.nome.toUpperCase()])
+        .filter(Boolean);
       
       let pedidos: any[] = [];
-      if (lojistaIds.length > 0) {
+      if (matchedClienteIds.length > 0) {
         const { data: pedidosData } = await supabase
           .from('pedidos')
           .select('id, cliente_id, lojista_id, status, valor_total, data_pedido')
-          .in('lojista_id', lojistaIds)
+          .in('cliente_id', matchedClienteIds)
           .neq('status', 'cancelado');
         pedidos = pedidosData || [];
       }
@@ -64,8 +77,12 @@ export function useLojistaDashboard() {
 
       // Build enriched lojista list
       const items: LojistaDashboardItem[] = (lojistas || []).map(l => {
+        const clienteId = clienteMap[l.nome.toUpperCase()] || null;
         const lojistaBarris = (barris || []).filter(b => b.lojista_id === l.id);
-        const lojistaPedidos = pedidos.filter(p => p.lojista_id === l.id);
+        // Match pedidos by lojista_id OR by linked cliente_id (legacy)
+        const lojistaPedidos = pedidos.filter(p => 
+          p.lojista_id === l.id || (clienteId && p.cliente_id === clienteId)
+        );
 
         return {
           id: l.id,
