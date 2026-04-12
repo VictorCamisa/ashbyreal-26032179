@@ -35,16 +35,61 @@ export function useClientes() {
   const queryClient = useQueryClient();
 
   // Fetch clientes using React Query
+  // Fetch only clients who have orders
   const { data: clientes = [], isLoading } = useQuery({
     queryKey: ['clientes'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Get all client IDs that have pedidos
+      const { data: pedidosData, error: pedidosError } = await supabase
+        .from('pedidos')
+        .select('cliente_id, lojista_id')
+        .not('cliente_id', 'is', null);
 
-      if (error) throw error;
-      return (data || []).map(dbRowToCliente);
+      if (pedidosError) throw pedidosError;
+
+      const clienteIdsWithOrders = [...new Set((pedidosData || []).map(p => p.cliente_id).filter(Boolean))] as string[];
+      
+      // Track which clients have B2B orders (lojista_id set)
+      const b2bClienteIds = new Set(
+        (pedidosData || []).filter(p => p.lojista_id).map(p => p.cliente_id).filter(Boolean)
+      );
+
+      if (clienteIdsWithOrders.length === 0) return [];
+
+      // Fetch clients in batches of 100
+      const allClientes: (Cliente & { segmento: 'B2B' | 'B2C' })[] = [];
+      for (let i = 0; i < clienteIdsWithOrders.length; i += 100) {
+        const batch = clienteIdsWithOrders.slice(i, i + 100);
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('*')
+          .in('id', batch)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        const mapped = (data || []).map(row => ({
+          ...dbRowToCliente(row),
+          segmento: b2bClienteIds.has(row.id) ? 'B2B' as const : 'B2C' as const,
+        }));
+        allClientes.push(...mapped);
+      }
+
+      // Also check lojistas table for B2B association
+      const { data: lojistas } = await supabase
+        .from('lojistas')
+        .select('telefone, nome');
+      
+      if (lojistas) {
+        const lojistaTelefones = new Set(lojistas.map(l => l.telefone));
+        const lojistaNomes = new Set(lojistas.map(l => l.nome.toLowerCase()));
+        allClientes.forEach(c => {
+          if (c.segmento === 'B2C' && (lojistaTelefones.has(c.telefone) || lojistaNomes.has(c.nome.toLowerCase()))) {
+            c.segmento = 'B2B';
+          }
+        });
+      }
+
+      return allClientes;
     },
   });
 
