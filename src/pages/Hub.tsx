@@ -464,31 +464,42 @@ export default function Hub() {
 
       {/* Dense Content */}
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 space-y-4">
-        {/* Row 1: Greeting + Period Selector */}
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {greeting}, <span className="font-medium text-foreground">{firstName}</span>
-          </p>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
-              {periodButtons.map(pb => (
-                <button
-                  key={pb.value}
-                  onClick={() => setPeriod(pb.value)}
-                  className={cn(
-                    "px-3 py-1 text-[11px] font-medium rounded-md transition-all",
-                    period === pb.value
-                      ? "bg-background text-foreground shadow-sm border border-border/60"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {pb.label}
-                </button>
-              ))}
-            </div>
-            <span className="text-[10px] text-muted-foreground hidden sm:block">
-              {format(now, "dd/MM/yyyy")}
-            </span>
+        {/* Row 1: Greeting + Quarter Selector */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {greeting}, <span className="font-medium text-foreground">{firstName}</span>
+            </p>
+            <span className="text-[10px] text-muted-foreground capitalize">{periodLabel}</span>
+          </div>
+
+          {/* Year/Quarter selector */}
+          <div className="flex flex-wrap items-center gap-3">
+            {availableYears.map(year => (
+              <div key={year} className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-muted-foreground mr-1">{year}</span>
+                <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
+                  {quarterLabels.map((ql, qi) => {
+                    const q = qi + 1;
+                    const isSelected = selectedQuarter?.year === year && selectedQuarter?.quarter === q;
+                    return (
+                      <button
+                        key={`${year}-${q}`}
+                        onClick={() => handleQuarterSelect(year, q)}
+                        className={cn(
+                          "px-2.5 py-1 text-[11px] font-medium rounded-md transition-all",
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {ql}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
