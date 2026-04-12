@@ -94,6 +94,7 @@ export function usePedidos(clienteId?: string) {
       let query = supabase
         .from('pedidos')
         .select('*')
+        .gte('data_pedido', '2023-01-01T00:00:00')
         .order('data_pedido', { ascending: false });
 
       if (clienteId) {
