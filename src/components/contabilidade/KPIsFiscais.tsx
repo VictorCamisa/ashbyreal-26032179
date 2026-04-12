@@ -102,7 +102,7 @@ export function KPIsFiscais({
           <CardContent className="pt-4 pb-4">
             <div className="flex items-start justify-between mb-2">
               <kpi.icon className={`h-5 w-5 ${kpi.color}`} />
-              <Badge variant={kpi.badgeVariant} className="text-[10px]">
+              <Badge variant={kpi.badgeVariant as "default" | "destructive" | "outline" | "secondary"} className="text-[10px]">
                 {kpi.badgeLabel}
               </Badge>
             </div>
