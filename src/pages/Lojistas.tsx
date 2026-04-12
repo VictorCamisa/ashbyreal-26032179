@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Store, Search, Users, ShoppingCart, Circle, TrendingUp, Plus, MessageSquare, Mail, ArrowRight, Phone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
