@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -417,6 +417,19 @@ export function NovoDocumentoDialog({ open, onOpenChange, defaultLojistaId }: No
   const { createDocumento } = useDocumentoFiscalMutations();
   const { clientes } = useClientes();
   const { data: entities } = useEntities();
+  const { lojistas } = useLojistas();
+
+  // Pre-select lojista when defaultLojistaId is provided
+  useEffect(() => {
+    if (open && defaultLojistaId && lojistas.length > 0) {
+      const loj = lojistas.find((l: any) => l.id === defaultLojistaId);
+      if (loj) {
+        form.setValue('lojista_id', defaultLojistaId);
+        form.setValue('razao_social', (loj as any).razao_social || (loj as any).nome || '');
+        form.setValue('cnpj_cpf', (loj as any).cnpj || '');
+      }
+    }
+  }, [open, defaultLojistaId, lojistas]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
