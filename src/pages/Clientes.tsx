@@ -58,7 +58,7 @@ export default function Clientes() {
 
   const stats = {
     total: clientes.length,
-    ativos: clientes.filter(c => c.status === 'ativo' || c.status === 'cliente').length,
+    ativos: clientes.filter(c => c.status === 'ativo' || (c.status as string) === 'cliente').length,
     leads: clientes.filter(c => c.status === 'lead').length,
     ticketMedio: clientes.length > 0
       ? clientes.reduce((acc, c) => acc + (c.ticketMedio || 0), 0) / clientes.length
