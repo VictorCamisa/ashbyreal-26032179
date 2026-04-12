@@ -138,37 +138,56 @@ export function useLojistaDetails(lojistaId: string | null) {
     queryFn: async () => {
       if (!lojistaId) return null;
 
-      // Fetch lojista with related data
-      const [lojistaResult, pedidosResult, barrisResult, notasResult] = await Promise.all([
-        supabase.from('lojistas').select('*').eq('id', lojistaId).single(),
-        supabase
+      // Fetch lojista first to get name for legacy pedido matching
+      const lojistaResult = await supabase.from('lojistas').select('*').eq('id', lojistaId).single();
+      if (lojistaResult.error) throw lojistaResult.error;
+      const lojista = lojistaResult.data as Lojista;
+
+      // Find matching cliente by name (legacy orders use cliente_id, not lojista_id)
+      const { data: matchedClientes } = await supabase
+        .from('clientes')
+        .select('id')
+        .ilike('nome', lojista.nome);
+      const matchedClienteId = matchedClientes?.[0]?.id || null;
+
+      // Fetch pedidos by lojista_id OR matched cliente_id
+      let allPedidos: any[] = [];
+      
+      // By lojista_id
+      const { data: pedidosByLojista } = await supabase
+        .from('pedidos')
+        .select(`*, pedido_itens (*, produtos (nome, preco))`)
+        .eq('lojista_id', lojistaId)
+        .order('created_at', { ascending: false });
+      allPedidos = pedidosByLojista || [];
+
+      // By matched cliente_id (legacy)
+      if (matchedClienteId) {
+        const { data: pedidosByCliente } = await supabase
           .from('pedidos')
-          .select(`
-            *,
-            pedido_itens (
-              *,
-              produtos (nome, preco)
-            )
-          `)
-          .eq('lojista_id', lojistaId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('barris')
-          .select('*')
-          .eq('lojista_id', lojistaId)
-          .order('codigo'),
-        supabase
-          .from('documentos_fiscais')
-          .select('*')
-          .eq('lojista_id', lojistaId)
-          .order('created_at', { ascending: false }),
+          .select(`*, pedido_itens (*, produtos (nome, preco))`)
+          .eq('cliente_id', matchedClienteId)
+          .is('lojista_id', null)
+          .order('created_at', { ascending: false });
+        
+        // Merge without duplicates
+        const existingIds = new Set(allPedidos.map(p => p.id));
+        (pedidosByCliente || []).forEach(p => {
+          if (!existingIds.has(p.id)) allPedidos.push(p);
+        });
+      }
+
+      // Sort combined results
+      allPedidos.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const [barrisResult, notasResult] = await Promise.all([
+        supabase.from('barris').select('*').eq('lojista_id', lojistaId).order('codigo'),
+        supabase.from('documentos_fiscais').select('*').eq('lojista_id', lojistaId).order('created_at', { ascending: false }),
       ]);
 
-      if (lojistaResult.error) throw lojistaResult.error;
-
       return {
-        lojista: lojistaResult.data as Lojista,
-        pedidos: pedidosResult.data || [],
+        lojista,
+        pedidos: allPedidos,
         barris: barrisResult.data || [],
         notas: notasResult.data || [],
       };
