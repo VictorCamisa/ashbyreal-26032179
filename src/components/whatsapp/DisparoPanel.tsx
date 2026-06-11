@@ -170,7 +170,7 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
   };
 
   const getPreviewMessage = () => {
-    const sampleCliente = filteredClientes[0] || {
+    const sampleCliente: any = filteredClientes[0] || {
       nome: 'João Silva',
       empresa: 'Empresa Exemplo',
       telefone: '11999999999',
