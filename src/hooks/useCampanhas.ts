@@ -90,7 +90,7 @@ export function useCampanhas() {
     mutationFn: async ({ campanhaId, clientes }: { campanhaId: string; clientes: any[] }) => {
       const envios = clientes.map(cliente => ({
         campanha_id: campanhaId,
-        cliente_id: cliente.id,
+        cliente_id: cliente.isManual ? null : cliente.id,
         cliente_nome: cliente.nome,
         cliente_telefone: cliente.telefone,
         status: 'pendente',
