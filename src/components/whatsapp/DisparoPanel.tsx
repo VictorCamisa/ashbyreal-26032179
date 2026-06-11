@@ -25,6 +25,7 @@ import {
 import { useClientes } from '@/hooks/useClientes';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useCampanhas, useCampanhaEnvios } from '@/hooks/useCampanhas';
+import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,7 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
   // Dialog & campaign tracking
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedCampanhaId, setSelectedCampanhaId] = useState<string | null>(null);
+  const [showExtrair, setShowExtrair] = useState(false);
 
   const { clientes, isLoading: loadingClientes } = useClientes();
   const { instances } = useWhatsAppInstances();
@@ -229,6 +231,14 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
             {selectedClientes.size} contatos
           </Badge>
         )}
+        <Button
+          size="sm"
+          onClick={() => setShowExtrair(true)}
+          className="shrink-0 bg-[#00A884] hover:bg-[#00906F] text-white"
+        >
+          <Users className="h-4 w-4 mr-1.5" />
+          Extrair do WhatsApp
+        </Button>
       </header>
 
       {/* Tabs */}
