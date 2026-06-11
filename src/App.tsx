@@ -18,6 +18,8 @@ import Contabilidade from "./pages/Contabilidade";
 import Clientes from "./pages/Clientes";
 import Lojistas from "./pages/Lojistas";
 import LojistaDetalhes from "./pages/LojistaDetalhes";
+import WhatsApp from "./pages/WhatsApp";
+import AgenteIA from "./pages/AgenteIA";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
@@ -58,6 +60,8 @@ const App = () => (
                   <Route path="/clientes" element={<Clientes />} />
                   <Route path="/lojistas" element={<Lojistas />} />
                   <Route path="/lojistas/:id" element={<LojistaDetalhes />} />
+                  <Route path="/whatsapp" element={<WhatsApp />} />
+                  <Route path="/agente-ia" element={<AgenteIA />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
                 </Route>
 
