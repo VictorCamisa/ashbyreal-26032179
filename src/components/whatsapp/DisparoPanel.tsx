@@ -833,6 +833,8 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ExtrairLeadsDialog open={showExtrair} onOpenChange={setShowExtrair} />
     </div>
   );
 }
