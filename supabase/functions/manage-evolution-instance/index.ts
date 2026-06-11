@@ -26,8 +26,15 @@ serve(async (req) => {
     const EVOLUTION_API_URL = evolutionApiUrl || Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_API_KEY = evolutionApiKey || Deno.env.get("EVOLUTION_API_KEY");
 
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
-      throw new Error("Evolution API credentials not provided");
+    if (
+      !EVOLUTION_API_URL ||
+      !EVOLUTION_API_KEY ||
+      EVOLUTION_API_URL.includes("PLACEHOLDER") ||
+      !/^https?:\/\//i.test(EVOLUTION_API_URL)
+    ) {
+      throw new Error(
+        "EVOLUTION_API_URL/EVOLUTION_API_KEY ausentes ou inválidos. Configure os secrets com a URL real (https://...) da sua Evolution API."
+      );
     }
 
     const evolutionFetch = async (endpoint: string, options: RequestInit = {}) => {
