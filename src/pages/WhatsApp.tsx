@@ -108,7 +108,7 @@ export default function WhatsApp() {
   const hasConnectedInstance = connectedInstances.length > 0;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#111B21]">
+    <div className="fixed inset-x-0 top-14 bottom-0 z-30 flex flex-col bg-[#111B21] pb-16 lg:pb-0">
       {/* Top Header Bar */}
       <div className="h-14 bg-[#202C33] border-b border-[#2A3942] flex items-center justify-between px-4 shrink-0">
         {/* Left - Logo & Back */}
