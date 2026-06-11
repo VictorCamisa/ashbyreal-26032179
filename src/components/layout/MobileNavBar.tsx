@@ -5,6 +5,7 @@ import {
   Wallet,
   Calculator,
   Target,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserModules } from '@/hooks/useAdminUsers';
@@ -14,6 +15,7 @@ const allNavItems = [
   { key: 'hub', label: 'Início', href: '/hub', icon: Home },
   { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
   { key: 'crm', label: 'CRM', href: '/crm', icon: Target },
+  { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare },
   { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet },
   { key: 'contabilidade', label: 'Contab.', href: '/contabilidade', icon: Calculator },
 ];
