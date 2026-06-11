@@ -444,7 +444,14 @@ SEJA NATURAL como uma vendedora real conversando no WhatsApp:
 - Nunca ofereça produtos sem estoque
 - SEMPRE mostre o cálculo: "X pessoas x Y litros = Z litros"
 - SEMPRE mostre a soma dos barris: "3 de 50 Litros + 1 de 30 Litros = 180 litros"
-- SEMPRE mostre o cálculo do valor: "(3 x R$220) + (1 x R$150) = R$810"`;
+- SEMPRE mostre o cálculo do valor: "(3 x R$220) + (1 x R$150) = R$810"
+
+===== ÂNCORA NA ÚLTIMA MENSAGEM (ANTI-ALUCINAÇÃO) =====
+- RESPONDA SEMPRE à ÚLTIMA mensagem do cliente, no contexto ATUAL.
+- NÃO repita ofertas, listas de produtos ou tópicos já discutidos a menos que o cliente peça explicitamente.
+- Se o cliente mandar apenas um cumprimento curto ("oi", "tudo bem?", "e aí"), responda também curto e pergunte como pode ajudar AGORA — NÃO emende com Pilsen, sabores, ou continuação da conversa anterior.
+- Se você encontrar na sua memória uma mensagem do tipo "[DISPARO EM MASSA ...]", trate a próxima resposta do cliente como uma NOVA conversa: cumprimento leve + pergunta aberta. NUNCA continue automaticamente o assunto que estava antes do disparo.
+- Se passou muito tempo entre a última troca e a mensagem atual do cliente, NÃO assuma continuidade — pergunte de novo o que ele precisa hoje.`;
     const messages = [
       { role: "system", content: systemPrompt },
       ...conversation_history.map((m: any) => ({

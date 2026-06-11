@@ -132,6 +132,23 @@ serve(async (req) => {
 
     console.log(`Starting bulk send for campaign ${campanhaId} with ${clientes.length} clients`);
 
+    // Resolve instance + active AI agent for history sync (so Lara knows she sent the broadcast)
+    const { data: instanceRow } = await supabase
+      .from('whatsapp_instances')
+      .select('id')
+      .eq('instance_name', instanceName)
+      .maybeSingle();
+    let activeAgentId: string | null = null;
+    if (instanceRow?.id) {
+      const { data: agentRow } = await supabase
+        .from('ai_agents')
+        .select('id, is_active')
+        .eq('instance_id', instanceRow.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      activeAgentId = agentRow?.id || null;
+    }
+
     let enviadas = 0;
     let entregues = 0;
     let erros = 0;
@@ -170,6 +187,51 @@ serve(async (req) => {
           })
           .eq('campanha_id', campanhaId)
           .eq('cliente_id', cliente.id);
+
+        // Sync broadcast into Lara's conversation history so she does not "hallucinate" continuing
+        // the previous conversation when the client replies after a disparo.
+        if (activeAgentId) {
+          try {
+            const { data: existingConv } = await supabase
+              .from('ai_conversations')
+              .select('id')
+              .eq('agent_id', activeAgentId)
+              .eq('remote_jid', remoteJid)
+              .eq('status', 'active')
+              .maybeSingle();
+
+            let conversationId = existingConv?.id;
+            if (!conversationId) {
+              const { data: newConv } = await supabase
+                .from('ai_conversations')
+                .insert({
+                  agent_id: activeAgentId,
+                  remote_jid: remoteJid,
+                  status: 'active',
+                })
+                .select('id')
+                .single();
+              conversationId = newConv?.id;
+            }
+
+            if (conversationId) {
+              await supabase.from('ai_messages').insert([
+                {
+                  conversation_id: conversationId,
+                  role: 'system',
+                  content: `[DISPARO EM MASSA — campanha ${campanhaId}] A loja enviou uma mensagem de reengajamento para este cliente. A próxima resposta do cliente deve ser tratada como NOVA interação. NÃO continue ofertas ou tópicos antigos.`,
+                },
+                {
+                  conversation_id: conversationId,
+                  role: 'assistant',
+                  content: personalizedMessage,
+                },
+              ]);
+            }
+          } catch (syncErr) {
+            console.error('[bulk-send] Failed to sync disparo to ai_messages:', syncErr);
+          }
+        }
       } else {
         erros++;
         await supabase
