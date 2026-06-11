@@ -378,6 +378,38 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Manual Add */}
+                <div className="rounded-lg border border-dashed border-[#3B4A54] bg-[#1F2A30] p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[#00A884]">
+                    <UserPlus className="h-4 w-4" />
+                    <span className="text-xs font-medium">Adicionar contato manual</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Nome"
+                      value={manualNome}
+                      onChange={(e) => setManualNome(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManualContato(); } }}
+                      className="flex-1 h-9 bg-[#2A3942] border-[#3B4A54] text-[#E9EDEF] placeholder:text-[#8696A0]"
+                    />
+                    <Input
+                      placeholder="Telefone (DDD + número)"
+                      value={manualTelefone}
+                      onChange={(e) => setManualTelefone(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManualContato(); } }}
+                      className="flex-1 h-9 bg-[#2A3942] border-[#3B4A54] text-[#E9EDEF] placeholder:text-[#8696A0]"
+                    />
+                    <Button
+                      type="button"
+                      onClick={addManualContato}
+                      disabled={!manualNome.trim() || manualTelefone.replace(/\D/g, '').length < 8}
+                      className="h-9 bg-[#00A884] hover:bg-[#00906F] text-white"
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Filters */}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
