@@ -471,7 +471,7 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                     </div>
                   ) : (
                     <div className="divide-y divide-[#2A3942]">
-                      {filteredClientes.map(cliente => (
+                      {filteredClientes.map((cliente: any) => (
                         <div
                           key={cliente.id}
                           onClick={() => toggleCliente(cliente.id)}
@@ -488,10 +488,25 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                             <p className="text-sm font-medium text-[#E9EDEF] truncate">{cliente.nome}</p>
                             <p className="text-xs text-[#8696A0]">{cliente.telefone}</p>
                           </div>
-                          {cliente.status && (
+                          {cliente.isManual && (
+                            <Badge className="text-xs bg-[#00A884]/20 text-[#00A884] border-[#00A884]/40 shrink-0">
+                              manual
+                            </Badge>
+                          )}
+                          {cliente.status && !cliente.isManual && (
                             <Badge variant="outline" className="text-xs border-[#3B4A54] text-[#8696A0] shrink-0">
                               {cliente.status}
                             </Badge>
+                          )}
+                          {cliente.isManual && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); removeManualContato(cliente.id); }}
+                              className="h-7 w-7 text-[#8696A0] hover:text-red-500 hover:bg-red-500/10 shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           )}
                         </div>
                       ))}
