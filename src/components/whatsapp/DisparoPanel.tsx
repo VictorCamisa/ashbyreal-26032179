@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Send, Users, Filter, Clock, CheckCircle2, XCircle, Loader2, 
   ChevronLeft, Image, Mic, FileText, Eye, Settings2, Timer,
-  AlertTriangle, BarChart3, RefreshCw, Zap, ListChecks
+  AlertTriangle, BarChart3, RefreshCw, Zap, ListChecks, UserPlus, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +24,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle 
 } from '@/components/ui/alert-dialog';
-import { useClientes } from '@/hooks/useClientes';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useCampanhas, useCampanhaEnvios } from '@/hooks/useCampanhas';
 import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
@@ -65,7 +66,24 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
   const [selectedCampanhaId, setSelectedCampanhaId] = useState<string | null>(null);
   const [showExtrair, setShowExtrair] = useState(false);
 
-  const { clientes, isLoading: loadingClientes } = useClientes();
+  // Manual ad-hoc contacts typed directly into the disparo
+  const [manualNome, setManualNome] = useState('');
+  const [manualTelefone, setManualTelefone] = useState('');
+  const [manualContatos, setManualContatos] = useState<Array<{ id: string; nome: string; telefone: string; isManual: true; status: string; origem: string }>>([]);
+
+  // Fetch ALL clientes from DB (not filtered by orders) so newly created leads/contacts always appear.
+  const { data: clientes = [], isLoading: loadingClientes } = useQuery({
+    queryKey: ['disparo-clientes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, email, empresa, status, origem')
+        .order('created_at', { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data || []).filter(c => c.telefone && c.telefone.trim().length >= 8);
+    },
+  });
   const { instances } = useWhatsAppInstances();
   const { campanhas, isLoading: loadingCampanhas, createCampanha, createEnvios, startDisparo } = useCampanhas();
   const { envios, stats } = useCampanhaEnvios(selectedCampanhaId);
@@ -80,17 +98,43 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
     }
   }, [connectedInstances, selectedInstanceId]);
 
-  // Filter clients
+  // Filter clients (DB + manual)
+  const allContatos = useMemo(() => [...manualContatos, ...(clientes || [])], [manualContatos, clientes]);
+
   const filteredClientes = useMemo(() => {
-    return (clientes || []).filter(cliente => {
+    return allContatos.filter((cliente: any) => {
       const matchesSearch = !searchClientes || 
         cliente.nome.toLowerCase().includes(searchClientes.toLowerCase()) ||
-        cliente.telefone.includes(searchClientes);
+        (cliente.telefone || '').includes(searchClientes);
       const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
       const matchesOrigem = filterOrigem === 'all' || cliente.origem === filterOrigem;
       return matchesSearch && matchesStatus && matchesOrigem;
     });
-  }, [clientes, searchClientes, filterStatus, filterOrigem]);
+  }, [allContatos, searchClientes, filterStatus, filterOrigem]);
+
+  const addManualContato = () => {
+    const nome = manualNome.trim();
+    const telefoneRaw = manualTelefone.trim();
+    const telefone = telefoneRaw.replace(/\D/g, '');
+    if (!nome || telefone.length < 8) return;
+    const id = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setManualContatos(prev => [
+      { id, nome, telefone, isManual: true, status: 'manual', origem: 'manual' },
+      ...prev,
+    ]);
+    setSelectedClientes(prev => new Set(prev).add(id));
+    setManualNome('');
+    setManualTelefone('');
+  };
+
+  const removeManualContato = (id: string) => {
+    setManualContatos(prev => prev.filter(c => c.id !== id));
+    setSelectedClientes(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   // Get unique values for filters
   const statusOptions = useMemo(() => {
@@ -126,7 +170,7 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
   };
 
   const getPreviewMessage = () => {
-    const sampleCliente = filteredClientes[0] || {
+    const sampleCliente: any = filteredClientes[0] || {
       nome: 'João Silva',
       empresa: 'Empresa Exemplo',
       telefone: '11999999999',
@@ -334,6 +378,38 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* Manual Add */}
+                <div className="rounded-lg border border-dashed border-[#3B4A54] bg-[#1F2A30] p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[#00A884]">
+                    <UserPlus className="h-4 w-4" />
+                    <span className="text-xs font-medium">Adicionar contato manual</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Nome"
+                      value={manualNome}
+                      onChange={(e) => setManualNome(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManualContato(); } }}
+                      className="flex-1 h-9 bg-[#2A3942] border-[#3B4A54] text-[#E9EDEF] placeholder:text-[#8696A0]"
+                    />
+                    <Input
+                      placeholder="Telefone (DDD + número)"
+                      value={manualTelefone}
+                      onChange={(e) => setManualTelefone(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManualContato(); } }}
+                      className="flex-1 h-9 bg-[#2A3942] border-[#3B4A54] text-[#E9EDEF] placeholder:text-[#8696A0]"
+                    />
+                    <Button
+                      type="button"
+                      onClick={addManualContato}
+                      disabled={!manualNome.trim() || manualTelefone.replace(/\D/g, '').length < 8}
+                      className="h-9 bg-[#00A884] hover:bg-[#00906F] text-white"
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Filters */}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
@@ -395,7 +471,7 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                     </div>
                   ) : (
                     <div className="divide-y divide-[#2A3942]">
-                      {filteredClientes.map(cliente => (
+                      {filteredClientes.map((cliente: any) => (
                         <div
                           key={cliente.id}
                           onClick={() => toggleCliente(cliente.id)}
@@ -412,10 +488,25 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
                             <p className="text-sm font-medium text-[#E9EDEF] truncate">{cliente.nome}</p>
                             <p className="text-xs text-[#8696A0]">{cliente.telefone}</p>
                           </div>
-                          {cliente.status && (
+                          {cliente.isManual && (
+                            <Badge className="text-xs bg-[#00A884]/20 text-[#00A884] border-[#00A884]/40 shrink-0">
+                              manual
+                            </Badge>
+                          )}
+                          {cliente.status && !cliente.isManual && (
                             <Badge variant="outline" className="text-xs border-[#3B4A54] text-[#8696A0] shrink-0">
                               {cliente.status}
                             </Badge>
+                          )}
+                          {cliente.isManual && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => { e.stopPropagation(); removeManualContato(cliente.id); }}
+                              className="h-7 w-7 text-[#8696A0] hover:text-red-500 hover:bg-red-500/10 shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           )}
                         </div>
                       ))}
