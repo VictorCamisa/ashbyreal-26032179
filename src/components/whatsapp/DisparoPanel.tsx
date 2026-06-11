@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Send, Users, Filter, Clock, CheckCircle2, XCircle, Loader2, 
   ChevronLeft, Image, Mic, FileText, Eye, Settings2, Timer,
-  AlertTriangle, BarChart3, RefreshCw, Zap, ListChecks
+  AlertTriangle, BarChart3, RefreshCw, Zap, ListChecks, UserPlus, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +24,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle 
 } from '@/components/ui/alert-dialog';
-import { useClientes } from '@/hooks/useClientes';
 import { useWhatsAppInstances } from '@/hooks/useWhatsAppInstances';
 import { useCampanhas, useCampanhaEnvios } from '@/hooks/useCampanhas';
 import { ExtrairLeadsDialog } from '@/components/clientes/ExtrairLeadsDialog';
@@ -65,7 +66,24 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
   const [selectedCampanhaId, setSelectedCampanhaId] = useState<string | null>(null);
   const [showExtrair, setShowExtrair] = useState(false);
 
-  const { clientes, isLoading: loadingClientes } = useClientes();
+  // Manual ad-hoc contacts typed directly into the disparo
+  const [manualNome, setManualNome] = useState('');
+  const [manualTelefone, setManualTelefone] = useState('');
+  const [manualContatos, setManualContatos] = useState<Array<{ id: string; nome: string; telefone: string; isManual: true; status: string; origem: string }>>([]);
+
+  // Fetch ALL clientes from DB (not filtered by orders) so newly created leads/contacts always appear.
+  const { data: clientes = [], isLoading: loadingClientes } = useQuery({
+    queryKey: ['disparo-clientes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome, telefone, email, empresa, status, origem')
+        .order('created_at', { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data || []).filter(c => c.telefone && c.telefone.trim().length >= 8);
+    },
+  });
   const { instances } = useWhatsAppInstances();
   const { campanhas, isLoading: loadingCampanhas, createCampanha, createEnvios, startDisparo } = useCampanhas();
   const { envios, stats } = useCampanhaEnvios(selectedCampanhaId);
@@ -80,17 +98,43 @@ export function DisparoPanel({ onClose }: DisparoPanelProps) {
     }
   }, [connectedInstances, selectedInstanceId]);
 
-  // Filter clients
+  // Filter clients (DB + manual)
+  const allContatos = useMemo(() => [...manualContatos, ...(clientes || [])], [manualContatos, clientes]);
+
   const filteredClientes = useMemo(() => {
-    return (clientes || []).filter(cliente => {
+    return allContatos.filter((cliente: any) => {
       const matchesSearch = !searchClientes || 
         cliente.nome.toLowerCase().includes(searchClientes.toLowerCase()) ||
-        cliente.telefone.includes(searchClientes);
+        (cliente.telefone || '').includes(searchClientes);
       const matchesStatus = filterStatus === 'all' || cliente.status === filterStatus;
       const matchesOrigem = filterOrigem === 'all' || cliente.origem === filterOrigem;
       return matchesSearch && matchesStatus && matchesOrigem;
     });
-  }, [clientes, searchClientes, filterStatus, filterOrigem]);
+  }, [allContatos, searchClientes, filterStatus, filterOrigem]);
+
+  const addManualContato = () => {
+    const nome = manualNome.trim();
+    const telefoneRaw = manualTelefone.trim();
+    const telefone = telefoneRaw.replace(/\D/g, '');
+    if (!nome || telefone.length < 8) return;
+    const id = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setManualContatos(prev => [
+      { id, nome, telefone, isManual: true, status: 'manual', origem: 'manual' },
+      ...prev,
+    ]);
+    setSelectedClientes(prev => new Set(prev).add(id));
+    setManualNome('');
+    setManualTelefone('');
+  };
+
+  const removeManualContato = (id: string) => {
+    setManualContatos(prev => prev.filter(c => c.id !== id));
+    setSelectedClientes(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
 
   // Get unique values for filters
   const statusOptions = useMemo(() => {
