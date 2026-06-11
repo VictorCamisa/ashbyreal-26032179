@@ -21,6 +21,8 @@ const MODULE_LABELS: Record<string, string> = {
   '/crm': 'CRM',
   '/financeiro': 'Financeiro',
   '/contabilidade': 'Contabilidade',
+  '/whatsapp': 'WhatsApp',
+  '/agente-ia': 'Agente IA (Lara)',
   '/configuracoes': 'Configurações',
 };
 
