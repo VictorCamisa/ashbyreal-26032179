@@ -8,6 +8,8 @@ export const ALL_MODULES = [
   { key: 'crm', label: 'CRM', icon: 'Target' },
   { key: 'financeiro', label: 'Financeiro', icon: 'Wallet' },
   { key: 'contabilidade', label: 'Contabilidade', icon: 'Calculator' },
+  { key: 'whatsapp', label: 'WhatsApp', icon: 'MessageSquare' },
+  { key: 'agente-ia', label: 'Agente IA', icon: 'Bot' },
 ] as const;
 
 export type ModuleKey = typeof ALL_MODULES[number]['key'];
