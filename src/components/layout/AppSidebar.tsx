@@ -1,15 +1,24 @@
 import { useLocation, NavLink } from 'react-router-dom';
 import { useMemo } from 'react';
 import {
+  Home,
+  BarChart3,
   ShoppingCart,
-  Wallet,
-  Settings,
-  LogOut,
-  Calculator,
   Target,
-  ChevronsUpDown,
   Users,
   Store,
+  Boxes,
+  Droplets,
+  Wallet,
+  Calculator,
+  TrendingUp,
+  MessageSquare,
+  Bot,
+  Megaphone,
+  HelpCircle,
+  Settings,
+  LogOut,
+  ChevronsUpDown,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -38,6 +47,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserModules } from '@/hooks/useAdminUsers';
 import logoTaubateChopp from '@/assets/logo-taubate-chopp.jpeg';
 
+const principalItems = [
+  { key: 'hub', label: 'Início', href: '/hub', icon: Home },
+  { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+];
+
 const salesNavItems = [
   { key: 'pedidos', label: 'Pedidos', href: '/pedidos', icon: ShoppingCart },
   { key: 'crm', label: 'CRM', href: '/crm', icon: Target },
@@ -45,9 +59,22 @@ const salesNavItems = [
   { key: 'lojistas', label: 'Lojistas', href: '/lojistas', icon: Store },
 ];
 
+const operationItems = [
+  { key: 'estoque', label: 'Estoque', href: '/estoque', icon: Boxes },
+  { key: 'barris', label: 'Barris', href: '/barris', icon: Droplets },
+];
+
 const financeNavItems = [
   { key: 'financeiro', label: 'Financeiro', href: '/financeiro', icon: Wallet },
   { key: 'contabilidade', label: 'Contabilidade', href: '/contabilidade', icon: Calculator },
+  { key: 'analise-financeira', label: 'Análise Financeira', href: '/analise-financeira', icon: TrendingUp },
+];
+
+const channelsIAItems = [
+  { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare },
+  { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot },
+  { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
+  { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
@@ -58,19 +85,21 @@ export function AppSidebar() {
   const isCollapsed = state === 'collapsed';
 
   const filterItems = (items: typeof salesNavItems) => {
-    if (!visibleModules) return items;
-    return items.filter(item => visibleModules.includes(item.key));
+    return items;
   };
 
   const groups = useMemo(() => [
-    { label: 'Vendas', items: filterItems(salesNavItems) },
-    { label: 'Financeiro', items: filterItems(financeNavItems) },
-  ].filter(g => g.items.length > 0), [visibleModules]);
+    { label: 'Principal', items: filterItems(principalItems) },
+    { label: 'Vendas & CRM', items: filterItems(salesNavItems) },
+    { label: 'Operação & Estoque', items: filterItems(operationItems) },
+    { label: 'Financeiro & Fiscal', items: filterItems(financeNavItems) },
+    { label: 'Canais & IA', items: filterItems(channelsIAItems) },
+  ], []);
 
-  const isActive = (href: string) => location.pathname.startsWith(href);
+  const isActive = (href: string) => location.pathname === href || (href !== '/hub' && location.pathname.startsWith(href));
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
+    <Sidebar collapsible="icon" className="border-r border-border/40 bg-zinc-950/80 backdrop-blur-xl">
       <SidebarHeader className="p-3">
         <NavLink to="/hub" className="flex items-center gap-2.5 group px-1">
           <div className="relative shrink-0">
@@ -79,7 +108,7 @@ export function AppSidebar() {
               alt="Taubaté Chopp"
               className="h-8 w-8 rounded-lg object-cover ring-1 ring-primary/20 group-hover:ring-primary/50 transition-all"
             />
-            <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 bg-success rounded-full ring-2 ring-sidebar" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 bg-emerald-500 rounded-full ring-2 ring-sidebar" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
@@ -92,19 +121,21 @@ export function AppSidebar() {
 
       <SidebarSeparator />
 
-      <SidebarContent className="px-1">
+      <SidebarContent className="px-2 py-2 space-y-4">
         {groups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/60">
-              {group.label}
-            </SidebarGroupLabel>
+          <SidebarGroup key={group.label} className="p-0">
+            {!isCollapsed && (
+              <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/50 px-2 mb-1.5">
+                {group.label}
+              </SidebarGroupLabel>
+            )}
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild isActive={isActive(item.href)} tooltip={item.label}>
+                    <SidebarMenuButton asChild isActive={isActive(item.href)} tooltip={item.label} className="h-8 text-xs">
                       <NavLink to={item.href}>
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-4 w-4 shrink-0" />
                         <span>{item.label}</span>
                       </NavLink>
                     </SidebarMenuButton>
@@ -121,7 +152,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/configuracoes')} tooltip="Configurações">
+            <SidebarMenuButton asChild isActive={isActive('/configuracoes')} tooltip="Configurações" className="h-8 text-xs">
               <NavLink to="/configuracoes">
                 <Settings className="h-4 w-4" />
                 <span>Configurações</span>
@@ -131,14 +162,14 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent">
+                <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent h-10">
                   <Avatar className="h-7 w-7 shrink-0">
-                    <AvatarFallback className="text-[10px] font-bold bg-primary text-primary-foreground">
+                    <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
                       {user?.email?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   {!isCollapsed && (
-                    <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex flex-col min-w-0 flex-1 text-left">
                       <span className="text-xs font-semibold truncate">
                         {user?.email?.split('@')[0] || 'Usuário'}
                       </span>
@@ -153,7 +184,7 @@ export function AppSidebar() {
               <DropdownMenuContent
                 side={isCollapsed ? "right" : "top"}
                 align="start"
-                className="w-56 rounded-xl"
+                className="w-52 rounded-xl"
               >
                 <div className="px-3 py-2">
                   <p className="text-xs font-semibold truncate">{user?.email}</p>
@@ -179,7 +210,6 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
 
-      <SidebarRail />
     </Sidebar>
   );
 }

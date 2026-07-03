@@ -15,8 +15,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { NavLink } from 'react-router-dom';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from './AppSidebar';
 
 const MODULE_LABELS: Record<string, string> = {
+  '/hub': 'Início',
+  '/dashboard': 'Dashboard',
   '/pedidos': 'Pedidos',
   '/crm': 'CRM',
   '/financeiro': 'Financeiro',
@@ -24,6 +28,13 @@ const MODULE_LABELS: Record<string, string> = {
   '/whatsapp': 'WhatsApp',
   '/agente-ia': 'Agente IA (Lara)',
   '/configuracoes': 'Configurações',
+  '/clientes': 'Clientes',
+  '/lojistas': 'Lojistas',
+  '/estoque': 'Estoque',
+  '/barris': 'Barris',
+  '/suporte': 'Suporte',
+  '/analise-financeira': 'Análise Financeira',
+  '/marketing': 'Marketing',
 };
 
 export function Layout() {
@@ -39,83 +50,89 @@ export function Layout() {
     'Página';
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top header bar — floating style */}
-      <header className="sticky top-0 z-50 bg-background/70 backdrop-blur-2xl border-b border-border/30">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            {/* Left: back + module name */}
-            <div className="flex items-center gap-3 min-w-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0 rounded-xl"
-                onClick={() => navigate('/hub')}
-                title="Voltar ao início"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <NavLink to="/hub" className="shrink-0 hidden sm:block">
-                <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
-              </NavLink>
-              <div className="min-w-0">
-                <h1 className="text-sm font-semibold tracking-tight truncate">{currentLabel}</h1>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Top header bar — floating style */}
+          <header className="sticky top-0 z-50 bg-background/70 backdrop-blur-2xl border-b border-border/30">
+            <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-14">
+                {/* Left: trigger + back + module name */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <SidebarTrigger className="h-8 w-8 rounded-xl shrink-0" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 rounded-xl"
+                    onClick={() => navigate('/hub')}
+                    title="Voltar ao início"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <NavLink to="/hub" className="shrink-0 hidden sm:block">
+                    <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
+                  </NavLink>
+                  <div className="min-w-0">
+                    <h1 className="text-sm font-semibold tracking-tight truncate">{currentLabel}</h1>
+                  </div>
+                </div>
+
+                {/* Right */}
+                <div className="flex items-center gap-1">
+                  <ThemeToggle />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl">
+                        <Avatar className="h-7 w-7">
+                          <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
+                            {user?.email?.charAt(0).toUpperCase() || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                      <div className="px-3 py-2.5">
+                        <p className="text-xs font-medium truncate text-muted-foreground">{user?.email}</p>
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <NavLink to="/configuracoes" className="cursor-pointer text-sm">
+                          <Settings className="h-4 w-4 mr-2" />
+                          Configurações
+                        </NavLink>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => signOut()}
+                        className="text-destructive focus:text-destructive cursor-pointer text-sm"
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sair
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
+          </header>
 
-            {/* Right */}
-            <div className="flex items-center gap-1">
-              <ThemeToggle />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl">
-                    <Avatar className="h-7 w-7">
-                      <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                        {user?.email?.charAt(0).toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                  <div className="px-3 py-2.5">
-                    <p className="text-xs font-medium truncate text-muted-foreground">{user?.email}</p>
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <NavLink to="/configuracoes" className="cursor-pointer text-sm">
-                      <Settings className="h-4 w-4 mr-2" />
-                      Configurações
-                    </NavLink>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => signOut()}
-                    className="text-destructive focus:text-destructive cursor-pointer text-sm"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sair
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          {/* Main content */}
+          <main className="flex-1 pb-20 lg:pb-8">
+            <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
+              <Outlet />
             </div>
-          </div>
+          </main>
+
+          {/* Mobile bottom nav */}
+          <MobileNavBar />
+
+          <SystemAssistant
+            moduleName={moduleInfo.name}
+            moduleContext={moduleInfo.context}
+          />
         </div>
-      </header>
-
-      {/* Main content */}
-      <main className="flex-1 pb-20 lg:pb-8">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-5 sm:py-8">
-          <Outlet />
-        </div>
-      </main>
-
-      {/* Mobile bottom nav */}
-      <MobileNavBar />
-
-      <SystemAssistant
-        moduleName={moduleInfo.name}
-        moduleContext={moduleInfo.context}
-      />
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }

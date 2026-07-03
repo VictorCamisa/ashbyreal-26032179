@@ -58,6 +58,11 @@ interface QuarterSelection {
   quarter: number; // 1-4
 }
 
+interface MonthSelection {
+  year: number;
+  month: number; // 0-11
+}
+
 const METAS: Record<PeriodType, number> = {
   semana: 15000,
   mes: 60000,
@@ -134,6 +139,7 @@ export default function Hub() {
   const { data: visibleModules } = useUserModules();
   const [period, setPeriod] = useState<PeriodType>('trimestre');
   const [selectedQuarter, setSelectedQuarter] = useState<QuarterSelection | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<MonthSelection | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['hub-dashboard-all'],
@@ -219,20 +225,28 @@ export default function Hub() {
   }, [visibleModules]);
 
   const referenceDate = useMemo(() => {
-    if (selectedQuarter) {
+    if (period === 'mes' && selectedMonth) {
+      return new Date(selectedMonth.year, selectedMonth.month, 15);
+    }
+    if (period === 'trimestre' && selectedQuarter) {
       // Use the selected quarter's midpoint as reference
       return new Date(selectedQuarter.year, (selectedQuarter.quarter - 1) * 3 + 1, 15);
     }
     const latestPedido = data?.allPedidos?.find((pedido: any) => Boolean(pedido.data_pedido));
     return latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
-  }, [data?.allPedidos, selectedQuarter]);
+  }, [data?.allPedidos, selectedQuarter, selectedMonth, period]);
 
-  // Auto-select current quarter on first load
+  // Auto-select current quarter and month on first load
   useMemo(() => {
-    if (!selectedQuarter && data?.allPedidos?.length) {
+    if (data?.allPedidos?.length) {
       const latestPedido = data.allPedidos.find((p: any) => Boolean(p.data_pedido));
       const refDate = latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
-      setSelectedQuarter({ year: refDate.getFullYear(), quarter: Math.floor(refDate.getMonth() / 3) + 1 });
+      if (!selectedQuarter) {
+        setSelectedQuarter({ year: refDate.getFullYear(), quarter: Math.floor(refDate.getMonth() / 3) + 1 });
+      }
+      if (!selectedMonth) {
+        setSelectedMonth({ year: refDate.getFullYear(), month: refDate.getMonth() });
+      }
     }
   }, [data?.allPedidos]);
 
@@ -397,10 +411,16 @@ export default function Hub() {
   }, [data?.allPedidos]);
 
   const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
+  const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
   const handleQuarterSelect = (year: number, quarter: number) => {
     setSelectedQuarter({ year, quarter });
     setPeriod('trimestre');
+  };
+
+  const handleMonthSelect = (year: number, month: number) => {
+    setSelectedMonth({ year, month });
+    setPeriod('mes');
   };
 
   const periodButtons: { value: PeriodType; label: string }[] = [
@@ -410,97 +430,104 @@ export default function Hub() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
-          <div className="flex items-center justify-between h-12">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold tracking-tight text-primary">Taubaté Chopp</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:block">·</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:block capitalize">{periodLabel}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {period === 'semana' && (
-                <Badge
-                  variant={deadlinePassed ? "destructive" : "default"}
-                  className="text-[10px] gap-1 h-6"
-                >
-                  {deadlinePassed ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}
-                  {deadlinePassed ? 'Fechada' : 'Aberta'}
-                </Badge>
-              )}
-              <ThemeToggle />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-[10px] font-bold bg-primary/10 text-primary">
-                        {user?.email?.charAt(0).toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <div className="px-3 py-2">
-                    <p className="text-xs truncate text-muted-foreground">{user?.email}</p>
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <NavLink to="/configuracoes" className="cursor-pointer text-xs">
-                      <Settings className="h-3.5 w-3.5 mr-2" /> Configurações
-                    </NavLink>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut()} className="text-destructive text-xs cursor-pointer">
-                    <LogOut className="h-3.5 w-3.5 mr-2" /> Sair
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Dense Content */}
-      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 space-y-4">
-        {/* Row 1: Greeting + Quarter Selector */}
+    <div className="space-y-4">
+      {/* Row 1: Greeting + Period Selector */}
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
               {greeting}, <span className="font-medium text-foreground">{firstName}</span>
             </p>
-            <span className="text-[10px] text-muted-foreground capitalize">{periodLabel}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-muted-foreground capitalize hidden sm:inline">{periodLabel}</span>
+              {/* Period Type Selector */}
+              <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
+                {periodButtons.map((btn) => (
+                  <button
+                    key={btn.value}
+                    onClick={() => {
+                      setPeriod(btn.value);
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 text-[11px] font-medium rounded-md transition-all",
+                      period === btn.value
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Year/Quarter selector */}
-          <div className="flex flex-wrap items-center gap-3">
-            {availableYears.map(year => (
-              <div key={year} className="flex items-center gap-1">
-                <span className="text-[11px] font-bold text-muted-foreground mr-1">{year}</span>
-                <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
-                  {quarterLabels.map((ql, qi) => {
-                    const q = qi + 1;
-                    const isSelected = selectedQuarter?.year === year && selectedQuarter?.quarter === q;
-                    return (
-                      <button
-                        key={`${year}-${q}`}
-                        onClick={() => handleQuarterSelect(year, q)}
-                        className={cn(
-                          "px-2.5 py-1 text-[11px] font-medium rounded-md transition-all",
-                          isSelected
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {ql}
-                      </button>
-                    );
-                  })}
+          {/* Conditional Sub-selectors based on Selected Period */}
+          {period === 'trimestre' && (
+            <div className="flex flex-wrap items-center gap-3">
+              {availableYears.map(year => (
+                <div key={year} className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-muted-foreground mr-1">{year}</span>
+                  <div className="flex items-center bg-muted/50 rounded-lg p-0.5 border border-border/40">
+                    {quarterLabels.map((ql, qi) => {
+                      const q = qi + 1;
+                      const isSelected = selectedQuarter?.year === year && selectedQuarter?.quarter === q;
+                      return (
+                        <button
+                          key={`${year}-${q}`}
+                          onClick={() => handleQuarterSelect(year, q)}
+                          className={cn(
+                            "px-2.5 py-1 text-[11px] font-medium rounded-md transition-all",
+                            isSelected
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {ql}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {period === 'mes' && (
+            <div className="flex flex-wrap items-center gap-3">
+              {availableYears.map(year => (
+                <div key={year} className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-muted-foreground mr-1">{year}</span>
+                  <div className="flex flex-wrap items-center bg-muted/50 rounded-lg p-0.5 border border-border/40 gap-0.5">
+                    {monthLabels.map((ml, mi) => {
+                      const isSelected = selectedMonth?.year === year && selectedMonth?.month === mi;
+                      return (
+                        <button
+                          key={`${year}-${mi}`}
+                          onClick={() => handleMonthSelect(year, mi)}
+                          className={cn(
+                            "px-2 py-0.5 text-[10px] font-medium rounded-md transition-all",
+                            isSelected
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {ml}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {period === 'semana' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Exibindo a semana da data de referência: <strong>{format(referenceDate, 'dd/MM/yyyy')}</strong>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Row 2: 4 KPIs */}
@@ -894,6 +921,5 @@ export default function Hub() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

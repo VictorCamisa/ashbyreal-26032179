@@ -10,16 +10,23 @@ import { AssistantProvider } from "@/contexts/AssistantContext";
 import { Layout } from "./components/layout/Layout";
 import Auth from "./pages/Auth";
 import Hub from "./pages/Hub";
+import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Pedidos from "./pages/Pedidos";
 import Configuracoes from "./pages/Configuracoes";
 import Financeiro from "./pages/Financeiro";
 import Contabilidade from "./pages/Contabilidade";
 import Clientes from "./pages/Clientes";
+import ClienteDetalhes from "./pages/ClienteDetalhes";
 import Lojistas from "./pages/Lojistas";
 import LojistaDetalhes from "./pages/LojistaDetalhes";
 import WhatsApp from "./pages/WhatsApp";
 import AgenteIA from "./pages/AgenteIA";
+import Estoque from "./pages/Estoque";
+import Barris from "./pages/Barris";
+import Suporte from "./pages/Suporte";
+import AnaliseFinanceira from "./pages/AnaliseFinanceira";
+import Marketing from "./pages/Marketing";
 import NotFound from "./pages/NotFound";
 import AssinarComprovante from "./pages/AssinarComprovante";
 // Institucional pages
@@ -48,21 +55,26 @@ const App = () => (
                 {/* Public route for client signature */}
                 <Route path="/assinar" element={<AssinarComprovante />} />
                 
-                {/* Hub - main entry after login */}
-                <Route path="/hub" element={<ProtectedRoute><Hub /></ProtectedRoute>} />
-
                 {/* All module pages inside the Layout */}
                 <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                  <Route path="/hub" element={<Hub />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/crm" element={<CRM />} />
                   <Route path="/pedidos" element={<Pedidos />} />
                   <Route path="/financeiro" element={<Financeiro />} />
                   <Route path="/contabilidade" element={<Contabilidade />} />
                   <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/clientes/:id" element={<ClienteDetalhes />} />
                   <Route path="/lojistas" element={<Lojistas />} />
                   <Route path="/lojistas/:id" element={<LojistaDetalhes />} />
                   <Route path="/whatsapp" element={<WhatsApp />} />
                   <Route path="/agente-ia" element={<AgenteIA />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
+                  <Route path="/estoque" element={<Estoque />} />
+                  <Route path="/barris" element={<Barris />} />
+                  <Route path="/suporte" element={<Suporte />} />
+                  <Route path="/analise-financeira" element={<AnaliseFinanceira />} />
+                  <Route path="/marketing" element={<Marketing />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
