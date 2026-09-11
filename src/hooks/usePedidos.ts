@@ -48,7 +48,7 @@ function dbRowToPedido(row: PedidoRow): Pedido & { numeroPedido: number } {
     status: row.status as Pedido['status'],
     valorTotal: Number(row.valor_total),
     numeroPedido: row.numero_pedido,
-    dataPedido: row.data_pedido,
+    dataPedido: row.data_pedido || row.created_at,
     dataEntrega: row.data_entrega || undefined,
     observacoes: row.observacoes || undefined,
     createdAt: row.created_at,
@@ -102,8 +102,10 @@ export function usePedidos(clienteId?: string) {
       let query = supabase
         .from('pedidos')
         .select('*')
-        .gte('data_pedido', '2023-01-01T00:00:00')
-        .order('data_pedido', { ascending: false });
+        // Inclui pedidos legados importados sem data_pedido preenchida
+        .or('data_pedido.gte.2023-01-01T00:00:00,data_pedido.is.null')
+        .order('data_pedido', { ascending: false, nullsFirst: false })
+        .range(0, 4999);
 
       if (excludeIds.length > 0) {
         // Exclude supplier purchase records from the orders list
