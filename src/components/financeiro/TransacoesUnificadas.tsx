@@ -924,13 +924,16 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
 
           {/* Tag filter */}
           {allTags.length > 0 && (
-            <Select value={tagFilter} onValueChange={setTagFilter}>
+            <Select
+              value={tagFilter === '' ? 'todas' : tagFilter}
+              onValueChange={(v) => setTagFilter(v === 'todas' ? '' : v)}
+            >
               <SelectTrigger className="w-[120px]">
                 <Tag className="h-3.5 w-3.5 mr-1" />
                 <SelectValue placeholder="Tags" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="todas">Todas</SelectItem>
                 {allTags.map(tag => (
                   <SelectItem key={tag} value={tag}>{tag}</SelectItem>
                 ))}

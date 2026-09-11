@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AssistantProvider } from "@/contexts/AssistantContext";
 import { Layout } from "./components/layout/Layout";
 import Auth from "./pages/Auth";
@@ -56,7 +57,7 @@ const App = () => (
                 <Route path="/assinar" element={<AssinarComprovante />} />
                 
                 {/* All module pages inside the Layout */}
-                <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route element={<ProtectedRoute><ErrorBoundary><Layout /></ErrorBoundary></ProtectedRoute>}>
                   <Route path="/hub" element={<Hub />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/crm" element={<CRM />} />
