@@ -102,8 +102,10 @@ export function usePedidos(clienteId?: string) {
       let query = supabase
         .from('pedidos')
         .select('*')
-        .gte('data_pedido', '2023-01-01T00:00:00')
-        .order('data_pedido', { ascending: false });
+        // Inclui pedidos legados importados sem data_pedido preenchida
+        .or('data_pedido.gte.2023-01-01T00:00:00,data_pedido.is.null')
+        .order('data_pedido', { ascending: false, nullsFirst: false })
+        .range(0, 4999);
 
       if (excludeIds.length > 0) {
         // Exclude supplier purchase records from the orders list
