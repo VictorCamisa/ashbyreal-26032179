@@ -57,7 +57,7 @@ const App = () => (
                 <Route path="/assinar" element={<AssinarComprovante />} />
                 
                 {/* All module pages inside the Layout */}
-                <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route element={<ProtectedRoute><ErrorBoundary><Layout /></ErrorBoundary></ProtectedRoute>}>
                   <Route path="/hub" element={<Hub />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/crm" element={<CRM />} />
