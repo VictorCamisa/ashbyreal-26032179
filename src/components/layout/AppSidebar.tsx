@@ -99,7 +99,7 @@ export function AppSidebar() {
   const isActive = (href: string) => location.pathname === href || (href !== '/hub' && location.pathname.startsWith(href));
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/40 bg-zinc-950/80 backdrop-blur-xl">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <SidebarHeader className="p-3">
         <NavLink to="/hub" className="flex items-center gap-2.5 group px-1">
           <div className="relative shrink-0">
@@ -108,12 +108,12 @@ export function AppSidebar() {
               alt="Taubaté Chopp"
               className="h-8 w-8 rounded-lg object-cover ring-1 ring-primary/20 group-hover:ring-primary/50 transition-all"
             />
-            <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 bg-emerald-500 rounded-full ring-2 ring-sidebar" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-sidebar" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold tracking-tight truncate">Taubaté Chopp</span>
-              <span className="text-[10px] text-muted-foreground truncate">Sistema de Gestão</span>
+              <span className="text-[10px] text-sidebar-foreground/60 truncate">Sistema de Gestão</span>
             </div>
           )}
         </NavLink>
@@ -125,7 +125,7 @@ export function AppSidebar() {
         {groups.map((group) => (
           <SidebarGroup key={group.label} className="p-0">
             {!isCollapsed && (
-              <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-semibold text-muted-foreground/50 px-2 mb-1.5">
+              <SidebarGroupLabel className="text-[9px] uppercase tracking-widest font-semibold text-sidebar-foreground/50 px-2 mb-1.5">
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -173,12 +173,12 @@ export function AppSidebar() {
                       <span className="text-xs font-semibold truncate">
                         {user?.email?.split('@')[0] || 'Usuário'}
                       </span>
-                      <span className="text-[10px] text-muted-foreground truncate">
+                      <span className="text-[10px] text-sidebar-foreground/60 truncate">
                         {user?.email || ''}
                       </span>
                     </div>
                   )}
-                  {!isCollapsed && <ChevronsUpDown className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+                  {!isCollapsed && <ChevronsUpDown className="ml-auto h-3.5 w-3.5 text-sidebar-foreground/60" />}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
