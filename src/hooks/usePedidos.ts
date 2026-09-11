@@ -48,7 +48,7 @@ function dbRowToPedido(row: PedidoRow): Pedido & { numeroPedido: number } {
     status: row.status as Pedido['status'],
     valorTotal: Number(row.valor_total),
     numeroPedido: row.numero_pedido,
-    dataPedido: row.data_pedido,
+    dataPedido: row.data_pedido || row.created_at,
     dataEntrega: row.data_entrega || undefined,
     observacoes: row.observacoes || undefined,
     createdAt: row.created_at,
