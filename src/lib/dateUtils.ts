@@ -110,3 +110,16 @@ export function formatMonthOnly(date: Date): string {
   const month = format(date, 'MMM', { locale: ptBR });
   return normalizeMonth(month);
 }
+
+/**
+ * Safely parses a date value coming from the database.
+ * Date-only strings ("yyyy-MM-dd") are parsed in LOCAL time to avoid the
+ * classic "one day less" UTC shift. Full timestamps are parsed normally.
+ */
+export function parseDateLocal(value: string | Date | null | undefined): Date {
+  if (!value) return new Date(NaN);
+  if (value instanceof Date) return value;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(value);
+}
