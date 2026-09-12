@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -203,7 +204,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
       if (regime === 'caixa') {
         rawData.invoices.forEach(inv => {
           if (!inv.due_date) return;
-          const key = format(parseISO(inv.due_date), 'yyyy-MM');
+          const key = format(parseDateLocal(inv.due_date), 'yyyy-MM');
           if (monthlyMap[key] && key > currentMonthKey) {
             monthlyMap[key].despesas += Number(inv.total_value || 0);
             monthlyMap[key].despesasPrevistas += Number(inv.total_value || 0);
@@ -317,7 +318,7 @@ export function useAnaliseFinanceira(filters: AnaliseFilters) {
 
       const txWithBothDates = transactions.filter(t => t.due_date && t.payment_date && t.status === 'PAGO');
       const tempoMedio = txWithBothDates.length > 0
-        ? txWithBothDates.reduce((a, t) => a + Math.abs(differenceInDays(parseISO(t.payment_date!), parseISO(t.due_date))), 0) / txWithBothDates.length
+        ? txWithBothDates.reduce((a, t) => a + Math.abs(differenceInDays(parseDateLocal(t.payment_date!), parseDateLocal(t.due_date))), 0) / txWithBothDates.length
         : 0;
 
       const pedidosPagosCount = pedidosMes.filter(p => p.data_pagamento).length;

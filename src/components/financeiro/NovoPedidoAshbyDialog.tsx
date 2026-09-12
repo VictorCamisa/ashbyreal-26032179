@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +45,7 @@ export function NovoPedidoAshbyDialog({ open, onOpenChange, onSave, isLoading }:
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const orderDate = new Date(formData.order_date);
+    const orderDate = parseDateLocal(formData.order_date);
     const year = orderDate.getFullYear();
     const month = orderDate.getMonth() + 1;
     const quarter = Math.ceil(month / 3);

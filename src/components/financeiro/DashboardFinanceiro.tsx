@@ -8,7 +8,7 @@ import { useCartoes } from '@/hooks/useCartoes';
 import { useFinanceiroStats } from '@/hooks/useFinanceiroStats';
 import { HealthGauge } from './HealthGauge';
 import { EvolutionChart } from './EvolutionChart';
-import { formatMonthYear } from '@/lib/dateUtils';
+import { formatMonthYear, parseDateLocal } from '@/lib/dateUtils';
 import type { TransactionFilter } from '@/pages/Financeiro';
 import { 
   ChevronLeft, 
@@ -125,7 +125,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
 
   // Recent transactions (most recent 6)
   const recentTransactions = (allTransactions || [])
-    .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+    .sort((a, b) => parseDateLocal(b.due_date).getTime() - parseDateLocal(a.due_date).getTime())
     .slice(0, 6);
 
   const monthLabel = formatMonthYear(referenceMonth);
@@ -481,7 +481,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {new Date(t.due_date).toLocaleDateString('pt-BR')} • {(t.categories as any)?.name || 'Sem categoria'}
+                          {parseDateLocal(t.due_date).toLocaleDateString('pt-BR')} • {(t.categories as any)?.name || 'Sem categoria'}
                         </p>
                       </div>
                     </div>

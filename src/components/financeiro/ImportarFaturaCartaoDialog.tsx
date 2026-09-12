@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { format, addMonths, subMonths } from 'date-fns';
-import { formatMonthYear, formatCompetencia } from '@/lib/dateUtils';
+import { formatMonthYear, formatCompetencia, parseDateLocal } from '@/lib/dateUtils';
 
 interface ImportarFaturaCartaoDialogProps {
   open: boolean;
@@ -804,7 +804,7 @@ export function ImportarFaturaCartaoDialog({
                         {existingTransactions.map((t) => (
                           <TableRow key={t.id} className="text-muted-foreground">
                             <TableCell className="py-2 text-xs font-mono">
-                              {new Date(t.purchase_date).toLocaleDateString('pt-BR')}
+                              {parseDateLocal(t.purchase_date).toLocaleDateString('pt-BR')}
                             </TableCell>
                             <TableCell className="py-2 text-xs max-w-xs truncate">{t.description}</TableCell>
                             <TableCell className="py-2 text-xs">

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, isBefore, isAfter, addDays } from 'date-fns';
-import { formatMonthYear, formatCompetencia, formatDayMonthShort } from '@/lib/dateUtils';
+import { formatMonthYear, formatCompetencia, formatDayMonthShort, parseDateLocal } from '@/lib/dateUtils';
 import {
   Sheet,
   SheetContent,
@@ -265,8 +265,8 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
   // Get invoice status info
   const getInvoiceStatusInfo = (invoice: any) => {
     const now = new Date();
-    const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
-    const closingDate = invoice.closing_date ? new Date(invoice.closing_date) : null;
+    const dueDate = invoice.due_date ? parseDateLocal(invoice.due_date) : null;
+    const closingDate = invoice.closing_date ? parseDateLocal(invoice.closing_date) : null;
 
     if (invoice.status === 'PAGA') {
       return { label: 'Paga', variant: 'default' as const, color: 'text-emerald-600', bgColor: 'bg-emerald-500/10', icon: CheckCircle2 };
@@ -423,7 +423,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                     <p className="text-sm font-medium">Fatura Atual</p>
                     <p className="text-xs text-muted-foreground">
                       {currentInvoice.due_date 
-                        ? `Vencimento: ${format(new Date(currentInvoice.due_date), 'dd/MM/yyyy')}`
+                        ? `Vencimento: ${format(parseDateLocal(currentInvoice.due_date), 'dd/MM/yyyy')}`
                         : 'Sem data de vencimento'
                       }
                     </p>
@@ -556,7 +556,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-muted-foreground">
-                              {formatDayMonthShort(new Date(t.purchase_date))}
+                              {formatDayMonthShort(parseDateLocal(t.purchase_date))}
                             </span>
                             {t.total_installments > 1 && (
                               <Badge variant="secondary" className="text-[10px] py-0 h-4 px-1.5">
@@ -628,7 +628,7 @@ export function DetalhesCartaoSheet({ open, onOpenChange, cartao }: DetalhesCart
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {inv.due_date 
-                                    ? `Vencimento: ${format(new Date(inv.due_date), 'dd/MM/yyyy')}`
+                                    ? `Vencimento: ${format(parseDateLocal(inv.due_date), 'dd/MM/yyyy')}`
                                     : 'Sem data de vencimento'
                                   }
                                 </p>

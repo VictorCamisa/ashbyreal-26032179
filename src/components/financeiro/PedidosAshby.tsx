@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,7 +90,7 @@ export function PedidosAshby() {
                 {pedidos.map((pedido) => (
                   <TableRow key={pedido.id}>
                     <TableCell className="font-medium">
-                      {new Date(pedido.order_date).toLocaleDateString('pt-BR')}
+                      {parseDateLocal(pedido.order_date).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell>{pedido.liters ? `${pedido.liters}L` : '-'}</TableCell>
                     <TableCell>

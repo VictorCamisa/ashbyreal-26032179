@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -277,7 +278,7 @@ export default function LojistaDetalhes() {
               {lojista.data_cadastro && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  Desde {format(new Date(lojista.data_cadastro), "MMM yyyy", { locale: ptBR })}
+                  Desde {format(parseDateLocal(lojista.data_cadastro), "MMM yyyy", { locale: ptBR })}
                 </span>
               )}
             </div>
@@ -596,7 +597,7 @@ export default function LojistaDetalhes() {
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
                                   {nota.data_emissao
-                                    ? format(new Date(nota.data_emissao), "dd/MM/yyyy", { locale: ptBR })
+                                    ? format(parseDateLocal(nota.data_emissao), "dd/MM/yyyy", { locale: ptBR })
                                     : format(new Date(nota.created_at), "dd/MM/yyyy", { locale: ptBR })}
                                 </span>
                                 {nota.chave_acesso && (
