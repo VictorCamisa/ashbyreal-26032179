@@ -235,7 +235,7 @@ export default function Pedidos() {
                             title={`ID: ${pedido.id}`}
                           >
                             <TableCell className="font-mono text-sm">
-                              <span title={pedido.id}>#{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
+                              <span title={pedido.id}>{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
                             </TableCell>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {clientesMap[pedido.clienteId] || '-'}
