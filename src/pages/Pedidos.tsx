@@ -56,6 +56,16 @@ const tabs = [
 
 const ITEMS_PER_PAGE = 15;
 
+// Parses date-only strings (yyyy-MM-dd) as local dates to avoid UTC off-by-one
+function formatDateLocal(dateStr: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${d}/${m}/${y}`;
+  }
+  return new Date(dateStr).toLocaleDateString('pt-BR');
+}
+
 export default function Pedidos() {
   const [activeTab, setActiveTab] = useState('lista');
   const [searchTerm, setSearchTerm] = useState('');
@@ -235,7 +245,7 @@ export default function Pedidos() {
                             title={`ID: ${pedido.id}`}
                           >
                             <TableCell className="font-mono text-sm">
-                              <span title={pedido.id}>#{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
+                              <span title={pedido.id}>{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
                             </TableCell>
                             <TableCell className="font-medium max-w-[150px] truncate">
                               {clientesMap[pedido.clienteId] || '-'}
@@ -248,7 +258,7 @@ export default function Pedidos() {
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {pedido.dataPedido 
-                                ? new Date(pedido.dataPedido).toLocaleDateString('pt-BR')
+                                ? formatDateLocal(pedido.dataPedido)
                                 : '—'}
                             </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>

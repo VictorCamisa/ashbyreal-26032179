@@ -230,9 +230,64 @@ export type Database = {
           },
         ]
       }
+      ashby_order_items: {
+        Row: {
+          ashby_order_id: string
+          barrel_capacity_liters: number
+          barrel_quantity: number
+          created_at: string
+          id: string
+          item_status: string
+          notes: string | null
+          product_name: string
+          produto_id: string | null
+          total_liters: number | null
+        }
+        Insert: {
+          ashby_order_id: string
+          barrel_capacity_liters: number
+          barrel_quantity: number
+          created_at?: string
+          id?: string
+          item_status?: string
+          notes?: string | null
+          product_name: string
+          produto_id?: string | null
+          total_liters?: number | null
+        }
+        Update: {
+          ashby_order_id?: string
+          barrel_capacity_liters?: number
+          barrel_quantity?: number
+          created_at?: string
+          id?: string
+          item_status?: string
+          notes?: string | null
+          product_name?: string
+          produto_id?: string | null
+          total_liters?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ashby_order_items_ashby_order_id_fkey"
+            columns: ["ashby_order_id"]
+            isOneToOne: false
+            referencedRelation: "ashby_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ashby_order_items_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ashby_orders: {
         Row: {
           amount: number | null
+          calculated_liters: number | null
           created_at: string | null
           delivery_date: string | null
           description: string | null
@@ -242,9 +297,15 @@ export type Database = {
           notes: string | null
           order_date: string | null
           order_number: string | null
+          order_type: string | null
           payment_date: string | null
           quarter: number
+          reconciliation_status: string | null
+          source: string | null
+          source_message_id: string | null
+          stated_liters: number | null
           status: Database["public"]["Enums"]["ashby_status"] | null
+          stock_posted: boolean
           total: number | null
           transaction_id: string | null
           updated_at: string | null
@@ -254,6 +315,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          calculated_liters?: number | null
           created_at?: string | null
           delivery_date?: string | null
           description?: string | null
@@ -263,9 +325,15 @@ export type Database = {
           notes?: string | null
           order_date?: string | null
           order_number?: string | null
+          order_type?: string | null
           payment_date?: string | null
           quarter: number
+          reconciliation_status?: string | null
+          source?: string | null
+          source_message_id?: string | null
+          stated_liters?: number | null
           status?: Database["public"]["Enums"]["ashby_status"] | null
+          stock_posted?: boolean
           total?: number | null
           transaction_id?: string | null
           updated_at?: string | null
@@ -275,6 +343,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          calculated_liters?: number | null
           created_at?: string | null
           delivery_date?: string | null
           description?: string | null
@@ -284,9 +353,15 @@ export type Database = {
           notes?: string | null
           order_date?: string | null
           order_number?: string | null
+          order_type?: string | null
           payment_date?: string | null
           quarter?: number
+          reconciliation_status?: string | null
+          source?: string | null
+          source_message_id?: string | null
+          stated_liters?: number | null
           status?: Database["public"]["Enums"]["ashby_status"] | null
+          stock_posted?: boolean
           total?: number | null
           transaction_id?: string | null
           updated_at?: string | null
@@ -2874,7 +2949,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ashby_barrels_by_week: {
+        Row: {
+          barrel_capacity_liters: number | null
+          barrel_quantity: number | null
+          item_status: string | null
+          product_name: string | null
+          total_liters: number | null
+          week_start: string | null
+        }
+        Relationships: []
+      }
+      ashby_weekly_orders: {
+        Row: {
+          barrels: number | null
+          first_date: string | null
+          last_date: string | null
+          liters: number | null
+          orders: number | null
+          received_liters: number | null
+          week_start: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_competencia_date: {

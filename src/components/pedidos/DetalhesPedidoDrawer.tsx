@@ -337,6 +337,12 @@ export function DetalhesPedidoDrawer({
 
   const formatDate = (date: string | null) => {
     if (!date) return '-';
+    // Date-only strings (yyyy-MM-dd) must be treated as local dates, not UTC midnight
+    const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.test(date);
+    if (dateOnly) {
+      const [y, m, d] = date.split('-');
+      return `${d}/${m}/${y}`;
+    }
     return new Date(date).toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
