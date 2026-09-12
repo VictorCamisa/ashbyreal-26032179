@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -117,7 +118,7 @@ export function GerenciamentoBoletos() {
                 <div>
                   <span className="text-xs">Vencimento:</span>
                   <p className="font-medium text-foreground">
-                    {format(new Date(boleto.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                    {format(parseDateLocal(boleto.due_date), 'dd/MM/yyyy', { locale: ptBR })}
                   </p>
                 </div>
               </div>

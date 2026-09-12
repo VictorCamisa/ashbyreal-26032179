@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { NavLink } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import {
@@ -233,14 +234,14 @@ export default function Hub() {
       return new Date(selectedQuarter.year, (selectedQuarter.quarter - 1) * 3 + 1, 15);
     }
     const latestPedido = data?.allPedidos?.find((pedido: any) => Boolean(pedido.data_pedido));
-    return latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+    return latestPedido?.data_pedido ? parseDateLocal(latestPedido.data_pedido) : new Date();
   }, [data?.allPedidos, selectedQuarter, selectedMonth, period]);
 
   // Auto-select current quarter and month on first load
   useMemo(() => {
     if (data?.allPedidos?.length) {
       const latestPedido = data.allPedidos.find((p: any) => Boolean(p.data_pedido));
-      const refDate = latestPedido?.data_pedido ? new Date(latestPedido.data_pedido) : new Date();
+      const refDate = latestPedido?.data_pedido ? parseDateLocal(latestPedido.data_pedido) : new Date();
       if (!selectedQuarter) {
         setSelectedQuarter({ year: refDate.getFullYear(), quarter: Math.floor(refDate.getMonth() / 3) + 1 });
       }
@@ -270,7 +271,7 @@ export default function Hub() {
   const pedidos = useMemo(() => {
     return (data?.allPedidos || []).filter((p: any) => {
       if (!p.data_pedido) return false;
-      const pedidoDate = new Date(p.data_pedido);
+      const pedidoDate = parseDateLocal(p.data_pedido);
       return pedidoDate >= rangeStart && pedidoDate <= rangeEnd;
     });
   }, [data?.allPedidos, rangeStart, rangeEnd]);
@@ -278,7 +279,7 @@ export default function Hub() {
   const pedidosAnterior = useMemo(() => {
     return (data?.allPedidos || []).filter((p: any) => {
       if (!p.data_pedido) return false;
-      const pedidoDate = new Date(p.data_pedido);
+      const pedidoDate = parseDateLocal(p.data_pedido);
       return pedidoDate >= prevStart && pedidoDate <= prevEnd;
     });
   }, [data?.allPedidos, prevStart, prevEnd]);
@@ -405,7 +406,7 @@ export default function Hub() {
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     (data?.allPedidos || []).forEach((p: any) => {
-      if (p.data_pedido) years.add(new Date(p.data_pedido).getFullYear());
+      if (p.data_pedido) years.add(parseDateLocal(p.data_pedido).getFullYear());
     });
     return Array.from(years).sort();
   }, [data?.allPedidos]);
@@ -634,7 +635,7 @@ export default function Hub() {
                     const isToday = isSameDay(day, now);
                     const isDeadline = isSameDay(day, wednesday);
                     const isDelivery = isSameDay(day, friday);
-                    const dayPedidos = pedidos.filter(p => isSameDay(new Date(p.data_pedido), day));
+                    const dayPedidos = pedidos.filter(p => isSameDay(parseDateLocal(p.data_pedido), day));
                     const dayVal = dayPedidos.reduce((a, p) => a + Number(p.valor_total), 0);
 
                     return (
@@ -840,7 +841,7 @@ export default function Hub() {
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs font-semibold tabular-nums">{formatCurrency(Number(pedido.valor_total))}</span>
                           <Badge className={cn("text-[9px] h-5 border", st.cls)}>{st.label}</Badge>
-                          <span className="text-[10px] text-muted-foreground">{format(new Date(pedido.data_pedido), "dd/MM")}</span>
+                          <span className="text-[10px] text-muted-foreground">{format(parseDateLocal(pedido.data_pedido), "dd/MM")}</span>
                         </div>
                       </div>
                     );

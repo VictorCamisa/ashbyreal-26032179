@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { Card, CardContent } from '@/components/ui/card';
 import { useTransacoes } from '@/hooks/useTransacoes';
 import { Badge } from '@/components/ui/badge';
@@ -121,7 +122,7 @@ export function TransacoesList({ entityType, tipo }: TransacoesListProps) {
                 {filteredTransacoes.map((transacao) => {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
-                  const dueDate = new Date(transacao.due_date);
+                  const dueDate = parseDateLocal(transacao.due_date);
                   dueDate.setHours(0, 0, 0, 0);
                   const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
                   const isOverdue = transacao.status === 'ATRASADO' ||
@@ -140,7 +141,7 @@ export function TransacoesList({ entityType, tipo }: TransacoesListProps) {
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          {new Date(transacao.due_date).toLocaleDateString('pt-BR')}
+                          {parseDateLocal(transacao.due_date).toLocaleDateString('pt-BR')}
                         </div>
                       </TableCell>
                       <TableCell>

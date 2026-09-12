@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -123,7 +124,7 @@ export function useGastosCartaoMutations() {
       }
       
       const baseCompetencia = `${forceCompetencia.slice(0, 7)}-01`;
-      const purchaseDateStr = new Date(input.purchase_date).toISOString().split('T')[0];
+      const purchaseDateStr = parseDateLocal(input.purchase_date).toISOString().split('T')[0];
 
       // Criar registro de compra parcelada (se aplicável)
       let parentPurchaseId: string | null = null;
@@ -347,7 +348,7 @@ async function updateInvoicesForTransactions(
       }
     } else {
       // Criar nova fatura - calcular datas corretamente
-      const competenciaDate = new Date(group.competencia);
+      const competenciaDate = parseDateLocal(group.competencia);
       const compYear = competenciaDate.getFullYear();
       const compMonth = competenciaDate.getMonth();
       

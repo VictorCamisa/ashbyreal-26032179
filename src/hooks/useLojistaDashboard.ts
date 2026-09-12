@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getLojistaClienteMatches } from '@/lib/lojistaMatching';
@@ -124,7 +125,7 @@ export function useLojistaDashboard() {
         const ultimoPedido = lojistaPedidos.reduce<string | null>((latest, pedido) => {
           if (!pedido.data_pedido) return latest;
           if (!latest) return pedido.data_pedido;
-          return new Date(pedido.data_pedido).getTime() > new Date(latest).getTime() ? pedido.data_pedido : latest;
+          return parseDateLocal(pedido.data_pedido).getTime() > new Date(latest).getTime() ? pedido.data_pedido : latest;
         }, null);
 
         return {

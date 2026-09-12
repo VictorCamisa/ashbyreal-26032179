@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import {
@@ -216,7 +217,7 @@ export function TransacoesDRE({
             <p className="text-sm truncate">{t.description || 'Sem descrição'}</p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-xs text-muted-foreground">
-                {format(new Date(t.due_date), 'dd/MM/yyyy')}
+                {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
               </span>
               {t.total_installments && t.total_installments > 1 && (
                 <Badge variant="outline" className="text-xs py-0 h-5 bg-amber-500/10 text-amber-700 border-amber-500/30">
@@ -363,7 +364,7 @@ export function TransacoesDRE({
         <CollapsibleContent>
           <div className="bg-muted/20">
             {group.transactions
-              .sort((a, b) => new Date(b.due_date).getTime() - new Date(a.due_date).getTime())
+              .sort((a, b) => parseDateLocal(b.due_date).getTime() - parseDateLocal(a.due_date).getTime())
               .map(renderTransactionRow)}
           </div>
         </CollapsibleContent>

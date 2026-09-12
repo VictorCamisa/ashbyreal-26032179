@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -299,7 +300,7 @@ export function DocumentosFiscaisTable() {
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                          {format(new Date(doc.data_competencia), 'dd/MM/yy', { locale: ptBR })}
+                          {format(parseDateLocal(doc.data_competencia), 'dd/MM/yy', { locale: ptBR })}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

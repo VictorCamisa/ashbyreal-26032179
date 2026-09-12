@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
@@ -179,7 +180,7 @@ export function useDashboard(mesReferencia: Date = new Date()) {
       const vendaAgrupada: Record<string, { valor: number; quantidade: number }> = {};
 
       data?.forEach((pedido) => {
-        const dia = format(new Date(pedido.data_pedido), 'dd/MM');
+        const dia = format(parseDateLocal(pedido.data_pedido), 'dd/MM');
         if (!vendaAgrupada[dia]) {
           vendaAgrupada[dia] = { valor: 0, quantidade: 0 };
         }

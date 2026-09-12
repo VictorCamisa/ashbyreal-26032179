@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfMonth, endOfMonth, subMonths, addMonths, format, addDays } from 'date-fns';
@@ -342,7 +343,7 @@ export function useDashboardEnhanced(mesReferencia: Date = new Date(), entityFil
       const weeklyData: Record<string, { receitas: number; despesas: number }> = {};
       
       transactions?.forEach(t => {
-        const weekKey = format(new Date(t.due_date), 'dd/MM');
+        const weekKey = format(parseDateLocal(t.due_date), 'dd/MM');
         if (!weeklyData[weekKey]) {
           weeklyData[weekKey] = { receitas: 0, despesas: 0 };
         }
@@ -355,7 +356,7 @@ export function useDashboardEnhanced(mesReferencia: Date = new Date(), entityFil
       });
 
       cardTransactions?.forEach(ct => {
-        const weekKey = format(new Date(ct.due_date!), 'dd/MM');
+        const weekKey = format(parseDateLocal(ct.due_date!), 'dd/MM');
         if (!weeklyData[weekKey]) {
           weeklyData[weekKey] = { receitas: 0, despesas: 0 };
         }

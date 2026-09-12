@@ -12,7 +12,7 @@ import {
   Check
 } from 'lucide-react';
 import { format, isBefore } from 'date-fns';
-import { formatCompetencia } from '@/lib/dateUtils';
+import { formatCompetencia, parseDateLocal } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useFaturasMutations } from '@/hooks/useFaturasMutations';
 import {
@@ -43,13 +43,13 @@ export function TodasFaturasSheet({ open, onOpenChange, faturas, cartoes }: Toda
   };
 
   const isOverdue = (fatura: any) => {
-    return fatura.due_date && isBefore(new Date(fatura.due_date), now) && fatura.status !== 'PAGA';
+    return fatura.due_date && isBefore(parseDateLocal(fatura.due_date), now) && fatura.status !== 'PAGA';
   };
 
   // Sort by due_date ascending (closest first)
   const sortByDueDate = (a: any, b: any) => {
-    const dateA = a.due_date ? new Date(a.due_date).getTime() : Infinity;
-    const dateB = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+    const dateA = a.due_date ? parseDateLocal(a.due_date).getTime() : Infinity;
+    const dateB = b.due_date ? parseDateLocal(b.due_date).getTime() : Infinity;
     return dateA - dateB;
   };
 
@@ -99,7 +99,7 @@ export function TodasFaturasSheet({ open, onOpenChange, faturas, cartoes }: Toda
             {fatura.due_date && (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                 <Calendar className="h-3 w-3" />
-                Venc: {format(new Date(fatura.due_date), 'dd/MM/yyyy')}
+                Venc: {format(parseDateLocal(fatura.due_date), 'dd/MM/yyyy')}
               </p>
             )}
           </div>

@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -35,8 +36,8 @@ export function NovoPedidoDialog({ clienteId, onSuccess }: NovoPedidoDialogProps
         cliente_id: clienteId,
         status: formData.status,
         valor_total: parseFloat(formData.valor_total),
-        data_pedido: new Date(formData.data_pedido).toISOString(),
-        data_entrega: formData.data_entrega ? new Date(formData.data_entrega).toISOString() : null,
+        data_pedido: parseDateLocal(formData.data_pedido).toISOString(),
+        data_entrega: formData.data_entrega ? parseDateLocal(formData.data_entrega).toISOString() : null,
         observacoes: formData.observacoes || null
       }]);
 

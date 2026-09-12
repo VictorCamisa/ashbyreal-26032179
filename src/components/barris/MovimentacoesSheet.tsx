@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import {
   Sheet,
   SheetContent,
@@ -77,7 +78,7 @@ export function MovimentacoesSheet({ barril, open, onOpenChange }: Movimentacoes
                       {mov.tipo_movimento === 'SAIDA' ? 'Saída' : 'Retorno'}
                     </Badge>
                     <span className="text-sm text-muted-foreground">
-                      {format(new Date(mov.data_movimento), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      {format(parseDateLocal(mov.data_movimento), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                     </span>
                   </div>
                   

@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, parseISO, isAfter } from 'date-fns';
@@ -38,7 +39,7 @@ export function useCashFlowTimeline() {
       if (!transactions?.length) return [];
 
       // Find earliest transaction date
-      const earliestDate = parseISO(transactions[0].due_date);
+      const earliestDate = parseDateLocal(transactions[0].due_date);
       const startMonth = startOfMonth(earliestDate);
 
       // Build monthly buckets from earliest to 6 months in future
@@ -52,7 +53,7 @@ export function useCashFlowTimeline() {
 
       // Fill with transaction data
       transactions.forEach(t => {
-        const key = format(parseISO(t.due_date), 'yyyy-MM');
+        const key = format(parseDateLocal(t.due_date), 'yyyy-MM');
         if (!monthlyData[key]) return;
         const amount = Math.abs(Number(t.amount));
         if (t.tipo === 'RECEBER') {
@@ -65,7 +66,7 @@ export function useCashFlowTimeline() {
       // Add card invoice amounts as despesas
       cardInvoices?.forEach(ci => {
         if (!ci.due_date) return;
-        const key = format(parseISO(ci.due_date), 'yyyy-MM');
+        const key = format(parseDateLocal(ci.due_date), 'yyyy-MM');
         if (!monthlyData[key]) return;
         monthlyData[key].despesas += Number(ci.total_value || 0);
       });

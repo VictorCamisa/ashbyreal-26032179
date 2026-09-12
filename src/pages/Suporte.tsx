@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -201,7 +202,7 @@ export default function Suporte() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(ticket.data_abertura).toLocaleDateString('pt-BR')}
+                        {parseDateLocal(ticket.data_abertura).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(ticket.ultima_atualizacao).toLocaleDateString('pt-BR')}

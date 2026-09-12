@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -37,7 +38,7 @@ export function TornarRecorrenteDialog({
 
   useEffect(() => {
     if (open && transaction) {
-      const date = new Date(transaction.due_date);
+      const date = parseDateLocal(transaction.due_date);
       setDayOfMonth(String(date.getDate()));
       // Default to end of year
       setEndDate('');
@@ -48,7 +49,7 @@ export function TornarRecorrenteDialog({
 
   // Calculate how many transactions will be generated
   const getRecurringCount = () => {
-    const startDate = new Date(transaction.due_date);
+    const startDate = parseDateLocal(transaction.due_date);
     const finalDate = endDate 
       ? new Date(endDate) 
       : new Date(startDate.getFullYear(), 11, 31);
@@ -65,7 +66,7 @@ export function TornarRecorrenteDialog({
 
   const generateFutureTransactions = () => {
     const transactions: any[] = [];
-    const startDate = new Date(transaction.due_date);
+    const startDate = parseDateLocal(transaction.due_date);
     const day = parseInt(dayOfMonth) || startDate.getDate();
     const finalDate = endDate 
       ? new Date(endDate) 
@@ -132,7 +133,7 @@ export function TornarRecorrenteDialog({
             <p className="font-medium">{transaction.description || 'Sem descrição'}</p>
             <p className="text-sm text-muted-foreground">
               R$ {transaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • 
-              Vence dia {new Date(transaction.due_date).getDate()}
+              Vence dia {parseDateLocal(transaction.due_date).getDate()}
             </p>
           </div>
 

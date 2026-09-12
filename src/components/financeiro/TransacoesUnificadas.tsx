@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, endOfMonth } from 'date-fns';
-import { formatMonthYear } from '@/lib/dateUtils';
+import { formatMonthYear, parseDateLocal } from '@/lib/dateUtils';
 import { 
   Search, 
   Upload, 
@@ -223,7 +223,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         // Compute overdue/due-soon status locally instead of writing to DB
         let displayStatus: string = t.status;
         if (t.status === 'PREVISTO') {
-          const dueDate = new Date(t.due_date);
+          const dueDate = parseDateLocal(t.due_date);
           dueDate.setHours(0, 0, 0, 0);
           const diffDays = (dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
           if (dueDate < today) {
@@ -257,7 +257,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
     }
 
     // Sort by due_date ascending (oldest first - chronological order)
-    return unified.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    return unified.sort((a, b) => parseDateLocal(a.due_date).getTime() - parseDateLocal(b.due_date).getTime());
   }, [bankTransactions]);
 
   // Category color mapping based on group

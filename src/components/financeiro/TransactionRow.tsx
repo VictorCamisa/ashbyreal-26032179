@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,7 +92,7 @@ export function TransactionRow({
 
   const isReceita = t.tipo === 'RECEBER';
   const isOverdue = t.status === 'ATRASADO' ||
-    (t.status === 'PREVISTO' && new Date(t.due_date) < new Date());
+    (t.status === 'PREVISTO' && parseDateLocal(t.due_date) < new Date());
   const isDueSoon = t.status === 'VENCENDO';
   const isPaid = t.status === 'PAGO';
   const tags = t.tags as string[] | null;
@@ -174,7 +175,7 @@ export function TransactionRow({
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-xs text-muted-foreground">
-                {format(new Date(t.due_date), 'dd/MM/yyyy')}
+                {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
               </span>
               {t.categories?.name && (
                 <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
@@ -340,7 +341,7 @@ export function TransactionRow({
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(tx.purchase_date), 'dd/MM/yyyy')}
+                            {format(parseDateLocal(tx.purchase_date), 'dd/MM/yyyy')}
                           </span>
                           {tx.categories?.name && (
                             <Badge variant="outline" className={cn("text-xs py-0 h-4", getCategoryColor(tx.categories.group))}>

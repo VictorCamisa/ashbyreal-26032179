@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,7 +96,7 @@ export function NovaTransacaoDialog({
   // Generate future transactions based on recurrence settings
   const generateRecurringTransactions = (baseTransaction: any) => {
     const transactions: any[] = [];
-    const startDate = new Date(formData.due_date);
+    const startDate = parseDateLocal(formData.due_date);
     const endDate = formData.end_date ? new Date(formData.end_date) : null;
     const dayOfMonth = parseInt(formData.day_of_month) || startDate.getDate();
     
@@ -168,7 +169,7 @@ export function NovaTransacaoDialog({
   // Calculate how many transactions will be generated
   const getRecurringCount = () => {
     if (!formData.is_recurring || !formData.due_date) return 0;
-    const startDate = new Date(formData.due_date);
+    const startDate = parseDateLocal(formData.due_date);
     const endDate = formData.end_date ? new Date(formData.end_date) : new Date(startDate.getFullYear(), 11, 31);
     
     let count = 0;

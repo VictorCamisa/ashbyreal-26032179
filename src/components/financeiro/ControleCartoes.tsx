@@ -1,3 +1,4 @@
+import { parseDateLocal } from '@/lib/dateUtils';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreditCardVisual } from './CreditCardVisual';
@@ -117,7 +118,7 @@ export function ControleCartoes() {
   const totalFaturasAbertas = faturasAbertas.reduce((acc, f) => acc + f.total_value, 0);
   
   const faturasFuturas = faturas?.filter(f => {
-    const competencia = new Date(f.competencia);
+    const competencia = parseDateLocal(f.competencia);
     return competencia > now;
   }).slice(0, 6) || [];
   
@@ -323,7 +324,7 @@ export function ControleCartoes() {
                 .map((cartao) => {
                   const cardFaturas = faturas
                     ?.filter(f => f.credit_card_id === cartao.id && (f.status === 'ABERTA' || f.status === 'FECHADA'))
-                    .sort((a, b) => new Date(a.due_date || a.competencia).getTime() - new Date(b.due_date || b.competencia).getTime()) || [];
+                    .sort((a, b) => parseDateLocal(a.due_date || a.competencia).getTime() - parseDateLocal(b.due_date || b.competencia).getTime()) || [];
                   
                   const totalCartao = cardFaturas.reduce((acc, f) => acc + f.total_value, 0);
                   
@@ -353,10 +354,10 @@ export function ControleCartoes() {
                       {/* Card Faturas */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pl-2">
                         {cardFaturas.map((fatura, index) => {
-                          const isOverdue = fatura.due_date && new Date(fatura.due_date) < now && fatura.status !== 'PAGA';
-                          const competenciaDate = new Date(fatura.competencia);
+                          const isOverdue = fatura.due_date && parseDateLocal(fatura.due_date) < now && fatura.status !== 'PAGA';
+                          const competenciaDate = parseDateLocal(fatura.competencia);
                           const dueDateFormatted = fatura.due_date 
-                            ? new Date(fatura.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+                            ? parseDateLocal(fatura.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
                             : null;
                           
                           return (
