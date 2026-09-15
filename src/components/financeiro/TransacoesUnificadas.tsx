@@ -121,6 +121,8 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
   const [showNovaTransacao, setShowNovaTransacao] = useState(false);
   const [tipoTransacao, setTipoTransacao] = useState<'PAGAR' | 'RECEBER'>('PAGAR');
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<any>(null);
+  const [pendingMarkAsPaidId, setPendingMarkAsPaidId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [referenceMonth, setReferenceMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'dre'>('list');
@@ -1082,7 +1084,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
           isLoading={isLoading}
           onEdit={(t) => handleEditClick(t)}
           onDelete={(id) => setDeletingId(id)}
-          onMarkAsPaid={(id) => markAsPaidMutation.mutate(id)}
+          onMarkAsPaid={(id) => setPendingMarkAsPaidId(id)}
           onRemoveTag={handleRemoveTag}
           formatCurrency={formatCurrency}
         />
@@ -1119,7 +1121,7 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                     transaction={t}
                     isSelected={selectedIds.has(t.id)}
                     onToggleSelection={() => toggleSelection(t.id)}
-                    onMarkAsPaid={() => markAsPaidMutation.mutate(t.id)}
+                    onMarkAsPaid={() => setPendingMarkAsPaidId(t.id)}
                     onEdit={() => handleEditClick(t)}
                     onDelete={() => {
                       const isRecorrente = t.origin === 'RECORRENTE' || !!t.recurrence_id;
@@ -1199,17 +1201,73 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
         }}
         transaction={editingTransaction}
         onSave={(updates) => {
-          if (editFutureMode && editingTransaction) {
-            updateFutureMutation.mutate({ 
-              baseTransaction: editingTransaction, 
-              updates 
-            });
-          } else {
-            updateMutation.mutate(updates);
-          }
+          setPendingUpdate({
+            updates,
+            editFutureMode,
+            baseTransaction: editingTransaction,
+          });
         }}
         isLoading={updateMutation.isPending || updateFutureMutation.isPending}
       />
+
+      <AlertDialog open={!!pendingUpdate} onOpenChange={(open) => !open && setPendingUpdate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar atualização</AlertDialogTitle>
+            <AlertDialogDescription>
+              Revise os dados antes de concluir. {pendingUpdate?.editFutureMode
+                ? 'Esta alteração também será aplicada às ocorrências futuras.'
+                : 'Esta alteração será aplicada somente a esta transação.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar e revisar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingUpdate) return;
+                if (pendingUpdate.editFutureMode && pendingUpdate.baseTransaction) {
+                  updateFutureMutation.mutate({
+                    baseTransaction: pendingUpdate.baseTransaction,
+                    updates: pendingUpdate.updates,
+                  });
+                } else {
+                  updateMutation.mutate(pendingUpdate.updates);
+                }
+                setPendingUpdate(null);
+              }}
+              disabled={updateMutation.isPending || updateFutureMutation.isPending}
+            >
+              Confirmar atualização
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingMarkAsPaidId} onOpenChange={(open) => !open && setPendingMarkAsPaidId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar pagamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              A transação será marcada como paga com a data de hoje. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingMarkAsPaidId) {
+                  markAsPaidMutation.mutate(pendingMarkAsPaidId);
+                  setPendingMarkAsPaidId(null);
+                }
+              }}
+              disabled={markAsPaidMutation.isPending}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              Confirmar pagamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent>

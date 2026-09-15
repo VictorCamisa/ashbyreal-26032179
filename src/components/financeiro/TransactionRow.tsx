@@ -2,7 +2,7 @@ import { parseDateLocal } from '@/lib/dateUtils';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { differenceInCalendarDays, format, startOfDay } from 'date-fns';
 import {
   ArrowUpCircle,
   ArrowDownCircle,
@@ -96,6 +96,16 @@ export function TransactionRow({
   const isDueSoon = t.status === 'VENCENDO';
   const isPaid = t.status === 'PAGO';
   const tags = t.tags as string[] | null;
+  const visibleTags = (tags || []).filter((tag) => {
+    const normalizedTag = tag.toLowerCase().replace(/[\s-]+/g, '_');
+    return !normalizedTag.includes('importacao') &&
+      !normalizedTag.includes('planilha') &&
+      !normalizedTag.includes('arquivo') &&
+      normalizedTag !== 'taubate_chopp';
+  });
+  const overdueDays = isOverdue
+    ? Math.max(1, differenceInCalendarDays(startOfDay(new Date()), startOfDay(parseDateLocal(t.due_date))))
+    : 0;
   const isFaturaCartao = t.isFaturaCartao || t.origin === 'FATURA_CARTAO';
 
   // Fetch card transactions when expanded
@@ -160,7 +170,11 @@ export function TransactionRow({
             }
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
+              </span>
+              <span className="text-muted-foreground/40" aria-hidden="true">•</span>
               <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
               {/* Expand button for credit card invoices */}
               {isFaturaCartao && t.origin_reference_id && (
@@ -174,9 +188,6 @@ export function TransactionRow({
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-xs text-muted-foreground">
-                {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
-              </span>
               {t.categories?.name && (
                 <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
                   {t.categories.name}
@@ -206,7 +217,7 @@ export function TransactionRow({
                 </Badge>
               )}
               {/* Tags */}
-              {tags && tags.map(tag => (
+              {visibleTags.slice(0, 1).map(tag => (
                 <Badge 
                   key={tag} 
                   variant="secondary" 
@@ -225,6 +236,11 @@ export function TransactionRow({
                   </button>
                 </Badge>
               ))}
+              {visibleTags.length > 1 && (
+                <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">
+                  +{visibleTags.length - 1} tag{visibleTags.length > 2 ? 's' : ''}
+                </Badge>
+              )}
               {/* Add tag input */}
               <TagInput 
                 onAdd={onAddTag}
@@ -235,8 +251,8 @@ export function TransactionRow({
         </div>
         
         <div className="flex items-center gap-3">
-          <Badge className={cn("text-xs", getStatusStyle(t.status, isOverdue))}>
-            {getStatusLabel(t.status, isOverdue)}
+          <Badge className={cn("text-xs whitespace-nowrap", getStatusStyle(t.status, isOverdue))}>
+            {isOverdue ? `${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'} atrasado` : getStatusLabel(t.status, isOverdue)}
           </Badge>
           <span className={cn(
             "text-sm font-semibold tabular-nums min-w-[100px] text-right",
