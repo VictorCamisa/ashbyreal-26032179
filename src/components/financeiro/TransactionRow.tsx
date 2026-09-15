@@ -101,6 +101,8 @@ export function TransactionRow({
     return !normalizedTag.includes('importacao') &&
       !normalizedTag.includes('planilha') &&
       !normalizedTag.includes('arquivo') &&
+      normalizedTag !== 'zero_paper' &&
+      normalizedTag !== 'zeropaper' &&
       normalizedTag !== 'taubate_chopp';
   });
   const overdueDays = isOverdue
@@ -171,7 +173,7 @@ export function TransactionRow({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+              <span className="shrink-0 rounded-md border border-border/70 bg-muted/70 px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
                 {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
               </span>
               <span className="text-muted-foreground/40" aria-hidden="true">•</span>
