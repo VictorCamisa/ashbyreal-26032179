@@ -119,7 +119,7 @@ export default function Barris() {
             <CardTitle className="text-sm font-medium">🔵 Ashby</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-3">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
                 <MetricLine value={computed.ashbyCheios} label="Cheios" detail={computed.ashbyCheiosDetalhe} accent="text-blue-700 dark:text-blue-300" />
@@ -137,7 +137,7 @@ export default function Barris() {
             <CardTitle className="text-sm font-medium">🟡 Datta Vale</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-3">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
                 <MetricLine value={computed.dtvCheios} label="Cheios" detail={computed.dtvCheiosDetalhe} accent="text-amber-700 dark:text-amber-300" />
@@ -157,14 +157,18 @@ export default function Barris() {
             CO₂ na loja
           </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300">16 cilindros</span> disponíveis
-            </p>
-            <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-sm font-medium">
+                <span className="mr-1.5 text-base font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">16</span>
+                cilindros disponíveis
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Estoque físico na loja</p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-lg bg-muted/25 px-3 py-2.5">
               {co2Loja.map(item => (
-                <span key={item.capacidade} className="text-xs text-muted-foreground">
-                  <strong className="font-semibold text-foreground">{item.quantidade}×</strong> {item.capacidade}
+                <span key={item.capacidade} className="text-[11px] text-muted-foreground">
+                  <strong className="font-medium text-foreground">{item.quantidade}×</strong> {item.capacidade}
                 </span>
               ))}
             </div>
@@ -227,12 +231,16 @@ export default function Barris() {
 
 function MetricLine({ value, label, detail, accent }: { value: number; label: string; detail: string; accent?: string }) {
   return (
-    <div className="border-b border-border/50 py-2 last:border-b-0">
-      <p className="text-sm leading-snug">
+    <div className="min-w-0">
+      <p className="text-sm leading-none">
         <span className={cn("mr-1.5 text-base font-semibold tabular-nums", accent)}>{value}</span>
         <span className="font-medium">{label}</span>
-        {detail && <span className="ml-1 text-xs text-muted-foreground">({detail})</span>}
       </p>
+      {detail && (
+        <p className="mt-1 truncate text-[11px] leading-relaxed text-muted-foreground" title={detail}>
+          {detail}
+        </p>
+      )}
     </div>
   );
 }
