@@ -2,12 +2,12 @@ import { useState, useMemo } from "react";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Factory, Gauge } from "lucide-react";
 import { useBarris, Barril } from "@/hooks/useBarris";
 import { BarrisTable } from "@/components/barris/BarrisTable";
 import { MovimentacoesSheet } from "@/components/barris/MovimentacoesSheet";
+import { cn } from "@/lib/utils";
 
 export default function Barris() {
   const dattaValeSaldoFabrica = { total: -51, litros50: -22, litros30: -29 };
@@ -66,6 +66,26 @@ export default function Barris() {
     const clientesComFornecedor = ashbyComCliente + dtvComCliente;
     const clientesSemFornecedor = clientes.filter(b => getFornecedor(b) === 'NAO_CONFIRMADO').length;
 
+    const getConteudo = (barril: Barril) => barril.observacoes
+      ?.match(/Conteúdo:\s*([^;]+)/i)?.[1]
+      ?.trim()
+      ?.replace(/^chopp\s+/i, '') || '';
+
+    const formatBreakdown = (items: Barril[], includeConteudo = false) => {
+      const groups = new Map<string, { quantidade: number; capacidade: number; conteudo: string }>();
+      items.forEach(barril => {
+        const conteudo = includeConteudo ? getConteudo(barril) : '';
+        const key = `${barril.capacidade}|${conteudo.toLowerCase()}`;
+        const current = groups.get(key) || { quantidade: 0, capacidade: barril.capacidade, conteudo };
+        current.quantidade += 1;
+        groups.set(key, current);
+      });
+      return [...groups.values()]
+        .sort((a, b) => b.capacidade - a.capacidade || a.conteudo.localeCompare(b.conteudo))
+        .map(group => `${String(group.quantidade).padStart(2, '0')} × ${group.capacidade}L${group.conteudo ? ` ${group.conteudo}` : ''}`)
+        .join(' / ');
+    };
+
     const clientesUnicos = new Set(
       clientes.filter(b => b.cliente_id || b.lojista_id)
         .map(b => b.cliente_id || b.lojista_id)
@@ -76,6 +96,13 @@ export default function Barris() {
       ashbyCheios, ashbyNaFabrica, ashbyNaLoja, ashbyComCliente,
       dtvCheios, dtvNaFabrica, dtvNaLoja, dtvComCliente,
       clientesUnicos, clientesComFornecedor, clientesSemFornecedor,
+      ashbyCheiosDetalhe: formatBreakdown(ashby.filter(b => b.status_conteudo === 'CHEIO'), true),
+      ashbyFabricaDetalhe: formatBreakdown(ashby.filter(b => b.localizacao === 'ASHBY' || b.localizacao === 'FABRICA')),
+      ashbyLojaDetalhe: formatBreakdown(ashby.filter(b => b.localizacao === 'LOJA')),
+      ashbyClientesDetalhe: formatBreakdown(ashby.filter(b => b.localizacao === 'CLIENTE')),
+      dtvCheiosDetalhe: formatBreakdown(dtv.filter(b => b.status_conteudo === 'CHEIO'), true),
+      dtvLojaDetalhe: formatBreakdown(dtv.filter(b => b.localizacao === 'LOJA')),
+      dtvClientesDetalhe: formatBreakdown(dtv.filter(b => b.localizacao === 'CLIENTE')),
     };
   }, [barris]);
 
@@ -92,30 +119,13 @@ export default function Barris() {
             <CardTitle className="text-sm font-medium">🔵 Ashby</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-1">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
-                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{computed.ashbyCheios}</p>
-                    <p className="text-sm text-muted-foreground">Cheios</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-2xl font-bold">{computed.ashbyNaFabrica}</p>
-                    <p className="text-sm text-muted-foreground">Na fábrica</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-2xl font-bold">{computed.ashbyNaLoja}</p>
-                    <p className="text-sm text-muted-foreground">Na loja</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-2xl font-bold">{computed.ashbyComCliente}</p>
-                    <p className="text-sm text-muted-foreground">Com clientes</p>
-                  </div>
-                </div>
-                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  Fábrica: 14×50L · 5×30L · 2×20L · 2×10L
-                </p>
+                <MetricLine value={computed.ashbyCheios} label="Cheios" detail={computed.ashbyCheiosDetalhe} accent="text-blue-700 dark:text-blue-300" />
+                <MetricLine value={computed.ashbyNaFabrica} label="Fábrica" detail={computed.ashbyFabricaDetalhe} />
+                <MetricLine value={computed.ashbyNaLoja} label="Na loja" detail={computed.ashbyLojaDetalhe} />
+                <MetricLine value={computed.ashbyComCliente} label="Com clientes" detail={computed.ashbyClientesDetalhe} />
               </>
             )}
           </CardContent>
@@ -127,30 +137,13 @@ export default function Barris() {
             <CardTitle className="text-sm font-medium">🟡 Datta Vale</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-1">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
-                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{computed.dtvCheios}</p>
-                    <p className="text-sm text-muted-foreground">Cheios</p>
-                  </div>
-                  <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
-                    <p className="text-2xl font-bold text-destructive">{dattaValeSaldoFabrica.total}</p>
-                    <p className="text-sm text-muted-foreground">Saldo fábrica</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-2xl font-bold">{computed.dtvNaLoja}</p>
-                    <p className="text-sm text-muted-foreground">Na loja</p>
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3">
-                    <p className="text-2xl font-bold">{computed.dtvComCliente}</p>
-                    <p className="text-sm text-muted-foreground">Com clientes</p>
-                  </div>
-                </div>
-                <p className="text-sm font-medium text-destructive">
-                  Saldo: {dattaValeSaldoFabrica.litros50}×50L · {dattaValeSaldoFabrica.litros30}×30L
-                </p>
+                <MetricLine value={computed.dtvCheios} label="Cheios" detail={computed.dtvCheiosDetalhe} accent="text-amber-700 dark:text-amber-300" />
+                <MetricLine value={dattaValeSaldoFabrica.total} label="Saldo fábrica" detail={`${dattaValeSaldoFabrica.litros50} × 50L / ${dattaValeSaldoFabrica.litros30} × 30L`} accent="text-destructive" />
+                <MetricLine value={computed.dtvNaLoja} label="Na loja" detail={computed.dtvLojaDetalhe} />
+                <MetricLine value={computed.dtvComCliente} label="Com clientes" detail={computed.dtvClientesDetalhe} />
               </>
             )}
           </CardContent>
@@ -164,17 +157,15 @@ export default function Barris() {
             CO₂ na loja
           </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">16</p>
-              <p className="text-sm text-muted-foreground">Cilindros disponíveis</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+          <CardContent className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">16 cilindros</span> disponíveis
+            </p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5">
               {co2Loja.map(item => (
-                <div key={item.capacidade} className="rounded-lg bg-muted/50 px-3 py-2">
-                  <p className="text-lg font-bold">{item.quantidade}×</p>
-                  <p className="text-xs text-muted-foreground">{item.capacidade}</p>
-                </div>
+                <span key={item.capacidade} className="text-xs text-muted-foreground">
+                  <strong className="font-semibold text-foreground">{item.quantidade}×</strong> {item.capacidade}
+                </span>
               ))}
             </div>
           </CardContent>
@@ -231,5 +222,17 @@ export default function Barris() {
         onOpenChange={setMovimentacoesOpen}
       />
     </PageLayout>
+  );
+}
+
+function MetricLine({ value, label, detail, accent }: { value: number; label: string; detail: string; accent?: string }) {
+  return (
+    <div className="border-b border-border/50 py-2 last:border-b-0">
+      <p className="text-sm leading-snug">
+        <span className={cn("mr-1.5 text-base font-semibold tabular-nums", accent)}>{value}</span>
+        <span className="font-medium">{label}</span>
+        {detail && <span className="ml-1 text-xs text-muted-foreground">({detail})</span>}
+      </p>
+    </div>
   );
 }
