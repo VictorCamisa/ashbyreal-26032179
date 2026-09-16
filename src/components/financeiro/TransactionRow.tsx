@@ -17,10 +17,18 @@ import {
   Repeat,
   ChevronDown,
   ChevronUp,
+  MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -151,13 +159,13 @@ export function TransactionRow({
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
       <div 
         className={cn(
-          "flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors",
+          "grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors",
           isOverdue && !isPaid && "bg-destructive/5",
           isDueSoon && !isPaid && "bg-amber-500/5",
           isSelected && "bg-primary/5"
         )}
       >
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-2">
           <Checkbox
             checked={isSelected}
             onCheckedChange={onToggleSelection}
@@ -171,13 +179,25 @@ export function TransactionRow({
               : <ArrowDownCircle className="h-4 w-4 text-destructive" />
             }
           </div>
-          <div className="flex-1 min-w-0">
+        </div>
+
+        <div className="w-[106px] shrink-0">
+          <p className="text-sm font-bold tabular-nums text-foreground">
+            {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
+          </p>
+          <p className={cn(
+            "mt-0.5 text-[11px] font-medium leading-tight",
+            isOverdue ? "text-destructive" : "text-muted-foreground"
+          )}>
+            {isOverdue
+              ? `Pendente há ${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'}`
+              : getStatusLabel(t.status, isOverdue)}
+          </p>
+        </div>
+
+        <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="shrink-0 rounded-md border border-border/70 bg-muted/70 px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
-                {format(parseDateLocal(t.due_date), 'dd/MM/yyyy')}
-              </span>
-              <span className="text-muted-foreground/40" aria-hidden="true">•</span>
-              <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
+              <p className="text-sm font-semibold truncate">{t.description || 'Sem descrição'}</p>
               {/* Expand button for credit card invoices */}
               {isFaturaCartao && t.origin_reference_id && (
                 <CollapsibleTrigger asChild>
@@ -189,7 +209,7 @@ export function TransactionRow({
                 </CollapsibleTrigger>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               {t.categories?.name && (
                 <Badge variant="outline" className={cn("text-xs py-0 h-5", getCategoryColor(t.categories.group))}>
                   {t.categories.name}
@@ -243,87 +263,59 @@ export function TransactionRow({
                   +{visibleTags.length - 1} tag{visibleTags.length > 2 ? 's' : ''}
                 </Badge>
               )}
+              {(t.accounts?.name || t.credit_cards?.name) && (
+                <Badge variant="outline" className="text-xs py-0 h-5 gap-1 text-muted-foreground">
+                  <CreditCard className="h-3 w-3" />
+                  {t.credit_cards?.name || t.accounts?.name}
+                </Badge>
+              )}
               {/* Add tag input */}
               <TagInput 
                 onAdd={onAddTag}
                 suggestions={allTags}
               />
             </div>
-          </div>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <Badge className={cn("text-xs whitespace-nowrap", getStatusStyle(t.status, isOverdue))}>
-            {isOverdue ? `${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'} atrasado` : getStatusLabel(t.status, isOverdue)}
-          </Badge>
+
+        <Badge className={cn("hidden lg:inline-flex text-xs whitespace-nowrap", getStatusStyle(t.status, isOverdue))}>
+          {isOverdue ? 'Atrasado' : getStatusLabel(t.status, isOverdue)}
+        </Badge>
+
           <span className={cn(
-            "text-sm font-semibold tabular-nums min-w-[100px] text-right",
+            "text-sm font-bold tabular-nums min-w-[105px] text-right",
             isReceita ? "text-emerald-600" : "text-destructive"
           )}>
             {isReceita ? '+' : '-'}{formatCurrency(Math.abs(Number(t.amount)))}
           </span>
-          <div className="flex items-center gap-1">
-            {/* Mark as paid button - only for non-card invoice transactions that aren't paid */}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Ações da transação">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
             {!isPaid && !isFaturaCartao && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
-                      onClick={onMarkAsPaid}
-                      disabled={isMarkingPaid}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Marcar como pago</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <DropdownMenuItem onClick={onMarkAsPaid} disabled={isMarkingPaid}>
+                <Check className="mr-2 h-4 w-4 text-emerald-600" /> Marcar como pago
+              </DropdownMenuItem>
             )}
-            {/* Edit/Delete/Recurring - only for non-card transactions */}
             {!t.isCardTransaction && !isFaturaCartao && (
               <>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                        onClick={onRecurring}
-                      >
-                        <Repeat className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Tornar recorrente</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={onEdit}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
-                  onClick={onDelete}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <DropdownMenuItem onClick={onRecurring}>
+                  <Repeat className="mr-2 h-4 w-4" /> Tornar recorrente
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="mr-2 h-4 w-4" /> Editar
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                </DropdownMenuItem>
               </>
             )}
-          </div>
-        </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Expandable card transactions */}

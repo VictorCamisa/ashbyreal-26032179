@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Store, Users, Factory, Droplet, Gauge } from "lucide-react";
+import { Factory, Gauge } from "lucide-react";
 import { useBarris, Barril } from "@/hooks/useBarris";
 import { BarrisTable } from "@/components/barris/BarrisTable";
 import { MovimentacoesSheet } from "@/components/barris/MovimentacoesSheet";
@@ -85,27 +85,36 @@ export default function Barris() {
       subtitle="Gerencie o estoque e movimentação dos barris"
     >
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         {/* Ashby */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">🔵 Ashby</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
-                <div className="text-2xl font-bold">{computed.ashby.length}</div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Droplet className="h-3 w-3 text-blue-500" /> {computed.ashbyCheios} cheios
-                  </span>
-                  <span>🏭 {computed.ashbyNaFabrica} fábrica</span>
-                  <span>🏪 {computed.ashbyNaLoja} loja</span>
-                  <span>👤 {computed.ashbyComCliente} clientes</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{computed.ashbyCheios}</p>
+                    <p className="text-sm text-muted-foreground">Cheios</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-2xl font-bold">{computed.ashbyNaFabrica}</p>
+                    <p className="text-sm text-muted-foreground">Na fábrica</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-2xl font-bold">{computed.ashbyNaLoja}</p>
+                    <p className="text-sm text-muted-foreground">Na loja</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-2xl font-bold">{computed.ashbyComCliente}</p>
+                    <p className="text-sm text-muted-foreground">Com clientes</p>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs font-medium text-blue-700 dark:text-blue-300">
-                  Fábrica Ashby: 14×50L · 5×30L · 2×20L · 2×10L
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Fábrica: 14×50L · 5×30L · 2×20L · 2×10L
                 </p>
               </>
             )}
@@ -118,66 +127,59 @@ export default function Barris() {
             <CardTitle className="text-sm font-medium">🟡 Datta Vale</CardTitle>
             <Factory className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {isLoading ? <Skeleton className="h-8 w-16" /> : (
               <>
-                <div className="text-2xl font-bold">{computed.dtv.length}</div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Droplet className="h-3 w-3 text-blue-500" /> {computed.dtvCheios} cheios
-                  </span>
-                  <span className="font-semibold text-destructive" title="Saldo de barris emprestados pela Datta Vale">
-                    🏭 {dattaValeSaldoFabrica.total} fábrica
-                  </span>
-                  <span>🏪 {computed.dtvNaLoja} loja</span>
-                  <span>👤 {computed.dtvComCliente} clientes</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{computed.dtvCheios}</p>
+                    <p className="text-sm text-muted-foreground">Cheios</p>
+                  </div>
+                  <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
+                    <p className="text-2xl font-bold text-destructive">{dattaValeSaldoFabrica.total}</p>
+                    <p className="text-sm text-muted-foreground">Saldo fábrica</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-2xl font-bold">{computed.dtvNaLoja}</p>
+                    <p className="text-sm text-muted-foreground">Na loja</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3">
+                    <p className="text-2xl font-bold">{computed.dtvComCliente}</p>
+                    <p className="text-sm text-muted-foreground">Com clientes</p>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs font-medium text-destructive">
-                  Saldo Datta Vale: {dattaValeSaldoFabrica.litros50}×50L · {dattaValeSaldoFabrica.litros30}×30L
+                <p className="text-sm font-medium text-destructive">
+                  Saldo: {dattaValeSaldoFabrica.litros50}×50L · {dattaValeSaldoFabrica.litros30}×30L
                 </p>
               </>
             )}
           </CardContent>
         </Card>
 
-      </div>
-
-      {/* Painel independente de CO₂ */}
-      <Card className="mt-4">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+        {/* CO₂ */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Gauge className="h-5 w-5 text-emerald-600" />
-            Controle de CO₂
+            CO₂ na loja
           </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border bg-muted/20 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">CO₂ na loja</p>
-                <p className="text-3xl font-bold">16</p>
-              </div>
-              <Store className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/30">
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">16</p>
+              <p className="text-sm text-muted-foreground">Cilindros disponíveis</p>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {co2Loja.map(item => (
-                <Badge key={item.capacidade} variant="secondary">
-                  {item.quantidade}× {item.capacidade}
-                </Badge>
+                <div key={item.capacidade} className="rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-lg font-bold">{item.quantidade}×</p>
+                  <p className="text-xs text-muted-foreground">{item.capacidade}</p>
+                </div>
               ))}
             </div>
-          </div>
-          <div className="rounded-lg border border-dashed p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">CO₂ com clientes</p>
-                <p className="mt-1 text-sm text-muted-foreground">Informação pendente</p>
-              </div>
-              <Users className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Tabs: Ashby | Datta Vale | Na Loja | Com Clientes */}
       <Card className="mt-4">
