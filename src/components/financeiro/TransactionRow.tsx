@@ -117,6 +117,9 @@ export function TransactionRow({
     ? Math.max(1, differenceInCalendarDays(startOfDay(new Date()), startOfDay(parseDateLocal(t.due_date))))
     : 0;
   const isFaturaCartao = t.isFaturaCartao || t.origin === 'FATURA_CARTAO';
+  const pedidoMatch = t.description?.match(/^\s*pedido\s*#?\s*([^\s-]+)\s*-\s*(.+)$/i);
+  const pedidoLabel = pedidoMatch ? `PEDIDO ${pedidoMatch[1]}` : '—';
+  const clienteOuDescricao = pedidoMatch ? pedidoMatch[2] : (t.description || 'Sem descrição');
 
   // Fetch card transactions when expanded
   const { data: cardTransactions, isLoading: isLoadingCardTx } = useQuery({
@@ -159,7 +162,7 @@ export function TransactionRow({
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
       <div 
         className={cn(
-          "grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors",
+          "grid min-w-[900px] grid-cols-[auto_106px_130px_minmax(220px,1fr)_auto_105px_auto] items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors",
           isOverdue && !isPaid && "bg-destructive/5",
           isDueSoon && !isPaid && "bg-amber-500/5",
           isSelected && "bg-primary/5"
@@ -196,8 +199,12 @@ export function TransactionRow({
         </div>
 
         <div className="min-w-0">
+          <p className="truncate text-xs font-bold text-foreground">{pedidoLabel}</p>
+        </div>
+
+        <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <p className="text-sm font-semibold truncate">{t.description || 'Sem descrição'}</p>
+              <p className="text-sm font-semibold truncate">{clienteOuDescricao}</p>
               {/* Expand button for credit card invoices */}
               {isFaturaCartao && t.origin_reference_id && (
                 <CollapsibleTrigger asChild>

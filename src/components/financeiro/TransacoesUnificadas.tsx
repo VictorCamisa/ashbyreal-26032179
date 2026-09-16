@@ -1103,16 +1103,22 @@ export function TransacoesUnificadas({ initialFilter = 'all', onFilterChange }: 
                 Nenhuma transação encontrada
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y overflow-x-auto">
                 {/* Header row with select all */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 border-b">
-                  <Checkbox
-                    checked={selectedIds.size === filteredTransactions.length && filteredTransactions.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    Selecionar todas ({filteredTransactions.length})
-                  </span>
+                <div className="grid min-w-[900px] grid-cols-[auto_106px_130px_minmax(220px,1fr)_auto_105px_auto] items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                    <span>{filteredTransactions.length}</span>
+                  </div>
+                  <span>Data</span>
+                  <span>PEDIDO</span>
+                  <span>Cliente / descrição</span>
+                  <span>Status</span>
+                  <span className="text-right">Valor</span>
+                  <span className="sr-only">Ações</span>
                 </div>
 
                 {filteredTransactions.map((t) => (
