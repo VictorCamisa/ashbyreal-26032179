@@ -4,13 +4,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Store, Users, Factory, Droplet } from "lucide-react";
+import { Store, Users, Factory, Droplet, Gauge } from "lucide-react";
 import { useBarris, Barril } from "@/hooks/useBarris";
 import { BarrisTable } from "@/components/barris/BarrisTable";
 import { MovimentacoesSheet } from "@/components/barris/MovimentacoesSheet";
 
 export default function Barris() {
   const dattaValeSaldoFabrica = { total: -51, litros50: -22, litros30: -29 };
+  const co2Loja = [
+    { capacidade: '9 kg', quantidade: 9 },
+    { capacidade: '5 m³ (mix)', quantidade: 1 },
+    { capacidade: '4 kg', quantidade: 2 },
+    { capacidade: '2 kg', quantidade: 1 },
+    { capacidade: '3 kg', quantidade: 1 },
+    { capacidade: '7 kg', quantidade: 1 },
+    { capacidade: '6 kg', quantidade: 1 },
+  ];
   const [selectedBarril, setSelectedBarril] = useState<Barril | null>(null);
   const [movimentacoesOpen, setMovimentacoesOpen] = useState(false);
   const { data: barris, isLoading } = useBarris();
@@ -54,6 +63,8 @@ export default function Barris() {
     const dtvNaFabrica = dtv.filter(b => b.localizacao === 'DATTA_VALE' || b.localizacao === 'FABRICA').length;
     const dtvNaLoja = dtv.filter(b => b.localizacao === 'LOJA').length;
     const dtvComCliente = dtv.filter(b => b.localizacao === 'CLIENTE').length;
+    const clientesComFornecedor = ashbyComCliente + dtvComCliente;
+    const clientesSemFornecedor = clientes.filter(b => getFornecedor(b) === 'NAO_CONFIRMADO').length;
 
     const clientesUnicos = new Set(
       clientes.filter(b => b.cliente_id || b.lojista_id)
@@ -64,7 +75,7 @@ export default function Barris() {
       ashby, dtv, loja, clientes,
       ashbyCheios, ashbyNaFabrica, ashbyNaLoja, ashbyComCliente,
       dtvCheios, dtvNaFabrica, dtvNaLoja, dtvComCliente,
-      clientesUnicos,
+      clientesUnicos, clientesComFornecedor, clientesSemFornecedor,
     };
   }, [barris]);
 
@@ -74,7 +85,7 @@ export default function Barris() {
       subtitle="Gerencie o estoque e movimentação dos barris"
     >
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
         {/* Ashby */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -93,6 +104,9 @@ export default function Barris() {
                   <span>🏪 {computed.ashbyNaLoja} loja</span>
                   <span>👤 {computed.ashbyComCliente} clientes</span>
                 </div>
+                <p className="mt-2 text-xs font-medium text-blue-700 dark:text-blue-300">
+                  Fábrica Ashby: 14×50L · 5×30L · 2×20L · 2×10L
+                </p>
               </>
             )}
           </CardContent>
@@ -126,24 +140,44 @@ export default function Barris() {
           </CardContent>
         </Card>
 
-        {/* Com Clientes */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Com Clientes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-16" /> : (
-              <>
-                <div className="text-2xl font-bold">{computed.clientes.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {computed.clientesUnicos} clientes · {computed.clientes.filter(b => b.status_conteudo === 'CHEIO').length} cheios
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Painel independente de CO₂ */}
+      <Card className="mt-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gauge className="h-5 w-5 text-emerald-600" />
+            Controle de CO₂
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">CO₂ na loja</p>
+                <p className="text-3xl font-bold">16</p>
+              </div>
+              <Store className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {co2Loja.map(item => (
+                <Badge key={item.capacidade} variant="secondary">
+                  {item.quantidade}× {item.capacidade}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-dashed p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">CO₂ com clientes</p>
+                <p className="mt-1 text-sm text-muted-foreground">Informação pendente</p>
+              </div>
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs: Ashby | Datta Vale | Na Loja | Com Clientes */}
       <Card className="mt-4">
@@ -161,7 +195,7 @@ export default function Barris() {
                   🏪 Na Loja ({computed.loja.length})
                 </TabsTrigger>
                 <TabsTrigger value="clientes" className="text-xs sm:text-sm">
-                  👤 Clientes ({computed.clientes.length})
+                  👤 Clientes ({computed.clientesComFornecedor})
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -176,7 +210,14 @@ export default function Barris() {
               <BarrisTable barris={computed.loja} onViewHistory={handleViewMovimentacoes} />
             </TabsContent>
             <TabsContent value="clientes">
-              <BarrisTable barris={computed.clientes} onViewHistory={handleViewMovimentacoes} />
+              <div className="mb-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                {computed.ashbyComCliente} Ashby + {computed.dtvComCliente} Datta Vale = {computed.clientesComFornecedor} barris com clientes.
+                {computed.clientesSemFornecedor > 0 && ` ${computed.clientesSemFornecedor} barril(is) aguardando confirmação do fornecedor não entram nesta soma.`}
+              </div>
+              <BarrisTable
+                barris={computed.clientes.filter(b => computed.ashby.includes(b) || computed.dtv.includes(b))}
+                onViewHistory={handleViewMovimentacoes}
+              />
             </TabsContent>
           </Tabs>
         </CardContent>
