@@ -10,6 +10,7 @@ import { BarrisTable } from "@/components/barris/BarrisTable";
 import { MovimentacoesSheet } from "@/components/barris/MovimentacoesSheet";
 
 export default function Barris() {
+  const dattaValeSaldoFabrica = { total: -51, litros50: -22, litros30: -29 };
   const [selectedBarril, setSelectedBarril] = useState<Barril | null>(null);
   const [movimentacoesOpen, setMovimentacoesOpen] = useState(false);
   const { data: barris, isLoading } = useBarris();
@@ -111,10 +112,15 @@ export default function Barris() {
                   <span className="flex items-center gap-1">
                     <Droplet className="h-3 w-3 text-blue-500" /> {computed.dtvCheios} cheios
                   </span>
-                  <span>🏭 {computed.dtvNaFabrica} fábrica</span>
+                  <span className="font-semibold text-destructive" title="Saldo de barris emprestados pela Datta Vale">
+                    🏭 {dattaValeSaldoFabrica.total} fábrica
+                  </span>
                   <span>🏪 {computed.dtvNaLoja} loja</span>
                   <span>👤 {computed.dtvComCliente} clientes</span>
                 </div>
+                <p className="mt-2 text-xs font-medium text-destructive">
+                  Saldo Datta Vale: {dattaValeSaldoFabrica.litros50}×50L · {dattaValeSaldoFabrica.litros30}×30L
+                </p>
               </>
             )}
           </CardContent>

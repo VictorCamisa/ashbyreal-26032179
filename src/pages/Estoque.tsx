@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, AlertTriangle, Package, Filter, Trash2, Box, DollarSign, Beer, Droplets } from 'lucide-react';
 import { useEstoque, ProdutoEstoque } from '@/hooks/useEstoque';
+import { useBarris } from '@/hooks/useBarris';
 import { ImportarEstoqueDialog } from '@/components/estoque/ImportarEstoqueDialog';
 import { NovoProdutoDialog } from '@/components/estoque/NovoProdutoDialog';
 import { EditarProdutoDialog } from '@/components/estoque/EditarProdutoDialog';
@@ -65,10 +66,34 @@ export default function Estoque() {
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [activeTab, setActiveTab] = useState<'todos' | 'alerta'>('todos');
   const { produtos, isLoading, updateProduto, deleteProduto, refetch } = useEstoque();
+  const { data: barris = [], isLoading: isLoadingBarris } = useBarris();
 
-  const categorias = ['todas', ...new Set(produtos.map(p => p.categoria).filter(Boolean))];
+  // O estoque vendável de chopp é a soma dos barris cheios fisicamente na loja.
+  // Assim, a tela de produtos não fica divergente do Controle de Barris.
+  const litrosCheiosPorConteudo = barris.reduce<Record<string, number>>((totais, barril) => {
+    if (barril.localizacao !== 'LOJA' || barril.status_conteudo !== 'CHEIO') return totais;
+    const conteudo = barril.observacoes
+      ?.match(/Conteúdo:\s*([^;]+)/i)?.[1]
+      ?.trim()
+      ?.toLowerCase();
+    if (!conteudo) return totais;
+    totais[conteudo] = (totais[conteudo] || 0) + barril.capacidade;
+    return totais;
+  }, {});
 
-  const filteredProdutos = produtos.filter(produto => {
+  const produtosComEstoqueReal = produtos.map(produto => {
+    if (produto.tipoProduto !== 'CHOPP') return produto;
+    const nome = produto.nome.toLowerCase();
+    let estoqueLitros = 0;
+    if (nome.includes('vinho branco')) estoqueLitros = litrosCheiosPorConteudo['vinho branco'] || 0;
+    else if (nome.includes('vinho tinto')) estoqueLitros = litrosCheiosPorConteudo['vinho tinto'] || 0;
+    else if (nome.includes('claro')) estoqueLitros = litrosCheiosPorConteudo['chopp claro'] || 0;
+    return { ...produto, estoqueLitros };
+  });
+
+  const categorias = ['todas', ...new Set(produtosComEstoqueReal.map(p => p.categoria).filter(Boolean))];
+
+  const filteredProdutos = produtosComEstoqueReal.filter(produto => {
     const matchSearch = 
       produto.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       produto.sku?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -80,8 +105,8 @@ export default function Estoque() {
   const produtosComAlerta = filteredProdutos.filter(p => getStatusEstoque(p) !== 'disponivel');
   const displayProdutos = activeTab === 'alerta' ? produtosComAlerta : filteredProdutos;
 
-  const produtosChopp = produtos.filter(p => p.tipoProduto === 'CHOPP' && p.ativo);
-  const produtosPadrao = produtos.filter(p => p.tipoProduto !== 'CHOPP' && p.ativo);
+  const produtosChopp = produtosComEstoqueReal.filter(p => p.tipoProduto === 'CHOPP' && p.ativo);
+  const produtosPadrao = produtosComEstoqueReal.filter(p => p.tipoProduto !== 'CHOPP' && p.ativo);
   
   const totalLitrosChopp = produtosChopp.reduce((acc, p) => acc + p.estoqueLitros, 0);
   const totalValue = produtosPadrao.reduce((acc, p) => acc + (p.estoque * p.precoCusto), 0) +
@@ -100,7 +125,7 @@ export default function Estoque() {
         </div>
       }
     >
-      {isLoading ? (
+      {isLoading || isLoadingBarris ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
@@ -113,7 +138,7 @@ export default function Estoque() {
         <div className="space-y-6">
           {/* KPIs */}
           <KPIGrid>
-            <KPICard label="Total Produtos" value={produtos.filter(p => p.ativo).length} icon={Box} />
+            <KPICard label="Total Produtos" value={produtosComEstoqueReal.filter(p => p.ativo).length} icon={Box} />
             <KPICard 
               label="Chopp Disponível" 
               value={`${totalLitrosChopp.toLocaleString('pt-BR')} LITROS`} 
@@ -343,7 +368,7 @@ export default function Estoque() {
           </Card>
 
           <p className="text-xs text-muted-foreground">
-            {displayProdutos.length} de {produtos.filter(p => p.ativo).length} produtos
+            {displayProdutos.length} de {produtosComEstoqueReal.filter(p => p.ativo).length} produtos
           </p>
         </div>
       )}
