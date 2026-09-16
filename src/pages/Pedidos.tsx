@@ -215,13 +215,21 @@ export default function Pedidos() {
                     ))}
                   </div>
                 ) : (
-                  <Table className="min-w-[700px]">
+                  <Table className="min-w-[980px] table-fixed">
+                    <colgroup>
+                      <col className="w-[120px]" />
+                      <col className="w-[100px]" />
+                      <col />
+                      <col className="w-[140px]" />
+                      <col className="w-[350px]" />
+                      <col className="w-[64px]" />
+                    </colgroup>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="font-semibold">Data</TableHead>
+                        <TableHead className="font-semibold pl-5">Data</TableHead>
                         <TableHead className="font-medium">Pedido</TableHead>
                         <TableHead className="font-medium">Cliente</TableHead>
-                        <TableHead className="font-medium">Valor</TableHead>
+                        <TableHead className="font-medium text-right">Valor</TableHead>
                         <TableHead className="font-medium">Status / Ações</TableHead>
                         <TableHead className="font-medium text-right">Mais</TableHead>
                       </TableRow>
@@ -244,7 +252,7 @@ export default function Pedidos() {
                             onClick={() => handleViewDetails(pedido)}
                             title={`ID: ${pedido.id}`}
                           >
-                            <TableCell className="font-bold tabular-nums text-foreground whitespace-nowrap">
+                            <TableCell className="pl-5 font-bold tabular-nums text-foreground whitespace-nowrap">
                               {pedido.dataPedido
                                 ? formatDateLocal(pedido.dataPedido)
                                 : '—'}
@@ -252,16 +260,18 @@ export default function Pedidos() {
                             <TableCell className="font-mono text-sm">
                               <span title={pedido.id}>{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
                             </TableCell>
-                            <TableCell className="font-medium max-w-[150px] truncate">
-                              {clientesMap[pedido.clienteId] || '-'}
+                            <TableCell className="font-medium">
+                              <p className="truncate" title={clientesMap[pedido.clienteId] || '-'}>
+                                {clientesMap[pedido.clienteId] || '-'}
+                              </p>
                             </TableCell>
-                            <TableCell className="font-semibold text-primary">
+                            <TableCell className="text-right font-semibold tabular-nums text-primary whitespace-nowrap">
                               R${' '}
                               {pedido.valorTotal.toLocaleString('pt-BR', {
                                 minimumFractionDigits: 2,
                               })}
                             </TableCell>
-                            <TableCell onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="pr-2" onClick={(e) => e.stopPropagation()}>
                               <PedidoStatusWorkflow
                                 pedidoId={pedido.id}
                                 currentStatus={pedido.status}
