@@ -70,25 +70,29 @@ export default function Estoque() {
 
   // O estoque vendável de chopp é a soma dos barris cheios fisicamente na loja.
   // Assim, a tela de produtos não fica divergente do Controle de Barris.
-  const litrosCheiosPorConteudo = barris.reduce<Record<string, number>>((totais, barril) => {
+  const estoqueCheioPorConteudo = barris.reduce<Record<string, { litros: number; barris: number }>>((totais, barril) => {
     if (barril.localizacao !== 'LOJA' || barril.status_conteudo !== 'CHEIO') return totais;
     const conteudo = barril.observacoes
       ?.match(/Conteúdo:\s*([^;]+)/i)?.[1]
       ?.trim()
       ?.toLowerCase();
     if (!conteudo) return totais;
-    totais[conteudo] = (totais[conteudo] || 0) + barril.capacidade;
+    const atual = totais[conteudo] || { litros: 0, barris: 0 };
+    totais[conteudo] = {
+      litros: atual.litros + barril.capacidade,
+      barris: atual.barris + 1,
+    };
     return totais;
   }, {});
 
   const produtosComEstoqueReal = produtos.map(produto => {
     if (produto.tipoProduto !== 'CHOPP') return produto;
     const nome = produto.nome.toLowerCase();
-    let estoqueLitros = 0;
-    if (nome.includes('vinho branco')) estoqueLitros = litrosCheiosPorConteudo['vinho branco'] || 0;
-    else if (nome.includes('vinho tinto')) estoqueLitros = litrosCheiosPorConteudo['vinho tinto'] || 0;
-    else if (nome.includes('claro')) estoqueLitros = litrosCheiosPorConteudo['chopp claro'] || 0;
-    return { ...produto, estoqueLitros };
+    let estoqueReal = { litros: 0, barris: 0 };
+    if (nome.includes('vinho branco')) estoqueReal = estoqueCheioPorConteudo['vinho branco'] || estoqueReal;
+    else if (nome.includes('vinho tinto')) estoqueReal = estoqueCheioPorConteudo['vinho tinto'] || estoqueReal;
+    else if (nome.includes('claro')) estoqueReal = estoqueCheioPorConteudo['chopp claro'] || estoqueReal;
+    return { ...produto, estoqueLitros: estoqueReal.litros, estoqueBarris: estoqueReal.barris };
   });
 
   const categorias = ['todas', ...new Set(produtosComEstoqueReal.map(p => p.categoria).filter(Boolean))];
@@ -102,7 +106,10 @@ export default function Estoque() {
     return matchSearch && matchCategoria && matchTipo && produto.ativo;
   });
 
-  const produtosComAlerta = filteredProdutos.filter(p => getStatusEstoque(p) !== 'disponivel');
+  const produtosComAlerta = filteredProdutos.filter(p => {
+    const status = getStatusEstoque(p);
+    return status === 'baixo' || status === 'esgotado';
+  });
   const displayProdutos = activeTab === 'alerta' ? produtosComAlerta : filteredProdutos;
 
   const produtosChopp = produtosComEstoqueReal.filter(p => p.tipoProduto === 'CHOPP' && p.ativo);
@@ -145,7 +152,11 @@ export default function Estoque() {
               icon={Beer}
             />
             <KPICard label="Em Alerta" value={produtosComAlerta.length} icon={AlertTriangle} variant="warning" />
-            <KPICard label="Valor Estoque" value={`R$ ${(totalValue / 1000).toFixed(0)}k`} icon={DollarSign} />
+            <KPICard
+              label="Valor pelo custo"
+              value={totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              icon={DollarSign}
+            />
           </KPIGrid>
 
           {/* Alert Banner */}
@@ -261,6 +272,7 @@ export default function Estoque() {
                       const status = getStatusEstoque(produto);
                       const isChopp = produto.tipoProduto === 'CHOPP';
                       const capacidade = produto.capacidadeBarril || 30;
+                      const estoqueBarris = 'estoqueBarris' in produto ? Number(produto.estoqueBarris) : 0;
                       
                       return (
                         <TableRow key={produto.id} className="hover:bg-muted/30">
@@ -290,7 +302,7 @@ export default function Estoque() {
                                   {produto.estoqueLitros.toLocaleString('pt-BR')} LITROS
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  ≈ {Math.floor(produto.estoqueLitros / capacidade)} barris
+                                  {estoqueBarris} {estoqueBarris === 1 ? 'barril cheio' : 'barris cheios'}
                                 </span>
                               </div>
                             ) : (
