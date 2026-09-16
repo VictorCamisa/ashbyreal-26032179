@@ -218,10 +218,10 @@ export default function Pedidos() {
                   <Table className="min-w-[700px]">
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
+                        <TableHead className="font-semibold">Data</TableHead>
                         <TableHead className="font-medium">Pedido</TableHead>
                         <TableHead className="font-medium">Cliente</TableHead>
                         <TableHead className="font-medium">Valor</TableHead>
-                        <TableHead className="font-medium">Data</TableHead>
                         <TableHead className="font-medium">Status / Ações</TableHead>
                         <TableHead className="font-medium text-right">Mais</TableHead>
                       </TableRow>
@@ -244,6 +244,11 @@ export default function Pedidos() {
                             onClick={() => handleViewDetails(pedido)}
                             title={`ID: ${pedido.id}`}
                           >
+                            <TableCell className="font-bold tabular-nums text-foreground whitespace-nowrap">
+                              {pedido.dataPedido
+                                ? formatDateLocal(pedido.dataPedido)
+                                : '—'}
+                            </TableCell>
                             <TableCell className="font-mono text-sm">
                               <span title={pedido.id}>{(pedido as any).numeroPedido || pedido.id.slice(0, 8)}</span>
                             </TableCell>
@@ -256,15 +261,11 @@ export default function Pedidos() {
                                 minimumFractionDigits: 2,
                               })}
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {pedido.dataPedido 
-                                ? formatDateLocal(pedido.dataPedido)
-                                : '—'}
-                            </TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <PedidoStatusWorkflow
                                 pedidoId={pedido.id}
                                 currentStatus={pedido.status}
+                                pendingSince={pedido.createdAt}
                                 onStatusChange={refetch}
                               />
                             </TableCell>
