@@ -39,6 +39,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { getPendingLabel } from '@/lib/pendingDays';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#f97316', '#14b8a6', '#8b5cf6', '#6b7280'];
 
@@ -479,9 +480,15 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                         }
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {parseDateLocal(t.due_date).toLocaleDateString('pt-BR')} • {(t.categories as any)?.name || 'Sem categoria'}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
+                            {parseDateLocal(t.due_date).toLocaleDateString('pt-BR')}
+                          </span>
+                          <span className="text-muted-foreground/40" aria-hidden="true">•</span>
+                          <p className="text-sm font-medium truncate">{t.description || 'Sem descrição'}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {(t.categories as any)?.name || 'Sem categoria'}
                         </p>
                       </div>
                     </div>
@@ -490,7 +497,7 @@ export function DashboardFinanceiro({ onNavigateToTransactions, onNavigateToCart
                         variant={t.status === 'PAGO' ? 'default' : 'secondary'}
                         className="text-xs"
                       >
-                        {t.status === 'PAGO' ? 'Pago' : 'Pendente'}
+                        {t.status === 'PAGO' ? 'Pago' : getPendingLabel(t.created_at)}
                       </Badge>
                       <span className={cn(
                         "text-sm font-bold tabular-nums",

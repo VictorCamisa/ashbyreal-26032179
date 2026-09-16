@@ -19,12 +19,14 @@ import {
 import { usePedidosMutations } from '@/hooks/usePedidosMutations';
 import { cn } from '@/lib/utils';
 import { ComprovanteEntregaDialog } from './ComprovanteEntregaDialog';
+import { getPendingLabel } from '@/lib/pendingDays';
 
 interface PedidoStatusWorkflowProps {
   pedidoId: string;
   currentStatus: string;
   statusHistory?: any[];
   onStatusChange?: () => void;
+  pendingSince?: string | null;
 }
 
 const statusConfig: Record<
@@ -69,6 +71,7 @@ export function PedidoStatusWorkflow({
   currentStatus,
   statusHistory = [],
   onStatusChange,
+  pendingSince,
 }: PedidoStatusWorkflowProps) {
   const { updatePedidoStatus, isLoading } = usePedidosMutations();
   const config = statusConfig[currentStatus] || statusConfig.pendente;
@@ -114,7 +117,9 @@ export function PedidoStatusWorkflow({
       <div className="flex items-center gap-2">
         <Badge variant="outline" className={cn('gap-1.5', config.color)}>
           <StatusIcon className="h-3 w-3" />
-          {config.label}
+          {currentStatus === 'pendente' && pendingSince
+            ? getPendingLabel(pendingSince)
+            : config.label}
         </Badge>
 
         {primaryAction && (

@@ -21,9 +21,25 @@ export default function Barris() {
 
   const computed = useMemo(() => {
     const all = barris || [];
-    // Por marca (prefixo do código)
-    const ashby = all.filter(b => b.codigo.startsWith('ASH'));
-    const dtv = all.filter(b => b.codigo.startsWith('DTV'));
+    // O fornecedor não é a localização física. Barris da carga inicial B001...
+    // guardam essa informação nas observações; códigos antigos usam ASH/DTV.
+    const getFornecedor = (barril: Barril) => {
+      const fornecedor = barril.observacoes
+        ?.match(/Fornecedor\/proprietário:\s*([^;]+)/i)?.[1]
+        ?.trim()
+        ?.toLowerCase();
+
+      if (fornecedor?.includes('ashby') || barril.codigo.startsWith('ASH')) return 'ASHBY';
+      if (
+        fornecedor?.includes('data valley') ||
+        fornecedor?.includes('datta vale') ||
+        barril.codigo.startsWith('DTV')
+      ) return 'DATTA_VALE';
+      return 'NAO_CONFIRMADO';
+    };
+
+    const ashby = all.filter(b => getFornecedor(b) === 'ASHBY');
+    const dtv = all.filter(b => getFornecedor(b) === 'DATTA_VALE');
     // Por localização física
     const loja = all.filter(b => b.localizacao === 'LOJA');
     const clientes = all.filter(b => b.localizacao === 'CLIENTE');

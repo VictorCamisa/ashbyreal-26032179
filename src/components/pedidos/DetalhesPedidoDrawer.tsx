@@ -71,6 +71,7 @@ interface PedidoDetails {
   observacoes: string | null;
   status_history: any[];
   transaction_id: string | null;
+  created_at: string;
 }
 
 interface PedidoItem {
@@ -370,6 +371,7 @@ export function DetalhesPedidoDrawer({
                 pedidoId={pedido.id}
                 currentStatus={pedido.status}
                 statusHistory={pedido.status_history}
+                pendingSince={pedido.created_at}
                 onStatusChange={() => {
                   fetchPedidoDetails();
                   onStatusChange?.();
