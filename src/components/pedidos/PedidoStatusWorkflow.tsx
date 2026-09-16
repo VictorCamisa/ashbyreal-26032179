@@ -114,8 +114,8 @@ export function PedidoStatusWorkflow({
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className={cn('gap-1.5', config.color)}>
+      <div className="grid grid-cols-[150px_142px_28px] items-center gap-2">
+        <Badge variant="outline" className={cn('w-fit max-w-[150px] gap-1.5 whitespace-nowrap', config.color)}>
           <StatusIcon className="h-3 w-3" />
           {currentStatus === 'pendente' && pendingSince
             ? getPendingLabel(pendingSince)
@@ -128,7 +128,7 @@ export function PedidoStatusWorkflow({
             variant={actionConfig[primaryAction]?.variant || 'default'}
             onClick={() => handleStatusChange(primaryAction)}
             disabled={isLoading}
-            className="h-7 text-xs gap-1.5"
+            className="h-7 w-[142px] justify-center gap-1.5 text-xs whitespace-nowrap"
           >
             {(() => {
               const Icon = actionConfig[primaryAction]?.icon;
