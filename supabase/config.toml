@@ -65,3 +65,9 @@ verify_jwt = false
 
 [functions.focus-nfe]
 verify_jwt = false
+
+[functions.jarvis-embed]
+verify_jwt = false
+
+[functions.jarvis-search]
+verify_jwt = false
