@@ -26,6 +26,7 @@ const ROUTE_MAP: Record<string, string> = {
   financeiro: 'Financeiro',
   contabilidade: 'Contabilidade',
   'agente-ia': 'Agente IA',
+  jarvis: 'Jarvis',
   configuracoes: 'Configurações',
   whatsapp: 'WhatsApp',
 };

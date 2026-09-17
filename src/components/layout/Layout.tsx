@@ -27,6 +27,7 @@ const MODULE_LABELS: Record<string, string> = {
   '/contabilidade': 'Contabilidade',
   '/whatsapp': 'WhatsApp',
   '/agente-ia': 'Agente IA (Lara)',
+  '/jarvis': 'Jarvis',
   '/configuracoes': 'Configurações',
   '/clientes': 'Clientes',
   '/lojistas': 'Lojistas',
@@ -127,10 +128,13 @@ export function Layout() {
           {/* Mobile bottom nav */}
           <MobileNavBar />
 
-          <SystemAssistant
-            moduleName={moduleInfo.name}
-            moduleContext={moduleInfo.context}
-          />
+          {/* O Jarvis já é o assistente da tela — não sobrepor o widget flutuante. */}
+          {location.pathname !== '/jarvis' && (
+            <SystemAssistant
+              moduleName={moduleInfo.name}
+              moduleContext={moduleInfo.context}
+            />
+          )}
         </div>
       </div>
     </SidebarProvider>
