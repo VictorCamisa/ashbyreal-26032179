@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Boxes,
   Bot,
+  Sparkles,
   Calendar,
   Store,
 } from 'lucide-react';
@@ -88,6 +89,7 @@ const modules: ModuleItem[] = [
   { key: 'lojistas', label: 'Lojistas', href: '/lojistas', icon: Store, description: 'Parceiros B2B' },
   { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare, description: 'Conversas' },
   { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot, description: 'Automação' },
+  { key: 'jarvis', label: 'Jarvis', href: '/jarvis', icon: Sparkles, description: 'Agente interno' },
 ];
 
 function getDateRanges(period: PeriodType, now: Date) {

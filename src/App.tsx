@@ -23,6 +23,7 @@ import Lojistas from "./pages/Lojistas";
 import LojistaDetalhes from "./pages/LojistaDetalhes";
 import WhatsApp from "./pages/WhatsApp";
 import AgenteIA from "./pages/AgenteIA";
+import Jarvis from "./pages/Jarvis";
 import Estoque from "./pages/Estoque";
 import Barris from "./pages/Barris";
 import Suporte from "./pages/Suporte";
@@ -70,6 +71,7 @@ const App = () => (
                   <Route path="/lojistas/:id" element={<LojistaDetalhes />} />
                   <Route path="/whatsapp" element={<WhatsApp />} />
                   <Route path="/agente-ia" element={<AgenteIA />} />
+                  <Route path="/jarvis" element={<Jarvis />} />
                   <Route path="/configuracoes" element={<Configuracoes />} />
                   <Route path="/estoque" element={<Estoque />} />
                   <Route path="/barris" element={<Barris />} />

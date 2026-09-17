@@ -14,6 +14,7 @@ import {
   TrendingUp,
   MessageSquare,
   Bot,
+  Sparkles,
   Megaphone,
   HelpCircle,
   Settings,
@@ -72,6 +73,7 @@ const financeNavItems = [
 
 const channelsIAItems = [
   { key: 'whatsapp', label: 'WhatsApp', href: '/whatsapp', icon: MessageSquare },
+  { key: 'jarvis', label: 'Jarvis', href: '/jarvis', icon: Sparkles },
   { key: 'agente-ia', label: 'Agente IA', href: '/agente-ia', icon: Bot },
   { key: 'marketing', label: 'Marketing', href: '/marketing', icon: Megaphone },
   { key: 'suporte', label: 'Suporte', href: '/suporte', icon: HelpCircle },
