@@ -1,104 +1,30 @@
 -- =============================================================================
--- Jarvis — base vetorial do sistema
+-- Jarvis — quebra do gerador de documentos em uma view por tipo.
 --
--- Estratégia: cada entidade de negócio vira UM documento de texto denormalizado
--- ("card"), já com o contexto cruzado que o agente precisaria juntar na mão
--- (cliente + histórico de pedidos, pedido + itens + cliente, produto + giro...).
--- O texto é derivado de uma view sobre os dados vivos, então nunca desatualiza:
--- o refresh recalcula o hash e só re-embeda o que mudou.
+-- A view única funcionava, mas qualquer ajuste de texto exigia reescrever as
+-- 500 linhas inteiras. Com uma view por tipo, mexer no card do cliente não
+-- toca no do pedido. jarvis_document_source vira só a costura.
 -- =============================================================================
 
-create extension if not exists vector with schema extensions;
-
--- -----------------------------------------------------------------------------
--- Helpers de formatação — o texto é lido por um LLM, então usa o formato que o
--- usuário fala: R$ 1.234,56 e 17/09/2026.
--- -----------------------------------------------------------------------------
-create or replace function public.jarvis_money(v numeric)
+-- Nome do mês em português: to_char depende do lc_time do servidor, e a base
+-- precisa casar com a pergunta ("faturamento de agosto"), não com "08/2026".
+create or replace function public.jarvis_mes_extenso(d date)
 returns text
 language sql
 immutable
 set search_path = public
 as $$
-  select case
-    when v is null then 'não informado'
-    else 'R$ ' || replace(replace(replace(to_char(v, 'FM999,999,999,990.00'), ',', '|'), '.', ','), '|', '.')
-  end;
-$$;
-
-create or replace function public.jarvis_date(d anyelement)
-returns text
-language sql
-immutable
-set search_path = public
-as $$
-  select coalesce(to_char(d::timestamptz, 'DD/MM/YYYY'), 'sem data');
-$$;
-
--- Distância em dias em linguagem natural. A base tem pedidos com data futura
--- (agendamentos), e "-23 dias atrás" confunde o modelo.
-create or replace function public.jarvis_quando(d anyelement)
-returns text
-language sql
-immutable
-set search_path = public
-as $$
-  select case
-    when d is null then ''
-    when d::date > current_date then ' (agendado para daqui a ' || (d::date - current_date) || ' dias)'
-    when d::date = current_date then ' (hoje)'
-    else ' (' || (current_date - d::date) || ' dias atrás)'
+  select case extract(month from d)::int
+    when 1 then 'janeiro'   when 2 then 'fevereiro' when 3 then 'março'
+    when 4 then 'abril'     when 5 then 'maio'      when 6 then 'junho'
+    when 7 then 'julho'     when 8 then 'agosto'    when 9 then 'setembro'
+    when 10 then 'outubro'  when 11 then 'novembro' when 12 then 'dezembro'
   end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Tabela de documentos
--- -----------------------------------------------------------------------------
-create table if not exists public.jarvis_documents (
-  id             uuid primary key default gen_random_uuid(),
-  kind           text not null,
-  source_table   text not null,
-  source_id      text not null,
-  title          text not null,
-  content        text not null,
-  metadata       jsonb not null default '{}'::jsonb,
-  content_hash   text not null,
-  embedding      extensions.vector(1536),
-  embedded_at    timestamptz,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now(),
-  fts tsvector generated always as (
-    to_tsvector('portuguese', coalesce(title, '') || ' ' || coalesce(content, ''))
-  ) stored,
-  constraint jarvis_documents_source_uniq unique (source_table, source_id)
-);
-
-comment on table public.jarvis_documents is
-  'Base vetorial do Jarvis: um documento de texto por entidade de negócio, com embedding e busca full-text.';
-
-create index if not exists jarvis_documents_kind_idx on public.jarvis_documents (kind);
-create index if not exists jarvis_documents_fts_idx  on public.jarvis_documents using gin (fts);
-create index if not exists jarvis_documents_pending_idx
-  on public.jarvis_documents (updated_at) where embedding is null;
-create index if not exists jarvis_documents_embedding_idx
-  on public.jarvis_documents using hnsw (embedding extensions.vector_cosine_ops);
-
-alter table public.jarvis_documents enable row level security;
-
-drop policy if exists "Usuários autenticados leem a base do Jarvis" on public.jarvis_documents;
-create policy "Usuários autenticados leem a base do Jarvis"
-  on public.jarvis_documents for select
-  to authenticated
-  using (true);
-
--- Escrita só pela service_role (edge functions) — sem policy de insert/update.
-
--- -----------------------------------------------------------------------------
--- Construtores de documento
--- Uma view única que devolve, para cada entidade, o card de texto pronto.
--- -----------------------------------------------------------------------------
-create or replace view public.jarvis_document_source as
-
+create or replace view public.jarvis_doc_cliente as
+select t.* from (
 -- CLIENTES: identificação + histórico de compras consolidado
 with pedidos_por_cliente as (
   select
@@ -175,9 +101,11 @@ select
 from public.clientes c
 left join pedidos_por_cliente pc  on pc.cliente_id = c.id
 left join produtos_por_cliente prc on prc.cliente_id = c.id
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_pedido as
+select t.* from (
 -- PEDIDOS: itens, cliente, lojista, valores e status na mesma página
 select
   'pedido',
@@ -236,9 +164,11 @@ left join lateral (
   left join public.produtos pr on pr.id = pi.produto_id
   where pi.pedido_id = p.id
 ) itens on true
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_produto as
+select t.* from (
 -- PRODUTOS: preço, margem, estoque e giro real dos últimos 90 dias
 select
   'produto',
@@ -286,9 +216,11 @@ left join lateral (
   where pi.produto_id = pr.id
     and p.data_pedido >= current_date - 90
 ) vendas on true
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_lojista as
+select t.* from (
 -- LOJISTAS: dados fiscais + relação comercial
 select
   'lojista',
@@ -333,9 +265,11 @@ left join lateral (
   select count(*) as total, sum(coalesce(p.valor_total, 0)) as valor, max(p.data_pedido) as ultimo
   from public.pedidos p where p.lojista_id = l.id
 ) ped on true
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_transacao as
+select t.* from (
 -- TRANSAÇÕES FINANCEIRAS: o que é, de quem, quando vence, como está
 select
   'transacao',
@@ -384,9 +318,11 @@ left join public.categories    cat on cat.id = t.category_id
 left join public.subcategories sub on sub.id = t.subcategory_id
 left join public.accounts      acc on acc.id = t.account_id
 left join public.entities      ent on ent.id = t.entity_id
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_documento_fiscal as
+select t.* from (
 -- DOCUMENTOS FISCAIS
 select
   'documento_fiscal',
@@ -434,9 +370,11 @@ from public.documentos_fiscais df
 left join public.clientes c on c.id = df.cliente_id
 left join public.lojistas l on l.id = df.lojista_id
 left join public.pedidos  p on p.id = df.pedido_id
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_boleto as
+select t.* from (
 -- BOLETOS
 select
   'boleto',
@@ -468,9 +406,11 @@ select
   ))
 from public.boletos b
 left join public.entities ent on ent.id = b.entity_id
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_barril as
+select t.* from (
 -- BARRIS: onde está cada barril e com quem
 select
   'barril',
@@ -498,9 +438,11 @@ select
 from public.barris br
 left join public.clientes c on c.id = br.cliente_id
 left join public.lojistas l on l.id = br.lojista_id
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_lead as
+select t.* from (
 -- LEADS DO CRM
 select
   'lead',
@@ -525,9 +467,11 @@ select
     'href', '/crm'
   ))
 from public.leads ld
+) as t (kind, source_table, source_id, title, content, metadata);
 
-union all
-
+-- -----------------------------------------------------------------------------
+create or replace view public.jarvis_doc_resumo_mensal as
+select t.* from (
 -- RESUMOS MENSAIS: documentos sintéticos para perguntas de período.
 -- Busca vetorial não soma; estes cards trazem o total já calculado.
 select
@@ -536,9 +480,9 @@ select
   to_char(m.mes, 'YYYY-MM'),
   ('Resumo de ' || to_char(m.mes, 'MM/YYYY'))::text,
   concat_ws(E'\n',
-    'Resumo operacional de ' || to_char(m.mes, 'MM/YYYY')
-      || ' (mês ' || to_char(m.mes, 'MM') || ' de ' || to_char(m.mes, 'YYYY')
-      || ', trimestre Q' || to_char(m.mes, 'Q') || ')',
+    'Resumo operacional de ' || public.jarvis_mes_extenso(m.mes) || ' de ' || to_char(m.mes, 'YYYY')
+      || ' (' || to_char(m.mes, 'MM/YYYY') || ', ' || to_char(m.mes, 'Q') || 'º trimestre de '
+      || to_char(m.mes, 'YYYY') || ')',
     'Pedidos: ' || coalesce(m.total_pedidos, 0)
       || ' · Clientes distintos: ' || coalesce(m.clientes, 0)
       || ' · Faturamento: ' || public.jarvis_money(m.faturamento)
@@ -553,6 +497,7 @@ select
   ),
   jsonb_build_object(
     'mes', to_char(m.mes, 'YYYY-MM'),
+    'mes_extenso', public.jarvis_mes_extenso(m.mes),
     'trimestre', to_char(m.mes, 'YYYY') || '-Q' || to_char(m.mes, 'Q'),
     'faturamento', m.faturamento,
     'total_pedidos', m.total_pedidos,
@@ -592,211 +537,33 @@ from (
     where t.due_date is not null
     group by 1
   ) fin on fin.mes = ped.mes
-) m;
+) m
+) as t (kind, source_table, source_id, title, content, metadata);
+
+-- -----------------------------------------------------------------------------
+-- Costura: a fonte única que o refresh consome.
+create or replace view public.jarvis_document_source as
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_cliente
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_pedido
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_produto
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_lojista
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_transacao
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_documento_fiscal
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_boleto
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_barril
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_lead
+union all
+select kind, source_table, source_id, title, content, metadata from public.jarvis_doc_resumo_mensal;
 
 comment on view public.jarvis_document_source is
-  'Texto denormalizado por entidade — fonte de verdade dos documentos do Jarvis.';
+  'União das views jarvis_doc_* — fonte de verdade dos documentos do Jarvis.';
 
--- -----------------------------------------------------------------------------
--- Refresh: sincroniza jarvis_documents com a view.
--- Só zera o embedding do que realmente mudou (comparação por hash).
--- -----------------------------------------------------------------------------
-create or replace function public.jarvis_refresh_documents(p_kinds text[] default null)
-returns table (inseridos int, atualizados int, removidos int, inalterados int)
-language plpgsql
-security definer
-set search_path = public, extensions
-as $$
-declare
-  v_inserted int := 0;
-  v_updated  int := 0;
-  v_deleted  int := 0;
-  v_total    int := 0;
-begin
-  with fonte as (
-    select
-      s.kind, s.source_table, s.source_id, s.title, s.content, s.metadata,
-      md5(s.title || s.content || s.metadata::text) as content_hash
-    from public.jarvis_document_source s
-    where p_kinds is null or s.kind = any(p_kinds)
-  ),
-  upsert as (
-    insert into public.jarvis_documents
-      (kind, source_table, source_id, title, content, metadata, content_hash, updated_at)
-    select kind, source_table, source_id, title, content, metadata, content_hash, now()
-    from fonte
-    on conflict (source_table, source_id) do update
-      set kind        = excluded.kind,
-          title       = excluded.title,
-          content     = excluded.content,
-          metadata    = excluded.metadata,
-          content_hash= excluded.content_hash,
-          updated_at  = now(),
-          -- conteúdo mudou ⇒ embedding vigente não vale mais
-          embedding   = case when public.jarvis_documents.content_hash is distinct from excluded.content_hash
-                          then null else public.jarvis_documents.embedding end,
-          embedded_at = case when public.jarvis_documents.content_hash is distinct from excluded.content_hash
-                          then null else public.jarvis_documents.embedded_at end
-      where public.jarvis_documents.content_hash is distinct from excluded.content_hash
-    returning (xmax = 0) as is_insert
-  )
-  select
-    count(*) filter (where is_insert),
-    count(*) filter (where not is_insert)
-  into v_inserted, v_updated
-  from upsert;
-
-  -- Entidades apagadas na origem saem da base vetorial
-  with fonte as (
-    select s.source_table, s.source_id
-    from public.jarvis_document_source s
-    where p_kinds is null or s.kind = any(p_kinds)
-  ),
-  orfaos as (
-    delete from public.jarvis_documents d
-    where (p_kinds is null or d.kind = any(p_kinds))
-      and not exists (
-        select 1 from fonte f
-        where f.source_table = d.source_table and f.source_id = d.source_id
-      )
-    returning 1
-  )
-  select count(*) into v_deleted from orfaos;
-
-  select count(*) into v_total
-  from public.jarvis_documents d
-  where p_kinds is null or d.kind = any(p_kinds);
-
-  return query select v_inserted, v_updated, v_deleted,
-                      greatest(v_total - v_inserted - v_updated, 0);
-end;
-$$;
-
-comment on function public.jarvis_refresh_documents is
-  'Regera os documentos do Jarvis a partir dos dados vivos. Idempotente: só invalida o embedding do que mudou.';
-
--- -----------------------------------------------------------------------------
--- Busca híbrida: vetorial + full-text, combinadas por Reciprocal Rank Fusion.
--- Semântica sozinha erra nome próprio e código; full-text sozinha erra sinônimo.
--- -----------------------------------------------------------------------------
-create or replace function public.jarvis_match_documents(
-  query_embedding text,
-  query_text      text default null,
-  match_count     int default 8,
-  filter_kinds    text[] default null,
-  full_text_weight  float default 1.0,
-  semantic_weight   float default 1.0,
-  rrf_k           int default 50
-)
-returns table (
-  id uuid,
-  kind text,
-  title text,
-  content text,
-  metadata jsonb,
-  similarity float,
-  score float
-)
-language sql
-stable
-security definer
-set search_path = public, extensions
-as $$
-  with consulta_vetor as (
-    select nullif(query_embedding, '')::extensions.vector(1536) as v
-  ),
-  consulta_texto as (
-    -- websearch_to_tsquery exige TODOS os termos (AND), o que zera o full-text
-    -- numa pergunta em linguagem natural. Os lexemas já normalizados viram um
-    -- OR, e o ts_rank_cd premia quem casa mais termos.
-    select to_tsquery('simple', string_agg(quote_literal(lexeme), ' | ')) as q
-    from unnest(to_tsvector('portuguese', coalesce(query_text, '')))
-  ),
-  semantica as (
-    select d.id,
-           row_number() over (order by d.embedding <=> qv.v) as rank,
-           1 - (d.embedding <=> qv.v) as similarity
-    from public.jarvis_documents d
-    cross join consulta_vetor qv
-    where d.embedding is not null
-      and qv.v is not null
-      and (filter_kinds is null or d.kind = any(filter_kinds))
-    order by d.embedding <=> qv.v
-    limit least(match_count * 4, 200)
-  ),
-  textual as (
-    select d.id,
-           row_number() over (order by ts_rank_cd(d.fts, c.q) desc) as rank
-    from public.jarvis_documents d
-    cross join consulta_texto c
-    where c.q is not null
-      and d.fts @@ c.q
-      and (filter_kinds is null or d.kind = any(filter_kinds))
-    order by ts_rank_cd(d.fts, c.q) desc
-    limit least(match_count * 4, 200)
-  )
-  select
-    d.id, d.kind, d.title, d.content, d.metadata,
-    -- cosseno com vetor nulo devolve NaN, e no Postgres NaN ordena acima de tudo
-    -- (não segue IEEE: NaN = NaN é verdadeiro), o que envenenaria o ranking.
-    case when s.similarity is null or s.similarity = 'NaN'::float8 then 0
-         else s.similarity end::float as similarity,
-    (coalesce(1.0 / (rrf_k + s.rank), 0) * semantic_weight
-      + coalesce(1.0 / (rrf_k + t.rank), 0) * full_text_weight)::float as score
-  from semantica s
-  full outer join textual t on t.id = s.id
-  join public.jarvis_documents d on d.id = coalesce(s.id, t.id)
-  order by score desc
-  limit match_count;
-$$;
-
-comment on function public.jarvis_match_documents is
-  'Busca híbrida (vetorial + full-text em português) sobre a base do Jarvis, fundida por RRF.';
-
--- -----------------------------------------------------------------------------
--- Gravação dos embeddings em lote.
--- A edge function manda [{id, embedding}] como JSON e o cast para vector
--- acontece aqui — text não converte para vector implicitamente.
--- -----------------------------------------------------------------------------
-create or replace function public.jarvis_store_embeddings(p_items jsonb)
-returns int
-language plpgsql
-security definer
-set search_path = public, extensions
-as $$
-declare
-  v_count int;
-begin
-  update public.jarvis_documents d
-     set embedding   = (item->>'embedding')::extensions.vector(1536),
-         embedded_at = now()
-    from jsonb_array_elements(p_items) as item
-   where d.id = (item->>'id')::uuid;
-
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-
-comment on function public.jarvis_store_embeddings is
-  'Grava embeddings em lote a partir de [{id, embedding}].';
-
--- -----------------------------------------------------------------------------
--- Estado da base — alimenta o painel do Jarvis e o monitoramento do backfill.
--- -----------------------------------------------------------------------------
-create or replace view public.jarvis_index_status as
-select
-  kind,
-  count(*)                                    as documentos,
-  count(*) filter (where embedding is not null) as embedados,
-  count(*) filter (where embedding is null)     as pendentes,
-  max(updated_at)                              as ultima_atualizacao,
-  max(embedded_at)                             as ultimo_embedding
-from public.jarvis_documents
-group by kind;
-
-grant select on public.jarvis_index_status to authenticated;
 grant select on public.jarvis_document_source to service_role;
-grant execute on function public.jarvis_match_documents to authenticated, service_role;
-grant execute on function public.jarvis_refresh_documents to service_role;
-grant execute on function public.jarvis_store_embeddings to service_role;

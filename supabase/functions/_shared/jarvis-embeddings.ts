@@ -1,8 +1,16 @@
 // Camada de embeddings do Jarvis.
 // Um único ponto para trocar de provedor sem mexer nas funções.
+//
+// Provedor padrão: o mesmo gateway que o resto do sistema já usa para LLM
+// (LOVABLE_API_KEY), que também expõe /v1/embeddings. Não exige secret nova.
+// Se houver uma OPENAI_API_KEY válida, dá para forçar o caminho direto com
+// JARVIS_EMBEDDING_PROVIDER=openai.
 
-export const EMBEDDING_MODEL = Deno.env.get("JARVIS_EMBEDDING_MODEL") ?? "text-embedding-3-small";
+export const EMBEDDING_MODEL = Deno.env.get("JARVIS_EMBEDDING_MODEL") ?? "openai/text-embedding-3-small";
 export const EMBEDDING_DIMENSIONS = 1536; // precisa bater com vector(1536) na migração
+
+const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
+const OPENAI_URL = "https://api.openai.com/v1/embeddings";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,22 +32,31 @@ export class EmbeddingError extends Error {
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const forcarOpenAI = Deno.env.get("JARVIS_EMBEDDING_PROVIDER") === "openai";
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+
+  const usarGateway = !forcarOpenAI && !!lovableKey;
+  const apiKey = usarGateway ? lovableKey : openaiKey;
+  const url = usarGateway ? GATEWAY_URL : OPENAI_URL;
+  // Fora do gateway o nome do modelo não leva o prefixo do provedor.
+  const model = usarGateway ? EMBEDDING_MODEL : EMBEDDING_MODEL.replace(/^openai\//, "");
+
   if (!apiKey) {
     throw new EmbeddingError(
-      "OPENAI_API_KEY não configurada nas secrets do projeto — necessária para gerar embeddings.",
+      "Nenhuma chave de embeddings configurada: defina LOVABLE_API_KEY (gateway) ou OPENAI_API_KEY.",
       500,
     );
   }
 
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: EMBEDDING_MODEL,
+      model,
       input: texts,
       dimensions: EMBEDDING_DIMENSIONS,
     }),
@@ -63,6 +80,14 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   const missing = vectors.findIndex((v) => !v);
   if (missing !== -1) {
     throw new EmbeddingError(`Provedor devolveu embedding vazio para o item ${missing}.`, 502);
+  }
+
+  const wrongSize = vectors.findIndex((v) => v.length !== EMBEDDING_DIMENSIONS);
+  if (wrongSize !== -1) {
+    throw new EmbeddingError(
+      `Provedor devolveu ${vectors[wrongSize].length} dimensões, esperado ${EMBEDDING_DIMENSIONS}.`,
+      502,
+    );
   }
 
   return vectors;

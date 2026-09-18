@@ -8,6 +8,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AuthError, exigirUsuario } from "../_shared/jarvis-auth.ts";
 import {
   corsHeaders,
   EMBEDDING_MODEL,
@@ -30,6 +31,8 @@ serve(async (req) => {
   const started = Date.now();
 
   try {
+    exigirUsuario(req);
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -94,23 +97,20 @@ serve(async (req) => {
         throw error;
       }
 
-      const embeddedAt = new Date().toISOString();
-      const results = await Promise.all(
-        docs.map((doc, index) =>
-          supabase
-            .from("jarvis_documents")
-            .update({ embedding: toVectorLiteral(vectors[index]), embedded_at: embeddedAt })
-            .eq("id", doc.id),
-        ),
-      );
+      // Gravação pelo RPC: o cast text -> vector precisa acontecer no banco,
+      // e um lote inteiro vira uma única ida ao Postgres.
+      const { data: gravados, error: storeError } = await supabase.rpc("jarvis_store_embeddings", {
+        p_items: docs.map((doc, index) => ({
+          id: doc.id,
+          embedding: toVectorLiteral(vectors[index]),
+        })),
+      });
 
-      for (const result of results) {
-        if (result.error) {
-          failed += 1;
-          console.error(`[jarvis-embed] falha ao gravar embedding: ${result.error.message}`);
-        }
+      if (storeError) {
+        throw new Error(`Falha ao gravar embeddings: ${storeError.message}`);
       }
 
+      failed += docs.length - (Number(gravados) || 0);
       processed += docs.length;
       console.log(`[jarvis-embed] ${processed} documentos processados`);
     }
@@ -131,7 +131,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    const status = error instanceof EmbeddingError ? error.status : 500;
+    const status = error instanceof AuthError || error instanceof EmbeddingError
+      ? error.status
+      : 500;
     console.error("[jarvis-embed] erro:", error);
     return new Response(
       JSON.stringify({ ok: false, erro: error instanceof Error ? error.message : String(error) }),

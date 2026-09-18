@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AuthError, exigirUsuario } from "../_shared/jarvis-auth.ts";
 import { corsHeaders, EmbeddingError, embedTexts, toVectorLiteral } from "../_shared/jarvis-embeddings.ts";
 
 const DEFAULT_LIMIT = 8;
@@ -18,6 +19,8 @@ serve(async (req) => {
   }
 
   try {
+    exigirUsuario(req);
+
     const { query, kinds = null, limit = DEFAULT_LIMIT } = await req.json();
 
     if (!query || typeof query !== "string" || query.trim().length === 0) {
@@ -50,7 +53,9 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    const status = error instanceof EmbeddingError ? error.status : 500;
+    const status = error instanceof AuthError || error instanceof EmbeddingError
+      ? error.status
+      : 500;
     console.error("[jarvis-search] erro:", error);
     return new Response(
       JSON.stringify({ ok: false, erro: error instanceof Error ? error.message : String(error) }),

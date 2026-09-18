@@ -54,8 +54,12 @@ total já calculado.
 | `jarvis_match_documents(...)` | busca híbrida (semântica + full-text, fundidas por RRF) |
 | `jarvis_store_embeddings(items)` | grava embeddings em lote |
 | `jarvis_index_status` | view de monitoramento por tipo |
+| `jarvis_doc_*` | uma view por tipo de documento (cliente, pedido, …) |
 | `jarvis-embed` | edge function: refresh + embedding do que mudou |
 | `jarvis-search` | edge function: embeda a pergunta e devolve os documentos |
+
+`jarvis_document_source` é só a união das views `jarvis_doc_*`. Ajustar o texto
+do card do cliente não toca no do pedido.
 
 ### Atualização incremental
 
@@ -72,10 +76,31 @@ O full-text usa OR sobre os lexemas, não AND: numa pergunta em linguagem natura
 ("tem alguma conta atrasada de malte para pagar?") exigir todos os termos zeraria
 o resultado.
 
+## Segurança
+
+Dois pontos que **não** são óbvios e já estão tratados:
+
+1. O Postgres concede `EXECUTE` a `PUBLIC` por padrão. Sem revogar, a anon key
+   — que é pública no bundle do front — chamava `jarvis_match_documents` e lia
+   a operação inteira. As funções de manutenção são exclusivas da `service_role`.
+2. `verify_jwt` no gateway **só confere a assinatura** do token, e a anon key é
+   um JWT válido assinado pelo projeto: ela passa na verificação. Por isso as
+   edge functions checam o *papel* do token (`_shared/jarvis-auth.ts`) e
+   rejeitam `anon` com 403.
+
+As views `jarvis_doc_*` são plumbing interno: `security_invoker = on` e visíveis
+só para a `service_role`.
+
 ## Rodando
 
-Pré-requisito: `OPENAI_API_KEY` nas secrets do projeto (usada para embeddings —
-o modelo é `text-embedding-3-small`, 1536 dimensões).
+Pré-requisito: nenhuma secret nova. Os embeddings usam o mesmo gateway que o
+resto do sistema já usa para LLM (`LOVABLE_API_KEY`), que também expõe
+`/v1/embeddings`. O modelo é `openai/text-embedding-3-small` com 1536 dimensões.
+Para usar a OpenAI direto, configure `OPENAI_API_KEY` e
+`JARVIS_EMBEDDING_PROVIDER=openai`.
+
+As chamadas exigem o token de um usuário logado (ou a service_role key) — a
+anon key é rejeitada.
 
 ```bash
 # Backfill inicial (tudo)
@@ -98,10 +123,16 @@ curl -X POST "$SUPABASE_URL/functions/v1/jarvis-search" \
   -d '{"query":"quais clientes não compram há mais de 45 dias","limit":8}'
 ```
 
-### Custo
+### Custo e ritmo de atualização
 
-Com o volume atual (~2.700 documentos), o backfill completo custa cerca de
-**US$ 0,01** e leva menos de um minuto. A manutenção incremental é fração disso.
+O backfill inicial gerou **2.728 documentos** em ~70 segundos, custo desprezível.
+
+Um detalhe do desenho: os cards trazem tempo relativo ("há 45 dias", "agendado
+para daqui a 20 dias"), então **cerca de 380 documentos mudam sozinhos por dia**
+só pela virada da data e são re-embedados. É o preço de o texto já responder
+"esse cliente sumiu há quanto tempo?" sem o modelo ter que calcular — e o custo
+diário disso é da ordem de centavos de centavo. Os outros ~2.350 ficam intactos
+até o dado real mudar.
 
 ### Agendamento
 

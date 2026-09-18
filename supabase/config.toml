@@ -66,8 +66,10 @@ verify_jwt = false
 [functions.focus-nfe]
 verify_jwt = false
 
+# Diferente do resto do projeto, estes dois exigem JWT: jarvis-search devolve
+# o conteúdo de toda a base de negócio e a anon key é pública no bundle.
 [functions.jarvis-embed]
-verify_jwt = false
+verify_jwt = true
 
 [functions.jarvis-search]
-verify_jwt = false
+verify_jwt = true
