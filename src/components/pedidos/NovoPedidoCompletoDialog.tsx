@@ -384,7 +384,7 @@ export function NovoPedidoCompletoDialog({
         </DialogTrigger>
       )}
 
-      <DialogContent className="flex h-[min(860px,92vh)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden rounded-2xl border-border/70 bg-background p-0 shadow-2xl sm:w-[calc(100vw-2rem)]">
+      <DialogContent className="flex h-[min(820px,90vh)] w-[calc(100vw-1rem)] !max-w-none flex-col gap-0 overflow-hidden rounded-2xl border-border/70 bg-background !p-0 shadow-2xl sm:!max-w-[1120px] sm:!p-0">
         <DialogHeader className="space-y-4 border-b border-border/60 bg-muted/20 px-5 py-5 text-left sm:px-7">
           <div>
             <DialogTitle className="text-xl font-semibold tracking-tight">Nova venda</DialogTitle>
@@ -671,8 +671,8 @@ export function NovoPedidoCompletoDialog({
                 </ScrollArea>
               </div>
 
-              <div className="flex max-h-[38%] min-h-0 flex-col border-t border-border/60 bg-muted/20 lg:max-h-none lg:w-72 lg:border-t-0">
-                <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex max-h-[42%] min-h-0 flex-col border-t border-border/60 bg-muted/20 lg:max-h-none lg:w-[360px] lg:border-l lg:border-t-0">
+                <div className="flex items-center justify-between border-b border-border/50 px-5 py-4">
                   <p className="flex items-center gap-1.5 text-sm font-medium">
                     <ShoppingCart className="h-4 w-4" />
                     Carrinho
@@ -688,9 +688,9 @@ export function NovoPedidoCompletoDialog({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {carrinho.map((item) => (
-                        <div key={item.produtoId} className="rounded-lg bg-card p-2.5">
+                        <div key={item.produtoId} className="rounded-xl border border-border/70 bg-card p-3 shadow-sm">
                           <div className="flex items-start gap-2">
                             <p className="min-w-0 flex-1 truncate text-xs font-medium">{item.nome}</p>
                             <button
@@ -701,7 +701,7 @@ export function NovoPedidoCompletoDialog({
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                          <div className="mt-2 flex items-center justify-between">
+                          <div className="mt-3 flex items-center justify-between">
                             <div className="flex items-center gap-1">
                               <Button variant="outline" size="icon" className="h-6 w-6"
                                 onClick={() => alterarQuantidade(item.produtoId, -1)}>
@@ -713,31 +713,20 @@ export function NovoPedidoCompletoDialog({
                                 <Plus className="h-3 w-3" />
                               </Button>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <Input
-                                aria-label={`Preço unitário de ${item.nome}`}
-                                className="h-7 w-20 px-2 text-right text-xs"
-                                inputMode="decimal"
-                                value={item.precoUnitario}
-                                onChange={(e) => alterarPreco(item.produtoId, e.target.value)}
-                              />
-                              <span className="text-xs font-semibold tabular-nums">
-                                {moeda(item.precoUnitario * item.quantidade)}
-                              </span>
-                            </div>
+                            <span className="text-sm font-semibold tabular-nums">{moeda(item.precoUnitario * item.quantidade)}</span>
                           </div>
-                          <div className="mt-2.5 flex items-center justify-between rounded-lg bg-muted/50 px-2 py-1.5">
-                            <span className="text-[11px] font-medium text-muted-foreground">Consignado</span>
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) === 0}
-                                onClick={() => alterarQuantidadeConsignada(item.produtoId, -1)} aria-label={`Diminuir consignação de ${item.nome}`}>
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-5 text-center text-xs font-semibold tabular-nums">{item.quantidadeConsignada ?? 0}</span>
-                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) >= item.quantidade}
-                                onClick={() => alterarQuantidadeConsignada(item.produtoId, 1)} aria-label={`Aumentar consignação de ${item.nome}`}>
-                                <Plus className="h-3 w-3" />
-                              </Button>
+                          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+                            <label className="space-y-1">
+                              <span className="block text-[11px] font-medium text-muted-foreground">Preço unitário</span>
+                              <div className="relative"><span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span><Input aria-label={`Preço unitário de ${item.nome}`} className="h-8 pl-7 pr-2 text-right text-xs" inputMode="decimal" value={item.precoUnitario} onChange={(e) => alterarPreco(item.produtoId, e.target.value)} /></div>
+                            </label>
+                            <div className="space-y-1">
+                              <span className="block text-[11px] font-medium text-muted-foreground">Unidades consignadas</span>
+                              <div className="flex h-8 items-center justify-between rounded-md border bg-muted/30 px-1">
+                                <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) === 0} onClick={() => alterarQuantidadeConsignada(item.produtoId, -1)} aria-label={`Diminuir consignação de ${item.nome}`}><Minus className="h-3 w-3" /></Button>
+                                <span className="text-xs font-semibold tabular-nums">{item.quantidadeConsignada ?? 0}/{item.quantidade}</span>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) >= item.quantidade} onClick={() => alterarQuantidadeConsignada(item.produtoId, 1)} aria-label={`Aumentar consignação de ${item.nome}`}><Plus className="h-3 w-3" /></Button>
+                              </div>
                             </div>
                           </div>
                         </div>
