@@ -15,7 +15,8 @@ export interface BarrilRetorno {
 
 export interface MovimentarBarrisData {
   pedidoId: string;
-  clienteId: string;
+  /** Nulo numa venda para lojista: o barril fica registrado no lojista. */
+  clienteId: string | null;
   lojistaId?: string | null;
   barrisEntrega: BarrilEntrega[]; // Cheios saindo da loja para o cliente/lojista
   barrisRetorno: BarrilRetorno[]; // Vazios voltando do cliente/lojista para a loja
