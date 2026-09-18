@@ -1,7 +1,37 @@
-# CRM em dois pipelines
+# CRM
 
-O CRM deixou de ser um quadro só e passou a separar **prospecção** de
-**operação** — duas rotinas diferentes, com donos diferentes.
+Abrir o CRM é abrir a caixa de entrada: **conversa primeiro**, quadro depois.
+
+## As quatro visões
+
+| Visão | Para quê |
+|---|---|
+| **Conversas** (padrão) | três painéis no estilo WhatsApp: lista ordenada por recência, chat, e o contexto do card |
+| **Comercial** | quadro de prospecção |
+| **Operação** | quadro da base que já compra |
+| **Lista** | tabela com tudo, para filtrar e varrer |
+
+Na visão Conversas, a ordem é a que importa: quem **aguarda resposta** vem
+primeiro, depois por mensagem mais recente, e por fim por faturamento. O painel
+da direita traz etapa (alterável), pedidos, faturamento, pedido em aberto,
+campo de anotação e o **histórico de interações**.
+
+Em tela estreita os três painéis viram dois passos — lista → conversa, com
+o contexto num painel lateral.
+
+## Interações gravadas
+
+Cada card tem uma linha do tempo em `crm_interacoes`, alimentada sozinha:
+
+- início de conversa
+- toda mudança de etapa, dizendo se foi a equipe ou a automação
+- entrada e saída de pedido aberto
+- anotações manuais da equipe
+
+---
+
+O CRM separa **prospecção** de **operação** — duas rotinas diferentes, com
+donos diferentes.
 
 ## Os dois quadros
 
@@ -60,6 +90,12 @@ no CRM nunca impede o registro de uma mensagem ou de uma venda**. Testado com
 a função de apoio quebrada de propósito — o pedido foi salvo mesmo assim.
 
 A view é `security_invoker` e fechada para a anon key.
+
+## Nomes dos contatos
+
+O card usa, nesta ordem: o nome do cadastro (cliente ou lojista), senão o
+`push_name` que o WhatsApp envia, senão o número. Um nome vindo do cadastro
+nunca é sobrescrito pelo apelido do WhatsApp.
 
 ## O que ainda não é automático
 

@@ -386,3 +386,13 @@ where c.pipeline = 'operacao'
   and c.etapa in ('b2b', 'b2c')
   and ((c.lojista_id is not null and a.lojista_id = c.lojista_id)
     or (c.cliente_id is not null and a.cliente_id = c.cliente_id));
+
+-- -----------------------------------------------------------------------------
+-- Realtime: sem publicar a tabela, o quadro só atualiza ao recarregar a página.
+-- -----------------------------------------------------------------------------
+do $$
+begin
+  alter publication supabase_realtime add table public.crm_cards;
+exception when duplicate_object then
+  null;
+end $$;
