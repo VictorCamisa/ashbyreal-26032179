@@ -11,7 +11,8 @@ export interface CartItem {
 }
 
 export interface CreatePedidoData {
-  clienteId: string;
+  /** Opcional: numa venda para lojista o pedido se liga ao lojista, sem cliente. */
+  clienteId?: string | null;
   lojistaId?: string | null;
   items: CartItem[];
   metodoPagamento?: string;
@@ -52,7 +53,7 @@ export function usePedidosMutations() {
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
         .insert([{
-          cliente_id: data.clienteId,
+          cliente_id: data.clienteId || null,
           lojista_id: data.lojistaId || null,
           status: 'pendente',
           valor_total: valorTotal,
