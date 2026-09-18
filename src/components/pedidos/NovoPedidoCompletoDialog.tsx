@@ -106,8 +106,7 @@ export function NovoPedidoCompletoDialog({
   const [valorFrete, setValorFrete] = useState('');
   const [precisaChopeira, setPrecisaChopeira] = useState(false);
   const [precisaCO2, setPrecisaCO2] = useState(false);
-  const [precisaCopos, setPrecisaCopos] = useState(false);
-  const [temBarrilConsignado, setTemBarrilConsignado] = useState(false);
+  const [quantidadeCopos, setQuantidadeCopos] = useState('');
   const [confirmarPagamentoAberto, setConfirmarPagamentoAberto] = useState(false);
   const [dataEntrega, setDataEntrega] = useState('');
   const [horarioEntrega, setHorarioEntrega] = useState('');
@@ -117,6 +116,7 @@ export function NovoPedidoCompletoDialog({
 
   const [barrisEntrega, setBarrisEntrega] = useState<string[]>([]);
   const [barrisRetorno, setBarrisRetorno] = useState<string[]>([]);
+  const [barrisConsignados, setBarrisConsignados] = useState<string[]>([]);
 
   const { lojistas, isLoading: carregandoLojistas } = useLojistas();
   const { createPedido, isLoading } = usePedidosMutations();
@@ -298,8 +298,7 @@ export function NovoPedidoCompletoDialog({
     setValorFrete('');
     setPrecisaChopeira(false);
     setPrecisaCO2(false);
-    setPrecisaCopos(false);
-    setTemBarrilConsignado(false);
+    setQuantidadeCopos('');
     setConfirmarPagamentoAberto(false);
     setDataEntrega('');
     setHorarioEntrega('');
@@ -310,6 +309,7 @@ export function NovoPedidoCompletoDialog({
     setBuscaProduto('');
     setBarrisEntrega([]);
     setBarrisRetorno([]);
+    setBarrisConsignados([]);
     setCriandoCliente(false);
     setNovoCliente({ nome: '', telefone: '', cpf_cnpj: '' });
   };
@@ -320,8 +320,8 @@ export function NovoPedidoCompletoDialog({
     const necessidades = [
       precisaChopeira && 'Chopeira (sem custo)',
       precisaCO2 && 'CO₂',
-      precisaCopos && 'Copos',
-      temBarrilConsignado && 'Barril consignado',
+      Number(quantidadeCopos) > 0 && `${quantidadeCopos} copos`,
+      barrisConsignados.length > 0 && `${barrisConsignados.length} barril(is) consignado(s)`,
     ].filter(Boolean).join(', ');
     const obs = [
       observacoes.trim(),
@@ -346,12 +346,12 @@ export function NovoPedidoCompletoDialog({
         enderecoEntrega: Object.values(endereco).some(Boolean) ? endereco : undefined,
       });
 
-      if (ehB2B && (barrisEntrega.length > 0 || barrisRetorno.length > 0)) {
+      if (barrisEntrega.length > 0 || barrisRetorno.length > 0) {
         await movimentarBarris({
           pedidoId: pedido.id,
-          clienteId: clienteSelecionado?.id ?? null,
+          clienteId: ehB2B ? null : clienteSelecionado?.id ?? null,
           lojistaId,
-          barrisEntrega: barrisEntrega.map((id) => ({ barrilId: id, codigo: '' })),
+          barrisEntrega: barrisEntrega.map((id) => ({ barrilId: id, codigo: '', consignado: barrisConsignados.includes(id) })),
           barrisRetorno: barrisRetorno.map((id) => ({ barrilId: id, codigo: '' })),
         });
       }
@@ -379,11 +379,11 @@ export function NovoPedidoCompletoDialog({
         </DialogTrigger>
       )}
 
-      <DialogContent className="flex max-h-[88vh] w-[calc(100vw-2rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="space-y-3 border-b border-border/60 px-5 py-4 text-left">
+      <DialogContent className="flex h-[min(860px,92vh)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden rounded-2xl border-border/70 bg-background p-0 shadow-2xl sm:w-[calc(100vw-2rem)]">
+        <DialogHeader className="space-y-4 border-b border-border/60 bg-muted/20 px-5 py-5 text-left sm:px-7">
           <div>
-            <DialogTitle className="text-base font-semibold">Nova venda</DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogTitle className="text-xl font-semibold tracking-tight">Nova venda</DialogTitle>
+            <DialogDescription className="text-sm">
               {contraparteDefinida
                 ? `${nomeContraparte}${totalItens > 0 ? ` · ${totalItens} ${totalItens === 1 ? 'item' : 'itens'}` : ''}`
                 : 'Escolha para quem é a venda'}
@@ -747,22 +747,26 @@ export function NovoPedidoCompletoDialog({
                   </div>
                 </div>
 
-                <div className="space-y-2 rounded-xl border border-border/60 p-3">
-                  <p className="text-xs font-medium">Itens e estrutura necessários</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {[
-                      ['chopeira', 'Precisa de chopeira? (sem custo)', precisaChopeira, setPrecisaChopeira],
-                      ['co2', 'Precisa de CO₂?', precisaCO2, setPrecisaCO2],
-                      ['copos', 'Precisa de copos?', precisaCopos, setPrecisaCopos],
-                      ['consignado', 'Há barril consignado?', temBarrilConsignado, setTemBarrilConsignado],
-                    ].map(([id, label, checked, setChecked]) => (
-                      <div key={id as string} className="flex items-center justify-between gap-2">
-                        <Label htmlFor={id as string} className="text-xs font-normal">{label as string}</Label>
-                        <Switch id={id as string} checked={checked as boolean} onCheckedChange={setChecked as (checked: boolean) => void} />
-                      </div>
-                    ))}
+                <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                  <div className="border-b bg-muted/35 px-4 py-3">
+                    <p className="text-sm font-semibold">Estrutura da entrega</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Marque somente o que precisa ser separado para este pedido.</p>
                   </div>
-                </div>
+                  <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                    <label className="flex cursor-pointer items-center justify-between gap-3 p-4 hover:bg-muted/25">
+                      <span><span className="block text-sm font-medium">Chopeira</span><span className="block text-xs text-muted-foreground">Sem custo adicional</span></span>
+                      <Switch checked={precisaChopeira} onCheckedChange={setPrecisaChopeira} />
+                    </label>
+                    <label className="flex cursor-pointer items-center justify-between gap-3 p-4 hover:bg-muted/25">
+                      <span><span className="block text-sm font-medium">CO₂</span><span className="block text-xs text-muted-foreground">Cilindro para extração</span></span>
+                      <Switch checked={precisaCO2} onCheckedChange={setPrecisaCO2} />
+                    </label>
+                    <div className="flex items-center justify-between gap-3 p-4">
+                      <span><span className="block text-sm font-medium">Copos</span><span className="block text-xs text-muted-foreground">Informe a quantidade</span></span>
+                      <Input aria-label="Quantidade de copos" className="h-9 w-20 text-center" inputMode="numeric" placeholder="0" value={quantidadeCopos} onChange={(e) => setQuantidadeCopos(e.target.value.replace(/\D/g, ''))} />
+                    </div>
+                  </div>
+                </section>
 
                 <div className="space-y-2">
                   <Label className="text-xs">Forma de pagamento</Label>
@@ -846,30 +850,30 @@ export function NovoPedidoCompletoDialog({
                   </CollapsibleContent>
                 </Collapsible>
 
-                {ehB2B && lojistaId && (
+                {contraparteDefinida && (
                   <Collapsible>
-                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border border-border/60 px-3 py-2.5 text-sm transition-colors hover:bg-muted/40">
-                      <span className="flex items-center gap-2">
-                        <Droplets className="h-4 w-4 text-muted-foreground" />
-                        Barris (entrega e retorno)
-                        {(barrisEntrega.length > 0 || barrisRetorno.length > 0) && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            {barrisEntrega.length + barrisRetorno.length}
-                          </Badge>
-                        )}
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-card px-4 py-3.5 text-sm transition-colors hover:bg-muted/30">
+                      <span className="flex items-center gap-2.5 font-medium">
+                        <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10"><Droplets className="h-4 w-4 text-primary" /></span>
+                        Barris da entrega
+                        {(barrisEntrega.length > 0 || barrisRetorno.length > 0) && <Badge variant="secondary">{barrisEntrega.length + barrisRetorno.length}</Badge>}
                       </span>
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="pt-3">
-                      <SelecionarBarrisStep
-                        clienteId={clienteSelecionado?.id ?? null}
-                        lojistaId={lojistaId}
-                        clienteNome={nomeContraparte}
-                        selectedEntrega={barrisEntrega}
-                        selectedRetorno={barrisRetorno}
-                        onEntregaChange={setBarrisEntrega}
-                        onRetornoChange={setBarrisRetorno}
-                      />
+                      <div className="overflow-hidden rounded-2xl border border-border/70">
+                        <SelecionarBarrisStep
+                          clienteId={clienteSelecionado?.id ?? null}
+                          lojistaId={lojistaId}
+                          clienteNome={nomeContraparte}
+                          selectedEntrega={barrisEntrega}
+                          selectedRetorno={barrisRetorno}
+                          selectedConsignados={barrisConsignados}
+                          onEntregaChange={setBarrisEntrega}
+                          onRetornoChange={setBarrisRetorno}
+                          onConsignadosChange={setBarrisConsignados}
+                        />
+                      </div>
                     </CollapsibleContent>
                   </Collapsible>
                 )}
@@ -941,7 +945,7 @@ export function NovoPedidoCompletoDialog({
               </Button>
             )}
             {passo === 'fechamento' ? (
-              <Button onClick={() => setConfirmarPagamentoAberto(true)} disabled={isLoading || carrinho.length === 0} className="gap-1.5">
+              <Button onClick={() => setConfirmarPagamentoAberto(true)} disabled={isLoading || carrinho.length === 0} className="gap-1.5 px-5">
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 Confirmar pagamento
               </Button>
@@ -959,21 +963,25 @@ export function NovoPedidoCompletoDialog({
         </div>
       </DialogContent>
       <Dialog open={confirmarPagamentoAberto} onOpenChange={setConfirmarPagamentoAberto}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirmar pagamento</DialogTitle>
-            <DialogDescription>Confira o valor e a forma de pagamento antes de concluir a venda.</DialogDescription>
+        <DialogContent className="max-w-lg overflow-hidden rounded-2xl p-0">
+          <DialogHeader className="border-b bg-muted/25 px-6 py-5 text-left">
+            <DialogTitle className="text-xl tracking-tight">Confirmar pagamento</DialogTitle>
+            <DialogDescription className="pt-1">Esta é a última conferência antes de registrar a venda.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Pedido</span><span>{numeroPedido ? `#${numeroPedido}` : 'Numeração automática'}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{moeda(subtotal)}</span></div>
-            {temFrete && <div className="flex justify-between"><span className="text-muted-foreground">Frete</span><span>{moeda(frete)}</span></div>}
-            <div className="flex justify-between"><span className="text-muted-foreground">Pagamento</span><span>{PAGAMENTOS.find((p) => p.value === pagamento)?.label ?? 'Não informado'}</span></div>
-            <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Total</span><span>{moeda(total)}</span></div>
+          <div className="space-y-4 px-6 py-5 text-sm">
+            <div className="rounded-xl border border-border/70 bg-card p-4">
+              <div className="mb-3 flex items-center justify-between"><span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pedido</span><span className="font-medium">{numeroPedido ? `#${numeroPedido}` : 'Numeração automática'}</span></div>
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-muted-foreground"><span>Produtos</span><span className="font-medium text-foreground">{moeda(subtotal)}</span></div>
+                {temFrete && <div className="flex justify-between text-muted-foreground"><span>Frete</span><span className="font-medium text-foreground">{moeda(frete)}</span></div>}
+                <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Total a cobrar</span><span>{moeda(total)}</span></div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-primary/5 px-4 py-3"><span className="text-muted-foreground">Forma de pagamento</span><span className="font-semibold text-primary">{PAGAMENTOS.find((p) => p.value === pagamento)?.label ?? 'Não selecionada'}</span></div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 border-t bg-muted/15 px-6 py-4">
             <Button variant="outline" onClick={() => setConfirmarPagamentoAberto(false)}>Voltar e editar</Button>
-            <Button onClick={() => { setConfirmarPagamentoAberto(false); finalizar(); }} disabled={isLoading}>Concluir venda</Button>
+            <Button onClick={() => { setConfirmarPagamentoAberto(false); finalizar(); }} disabled={isLoading || !pagamento}>Concluir venda</Button>
           </div>
         </DialogContent>
       </Dialog>
