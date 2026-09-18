@@ -51,16 +51,15 @@ export function SelecionarBarrisStep({
   };
 
   const renderBarrilItem = (barril: Barril, isSelected: boolean, onToggle: () => void) => (
-    <button
+    <div
       key={barril.id}
-      onClick={onToggle}
       className={cn(
-        'w-full p-3 rounded-lg border text-left transition-all hover:border-primary/50',
+        'w-full rounded-xl border text-left transition-all',
         isSelected && 'border-primary bg-primary/5 ring-2 ring-primary/20'
       )}
     >
-      <div className="flex items-center gap-3">
-        <Checkbox checked={isSelected} />
+      <button type="button" onClick={onToggle} className="flex w-full items-center gap-3 p-3 hover:bg-muted/30">
+        <Checkbox checked={isSelected} className="pointer-events-none" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-mono font-medium">{barril.codigo}</span>
@@ -79,30 +78,26 @@ export function SelecionarBarrisStep({
           <Droplet className="h-2.5 w-2.5 mr-1" />
           {barril.status_conteudo === 'CHEIO' ? 'Cheio' : 'Vazio'}
         </Badge>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 py-4 bg-amber-500/10 border-b border-amber-500/20">
-        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-          {isLojista ? <Store className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+    <div className="flex flex-col bg-background">
+      <div className="border-b bg-amber-500/5 px-4 py-3">
+        <div className="flex items-start gap-2.5 text-amber-800 dark:text-amber-300">
+          <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-500/15">{isLojista ? <Store className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}</span>
           <div>
-            <p className="font-medium">
-              Gestão de Barris - {isLojista ? 'Lojista' : 'Cliente CNPJ'}
-            </p>
-            <p className="text-sm opacity-80">
-              Selecione os barris que serão entregues e/ou retirados neste pedido
-            </p>
+            <p className="text-sm font-semibold">Controle de barris</p>
+            <p className="mt-0.5 text-xs opacity-80">Selecione os barris físicos que serão entregues ou retirados.</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="grid max-h-[440px] min-h-[280px] grid-cols-1 overflow-hidden md:grid-cols-2">
         {/* Coluna Entregar */}
-        <div className="flex-1 flex flex-col border-r">
-          <div className="p-4 border-b bg-muted/30">
+        <div className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r">
+          <div className="border-b bg-muted/30 p-4">
             <div className="flex items-center gap-2 text-primary">
               <ArrowDown className="h-5 w-5" />
               <div>
@@ -117,7 +112,7 @@ export function SelecionarBarrisStep({
             )}
           </div>
 
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="min-h-0 flex-1 p-4">
             {loadingDisponiveis ? (
               <div className="text-center py-8 text-muted-foreground">
                 Carregando barris...
@@ -142,8 +137,8 @@ export function SelecionarBarrisStep({
         </div>
 
         {/* Coluna Retirar */}
-        <div className="flex-1 flex flex-col">
-          <div className="p-4 border-b bg-muted/30">
+        <div className="flex min-h-0 flex-col">
+          <div className="border-b bg-muted/30 p-4">
             <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
               <ArrowUp className="h-5 w-5" />
               <div>
@@ -158,7 +153,7 @@ export function SelecionarBarrisStep({
             )}
           </div>
 
-          <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="min-h-0 flex-1 p-4">
             {loadingRetorno ? (
               <div className="text-center py-8 text-muted-foreground">
                 Carregando barris...
@@ -185,8 +180,8 @@ export function SelecionarBarrisStep({
       </div>
 
       {/* Summary */}
-      <div className="px-6 py-3 border-t bg-muted/20">
-        <div className="flex items-center justify-center gap-6 text-sm">
+      <div className="border-t bg-muted/20 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs">
           <div className="flex items-center gap-2">
             <ArrowDown className="h-4 w-4 text-primary" />
             <span><strong>{selectedEntrega.length}</strong> para entregar</span>

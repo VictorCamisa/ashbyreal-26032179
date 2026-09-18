@@ -6,6 +6,7 @@ export interface CartItem {
   produtoId: string;
   nome: string;
   quantidade: number;
+  quantidadeConsignada?: number;
   precoUnitario: number;
   estoque: number;
 }
