@@ -1,494 +1,243 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, TrendingUp, UserCheck, DollarSign, Target, Loader2, Trash2 } from 'lucide-react';
-import { PipelineColumn } from '@/types/lead';
-import { useOportunidades } from '@/hooks/useOportunidades';
-import { NovaOportunidadeDialog } from '@/components/crm/NovaOportunidadeDialog';
-import { PageLayout } from '@/components/layout/PageLayout';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { KPICard, KPIGrid } from '@/components/layout/KPICard';
-import { DndContext, DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import { supabase } from '@/integrations/supabase/client';
-import { useEstoque } from '@/hooks/useEstoque';
-import { toast } from '@/hooks/use-toast';
-import type { Lead } from '@/types/lead';
+import { PageLayout } from '@/components/layout/PageLayout';
+import { CrmCardItem } from '@/components/crm/CrmCardItem';
+import { NovoContatoDialog } from '@/components/crm/NovoContatoDialog';
+import {
+  ETAPAS_POR_PIPELINE, useCrmQuadro,
+  type CrmCard, type CrmEtapa, type CrmPipeline,
+} from '@/hooks/useCrmQuadro';
+import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
+import { Clock, MessageCircle, Package, Search, Store, Target, Users } from 'lucide-react';
 
-const pipelineColumns: PipelineColumn[] = [
-  { id: 'novo_lead', title: 'Contato', color: 'bg-blue-500' },
-  { id: 'qualificado', title: 'Pedido Coletado', color: 'bg-amber-500' },
-  { id: 'negociacao', title: 'Semana Fechada', color: 'bg-violet-500' },
-  { id: 'fechado', title: 'Entregue', color: 'bg-emerald-500' },
-  { id: 'perdido', title: 'Perdido', color: 'bg-red-500' },
-];
+type Visao = CrmPipeline | 'todos';
 
-const origemColors: Record<string, string> = {
-  WhatsApp: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  Instagram: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-  Facebook: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  Indicação: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  Site: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
-  Outros: 'bg-muted text-muted-foreground'
+const moeda = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+const ROTULO_ETAPA: Record<CrmEtapa, string> = {
+  lead: 'Lead', contato_feito: 'Contato feito', em_atendimento: 'Em atendimento',
+  b2c: 'B2C', b2b: 'B2B', pedido_aberto: 'Pedido aberto', follow_up: 'Follow up',
 };
 
-function DraggableOportunidadeCard({ 
-  oportunidade, 
-  navigate,
-  onDelete 
-}: { 
-  oportunidade: Lead & { clienteId?: string }; 
-  navigate: (path: string) => void;
-  onDelete: (id: string) => void;
+function Coluna({
+  etapa, titulo, descricao, cards, children,
+}: {
+  etapa: CrmEtapa; titulo: string; descricao: string; cards: CrmCard[]; children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: oportunidade.id,
-  });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const clienteId = oportunidade.clienteId;
-
-  const handleOpenCliente = () => {
-    if (clienteId) {
-      navigate(`/clientes/${clienteId}`);
-    }
-  };
+  const { setNodeRef, isOver } = useDroppable({ id: etapa });
+  const valor = cards.reduce((acc, c) => acc + (c.valor_estimado ?? 0), 0);
 
   return (
-    <div 
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className="p-3 rounded-xl bg-card border border-border/50 hover:border-primary/50 transition-all hover:shadow-md group relative cursor-grab active:cursor-grabbing"
-    >
-      {/* Clickable name link */}
-      <p 
-        className="text-sm font-medium mb-1 text-primary cursor-pointer hover:underline"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={handleOpenCliente}
-      >
-        {oportunidade.nome}
-      </p>
-      <p className="text-xs text-muted-foreground mb-2">{oportunidade.telefone}</p>
-      <div className="flex items-center justify-between">
-        <Badge variant="outline" className={`text-[10px] ${origemColors[oportunidade.origem]}`}>
-          {oportunidade.origem}
-        </Badge>
-        <span className="text-xs font-medium">
-          R$ {oportunidade.valorEstimado.toLocaleString('pt-BR')}
-        </span>
+    <div className="flex w-[268px] shrink-0 flex-col">
+      <div className="px-1 pb-2">
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-sm font-semibold">{titulo}</h3>
+          <span className="text-xs text-muted-foreground tabular-nums">{cards.length}</span>
+          {valor > 0 && (
+            <span className="ml-auto text-xs font-medium text-primary tabular-nums">{moeda(valor)}</span>
+          )}
+        </div>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{descricao}</p>
       </div>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir oportunidade?</AlertDialogTitle>
-            <AlertDialogDescription>
-              A oportunidade de {oportunidade.nome} será excluída permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => onDelete(oportunidade.id)}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <div
+        ref={setNodeRef}
+        className={cn(
+          'flex min-h-[320px] flex-1 flex-col gap-2 rounded-xl border border-dashed p-2 transition-colors',
+          isOver ? 'border-primary bg-primary/5' : 'border-border/60 bg-muted/20',
+        )}
+      >
+        {children}
+        {cards.length === 0 && (
+          <p className="px-2 py-8 text-center text-[11px] text-muted-foreground/70">
+            Nenhum card aqui
+          </p>
+        )}
+      </div>
     </div>
   );
-}
-
-function DroppableColumn({ column, children }: { column: PipelineColumn; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
-
-  return (
-    <div 
-      ref={setNodeRef} 
-      className={`space-y-2 min-h-[150px] p-2 rounded-xl transition-colors ${isOver ? 'bg-primary/5' : ''}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface CartItem {
-  produtoId: string;
-  nome: string;
-  quantidade: number;
-  preco: number;
 }
 
 export default function CRM() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [visao, setVisao] = useState<Visao>('comercial');
+  const [busca, setBusca] = useState('');
+  const { cards, isLoading, moverCard } = useCrmQuadro();
   const navigate = useNavigate();
-  const { oportunidades, isLoading, createOportunidade, isCreating, updateOportunidadeStatus, deleteOportunidade } = useOportunidades();
-  const { produtos } = useEstoque();
 
-  // Pedido dialog state
-  const [pedidoDialogOpen, setPedidoDialogOpen] = useState(false);
-  const [selectedOportunidade, setSelectedOportunidade] = useState<(Lead & { clienteId?: string }) | null>(null);
-  const [isCreatingPedido, setIsCreatingPedido] = useState(false);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedProduto, setSelectedProduto] = useState('');
-  const [quantidade, setQuantidade] = useState(1);
-  const [observacoes, setObservacoes] = useState('');
+  const filtrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter((c) =>
+      c.nome?.toLowerCase().includes(q) ||
+      c.telefone?.includes(q) ||
+      c.ultima_mensagem?.toLowerCase().includes(q));
+  }, [cards, busca]);
 
-  const filteredOportunidades = oportunidades.filter(op =>
-    op.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    op.telefone.includes(searchTerm)
-  );
+  const stats = useMemo(() => ({
+    prospeccao: cards.filter((c) => c.pipeline === 'comercial').length,
+    aguardando: cards.filter((c) => c.aguardando_resposta).length,
+    pedidosAbertos: cards.filter((c) => c.etapa === 'pedido_aberto').length,
+    valorAberto: cards
+      .filter((c) => c.etapa === 'pedido_aberto')
+      .reduce((acc, c) => acc + (c.valor_estimado ?? 0), 0),
+  }), [cards]);
 
-  const getOportunidadesByStatus = (status: string) => filteredOportunidades.filter(op => op.status === status);
+  const aoSoltar = (evento: DragEndEvent) => {
+    const destino = evento.over?.id as CrmEtapa | undefined;
+    if (!destino) return;
+    const card = cards.find((c) => c.id === evento.active.id);
+    if (!card || card.etapa === destino) return;
 
-  const stats = {
-    total: oportunidades.length,
-    qualificados: oportunidades.filter(l => l.status === 'qualificado').length,
-    fechados: oportunidades.filter(l => l.status === 'fechado').length,
-    valorTotal: oportunidades.filter(l => l.status === 'fechado').reduce((acc, l) => acc + l.valorEstimado, 0),
+    // A coluna já diz a qual quadro ela pertence
+    const pipeline: CrmPipeline =
+      ETAPAS_POR_PIPELINE.comercial.some((e) => e.id === destino) ? 'comercial' : 'operacao';
+    moverCard({ id: card.id, pipeline, etapa: destino });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const newStatus = over.id as string;
-    const oportunidade = oportunidades.find(op => op.id === active.id);
-
-    // If moving to "fechado", open the order dialog
-    if (newStatus === 'fechado' && oportunidade) {
-      setSelectedOportunidade(oportunidade);
-      setCart([]);
-      setObservacoes('');
-      setPedidoDialogOpen(true);
-      return;
-    }
-
-    await updateOportunidadeStatus(active.id as string, newStatus);
-  };
-
-  const addToCart = () => {
-    if (!selectedProduto) return;
-    const produto = produtos.find(p => p.id === selectedProduto);
-    if (!produto) return;
-
-    const existing = cart.find(item => item.produtoId === selectedProduto);
-    if (existing) {
-      setCart(cart.map(item => 
-        item.produtoId === selectedProduto 
-          ? { ...item, quantidade: item.quantidade + quantidade }
-          : item
-      ));
-    } else {
-      setCart([...cart, {
-        produtoId: produto.id,
-        nome: produto.nome,
-        quantidade,
-        preco: produto.preco,
-      }]);
-    }
-    setSelectedProduto('');
-    setQuantidade(1);
-  };
-
-  const removeFromCart = (produtoId: string) => {
-    setCart(cart.filter(item => item.produtoId !== produtoId));
-  };
-
-  const cartTotal = cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-
-  const handleCreatePedido = async () => {
-    if (!selectedOportunidade || cart.length === 0) {
-      toast({
-        title: 'Erro',
-        description: 'Adicione pelo menos um produto ao pedido',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsCreatingPedido(true);
-    try {
-      const clienteId = selectedOportunidade.clienteId;
-
-      // Create the order
-      const { data: pedido, error: pedidoError } = await supabase
-        .from('pedidos')
-        .insert([{
-          cliente_id: clienteId,
-          status: 'pendente',
-          valor_total: cartTotal,
-          data_pedido: new Date().toISOString(),
-          observacoes: observacoes || null,
-        }])
-        .select('id')
-        .single();
-
-      if (pedidoError) throw pedidoError;
-
-      // Create order items
-      const itens = cart.map(item => ({
-        pedido_id: pedido.id,
-        produto_id: item.produtoId,
-        quantidade: item.quantidade,
-        preco_unitario: item.preco,
-        subtotal: item.preco * item.quantidade,
-      }));
-
-      const { error: itensError } = await supabase
-        .from('pedido_itens')
-        .insert(itens);
-
-      if (itensError) throw itensError;
-
-      // Update oportunidade status to fechado
-      await updateOportunidadeStatus(selectedOportunidade.id, 'fechado');
-
-      toast({
-        title: 'Pedido criado!',
-        description: `Pedido criado com ${cart.length} produto(s) no valor de R$ ${cartTotal.toFixed(2)}`,
-      });
-
-      setPedidoDialogOpen(false);
-      setSelectedOportunidade(null);
-      setCart([]);
-
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível criar o pedido',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreatingPedido(false);
-    }
-  };
+  const abas: { id: Visao; label: string; icone: typeof Target }[] = [
+    { id: 'comercial', label: 'Comercial', icone: Target },
+    { id: 'operacao', label: 'Operação', icone: Store },
+    { id: 'todos', label: 'Todos', icone: Users },
+  ];
 
   return (
     <PageLayout
-      title="Oportunidades"
-      subtitle="Gerencie seu pipeline de vendas"
-      icon={Target}
-      showSparkle
-      actions={
-        <NovaOportunidadeDialog onSubmit={createOportunidade} isCreating={isCreating} />
-      }
+      title="CRM"
+      subtitle="Prospecção e operação, alimentados pelo WhatsApp e pelos pedidos"
+      actions={<NovoContatoDialog />}
     >
-      <div className="space-y-6">
-        {/* KPIs */}
+      <div className="space-y-5">
         <KPIGrid>
-          <KPICard label="Total" value={stats.total} icon={Target} />
-          <KPICard label="Qualificadas" value={stats.qualificados} icon={UserCheck} variant="warning" />
-          <KPICard label="Fechadas" value={stats.fechados} icon={TrendingUp} variant="success" />
-          <KPICard 
-            label="Valor Total" 
-            value={`R$ ${(stats.valorTotal / 1000).toFixed(0)}k`} 
-            icon={DollarSign} 
-          />
+          <KPICard label="Em prospecção" value={stats.prospeccao} icon={Target} />
+          <KPICard label="Aguardando resposta" value={stats.aguardando} icon={MessageCircle} variant="warning" />
+          <KPICard label="Pedidos abertos" value={stats.pedidosAbertos} icon={Package} variant="blue" />
+          <KPICard label="Valor em aberto" value={moeda(stats.valorAberto)} icon={Clock} variant="success" />
         </KPIGrid>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar oportunidades..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 h-11 rounded-xl"
-          />
-        </div>
-
-        {/* Pipeline */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {pipelineColumns.map((col) => (
-              <div key={col.id} className="space-y-3">
-                <div className="h-6 bg-muted rounded animate-pulse" />
-                <div className="h-24 bg-muted rounded-xl animate-pulse" />
-                <div className="h-24 bg-muted rounded-xl animate-pulse" />
-              </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex gap-1 rounded-xl bg-secondary/60 p-1">
+            {abas.map(({ id, label, icone: Icone }) => (
+              <button
+                key={id}
+                onClick={() => setVisao(id)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                  visao === id ? 'bg-card text-foreground shadow-soft' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Icone className="h-4 w-4" />
+                {label}
+              </button>
             ))}
           </div>
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, telefone ou mensagem..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="h-10 rounded-xl pl-9"
+            />
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex gap-3 overflow-hidden">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-72 w-[268px] shrink-0 animate-pulse rounded-xl bg-muted/50" />
+            ))}
+          </div>
+        ) : visao === 'todos' ? (
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table className="min-w-[760px]">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Contato</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Quadro</TableHead>
+                      <TableHead>Etapa</TableHead>
+                      <TableHead className="text-right">Pedidos</TableHead>
+                      <TableHead className="text-right">Faturamento</TableHead>
+                      <TableHead>Última mensagem</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtrados.map((c) => (
+                      <TableRow
+                        key={c.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => {
+                          if (c.lojista_id) navigate(`/lojistas/${c.lojista_id}`);
+                          else if (c.cliente_id) navigate(`/clientes/${c.cliente_id}`);
+                        }}
+                      >
+                        <TableCell>
+                          <p className="text-sm font-medium">{c.nome}</p>
+                          {c.telefone && <p className="text-xs text-muted-foreground">{c.telefone}</p>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">
+                            {c.tipo_contato === 'lojista' ? 'Lojista'
+                              : c.tipo_contato === 'cliente_final' ? 'Cliente' : 'Novo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {c.pipeline === 'comercial' ? 'Comercial' : 'Operação'}
+                        </TableCell>
+                        <TableCell className="text-sm">{ROTULO_ETAPA[c.etapa]}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">{c.pedidos_historico ?? 0}</TableCell>
+                        <TableCell className="text-right text-sm tabular-nums">
+                          {moeda(c.faturamento_historico ?? 0)}
+                        </TableCell>
+                        <TableCell className="max-w-[220px]">
+                          <p className="truncate text-xs text-muted-foreground">
+                            {c.ultima_mensagem ?? '—'}
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filtrados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                          Nenhum card encontrado
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
-          <DndContext onDragEnd={handleDragEnd}>
-            {/* Horizontal scroll container for mobile */}
-            <div className="overflow-x-auto pb-4 -mx-3 px-3 sm:mx-0 sm:px-0">
-              <div className="flex gap-4 min-w-max lg:min-w-0 lg:grid lg:grid-cols-5">
-                {pipelineColumns.map((column) => {
-                  const columnOportunidades = getOportunidadesByStatus(column.id);
+          <DndContext onDragEnd={aoSoltar}>
+            <ScrollArea className="w-full">
+              <div className="flex gap-3 pb-4">
+                {ETAPAS_POR_PIPELINE[visao].map(({ id, titulo, descricao }) => {
+                  const daColuna = filtrados.filter((c) => c.pipeline === visao && c.etapa === id);
                   return (
-                    <Card key={column.id} className="bg-muted/30 overflow-hidden w-[280px] shrink-0 lg:w-auto">
-                      <CardContent className="p-3">
-                        <div className="flex items-center gap-2 mb-3 px-1">
-                          <div className={`w-2.5 h-2.5 rounded-full ${column.color}`} />
-                          <span className="text-xs font-medium">{column.title}</span>
-                          <span className="text-xs text-muted-foreground ml-auto bg-muted px-1.5 py-0.5 rounded-full">{columnOportunidades.length}</span>
-                        </div>
-                        <DroppableColumn column={column}>
-                          {columnOportunidades.length === 0 ? (
-                            <div className="p-4 text-center text-xs text-muted-foreground border border-dashed border-border/50 rounded-xl">
-                              Nenhuma oportunidade
-                            </div>
-                          ) : (
-                            columnOportunidades.map((op) => (
-                              <DraggableOportunidadeCard key={op.id} oportunidade={op} navigate={navigate} onDelete={deleteOportunidade} />
-                            ))
-                          )}
-                        </DroppableColumn>
-                      </CardContent>
-                    </Card>
+                    <Coluna key={id} etapa={id} titulo={titulo} descricao={descricao} cards={daColuna}>
+                      {daColuna.map((card) => <CrmCardItem key={card.id} card={card} />)}
+                    </Coluna>
                   );
                 })}
               </div>
-            </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
           </DndContext>
         )}
       </div>
-
-      {/* Pedido Dialog */}
-      <Dialog open={pedidoDialogOpen} onOpenChange={setPedidoDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Criar Pedido - {selectedOportunidade?.nome}</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Add products */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <Label className="text-xs">Produto</Label>
-                <Select value={selectedProduto} onValueChange={setSelectedProduto}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um produto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {produtos.filter(p => p.ativo && (p.estoque > 0 || p.tipoProduto === 'CHOPP')).map(produto => (
-                      <SelectItem key={produto.id} value={produto.id}>
-                        {produto.nome} - R$ {produto.preco.toFixed(2)} {produto.tipoProduto === 'CHOPP' ? '(Sob Demanda)' : `(${produto.estoque} em estoque)`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Qtd</Label>
-                <div className="flex gap-1">
-                  <Input 
-                    type="number" 
-                    min="1" 
-                    value={quantidade}
-                    onChange={(e) => setQuantidade(parseInt(e.target.value) || 1)}
-                    className="w-16"
-                  />
-                  <Button onClick={addToCart} disabled={!selectedProduto}>
-                    +
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Cart */}
-            {cart.length > 0 && (
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="p-2 text-left">Produto</th>
-                      <th className="p-2 text-center">Qtd</th>
-                      <th className="p-2 text-right">Subtotal</th>
-                      <th className="p-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cart.map(item => (
-                      <tr key={item.produtoId} className="border-t">
-                        <td className="p-2">{item.nome}</td>
-                        <td className="p-2 text-center">{item.quantidade}</td>
-                        <td className="p-2 text-right">R$ {(item.preco * item.quantidade).toFixed(2)}</td>
-                        <td className="p-2 text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => removeFromCart(item.produtoId)}
-                          >
-                            ×
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted">
-                    <tr>
-                      <td colSpan={2} className="p-2 font-medium">Total</td>
-                      <td className="p-2 text-right font-bold">R$ {cartTotal.toFixed(2)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-
-            {cart.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
-                Adicione produtos ao pedido
-              </div>
-            )}
-
-            {/* Observations */}
-            <div>
-              <Label className="text-xs">Observações</Label>
-              <Textarea 
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Observações do pedido..."
-                rows={2}
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setPedidoDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleCreatePedido} 
-                disabled={isCreatingPedido || cart.length === 0}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                {isCreatingPedido ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : null}
-                Criar Pedido
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </PageLayout>
   );
 }
