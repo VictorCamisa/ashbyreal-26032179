@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -100,11 +101,19 @@ export function NovoPedidoCompletoDialog({
   const [carrinho, setCarrinho] = useState<CartItem[]>([]);
   const [pagamento, setPagamento] = useState('');
   const [valorSinal, setValorSinal] = useState('');
+  const [numeroPedido, setNumeroPedido] = useState('');
+  const [temFrete, setTemFrete] = useState(false);
+  const [valorFrete, setValorFrete] = useState('');
+  const [precisaChopeira, setPrecisaChopeira] = useState(false);
+  const [precisaCO2, setPrecisaCO2] = useState(false);
+  const [precisaCopos, setPrecisaCopos] = useState(false);
+  const [temBarrilConsignado, setTemBarrilConsignado] = useState(false);
+  const [confirmarPagamentoAberto, setConfirmarPagamentoAberto] = useState(false);
   const [dataEntrega, setDataEntrega] = useState('');
   const [horarioEntrega, setHorarioEntrega] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [enderecoAberto, setEnderecoAberto] = useState(false);
-  const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cidade: '' });
+  const [endereco, setEndereco] = useState({ rua: '', numero: '', complemento: '', bairro: '', cidade: '', cep: '' });
 
   const [barrisEntrega, setBarrisEntrega] = useState<string[]>([]);
   const [barrisRetorno, setBarrisRetorno] = useState<string[]>([]);
@@ -126,7 +135,9 @@ export function NovoPedidoCompletoDialog({
 
   const contraparteDefinida = ehB2B ? !!lojistaId : !!clienteSelecionado;
 
-  const total = carrinho.reduce((acc, i) => acc + i.quantidade * i.precoUnitario, 0);
+  const subtotal = carrinho.reduce((acc, i) => acc + i.quantidade * i.precoUnitario, 0);
+  const frete = temFrete ? (Number(valorFrete.replace(',', '.')) || 0) : 0;
+  const total = subtotal + frete;
   const totalItens = carrinho.reduce((acc, i) => acc + i.quantidade, 0);
 
   useEffect(() => {
@@ -268,6 +279,12 @@ export function NovoPedidoCompletoDialog({
       }));
   };
 
+  const alterarPreco = (produtoId: string, preco: string) => {
+    const valor = Number(preco.replace(',', '.'));
+    if (!Number.isFinite(valor) || valor < 0) return;
+    setCarrinho((atual) => atual.map((i) => i.produtoId === produtoId ? { ...i, precoUnitario: valor } : i));
+  };
+
   const limpar = () => {
     setPasso('quem');
     setDestinatario('cliente');
@@ -276,10 +293,18 @@ export function NovoPedidoCompletoDialog({
     setCarrinho([]);
     setPagamento('');
     setValorSinal('');
+    setNumeroPedido('');
+    setTemFrete(false);
+    setValorFrete('');
+    setPrecisaChopeira(false);
+    setPrecisaCO2(false);
+    setPrecisaCopos(false);
+    setTemBarrilConsignado(false);
+    setConfirmarPagamentoAberto(false);
     setDataEntrega('');
     setHorarioEntrega('');
     setObservacoes('');
-    setEndereco({ rua: '', numero: '', complemento: '', bairro: '', cidade: '' });
+    setEndereco({ rua: '', numero: '', complemento: '', bairro: '', cidade: '', cep: '' });
     setEnderecoAberto(false);
     setBuscaContraparte('');
     setBuscaProduto('');
@@ -292,7 +317,18 @@ export function NovoPedidoCompletoDialog({
   const finalizar = async () => {
     if (!contraparteDefinida || carrinho.length === 0) return;
 
-    const obs = [observacoes.trim(), horarioEntrega && `Horário de entrega: ${horarioEntrega}`]
+    const necessidades = [
+      precisaChopeira && 'Chopeira (sem custo)',
+      precisaCO2 && 'CO₂',
+      precisaCopos && 'Copos',
+      temBarrilConsignado && 'Barril consignado',
+    ].filter(Boolean).join(', ');
+    const obs = [
+      observacoes.trim(),
+      horarioEntrega && `Horário de entrega: ${horarioEntrega}`,
+      necessidades && `Necessidades: ${necessidades}`,
+      temFrete && `Frete: ${moeda(frete)}`,
+    ]
       .filter(Boolean)
       .join(' | ');
 
@@ -304,8 +340,10 @@ export function NovoPedidoCompletoDialog({
         metodoPagamento: pagamento,
         observacoes: obs,
         dataEntrega,
-        valorSinal: Number(valorSinal) > 0 ? Number(valorSinal) : undefined,
-        enderecoEntrega: endereco.rua ? endereco : undefined,
+        valorSinal: Number(valorSinal.replace(',', '.')) > 0 ? Number(valorSinal.replace(',', '.')) : undefined,
+        numeroPedido,
+        valorFrete: frete,
+        enderecoEntrega: Object.values(endereco).some(Boolean) ? endereco : undefined,
       });
 
       if (ehB2B && (barrisEntrega.length > 0 || barrisRetorno.length > 0)) {
@@ -670,9 +708,18 @@ export function NovoPedidoCompletoDialog({
                                 <Plus className="h-3 w-3" />
                               </Button>
                             </div>
-                            <span className="text-xs font-semibold tabular-nums">
-                              {moeda(item.precoUnitario * item.quantidade)}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Input
+                                aria-label={`Preço unitário de ${item.nome}`}
+                                className="h-7 w-20 px-2 text-right text-xs"
+                                inputMode="decimal"
+                                value={item.precoUnitario}
+                                onChange={(e) => alterarPreco(item.produtoId, e.target.value)}
+                              />
+                              <span className="text-xs font-semibold tabular-nums">
+                                {moeda(item.precoUnitario * item.quantidade)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -687,6 +734,36 @@ export function NovoPedidoCompletoDialog({
           {passo === 'fechamento' && (
             <ScrollArea className="h-full">
               <div className="space-y-5 px-5 py-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="numero-pedido" className="text-xs">Número do pedido</Label>
+                    <Input id="numero-pedido" inputMode="numeric" placeholder="Automático" value={numeroPedido}
+                      onChange={(e) => setNumeroPedido(e.target.value)} />
+                  </div>
+                  <div className="flex items-end gap-3 pb-1">
+                    <Switch id="frete" checked={temFrete} onCheckedChange={setTemFrete} />
+                    <Label htmlFor="frete" className="text-sm">Há frete?</Label>
+                    {temFrete && <Input aria-label="Valor do frete" className="h-9 w-28" inputMode="decimal" placeholder="R$ 0,00" value={valorFrete} onChange={(e) => setValorFrete(e.target.value)} />}
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-xl border border-border/60 p-3">
+                  <p className="text-xs font-medium">Itens e estrutura necessários</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      ['chopeira', 'Precisa de chopeira? (sem custo)', precisaChopeira, setPrecisaChopeira],
+                      ['co2', 'Precisa de CO₂?', precisaCO2, setPrecisaCO2],
+                      ['copos', 'Precisa de copos?', precisaCopos, setPrecisaCopos],
+                      ['consignado', 'Há barril consignado?', temBarrilConsignado, setTemBarrilConsignado],
+                    ].map(([id, label, checked, setChecked]) => (
+                      <div key={id as string} className="flex items-center justify-between gap-2">
+                        <Label htmlFor={id as string} className="text-xs font-normal">{label as string}</Label>
+                        <Switch id={id as string} checked={checked as boolean} onCheckedChange={setChecked as (checked: boolean) => void} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-xs">Forma de pagamento</Label>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -736,6 +813,11 @@ export function NovoPedidoCompletoDialog({
                     <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', enderecoAberto && 'rotate-180')} />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="grid gap-3 pt-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cep" className="text-xs">CEP</Label>
+                      <Input id="cep" inputMode="numeric" placeholder="00000-000" value={endereco.cep}
+                        onChange={(e) => setEndereco((v) => ({ ...v, cep: e.target.value }))} />
+                    </div>
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label htmlFor="rua" className="text-xs">Rua</Label>
                       <Input id="rua" value={endereco.rua}
@@ -807,6 +889,11 @@ export function NovoPedidoCompletoDialog({
                         <span className="shrink-0 tabular-nums">{moeda(i.precoUnitario * i.quantidade)}</span>
                       </div>
                     ))}
+                    {temFrete && (
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Frete</span><span className="tabular-nums">{moeda(frete)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-t border-border/60 pt-1.5 font-semibold">
                       <span>Total</span>
                       <span className="tabular-nums">{moeda(total)}</span>
@@ -854,9 +941,9 @@ export function NovoPedidoCompletoDialog({
               </Button>
             )}
             {passo === 'fechamento' ? (
-              <Button onClick={finalizar} disabled={isLoading || carrinho.length === 0} className="gap-1.5">
+              <Button onClick={() => setConfirmarPagamentoAberto(true)} disabled={isLoading || carrinho.length === 0} className="gap-1.5">
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                Finalizar venda
+                Confirmar pagamento
               </Button>
             ) : (
               <Button
@@ -871,6 +958,25 @@ export function NovoPedidoCompletoDialog({
           </div>
         </div>
       </DialogContent>
+      <Dialog open={confirmarPagamentoAberto} onOpenChange={setConfirmarPagamentoAberto}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar pagamento</DialogTitle>
+            <DialogDescription>Confira o valor e a forma de pagamento antes de concluir a venda.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Pedido</span><span>{numeroPedido ? `#${numeroPedido}` : 'Numeração automática'}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{moeda(subtotal)}</span></div>
+            {temFrete && <div className="flex justify-between"><span className="text-muted-foreground">Frete</span><span>{moeda(frete)}</span></div>}
+            <div className="flex justify-between"><span className="text-muted-foreground">Pagamento</span><span>{PAGAMENTOS.find((p) => p.value === pagamento)?.label ?? 'Não informado'}</span></div>
+            <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Total</span><span>{moeda(total)}</span></div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmarPagamentoAberto(false)}>Voltar e editar</Button>
+            <Button onClick={() => { setConfirmarPagamentoAberto(false); finalizar(); }} disabled={isLoading}>Concluir venda</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
