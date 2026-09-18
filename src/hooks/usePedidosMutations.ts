@@ -19,6 +19,10 @@ export interface CreatePedidoData {
   observacoes?: string;
   dataEntrega?: string;
   valorSinal?: number;
+  /** Número informado pelo operador; quando numérico substitui a numeração automática. */
+  numeroPedido?: string;
+  /** Frete compõe o total cobrado do pedido. */
+  valorFrete?: number;
   enderecoEntrega?: {
     rua: string;
     numero: string;
@@ -47,7 +51,12 @@ export function usePedidosMutations() {
       const valorTotal = data.items.reduce(
         (acc, item) => acc + item.quantidade * item.precoUnitario,
         0
-      );
+      ) + (data.valorFrete || 0);
+
+      const numeroManual = Number(data.numeroPedido);
+      const numeroPedido = Number.isInteger(numeroManual) && numeroManual > 0
+        ? numeroManual
+        : undefined;
 
       // Create the order
       const { data: pedido, error: pedidoError } = await supabase
@@ -56,6 +65,8 @@ export function usePedidosMutations() {
           cliente_id: data.clienteId || null,
           lojista_id: data.lojistaId || null,
           status: 'pendente',
+          numero_pedido: numeroPedido,
+          numero_pedido_externo: data.numeroPedido?.trim() || null,
           valor_total: valorTotal,
           valor_sinal: data.valorSinal || 0,
           data_pedido: new Date().toISOString(),
