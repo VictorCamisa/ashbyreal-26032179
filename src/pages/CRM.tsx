@@ -61,7 +61,7 @@ function DraggableOportunidadeCard({
 
   const handleOpenCliente = () => {
     if (clienteId) {
-      navigate(`/cliente/${clienteId}`);
+      navigate(`/clientes/${clienteId}`);
     }
   };
 

@@ -1,0 +1,3 @@
+# SPA: qualquer rota é resolvida pelo React Router, não pelo servidor.
+# Sem isto, abrir /clientes direto (ou recarregar a página) devolve 404 do host.
+/*  /index.html  200
