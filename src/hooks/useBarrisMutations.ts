@@ -6,7 +6,6 @@ import { useQueryClient } from '@tanstack/react-query';
 export interface BarrilEntrega {
   barrilId: string;
   codigo: string;
-  consignado?: boolean;
 }
 
 export interface BarrilRetorno {
@@ -59,8 +58,7 @@ export function useBarrisMutations() {
             status_conteudo: 'CHEIO',
             localizacao_anterior: 'LOJA',
             localizacao_nova: 'CLIENTE',
-            data_movimento: new Date().toISOString(),
-            observacoes: barril.consignado ? 'Barril entregue como consignado' : 'Barril entregue como venda'
+            data_movimento: new Date().toISOString()
           });
 
         if (movError) throw movError;

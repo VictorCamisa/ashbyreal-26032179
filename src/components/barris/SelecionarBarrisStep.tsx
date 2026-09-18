@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Package, ArrowDown, ArrowUp, Droplet, AlertCircle, Store, ShieldCheck } from 'lucide-react';
+import { Package, ArrowDown, ArrowUp, Droplet, AlertCircle, Store } from 'lucide-react';
 import { useBarrisDisponiveis, useBarrisByCliente, useBarrisByLojista, Barril } from '@/hooks/useBarris';
 import { cn } from '@/lib/utils';
 
@@ -14,11 +13,8 @@ interface SelecionarBarrisStepProps {
   clienteNome: string;
   selectedEntrega: string[]; // IDs dos barris a entregar
   selectedRetorno: string[]; // IDs dos barris a retirar
-  /** Barris da entrega que ficam como vasilhame consignado. */
-  selectedConsignados: string[];
   onEntregaChange: (ids: string[]) => void;
   onRetornoChange: (ids: string[]) => void;
-  onConsignadosChange: (ids: string[]) => void;
 }
 
 export function SelecionarBarrisStep({
@@ -27,10 +23,8 @@ export function SelecionarBarrisStep({
   clienteNome,
   selectedEntrega,
   selectedRetorno,
-  selectedConsignados,
   onEntregaChange,
   onRetornoChange,
-  onConsignadosChange,
 }: SelecionarBarrisStepProps) {
   const { data: barrisDisponiveis = [], isLoading: loadingDisponiveis } = useBarrisDisponiveis();
   const { data: barrisCliente = [], isLoading: loadingCliente } = useBarrisByCliente(lojistaId ? null : clienteId);
@@ -43,15 +37,9 @@ export function SelecionarBarrisStep({
   const toggleEntrega = (barrilId: string) => {
     if (selectedEntrega.includes(barrilId)) {
       onEntregaChange(selectedEntrega.filter(id => id !== barrilId));
-      onConsignadosChange(selectedConsignados.filter(id => id !== barrilId));
     } else {
       onEntregaChange([...selectedEntrega, barrilId]);
     }
-  };
-
-  const toggleConsignado = (barrilId: string, consignado: boolean) => {
-    if (consignado) onConsignadosChange([...selectedConsignados, barrilId]);
-    else onConsignadosChange(selectedConsignados.filter(id => id !== barrilId));
   };
 
   const toggleRetorno = (barrilId: string) => {
@@ -62,7 +50,7 @@ export function SelecionarBarrisStep({
     }
   };
 
-  const renderBarrilItem = (barril: Barril, isSelected: boolean, onToggle: () => void, entrega = false) => (
+  const renderBarrilItem = (barril: Barril, isSelected: boolean, onToggle: () => void) => (
     <div
       key={barril.id}
       className={cn(
@@ -91,12 +79,6 @@ export function SelecionarBarrisStep({
           {barril.status_conteudo === 'CHEIO' ? 'Cheio' : 'Vazio'}
         </Badge>
       </button>
-      {entrega && isSelected && (
-        <div className="flex items-center justify-between border-t bg-background/50 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Vasilhame consignado</div>
-          <Switch checked={selectedConsignados.includes(barril.id)} onCheckedChange={(checked) => toggleConsignado(barril.id, checked)} />
-        </div>
-      )}
     </div>
   );
 
@@ -107,7 +89,7 @@ export function SelecionarBarrisStep({
           <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-amber-500/15">{isLojista ? <Store className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}</span>
           <div>
             <p className="text-sm font-semibold">Controle de barris</p>
-            <p className="mt-0.5 text-xs opacity-80">Selecione os barris físicos e indique individualmente quais são consignados.</p>
+            <p className="mt-0.5 text-xs opacity-80">Selecione os barris físicos que serão entregues ou retirados.</p>
           </div>
         </div>
       </div>
@@ -142,7 +124,7 @@ export function SelecionarBarrisStep({
                     barril, 
                     selectedEntrega.includes(barril.id),
                     () => toggleEntrega(barril.id)
-                  , true)
+                  )
                 )}
               </div>
             ) : (
@@ -204,7 +186,6 @@ export function SelecionarBarrisStep({
             <ArrowDown className="h-4 w-4 text-primary" />
             <span><strong>{selectedEntrega.length}</strong> para entregar</span>
           </div>
-          {selectedConsignados.length > 0 && <><Separator orientation="vertical" className="h-4" /><div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /><span><strong>{selectedConsignados.length}</strong> consignado(s)</span></div></>}
           <Separator orientation="vertical" className="h-4" />
           <div className="flex items-center gap-2">
             <ArrowUp className="h-4 w-4 text-orange-500" />

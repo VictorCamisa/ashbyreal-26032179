@@ -116,7 +116,6 @@ export function NovoPedidoCompletoDialog({
 
   const [barrisEntrega, setBarrisEntrega] = useState<string[]>([]);
   const [barrisRetorno, setBarrisRetorno] = useState<string[]>([]);
-  const [barrisConsignados, setBarrisConsignados] = useState<string[]>([]);
 
   const { lojistas, isLoading: carregandoLojistas } = useLojistas();
   const { createPedido, isLoading } = usePedidosMutations();
@@ -275,8 +274,15 @@ export function NovoPedidoCompletoDialog({
       atual.flatMap((i) => {
         if (i.produtoId !== produtoId) return [i];
         const nova = i.quantidade + delta;
-        return nova <= 0 ? [] : [{ ...i, quantidade: nova }];
+        return nova <= 0 ? [] : [{ ...i, quantidade: nova, quantidadeConsignada: Math.min(i.quantidadeConsignada ?? 0, nova) }];
       }));
+  };
+
+  const alterarQuantidadeConsignada = (produtoId: string, delta: number) => {
+    setCarrinho((atual) => atual.map((i) => {
+      if (i.produtoId !== produtoId) return i;
+      return { ...i, quantidadeConsignada: Math.max(0, Math.min(i.quantidade, (i.quantidadeConsignada ?? 0) + delta)) };
+    }));
   };
 
   const alterarPreco = (produtoId: string, preco: string) => {
@@ -309,7 +315,6 @@ export function NovoPedidoCompletoDialog({
     setBuscaProduto('');
     setBarrisEntrega([]);
     setBarrisRetorno([]);
-    setBarrisConsignados([]);
     setCriandoCliente(false);
     setNovoCliente({ nome: '', telefone: '', cpf_cnpj: '' });
   };
@@ -321,7 +326,7 @@ export function NovoPedidoCompletoDialog({
       precisaChopeira && 'Chopeira (sem custo)',
       precisaCO2 && 'CO₂',
       Number(quantidadeCopos) > 0 && `${quantidadeCopos} copos`,
-      barrisConsignados.length > 0 && `${barrisConsignados.length} barril(is) consignado(s)`,
+      ...carrinho.filter((item) => (item.quantidadeConsignada ?? 0) > 0).map((item) => `${item.quantidadeConsignada}× ${item.nome} consignado(s)`),
     ].filter(Boolean).join(', ');
     const obs = [
       observacoes.trim(),
@@ -351,7 +356,7 @@ export function NovoPedidoCompletoDialog({
           pedidoId: pedido.id,
           clienteId: ehB2B ? null : clienteSelecionado?.id ?? null,
           lojistaId,
-          barrisEntrega: barrisEntrega.map((id) => ({ barrilId: id, codigo: '', consignado: barrisConsignados.includes(id) })),
+          barrisEntrega: barrisEntrega.map((id) => ({ barrilId: id, codigo: '' })),
           barrisRetorno: barrisRetorno.map((id) => ({ barrilId: id, codigo: '' })),
         });
       }
@@ -721,6 +726,20 @@ export function NovoPedidoCompletoDialog({
                               </span>
                             </div>
                           </div>
+                          <div className="mt-2.5 flex items-center justify-between rounded-lg bg-muted/50 px-2 py-1.5">
+                            <span className="text-[11px] font-medium text-muted-foreground">Consignado</span>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) === 0}
+                                onClick={() => alterarQuantidadeConsignada(item.produtoId, -1)} aria-label={`Diminuir consignação de ${item.nome}`}>
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="w-5 text-center text-xs font-semibold tabular-nums">{item.quantidadeConsignada ?? 0}</span>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={(item.quantidadeConsignada ?? 0) >= item.quantidade}
+                                onClick={() => alterarQuantidadeConsignada(item.produtoId, 1)} aria-label={`Aumentar consignação de ${item.nome}`}>
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -868,10 +887,8 @@ export function NovoPedidoCompletoDialog({
                           clienteNome={nomeContraparte}
                           selectedEntrega={barrisEntrega}
                           selectedRetorno={barrisRetorno}
-                          selectedConsignados={barrisConsignados}
                           onEntregaChange={setBarrisEntrega}
                           onRetornoChange={setBarrisRetorno}
-                          onConsignadosChange={setBarrisConsignados}
                         />
                       </div>
                     </CollapsibleContent>
